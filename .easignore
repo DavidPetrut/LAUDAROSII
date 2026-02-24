@@ -1,0 +1,12 @@
+server/
+sass/
+.expo/
+node_modules/
+README.md
+PRODUCTION.md
+PROMPS.md
+SESSION_SUMMARY.md
+*.md
+app/public/videos/
+app/public/animations/*.mp4
+app/screens/games/game_pray-realm/assets/bg_dark.mp4

@@ -135,6 +135,12 @@ SOCKET_URL: 'http://192.168.1.XXX:3000',
 npx expo start --web --clear
 ```
 
+### 8. New Updates App DEV MODE (server running on pc, same wifi)
+cd LAUDAROSII\app
+eas update --channel development --message "Descrierea update-ului"
+
+
+
 ## 📋 API Endpoints
 
 | Endpoint                      | Metoda         | Descriere               | Acces      |
