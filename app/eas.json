@@ -7,8 +7,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "credentialsSource": "remote",
-      "autoCredentials": true
+      "credentialsSource": "remote"
     },
     "preview": {
       "distribution": "internal",
