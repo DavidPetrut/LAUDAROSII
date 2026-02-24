@@ -7,6 +7,7 @@ import {
   Switch,
   Image,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
@@ -18,8 +19,10 @@ import {
   showError,
   showSuccess,
 } from "../../global/functions";
+import { CONFIG } from "../../global/config";
 import { headerGradient } from "../../public/styles/global";
 import { settingsStyles } from "./settingsStyles";
+import { checkForUpdate, applyUpdate } from "./updateHelper";
 
 const roleLabels = {
   user: "Membru",
@@ -33,6 +36,8 @@ export const SettingsScreen = ({ navigation }) => {
   const { user, logout, updateUser } = useAuth();
   const [profile, setProfile] = useState(null);
   const [uploadingPicture, setUploadingPicture] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -48,6 +53,24 @@ export const SettingsScreen = ({ navigation }) => {
 
   const handleLogout = () => {
     showConfirm("Deconectare", "Ești sigur ca vrei sa te deconectezi?", logout);
+  };
+
+  // Verificare update OTA (doar pe nativ, nu pe web)
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true);
+    const result = await checkForUpdate();
+    setUpdateStatus(result);
+    setCheckingUpdate(false);
+    if (result.available) {
+      showSuccess("Update disponibil!");
+    } else {
+      showSuccess(result.message || "Esti la ultima versiune");
+    }
+  };
+
+  const handleApplyUpdate = async () => {
+    setCheckingUpdate(true);
+    await applyUpdate();
   };
 
   const handlePickImage = async () => {
@@ -238,6 +261,62 @@ export const SettingsScreen = ({ navigation }) => {
               ios_backgroundColor="#e2e8f0"
             />
           </View>
+        </View>
+
+        <View style={[settingsStyles.section, dynamicStyles.surface]}>
+          <Text style={[settingsStyles.sectionTitle, dynamicStyles.textMuted]}>
+            Aplicatie
+          </Text>
+
+          <View style={settingsStyles.settingRow}>
+            <View style={settingsStyles.settingInfo}>
+              <Text style={settingsStyles.settingIcon}>📱</Text>
+              <View style={settingsStyles.settingText}>
+                <Text style={[settingsStyles.settingLabel, dynamicStyles.text]}>
+                  Versiune
+                </Text>
+                <Text style={[settingsStyles.settingDesc, dynamicStyles.textMuted]}>
+                  v{CONFIG.VERSION}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {Platform.OS !== "web" && (
+            <>
+              <View style={settingsStyles.divider} />
+              <TouchableOpacity
+                style={settingsStyles.settingRow}
+                onPress={updateStatus?.available ? handleApplyUpdate : handleCheckUpdate}
+                disabled={checkingUpdate}
+              >
+                <View style={settingsStyles.settingInfo}>
+                  <Text style={settingsStyles.settingIcon}>
+                    {checkingUpdate ? "⏳" : updateStatus?.available ? "⬆️" : "🔄"}
+                  </Text>
+                  <View style={settingsStyles.settingText}>
+                    <Text style={[settingsStyles.settingLabel, dynamicStyles.text]}>
+                      {checkingUpdate
+                        ? "Se verifica..."
+                        : updateStatus?.available
+                        ? "Instaleaza update"
+                        : "Verifica update"}
+                    </Text>
+                    <Text style={[settingsStyles.settingDesc, dynamicStyles.textMuted]}>
+                      {updateStatus?.available
+                        ? "O noua versiune este disponibila"
+                        : "Verifica daca exista actualizari"}
+                    </Text>
+                  </View>
+                </View>
+                {checkingUpdate ? (
+                  <ActivityIndicator size="small" color={theme.textMuted} />
+                ) : (
+                  <Ionicons name="chevron-forward" size={20} color={theme.textMuted} />
+                )}
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
         <View style={[settingsStyles.section, dynamicStyles.surface]}>
