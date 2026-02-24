@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Laudarosii Vertical",
+    "slug": "laudarosii-vertical",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "splash": {
+      "backgroundColor": "#6366f1"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.laudarosii.vertical"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#6366f1"
+      },
+      "package": "com.laudarosii.vertical"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/73e371e3-5fb8-4369-b3b8-b2f5e1a8cc45"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-secure-store",
+      "expo-updates"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "73e371e3-5fb8-4369-b3b8-b2f5e1a8cc45"
+      }
+    },
+    "owner": "davidpetrut"
+  }
+}

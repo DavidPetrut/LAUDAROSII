@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8" />
+<title>Tree Levels – 26 + Trophy</title>
+
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #000;
+  overflow: hidden;
+  height: 100%;
+}
+canvas { display:block; }
+
+.win-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  background: rgba(0,0,0,0.6);
+}
+.win-modal {
+  background: rgba(20,20,20,0.95);
+  padding: 20px;
+  border-radius: 18px;
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+.win-text { color:#fff; font:700 24px Arial; }
+.win-img { width:160px; }
+.win-trophy { width:120px; }
+</style>
+</head>
+
+<body>
+<canvas id="c"></canvas>
+
+<div id="winOverlay" class="win-overlay">
+  <div class="win-modal">
+    <div class="win-text">ai castigat nivelul</div>
+    <img class="win-img" src="./tree.png">
+    <img class="win-trophy" src="./trophy.png">
+  </div>
+</div>
+
+<script>
+/* ================= SETUP ================= */
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+function resize(){
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+}
+addEventListener("resize", resize);
+resize();
+
+/* ================= IMAGES ================= */
+const treeImg     = new Image(); treeImg.src     = "./tree.png";
+const stoneImg    = new Image(); stoneImg.src    = "./piatra.png";
+const stepImg     = new Image(); stepImg.src     = "./scara_1.png";
+const avatarImg   = new Image(); avatarImg.src   = "./3.png";
+const trophyImg   = new Image(); trophyImg.src   = "./trophy.png";
+const textureImg  = new Image(); textureImg.src  = "./textura.png";
+const hammerImg   = new Image(); hammerImg.src   = "./hammer.png";
+
+/* ================= CONFIG ================= */
+const LEVEL_HEIGHT = 140;
+const AVATAR_SIZE = 100;
+const STEP_SCALE = 0.6;
+
+const MOVE_SPEED = 1.3;
+const MOVE_SPEED_FINAL = 0.6;
+const PAUSE_TIME = 1400;
+
+const MAX_LEVEL = 26;
+
+const START_LEVEL_OFFSET = 6;
+const TREE_BASE_OFFSET   = -520;
+const BG_SCROLL_FACTOR   = 0.33;
+
+/* ================= STATE ================= */
+let currentLevel = 1;
+let targetLevel  = 2;
+let avatarY = 0;
+let paused  = false;
+let finished = false;
+
+let revealCurrent = 0;
+let treeFullyRevealed = false;
+
+/* ================= HELPERS ================= */
+function platformY(l){
+  return -(l + START_LEVEL_OFFSET) * LEVEL_HEIGHT;
+}
+function avatarStandY(l){
+  return platformY(l) - AVATAR_SIZE/2;
+}
+function cameraY(){
+  return avatarY - canvas.height/2;
+}
+function isBreakLevel(l){
+  return [5,10,15,20,25].includes(l);
+}
+
+/* ================= REVEAL LOGIC ================= */
+function revealTargetForLevel(l){
+  if (l < 5)  return 0;
+  if (l < 10) return 0.2;
+  if (l < 15) return 0.4;
+  if (l < 20) return 0.6;
+  if (l < 25) return 0.8;
+  return 1;
+}
+
+/* ================= BACKGROUND ================= */
+function drawBackground(){
+  const cam = cameraY();
+
+  const scale = Math.max(
+    canvas.width / stoneImg.width,
+    canvas.height / stoneImg.height
+  );
+
+  const w = stoneImg.width * scale;
+  const h = stoneImg.height * scale;
+  const x = canvas.width/2 - w/2;
+  const y = canvas.height - h + TREE_BASE_OFFSET - cam * BG_SCROLL_FACTOR;
+
+  if (treeFullyRevealed) {
+    ctx.drawImage(treeImg, x, y, w, h);
+    return;
+  }
+
+  ctx.drawImage(stoneImg, x, y, w, h);
+
+  const target = revealTargetForLevel(currentLevel);
+  revealCurrent += (target - revealCurrent) * 0.06;
+
+  if (revealCurrent > 0.001){
+    const rh = h * revealCurrent;
+    const ry = y + (h - rh);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, ry, canvas.width, canvas.height);
+    ctx.clip();
+    ctx.drawImage(treeImg, x, y, w, h);
+    ctx.restore();
+  }
+}
+
+/* ================= PLATFORMS + NUMBERS + HAMMER ================= */
+function drawPlatforms(){
+  const cam = cameraY();
+  const sw = stepImg.width * STEP_SCALE;
+  const sh = stepImg.height * STEP_SCALE;
+
+  for(let i = 1; i <= Math.min(MAX_LEVEL, currentLevel + 7); i++){
+    const y = platformY(i) - cam;
+
+    ctx.drawImage(stepImg, canvas.width/2 - sw/2, y - sh/2, sw, sh);
+
+    if (i > currentLevel){
+      const numberX = canvas.width/2 + sw/2 - 12;
+      const numberY = y - sh/1 + -22;
+
+      if (i === MAX_LEVEL){
+        ctx.drawImage(trophyImg, numberX - 125, numberY - 60, 100, 100);
+      } else {
+        /* NUMAR CU TEXTURA */
+        ctx.save();
+        ctx.font = "bold 45px Arial";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "top";
+
+        const text = String(i);
+        const metrics = ctx.measureText(text);
+        const tw = metrics.width;
+        const th = 36;
+
+        ctx.beginPath();
+        ctx.rect(numberX - tw, numberY, tw, th);
+        ctx.clip();
+
+        const pattern = ctx.createPattern(textureImg, "repeat");
+        ctx.fillStyle = pattern;
+        ctx.fillText(text, numberX, numberY);
+        ctx.restore();
+
+        /* HAMMER DOAR LA NIVELELE DE BREAK */
+        if (isBreakLevel(i)){
+          ctx.drawImage(
+            hammerImg,
+            numberX - 105,
+            numberY - 26,
+            65,
+            65
+          );
+        }
+      }
+    }
+  }
+}
+
+/* ================= AVATAR ================= */
+function drawAvatar(){
+  const y = avatarY - cameraY();
+  const x = canvas.width/2;
+  const r = AVATAR_SIZE/2;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.drawImage(avatarImg, x - r, y - r, AVATAR_SIZE, AVATAR_SIZE);
+  ctx.restore();
+}
+
+/* ================= FINAL ================= */
+function showFinal(){
+  finished = true;
+  treeFullyRevealed = true;
+  document.getElementById("winOverlay").style.display = "flex";
+}
+
+/* ================= LOOP ================= */
+avatarY = avatarStandY(currentLevel);
+
+function loop(){
+  if (finished) return;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  drawBackground();
+  drawPlatforms();
+  drawAvatar();
+
+  if (!paused){
+    const speed = targetLevel === MAX_LEVEL ? MOVE_SPEED_FINAL : MOVE_SPEED;
+    const ty = avatarStandY(targetLevel);
+
+    if (avatarY > ty){
+      avatarY -= speed;
+    } else {
+      paused = true;
+      currentLevel = targetLevel;
+
+      if (currentLevel === MAX_LEVEL){
+        setTimeout(showFinal, 600);
+        return;
+      }
+
+      setTimeout(() => {
+        targetLevel++;
+        paused = false;
+      }, PAUSE_TIME);
+    }
+  }
+
+  requestAnimationFrame(loop);
+}
+
+/* ================= START ================= */
+Promise.all([
+  new Promise(r => treeImg.onload = r),
+  new Promise(r => stoneImg.onload = r),
+  new Promise(r => stepImg.onload = r),
+  new Promise(r => avatarImg.onload = r),
+  new Promise(r => trophyImg.onload = r),
+  new Promise(r => textureImg.onload = r),
+  new Promise(r => hammerImg.onload = r),
+]).then(loop);
+</script>
+</body>
+</html>

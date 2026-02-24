@@ -1,0 +1,120 @@
+import React, { createContext, useState, useContext, useEffect } from "react";
+import { Platform } from "react-native";
+import { storage } from "../utils/storage";
+import { api } from "../functions/api";
+
+const AuthContext = createContext(null);
+
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [pendingShareCode, setPendingShareCode] = useState(null);
+
+  useEffect(() => {
+    checkDeepLink();
+    checkAuth();
+  }, []);
+
+  const checkDeepLink = () => {
+    if (Platform.OS !== "web") return;
+    const path = window.location.pathname;
+    const match = path.match(/\/prayers\/form\/([a-f0-9]+)/i);
+    if (match) {
+      setPendingShareCode(match[1]);
+    }
+  };
+
+  const checkAuth = async () => {
+    try {
+      const token = await storage.getItem("authToken");
+      if (token) {
+        const userData = await api.get("/users/me");
+        setUser(userData);
+      }
+    } catch (error) {
+      await storage.deleteItem("authToken");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const login = async (email, password) => {
+    const response = await api.post("/auth/login", { email, password });
+    await storage.setItem("authToken", response.token);
+    setUser(response.user);
+    return response;
+  };
+
+  const register = async (data) => {
+    const response = await api.post("/auth/register", data);
+    await storage.setItem("authToken", response.token);
+    setUser(response.user);
+    return response;
+  };
+
+  const logout = async () => {
+    // Reset winstreak la logout
+    try {
+      await api.post("/stats/reset-winstreak");
+    } catch (error) {
+      // Ignoră eroarea dacă nu reușește
+    }
+    
+    // Ștergem token-ul și user-ul curent ÎNAINTE de a seta user null
+    // pentru a putea accesa user.id pentru cleanup
+    const currentUserId = user?.id;
+    
+    await storage.deleteItem("authToken");
+    
+    // Cleanup pray-realm game data din AsyncStorage pentru acest user
+    if (currentUserId) {
+      try {
+        await storage.deleteItem(`pray_realm_player_${currentUserId}`);
+      } catch (error) {
+        // Ignoră eroarea dacă nu reușește
+      }
+    }
+    
+    setUser(null);
+  };
+
+  const updateUser = (userData) => {
+    setUser((prev) => ({ ...prev, ...userData }));
+  };
+
+  const isAdmin =
+    user?.role === "admin" ||
+    user?.role === "superadmin" ||
+    user?.role === "developer";
+
+  const isSuperAdmin = user?.role === "superadmin";
+
+  const clearPendingShareCode = () => setPendingShareCode(null);
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        logout,
+        updateUser,
+        isAdmin,
+        isSuperAdmin,
+        pendingShareCode,
+        clearPendingShareCode,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth trebuie folosit în AuthProvider");
+  }
+  return context;
+};
