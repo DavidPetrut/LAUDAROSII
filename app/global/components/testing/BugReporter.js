@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Platform,
   InteractionManager,
+  KeyboardAvoidingView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -276,8 +277,11 @@ export const BugReporter = () => {
 
       {/* ---- DETAILS: sub-problema + descriere problema + solutie ---- */}
       <Modal visible={phase === PHASES.DETAILS} transparent animationType="slide">
-        <View style={styles.sheetRoot}>
-          <View style={[styles.sheet, { maxHeight: "88%" }]}>
+        <KeyboardAvoidingView
+          style={styles.sheetRoot}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <View style={[styles.sheet, { maxHeight: "92%" }]}>
             <View style={styles.sheetHeader}>
               <TouchableOpacity onPress={() => setPhase(PHASES.TYPE)} style={{ flexDirection: "row", alignItems: "center" }}>
                 <Ionicons name="chevron-back" size={22} color="#94a3b8" />
@@ -290,7 +294,12 @@ export const BugReporter = () => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <ScrollView
+              showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
+              contentContainerStyle={{ paddingBottom: 40 }}
+            >
               {activeType?.problems?.length > 0 && (
                 <>
                   <Text style={styles.fieldLabel}>Alege problema</Text>
@@ -351,7 +360,7 @@ export const BugReporter = () => {
               <View style={{ height: 20 }} />
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ---- SAVING ---- */}

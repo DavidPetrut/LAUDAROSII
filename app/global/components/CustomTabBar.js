@@ -111,6 +111,12 @@ export const CustomTabBar = ({ state, descriptors, navigation }) => {
     ? theme.headerGradient
     : [colors.surface, colors.surface];
 
+  // Spatiu pentru bara de navigatie a telefonului (butoane/gesturi).
+  const bottomInset = insets.bottom > 0 ? insets.bottom : 8;
+  // Inaltimea creste cu inset-ul, ca zona de continut (iconite+text) sa ramana
+  // constanta si sa NU fie inghesuita/acoperita de butoanele telefonului.
+  const CONTENT_HEIGHT = 56;
+
   return (
     <LinearGradient
       colors={gradientColors}
@@ -119,7 +125,8 @@ export const CustomTabBar = ({ state, descriptors, navigation }) => {
       style={[
         styles.container,
         {
-          paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
+          height: CONTENT_HEIGHT + 8 + bottomInset,
+          paddingBottom: bottomInset,
           shadowColor: isDarkMode ? "#000" : "#000",
           shadowOpacity: isDarkMode ? 0.4 : 0.1,
         },
@@ -163,7 +170,6 @@ export const CustomTabBar = ({ state, descriptors, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
-    height: 78,
     paddingTop: 8,
     borderTopWidth: 0,
     elevation: 20,

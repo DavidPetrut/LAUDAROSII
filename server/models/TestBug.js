@@ -60,12 +60,29 @@ const testBugSchema = new mongoose.Schema(
     },
 
     // ---- flux de lucru admin ----
+    // Flux status:
+    //  new       -> neatins (default, apare in lista activa)
+    //  in_progress -> in lucru (Claude/tu) - border verde, tab "In lucru"
+    //  fixed_ai  -> reparat de Claude, asteapta confirmarea ta - border verde, tab "In lucru"
+    //  fixed     -> confirmat de tine (se poate sterge)
+    //  failed    -> Claude nu a reusit sa repare (revine in atentie)
+    //  wontfix / duplicate -> optionale
     status: {
       type: String,
-      enum: ["new", "triaged", "in_progress", "fixed", "wontfix", "duplicate"],
+      enum: [
+        "new",
+        "in_progress",
+        "fixed_ai",
+        "fixed",
+        "failed",
+        "wontfix",
+        "duplicate",
+      ],
       default: "new",
       index: true,
     },
+    // Note lasate de Claude cand schimba statusul (ce a facut / de ce a esuat)
+    resolutionNote: { type: String, default: "", maxlength: 2000 },
   },
   { timestamps: true }
 );
