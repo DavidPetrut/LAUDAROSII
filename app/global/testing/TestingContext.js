@@ -24,6 +24,9 @@ export const TestingProvider = ({ children }) => {
   const [enabled, setEnabled] = useState(DEFAULT_ENABLED);
   const [consentGiven, setConsentGiven] = useState(false);
   const [flowOpen, setFlowOpen] = useState(false);
+  // Semnal global pentru a porni raportarea din ORICE loc (inclusiv din popup-uri
+  // unde butonul flotant de la root e acoperit de fereastra Modal).
+  const [startSignal, setStartSignal] = useState(0);
 
   // Ruta activa (setata din NavigationContainer.onStateChange)
   const routeNameRef = useRef(null);
@@ -86,6 +89,9 @@ export const TestingProvider = ({ children }) => {
   const openFlow = useCallback(() => setFlowOpen(true), []);
   const closeFlow = useCallback(() => setFlowOpen(false), []);
 
+  // Porneste raportarea de oriunde (ex: dintr-un popup). BugReporter asculta acest semnal.
+  const startReport = useCallback(() => setStartSignal((s) => s + 1), []);
+
   /**
    * Construieste payload-ul final si il trimite la server.
    * @param {object} report - { element, bugType, bugCode, problem, solution, screenshot }
@@ -127,6 +133,8 @@ export const TestingProvider = ({ children }) => {
         flowOpen,
         openFlow,
         closeFlow,
+        startSignal,
+        startReport,
         setCurrentRouteName,
         routeName,
         layer,
@@ -153,6 +161,8 @@ export const useTesting = () => {
       flowOpen: false,
       openFlow: () => {},
       closeFlow: () => {},
+      startSignal: 0,
+      startReport: () => {},
       setCurrentRouteName: () => {},
       routeName: null,
       layer: null,

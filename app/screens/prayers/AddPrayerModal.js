@@ -11,7 +11,7 @@ import {
   Image,
 } from "react-native";
 import { modalStyles as styles } from "./styles";
-import { BulbToggle } from "../../global/components";
+import { BulbToggle, TestReportButton } from "../../global/components";
 
 const TAG_AFTER = require("../../public/icons/after_tag.png");
 
@@ -42,6 +42,7 @@ export const AddPrayerModal = ({
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={styles.modalContent}>
+          <TestReportButton style={{ left: undefined, right: 46, top: 6 }} />
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Adauga un motiv</Text>
             <TouchableOpacity onPress={onClose}>

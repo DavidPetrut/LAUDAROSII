@@ -61,17 +61,19 @@ const testBugSchema = new mongoose.Schema(
 
     // ---- flux de lucru admin ----
     // Flux status:
-    //  new       -> neatins (default, apare in lista activa)
-    //  in_progress -> in lucru (Claude/tu) - border verde, tab "In lucru"
-    //  fixed_ai  -> reparat de Claude, asteapta confirmarea ta - border verde, tab "In lucru"
-    //  fixed     -> confirmat de tine (se poate sterge)
-    //  failed    -> Claude nu a reusit sa repare (revine in atentie)
+    //  new          -> neatins (default, apare in lista activa)
+    //  in_progress  -> Claude lucreaza activ la el
+    //  ready_testing-> Claude l-a reparat, asteapta sa il testezi tu (border verde, tab "Gata de testat")
+    //  fixed        -> confirmat de tine (se poate sterge)
+    //  failed       -> Claude nu a reusit sa repare (revine in atentie)
+    //  fixed_ai     -> LEGACY, sinonim vechi pentru ready_testing
     //  wontfix / duplicate -> optionale
     status: {
       type: String,
       enum: [
         "new",
         "in_progress",
+        "ready_testing",
         "fixed_ai",
         "fixed",
         "failed",

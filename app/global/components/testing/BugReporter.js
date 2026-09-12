@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -36,7 +36,7 @@ const PHASES = {
 
 export const BugReporter = () => {
   const insets = useSafeAreaInsets();
-  const { enabled, consentGiven, giveConsent, resolveCurrentScreen, submit } =
+  const { enabled, consentGiven, giveConsent, resolveCurrentScreen, submit, startSignal } =
     useTesting();
 
   const [phase, setPhase] = useState(PHASES.IDLE);
@@ -89,6 +89,13 @@ export const BugReporter = () => {
     await giveConsent();
     doCapture();
   }, [giveConsent, doCapture]);
+
+  // Pornire raportare declansata din alt loc (ex: buton din interiorul unui popup).
+  const onFabPressRef = useRef(onFabPress);
+  onFabPressRef.current = onFabPress;
+  useEffect(() => {
+    if (startSignal > 0) onFabPressRef.current();
+  }, [startSignal]);
 
   const onPickTap = useCallback((e) => {
     const { locationX, locationY } = e.nativeEvent;
@@ -180,12 +187,8 @@ export const BugReporter = () => {
         </View>
       </Modal>
 
-      {/* ---- CAPTURING (spinner scurt, nimic de afisat) ---- */}
-      <Modal visible={phase === PHASES.CAPTURING} transparent animationType="none">
-        <View style={styles.captureOverlay}>
-          <ActivityIndicator size="large" color="#fff" />
-        </View>
-      </Modal>
+      {/* ---- CAPTURING: nu afisam NIMIC (niciun overlay), ca sa nu apara in captura.
+           Butonul flotant se ascunde oricum pentru ca phase != IDLE. ---- */}
 
       {/* ---- PICK: alege elementul pe screenshot-ul inghetat ---- */}
       <Modal visible={phase === PHASES.PICK} transparent animationType="fade">

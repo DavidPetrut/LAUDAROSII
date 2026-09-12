@@ -34,6 +34,7 @@ import {
   TiledBackground,
   NotificationBadge,
   BulbToggle,
+  TestReportButton,
 } from "../../global/components";
 import { PrayerCard } from "./PrayerCard";
 import { AnimatedPrayerCard } from "./AnimatedPrayerCard";
@@ -489,6 +490,7 @@ export const PersonalPrayersTab = ({ onBack, navigation }) => {
       <Modal visible={showModal} animationType="slide" transparent>
         <View style={modalStyles.modalOverlay}>
           <View style={modalStyles.modalContent}>
+            <TestReportButton style={{ left: undefined, right: 46, top: 6 }} />
             <View style={modalStyles.modalHeader}>
               <Text style={modalStyles.modalTitle}>Adauga un motiv</Text>
               <TouchableOpacity onPress={() => setShowModal(false)}>

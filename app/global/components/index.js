@@ -15,6 +15,7 @@ export { ServerSettingsModal } from "./ServerSettingsModal";
 export { default as TiledBackground } from "./TiledBackground";
 export { default as TransitionOverlay } from "./TransitionOverlay";
 export { default as BugReporter } from "./testing/BugReporter";
+export { default as TestReportButton } from "./testing/TestReportButton";
 
 // Drag and Drop
 export { DragProvider, useDrag, DraggableItem, DropZone } from "./DragAndDrop";
