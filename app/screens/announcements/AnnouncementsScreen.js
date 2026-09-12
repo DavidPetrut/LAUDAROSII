@@ -10,13 +10,12 @@ import {
   TextInput,
   Alert,
   Platform,
-  ImageBackground,
   Image,
   ScrollView,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 
-const BG_IMAGE = require("../../public/images/whit-bg2.png");
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../../global/context";
 import { UserAvatar } from "../../global/components";
@@ -58,6 +57,7 @@ const getTimeRemaining = (expiresAt) => {
 };
 
 export const AnnouncementsScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const { isAdmin, user } = useAuth();
   const [announcements, setAnnouncements] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -377,17 +377,12 @@ export const AnnouncementsScreen = ({ navigation }) => {
         colors={headerGradient.colors}
         start={headerGradient.start}
         end={headerGradient.end}
-        style={styles.header}
+        style={[styles.header, { paddingTop: insets.top + 12 }]}
       >
         <Text style={styles.headerTitle}>ANUNȚURI</Text>
       </LinearGradient>
 
-      <ImageBackground
-        source={BG_IMAGE}
-        style={styles.bgImage}
-        imageStyle={styles.bgImageStyle}
-        resizeMode="stretch"
-      >
+      <View style={styles.bgImage}>
         <FlatList
           data={announcements}
           renderItem={renderAnnouncement}
@@ -403,7 +398,7 @@ export const AnnouncementsScreen = ({ navigation }) => {
             </View>
           }
         />
-      </ImageBackground>
+      </View>
 
       {isAdmin && (
         <TouchableOpacity

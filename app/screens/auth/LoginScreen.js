@@ -49,6 +49,7 @@ export const LoginScreen = ({ navigation }) => {
             value={email}
             onChangeText={setEmail}
             placeholder="email@exemplu.com"
+            placeholderTextColor="#64748b"
             keyboardType="email-address"
             autoCapitalize="none"
             accessibilityLabel="Câmp email"
@@ -62,6 +63,7 @@ export const LoginScreen = ({ navigation }) => {
             value={password}
             onChangeText={setPassword}
             placeholder="••••••••"
+            placeholderTextColor="#64748b"
             secureTextEntry
             accessibilityLabel="Câmp parola"
           />

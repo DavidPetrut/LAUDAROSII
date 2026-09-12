@@ -8,7 +8,7 @@ import {
   StyleSheet,
   Image,
 } from "react-native";
-import { Video, ResizeMode } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
 import { gameStyles } from "../styles/gameStyles";
 import {
   GameWorld,
@@ -43,6 +43,7 @@ import {
 import { isBreakLevel } from "../utils/levelUtils";
 import InventoryScreen from "./InventoryScreen";
 import { DragProvider } from "../../../../global/components/DragAndDrop";
+import { useTesting } from "../../../../global/testing";
 import DailyRewardModal, {
   hasDailyUnclaimed,
   isNewDay,
@@ -62,6 +63,23 @@ const GamePlayScreen = ({
   const playerAvatar = avatarImage || GameImages.defaultAvatar;
   const gameState = useGameState();
   const { isFinished } = gameState;
+  const { setLayer, clearLayer } = useTesting();
+
+  // Layer intern pentru modul de testare (jocul Pray Realm)
+  useEffect(() => {
+    setLayer({
+      screen: "Joc: Pray Realm",
+      folder: "screens/games/game_pray-realm",
+      file: "screens/games/game_pray-realm/screens/GamePlayScreen.js",
+    });
+    return () => clearLayer();
+  }, [setLayer, clearLayer]);
+
+  const bgVideoPlayer = useVideoPlayer(GameImages.bgDarkVideo, (player) => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
 
   const [playerAlabastru, setPlayerAlabastru] = useState(alabastruCount);
   const [playerUnlockedLevels, setPlayerUnlockedLevels] =
@@ -853,15 +871,11 @@ const GamePlayScreen = ({
     <DragProvider>
       <View style={gameStyles.container}>
         {/* Background dark video - loops automatically */}
-        <Video
-          source={GameImages.bgDarkVideo}
+        <VideoView
+          player={bgVideoPlayer}
           style={styles.backgroundVideo}
-          videoStyle={styles.videoInner}
-          resizeMode={ResizeMode.CONTAIN}
-          shouldPlay={true}
-          isLooping={true}
-          isMuted={true}
-          useNativeControls={false}
+          contentFit="contain"
+          nativeControls={false}
         />
 
         {/* Background light - fade in la level 25 */}
@@ -1051,7 +1065,9 @@ const styles = StyleSheet.create({
     left: 0,
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
-    zIndex: -2,
+    // NU folosi zIndex negativ: pe Android view-ul dispare in spatele parintelui.
+    // Fiind primul copil, ordinea naturala il tine oricum in spatele restului.
+    zIndex: 0,
     backgroundColor: "#0a0a15",
   },
   // Style for inner video element (web compatibility)
@@ -1067,7 +1083,8 @@ const styles = StyleSheet.create({
     left: 0,
     width: "100%",
     height: "100%",
-    zIndex: -2,
+    // idem: fara zIndex negativ (Android). E al doilea copil => sta peste video, sub GameWorld.
+    zIndex: 0,
   },
 
   // ========== BOTTOM OVERLAY - Ascunde scările ==========

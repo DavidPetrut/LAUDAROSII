@@ -8,6 +8,7 @@ import {
   Modal,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { headerGradient } from "../../public/styles/global";
 
 const BG_LIGHT = require("../../public/images/day-light-mode-background.png");
@@ -15,6 +16,7 @@ const BG_DARK = require("../../public/images/dark-mode-small.png");
 
 import { api, showError } from "../../global/functions";
 import { useAuth, useTheme } from "../../global/context";
+import { useTesting } from "../../global/testing";
 import { CONFIG } from "../../global/config";
 import {
   RibbonBadge,
@@ -51,8 +53,25 @@ export const ProgramPrayersTab = ({
   shareCode: initialShareCode,
   onBack,
 }) => {
+  const insets = useSafeAreaInsets();
   const { isAdmin } = useAuth();
   const { isDarkMode, theme } = useTheme();
+  const { setLayer, clearLayer } = useTesting();
+
+  // Layer intern pentru modul de testare (SIM Duminica / Kingdom Youth)
+  useEffect(() => {
+    setLayer({
+      screen:
+        programType === "sim"
+          ? "S.I.M. Duminica"
+          : programType === "tineret"
+          ? "Kingdom Youth"
+          : "Program rugăciune",
+      folder: "screens/prayers",
+      file: "screens/prayers/ProgramPrayersTab.js",
+    });
+    return () => clearLayer();
+  }, [programType, setLayer, clearLayer]);
   const [list, setList] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -326,7 +345,7 @@ export const ProgramPrayersTab = ({
           colors={headerGradient.colors}
           start={headerGradient.start}
           end={headerGradient.end}
-          style={styles.unifiedHeader}
+          style={[styles.unifiedHeader, { paddingTop: insets.top + 12 }]}
         >
           <TouchableOpacity style={styles.backBtn} onPress={onBack}>
             <BackArrowIcon size={32} light />

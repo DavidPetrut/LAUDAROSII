@@ -6,6 +6,7 @@ import {
   Text,
   Platform,
 } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -22,7 +23,9 @@ import {
   ErrorBoundary,
   CustomTabBar,
   TransitionOverlay,
+  BugReporter,
 } from "./global/components";
+import { TestingProvider, useTesting, getActiveRouteName } from "./global/testing";
 import { registerForPushNotifications } from "./global/services";
 import { initApiUrl } from "./global/config";
 import { colors } from "./public/styles/global";
@@ -121,6 +124,7 @@ const AppStack = () => (
 
 const Navigation = () => {
   const { user, loading, pendingShareCode } = useAuth();
+  const { setCurrentRouteName } = useTesting();
   const navigationRef = useRef(null);
 
   useEffect(() => {
@@ -130,6 +134,10 @@ const Navigation = () => {
   }, [user]);
 
   const handleNavigationReady = () => {
+    try {
+      const state = navigationRef.current?.getRootState();
+      if (state) setCurrentRouteName(getActiveRouteName(state));
+    } catch (e) {}
     if (user && pendingShareCode) {
       navigationRef.current?.navigate("MainTabs", { screen: "Prayers" });
     }
@@ -174,7 +182,15 @@ const Navigation = () => {
   }
 
   return (
-    <NavigationContainer ref={navigationRef} onReady={handleNavigationReady}>
+    <NavigationContainer
+      ref={navigationRef}
+      onReady={handleNavigationReady}
+      onStateChange={(state) => {
+        try {
+          setCurrentRouteName(getActiveRouteName(state));
+        } catch (e) {}
+      }}
+    >
       {user ? <AppStack /> : <AuthStack />}
     </NavigationContainer>
   );
@@ -224,24 +240,29 @@ export default function App() {
     <View
       style={{ flex: 1, minHeight: Platform.OS === "web" ? "100vh" : "100%" }}
     >
-      <ErrorBoundary>
-        <ThemeProvider>
-          <AuthProvider>
-            <NotificationProvider>
-              <ToastProvider>
-                <TransitionProvider>
-                  <StatusBar
-                    barStyle="light-content"
-                    backgroundColor="#6366f1"
-                  />
-                  <Navigation />
-                  <TransitionOverlay />
-                </TransitionProvider>
-              </ToastProvider>
-            </NotificationProvider>
-          </AuthProvider>
-        </ThemeProvider>
-      </ErrorBoundary>
+      <SafeAreaProvider>
+        <ErrorBoundary>
+          <ThemeProvider>
+            <AuthProvider>
+              <NotificationProvider>
+                <ToastProvider>
+                  <TransitionProvider>
+                    <TestingProvider>
+                      <StatusBar
+                        barStyle="light-content"
+                        backgroundColor="#6366f1"
+                      />
+                      <Navigation />
+                      <TransitionOverlay />
+                      <BugReporter />
+                    </TestingProvider>
+                  </TransitionProvider>
+                </ToastProvider>
+              </NotificationProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </ErrorBoundary>
+      </SafeAreaProvider>
     </View>
   );
 }

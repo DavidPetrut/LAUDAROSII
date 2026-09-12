@@ -20,7 +20,7 @@ export const styles = StyleSheet.create({
 
   carouselWrap: {
     marginHorizontal: spacing.md,
-    marginTop: 50,
+    marginTop: 16,
     marginBottom: spacing.md,
   },
   carouselCard: {

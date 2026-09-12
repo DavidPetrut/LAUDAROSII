@@ -5,6 +5,14 @@ import { api } from "../functions/api";
 
 const AuthContext = createContext(null);
 
+// Serverul trimite "id" la login/register, dar "_id" la /users/me.
+// Normalizam ca restul aplicatiei sa gaseasca mereu ambele campuri.
+const normalizeUser = (u) => {
+  if (!u) return u;
+  const id = u._id || u.id;
+  return id ? { ...u, _id: id, id } : u;
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -29,7 +37,7 @@ export const AuthProvider = ({ children }) => {
       const token = await storage.getItem("authToken");
       if (token) {
         const userData = await api.get("/users/me");
-        setUser(userData);
+        setUser(normalizeUser(userData));
       }
     } catch (error) {
       await storage.deleteItem("authToken");
@@ -41,14 +49,14 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     const response = await api.post("/auth/login", { email, password });
     await storage.setItem("authToken", response.token);
-    setUser(response.user);
+    setUser(normalizeUser(response.user));
     return response;
   };
 
   const register = async (data) => {
     const response = await api.post("/auth/register", data);
     await storage.setItem("authToken", response.token);
-    setUser(response.user);
+    setUser(normalizeUser(response.user));
     return response;
   };
 
@@ -79,7 +87,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateUser = (userData) => {
-    setUser((prev) => ({ ...prev, ...userData }));
+    setUser((prev) => normalizeUser({ ...prev, ...userData }));
   };
 
   const isAdmin =

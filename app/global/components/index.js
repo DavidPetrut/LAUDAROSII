@@ -14,6 +14,7 @@ export { BulbToggle } from "./BulbToggle";
 export { ServerSettingsModal } from "./ServerSettingsModal";
 export { default as TiledBackground } from "./TiledBackground";
 export { default as TransitionOverlay } from "./TransitionOverlay";
+export { default as BugReporter } from "./testing/BugReporter";
 
 // Drag and Drop
 export { DragProvider, useDrag, DraggableItem, DropZone } from "./DragAndDrop";

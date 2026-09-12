@@ -7,7 +7,7 @@ import {
   Modal,
   Dimensions,
 } from "react-native";
-import { Video, ResizeMode } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
 import { GameImages } from "../assets";
 
 const { width: WINDOW_WIDTH, height: WINDOW_HEIGHT } = Dimensions.get("window");
@@ -27,8 +27,12 @@ const PHASES = {
 const SwordCinematic = ({ visible, onComplete }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const introTextAnim = useRef(new Animated.Value(0)).current;
-  const videoRef = useRef(null);
   const [phase, setPhase] = useState(PHASES.FADE_IN);
+
+  const player = useVideoPlayer(GameImages.swordSceneVideo, (p) => {
+    p.loop = false;
+    p.muted = false;
+  });
 
   useEffect(() => {
     if (visible) {
@@ -69,31 +73,29 @@ const SwordCinematic = ({ visible, onComplete }) => {
   }, [visible]);
 
   // Când video-ul se termină
-  const handleVideoEnd = useCallback(
-    ({ didJustFinish }) => {
-      if (didJustFinish) {
-        setPhase(PHASES.FADE_OUT);
+  const handleVideoEnd = useCallback(() => {
+    setPhase(PHASES.FADE_OUT);
 
-        // Fade out (back to game)
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 800,
-          useNativeDriver: true,
-        }).start(() => {
-          onComplete?.();
-        });
-      }
-    },
-    [onComplete, fadeAnim]
-  );
-
-  const handleVideoError = useCallback(
-    (error) => {
-      console.error("Video error:", error);
+    // Fade out (back to game)
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 800,
+      useNativeDriver: true,
+    }).start(() => {
       onComplete?.();
-    },
-    [onComplete]
-  );
+    });
+  }, [onComplete, fadeAnim]);
+
+  useEffect(() => {
+    const subscription = player.addListener("playToEnd", handleVideoEnd);
+    return () => subscription.remove();
+  }, [player, handleVideoEnd]);
+
+  useEffect(() => {
+    if (phase === PHASES.VIDEO) {
+      player.play();
+    }
+  }, [phase, player]);
 
   if (!visible) return null;
 
@@ -116,16 +118,11 @@ const SwordCinematic = ({ visible, onComplete }) => {
         {/* Video player - landscape centrat și scalat să încapă tot */}
         {phase === PHASES.VIDEO && (
           <View style={styles.videoWrapper}>
-            <Video
-              ref={videoRef}
-              source={GameImages.swordSceneVideo}
+            <VideoView
+              player={player}
               style={styles.video}
-              resizeMode={ResizeMode.CONTAIN}
-              shouldPlay={true}
-              isLooping={false}
-              isMuted={false}
-              onPlaybackStatusUpdate={handleVideoEnd}
-              onError={handleVideoError}
+              contentFit="contain"
+              nativeControls={false}
             />
           </View>
         )}

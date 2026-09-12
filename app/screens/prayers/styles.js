@@ -452,12 +452,12 @@ export const modalStyles = StyleSheet.create({
   closeBtn: { fontSize: 24, color: colors.textMuted },
   sectionLabel: {
     fontSize: 14,
-    color: colors.textMuted,
+    color: colors.textSecondary,
     marginBottom: spacing.sm,
     marginTop: spacing.xs,
     textTransform: "uppercase",
     letterSpacing: 0.5,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   predicatorsList: { marginBottom: spacing.lg, maxHeight: 200 },
   noPredicators: {
@@ -515,8 +515,8 @@ export const modalStyles = StyleSheet.create({
     bottom: 10,
     right: 12,
     fontSize: 11,
-    color: "#a1a1aa",
-    fontWeight: "400",
+    color: "#6b7280",
+    fontWeight: "500",
   },
   charCount: {
     ...typography.caption,

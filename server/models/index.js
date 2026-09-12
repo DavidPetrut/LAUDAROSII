@@ -9,6 +9,8 @@ const Notification = require("./Notification");
 const UserStats = require("./UserStats");
 const Mission = require("./Mission");
 const PrayRoom = require("./PrayRoom");
+const TestBug = require("./TestBug");
+const TestConfig = require("./TestConfig");
 
 module.exports = {
   User,
@@ -22,4 +24,6 @@ module.exports = {
   UserStats,
   Mission,
   PrayRoom,
+  TestBug,
+  TestConfig,
 };

@@ -1,4 +1,9 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
+import { Platform } from "react-native";
+
+// DIAGNOSTIC TEMPORAR: pe nativ sarim peste video ca sa verificam daca
+// expo-av provoaca inchiderea aplicatiei. Pune pe false ca sa-l reactivezi.
+const SKIP_VIDEO_ON_NATIVE = true;
 
 /**
  * TransitionContext - Sistem global pentru tranziții animate între ecrane
@@ -39,6 +44,11 @@ export const TransitionProvider = ({ children }) => {
   const playTransition = useCallback(
     (config) => {
       if (isPlaying) return; // Previne suprapunerea tranzițiilor
+
+      if (SKIP_VIDEO_ON_NATIVE && Platform.OS !== "web") {
+        config.onComplete?.();
+        return;
+      }
 
       setCurrentTransition({
         video: config.video,

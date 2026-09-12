@@ -60,7 +60,7 @@ const TabButton = ({ route, isFocused, onPress, tab }) => {
       return (
         <AnimatedMaterialIcons
           name={tab.icon}
-          size={22}
+          size={25}
           color={iconColor}
           style={{ transform: [{ scale: scaleAnim }] }}
         />
@@ -69,7 +69,7 @@ const TabButton = ({ route, isFocused, onPress, tab }) => {
     return (
       <AnimatedIonicons
         name={isFocused ? tab.icon : `${tab.icon}-outline`}
-        size={22}
+        size={25}
         color={iconColor}
         style={{ transform: [{ scale: scaleAnim }] }}
       />
@@ -182,13 +182,13 @@ const styles = StyleSheet.create({
   },
   focusBg: {
     position: "absolute",
-    width: 52,
-    height: 32,
+    width: 56,
+    height: 35,
     borderRadius: 10,
     top: -2,
   },
   tabLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "600",
     fontFamily: "System",
   },

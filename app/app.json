@@ -2,7 +2,7 @@
   "expo": {
     "name": "Laudarosii Vertical",
     "slug": "laudarosii-vertical",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "runtimeVersion": {
@@ -31,7 +31,8 @@
     "plugins": [
       "expo-font",
       "expo-secure-store",
-      "expo-updates"
+      "expo-updates",
+      "expo-video"
     ],
     "owner": "davidpetruttt",
     "extra": {

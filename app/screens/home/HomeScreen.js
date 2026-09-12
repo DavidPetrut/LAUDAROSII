@@ -9,6 +9,7 @@ import {
   Image,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../global/context";
 import { UserAvatar } from "../../global/components";
 import { api, getTimeAgo } from "../../global/functions";
@@ -20,6 +21,7 @@ const LOGO_VERTICAL = require("../../public/images/logo_vertical.jpg");
 const REACTIONS_MAP = { thumbsup: "👍", heart: "❤️", pray: "🙏", laugh: "😂" };
 
 export const HomeScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const { user, isAdmin } = useAuth();
   const [announcements, setAnnouncements] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -81,7 +83,10 @@ export const HomeScreen = ({ navigation }) => {
       <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: insets.top },
+          ]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }

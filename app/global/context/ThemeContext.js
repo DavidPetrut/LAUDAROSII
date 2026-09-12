@@ -6,7 +6,8 @@ const ThemeContext = createContext(null);
 const THEME_KEY = "appTheme";
 
 export const ThemeProvider = ({ children }) => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  // Dark mode este tema implicita (pentru instalari noi / utilizatori care nu au ales inca).
+  const [isDarkMode, setIsDarkMode] = useState(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

@@ -8,6 +8,7 @@ import {
   Linking,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { headerGradient } from "../../public/styles/global";
 import { api, showError } from "../../global/functions";
@@ -21,6 +22,7 @@ const categoryIcons = {
 };
 
 export const CoursesScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -85,7 +87,7 @@ export const CoursesScreen = ({ navigation }) => {
         colors={headerGradient.colors}
         start={headerGradient.start}
         end={headerGradient.end}
-        style={styles.gradientHeader}
+        style={[styles.gradientHeader, { paddingTop: insets.top + 12 }]}
       >
         <View style={styles.headerContent}>
           <Ionicons name="book" size={28} color="#fff" />

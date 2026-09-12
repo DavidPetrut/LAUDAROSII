@@ -7,6 +7,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth, useTheme } from "../../global/context";
 import { api } from "../../global/functions";
@@ -15,6 +16,7 @@ import { headerGradient } from "../../public/styles/global";
 import { styles } from "./styles";
 
 export const ProfileScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const { user, updateUser, isAdmin } = useAuth();
   const { theme } = useTheme();
   const [profile, setProfile] = useState(null);
@@ -47,7 +49,7 @@ export const ProfileScreen = ({ navigation }) => {
           colors={headerGradient.colors}
           start={headerGradient.start}
           end={headerGradient.end}
-          style={styles.gradientHeader}
+          style={[styles.gradientHeader, { paddingTop: insets.top + 12 }]}
         >
           <Text style={styles.headerTitle}>PROFILE</Text>
           <TouchableOpacity

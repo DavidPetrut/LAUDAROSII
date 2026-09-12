@@ -79,6 +79,7 @@ export const ForgotPasswordScreen = ({ navigation }) => {
                 value={email}
                 onChangeText={setEmail}
                 placeholder="email@exemplu.com"
+                placeholderTextColor="#64748b"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 accessibilityLabel="Email pentru resetare"
@@ -105,6 +106,7 @@ export const ForgotPasswordScreen = ({ navigation }) => {
                 value={newPassword}
                 onChangeText={setNewPassword}
                 placeholder="Minim 6 caractere"
+                placeholderTextColor="#64748b"
                 secureTextEntry
                 accessibilityLabel="Parola noua"
               />
@@ -117,6 +119,7 @@ export const ForgotPasswordScreen = ({ navigation }) => {
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 placeholder="Repeta parola"
+                placeholderTextColor="#64748b"
                 secureTextEntry
                 accessibilityLabel="Confirma parola noua"
               />

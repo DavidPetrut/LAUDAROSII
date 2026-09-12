@@ -55,7 +55,7 @@ export const AddPrayerModal = ({
               <TextInput
                 style={styles.input}
                 placeholder="Scrie aici…"
-                placeholderTextColor="#999"
+                placeholderTextColor="#64748b"
                 value={newPrayer}
                 onChangeText={setNewPrayer}
                 multiline

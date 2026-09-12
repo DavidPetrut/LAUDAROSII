@@ -28,6 +28,7 @@ const TAG_AFTER = require("../../public/icons/after_tag.png");
 
 import { api, showError, showSuccess } from "../../global/functions";
 import { useAuth, useTheme, useNotifications } from "../../global/context";
+import { useTesting } from "../../global/testing";
 import {
   ScreenHeader,
   TiledBackground,
@@ -156,6 +157,17 @@ export const PersonalPrayersTab = ({ onBack, navigation }) => {
   const { user } = useAuth();
   const { isDarkMode, theme } = useTheme();
   const { counts, markAsSeen } = useNotifications();
+  const { setLayer, clearLayer } = useTesting();
+
+  // Marcheaza layer-ul intern pentru modul de testare (sub-nivel al tabului Pray)
+  useEffect(() => {
+    setLayer({
+      screen: "NU SLUJESC (personal)",
+      folder: "screens/prayers",
+      file: "screens/prayers/PersonalPrayersTab.js",
+    });
+    return () => clearLayer();
+  }, [setLayer, clearLayer]);
   const [prayers, setPrayers] = useState([]);
   const [filter, setFilter] = useState("all");
   const [refreshing, setRefreshing] = useState(false);
@@ -489,7 +501,7 @@ export const PersonalPrayersTab = ({ onBack, navigation }) => {
               <TextInput
                 style={modalStyles.input}
                 placeholder="Scrie aici…"
-                placeholderTextColor="#999"
+                placeholderTextColor="#64748b"
                 value={newPrayer}
                 onChangeText={setNewPrayer}
                 multiline

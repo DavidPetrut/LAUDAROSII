@@ -10,6 +10,7 @@ import {
   Modal,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { headerGradient } from "../../public/styles/global";
 import { api, showError } from "../../global/functions";
@@ -32,6 +33,7 @@ const gameScreens = {
 };
 
 export const GamesScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -146,7 +148,7 @@ export const GamesScreen = ({ navigation }) => {
         colors={headerGradient.colors}
         start={headerGradient.start}
         end={headerGradient.end}
-        style={styles.gradientHeader}
+        style={[styles.gradientHeader, { paddingTop: insets.top + 12 }]}
       >
         <View style={styles.headerContent}>
           <Ionicons name="game-controller" size={28} color="#fff" />

@@ -17,6 +17,7 @@ const {
   statsRoutes,
   missionsRoutes,
   prayRoomsRoutes,
+  testingRoutes,
 } = require("./routes");
 const {
   setupGameSockets,
@@ -55,6 +56,7 @@ app.use("/api/notifications", notificationsRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/missions", missionsRoutes);
 app.use("/api/pray-rooms", prayRoomsRoutes);
+app.use("/api/testing", testingRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({ status: "OK", message: "Laudarosii API funcționeaza" });

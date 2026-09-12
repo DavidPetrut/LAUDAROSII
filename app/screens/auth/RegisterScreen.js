@@ -69,6 +69,7 @@ export const RegisterScreen = ({ navigation }) => {
             value={form.fullName}
             onChangeText={(v) => updateForm("fullName", v)}
             placeholder="Ion Popescu"
+            placeholderTextColor="#64748b"
             accessibilityLabel="Câmp nume"
           />
         </View>
@@ -80,6 +81,7 @@ export const RegisterScreen = ({ navigation }) => {
             value={form.email}
             onChangeText={(v) => updateForm("email", v)}
             placeholder="email@exemplu.com"
+            placeholderTextColor="#64748b"
             keyboardType="email-address"
             autoCapitalize="none"
             accessibilityLabel="Câmp email"
@@ -93,6 +95,7 @@ export const RegisterScreen = ({ navigation }) => {
             value={form.password}
             onChangeText={(v) => updateForm("password", v)}
             placeholder="Minim 6 caractere"
+            placeholderTextColor="#64748b"
             secureTextEntry
             accessibilityLabel="Câmp parola"
           />

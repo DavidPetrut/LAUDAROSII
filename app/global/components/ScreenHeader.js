@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BackArrowIcon } from "./BackArrowIcon";
 import { colors, spacing, headerGradient } from "../../public/styles/global";
 
@@ -17,6 +18,7 @@ export const ScreenHeader = ({
   onBack,
 }) => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const canGoBack = navigation.canGoBack();
 
   const handleBack = () => {
@@ -32,7 +34,7 @@ export const ScreenHeader = ({
       colors={headerGradient.colors}
       start={headerGradient.start}
       end={headerGradient.end}
-      style={styles.container}
+      style={[styles.container, { paddingTop: insets.top + spacing.md }]}
     >
       {showBack && canGoBack ? (
         <TouchableOpacity

@@ -10,6 +10,7 @@ const notificationsRoutes = require("./notifications");
 const statsRoutes = require("./stats");
 const missionsRoutes = require("./missions");
 const prayRoomsRoutes = require("./prayRooms");
+const testingRoutes = require("./testing");
 
 module.exports = {
   authRoutes,
@@ -24,4 +25,5 @@ module.exports = {
   statsRoutes,
   missionsRoutes,
   prayRoomsRoutes,
+  testingRoutes,
 };
