@@ -11,6 +11,7 @@ export { GlobalToast } from "./GlobalToast";
 export { ConfirmModal } from "./ConfirmModal";
 export { NotificationBadge } from "./NotificationBadge";
 export { BulbToggle } from "./BulbToggle";
+export { ServerSettingsModal } from "./ServerSettingsModal";
 export { default as TiledBackground } from "./TiledBackground";
 export { default as TransitionOverlay } from "./TransitionOverlay";
 

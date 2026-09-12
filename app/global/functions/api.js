@@ -21,8 +21,21 @@ const request = async (endpoint, options = {}) => {
     config.body = JSON.stringify(options.body);
   }
 
-  const response = await fetch(`${CONFIG.API_URL}${endpoint}`, config);
-  const data = await response.json();
+  let response;
+  try {
+    response = await fetch(`${CONFIG.API_URL}${endpoint}`, config);
+  } catch (e) {
+    throw new Error(
+      `Nu se poate contacta serverul (${CONFIG.SERVER_BASE}). Verifica conexiunea la internet sau adresa serverului din Setari.`
+    );
+  }
+
+  let data;
+  try {
+    data = await response.json();
+  } catch (e) {
+    throw new Error(`Raspuns invalid de la server (${response.status}).`);
+  }
 
   if (!response.ok) {
     throw new Error(data.error || "Eroare la comunicarea cu serverul");

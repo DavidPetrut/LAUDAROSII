@@ -47,7 +47,10 @@ const MainMenu = ({
 
   // Missions hooks
   const { isMissionAdmin } = useMissions(userId);
-  const { createMission: createMissionAdmin } = useMissionAdmin(userId);
+  const { createMission: createMissionAdmin } = useMissionAdmin(
+    userId,
+    isMissionAdmin
+  );
   const bgOpacity = useRef(new Animated.Value(0)).current;
   const buttonsTranslateY = useRef(new Animated.Value(100)).current;
   const buttonsOpacity = useRef(new Animated.Value(0)).current;

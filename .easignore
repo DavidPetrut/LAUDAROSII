@@ -1,12 +1,26 @@
+# EAS Build - ce NU se urca la build (proiectul e in subfolderul app/)
+# Backend-ul nu e necesar pentru build-ul aplicatiei mobile
 server/
-sass/
-.expo/
+
+# Dependinte - se reinstaleaza pe serverul EAS
 node_modules/
-README.md
-PRODUCTION.md
-PROMPS.md
-SESSION_SUMMARY.md
-*.md
-app/public/videos/
-app/public/animations/*.mp4
-app/screens/games/game_pray-realm/assets/bg_dark.mp4
+**/node_modules/
+
+# Istoric git si cache-uri
+.git/
+.expo/
+app/.expo/
+dist/
+app/dist/
+web-build/
+
+# Fisiere temporare / loguri
+*.log
+npm-debug.*
+build_log*.txt
+log_raw.bin
+_getlog.js
+_embedtest*
+
+# Fisiere mari inutile pentru build
+"app/public/images/Detalii de plata deces.json"

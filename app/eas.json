@@ -7,14 +7,30 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "credentialsSource": "remote"
+      "channel": "development",
+      "credentialsSource": "remote",
+      "android": {
+        "buildType": "apk"
+      }
     },
     "preview": {
       "distribution": "internal",
-      "credentialsSource": "remote"
+      "channel": "preview",
+      "credentialsSource": "remote",
+      "env": {
+        "NODE_OPTIONS": "--max-old-space-size=4096"
+      },
+      "android": {
+        "buildType": "apk"
+      }
     },
     "production": {
-      "credentialsSource": "remote"
+      "channel": "production",
+      "autoIncrement": true,
+      "credentialsSource": "remote",
+      "android": {
+        "buildType": "app-bundle"
+      }
     }
   },
   "submit": {

@@ -682,6 +682,15 @@ const GamePlayScreen = ({
     onBack?.();
   }, [onBack]);
 
+  // Toast handler - simplu (doar mesaj)
+  const handleShowToast = useCallback((message, icon = null) => {
+    setToastTitle("");
+    setToastIcon(icon);
+    setToastSubtitle("");
+    setToastMessage(message);
+    setToastVisible(true);
+  }, []);
+
   // Handler pentru next day (dev/testing)
   const handleNextDay = useCallback(async () => {
     try {
@@ -714,15 +723,6 @@ const GamePlayScreen = ({
     },
     [playerAlabastru, onAlabastUpdate, loadInventory]
   );
-
-  // Toast handler - simplu (doar mesaj)
-  const handleShowToast = useCallback((message, icon = null) => {
-    setToastTitle("");
-    setToastIcon(icon);
-    setToastSubtitle("");
-    setToastMessage(message);
-    setToastVisible(true);
-  }, []);
 
   // Toast handler - pentru tool necesar (cu titlu, iconă și subtitlu)
   const handleShowToolToast = useCallback((toolId) => {

@@ -93,7 +93,7 @@ const PrayRealmNavigatorInner = ({ userId, userAvatar, onExit }) => {
         await PlayerApi.unlockAchievement(userId, `break_level_${level}`);
       }
     },
-    [userId, refreshPlayer]
+    [userId, refreshPlayer],
   );
 
   const handleStageComplete = useCallback(async () => {

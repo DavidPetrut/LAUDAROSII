@@ -8,12 +8,14 @@ import {
 } from "react-native";
 import { useAuth } from "../../global/context";
 import { showError } from "../../global/functions";
+import { ServerSettingsModal } from "../../global/components";
 import { styles } from "./styles";
 
 export const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [serverModal, setServerModal] = useState(false);
   const { login } = useAuth();
 
   const handleLogin = async () => {
@@ -86,7 +88,23 @@ export const LoginScreen = ({ navigation }) => {
         <View style={[styles.linkButton, { opacity: 0.4 }]} pointerEvents="none">
           <Text style={styles.linkText}>Nu ai cont? Inregistreaza-te</Text>
         </View>
+
+        <TouchableOpacity
+          style={styles.linkButton}
+          onPress={() => setServerModal(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Setari server"
+        >
+          <Text style={[styles.linkText, { fontSize: 12, opacity: 0.6 }]}>
+            Setari server
+          </Text>
+        </TouchableOpacity>
       </View>
+
+      <ServerSettingsModal
+        visible={serverModal}
+        onClose={() => setServerModal(false)}
+      />
     </View>
   );
 };

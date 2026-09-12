@@ -60,8 +60,8 @@ export const useMissions = (userId, options = {}) => {
         prev.map((m) =>
           m.id === missionId
             ? { ...m, userStatus: { ...m.userStatus, status: "requested" } }
-            : m
-        )
+            : m,
+        ),
       );
       return { success: true };
     } catch (err) {
@@ -92,7 +92,7 @@ export const useMissions = (userId, options = {}) => {
     (missionId) => {
       return missions.find((m) => m.id === missionId);
     },
-    [missions]
+    [missions],
   );
 
   // Inițializare
@@ -118,25 +118,31 @@ export const useMissions = (userId, options = {}) => {
         setMissions((prev) => prev.filter((m) => m.id !== missionId));
       });
 
-      const unsubApproved = onMissionEvent("mission:approved", ({ missionId }) => {
-        setMissions((prev) =>
-          prev.map((m) =>
-            m.id === missionId
-              ? { ...m, userStatus: { ...m.userStatus, status: "approved" } }
-              : m
-          )
-        );
-      });
+      const unsubApproved = onMissionEvent(
+        "mission:approved",
+        ({ missionId }) => {
+          setMissions((prev) =>
+            prev.map((m) =>
+              m.id === missionId
+                ? { ...m, userStatus: { ...m.userStatus, status: "approved" } }
+                : m,
+            ),
+          );
+        },
+      );
 
-      const unsubRejected = onMissionEvent("mission:rejected", ({ missionId }) => {
-        setMissions((prev) =>
-          prev.map((m) =>
-            m.id === missionId
-              ? { ...m, userStatus: { ...m.userStatus, status: "rejected" } }
-              : m
-          )
-        );
-      });
+      const unsubRejected = onMissionEvent(
+        "mission:rejected",
+        ({ missionId }) => {
+          setMissions((prev) =>
+            prev.map((m) =>
+              m.id === missionId
+                ? { ...m, userStatus: { ...m.userStatus, status: "rejected" } }
+                : m,
+            ),
+          );
+        },
+      );
 
       // Cleanup
       return () => {
@@ -171,7 +177,7 @@ export const useMissions = (userId, options = {}) => {
  * Hook pentru administrarea misiunilor (doar pentru admini)
  * @param {string} userId - ID-ul adminului
  */
-export const useMissionAdmin = (userId) => {
+export const useMissionAdmin = (userId, enabled = true) => {
   const [myMissions, setMyMissions] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -270,10 +276,10 @@ export const useMissionAdmin = (userId) => {
 
   // Încarcă misiunile la mount
   useEffect(() => {
-    if (userId) {
+    if (userId && enabled) {
       loadMyMissions();
     }
-  }, [userId, loadMyMissions]);
+  }, [userId, enabled, loadMyMissions]);
 
   return {
     myMissions,

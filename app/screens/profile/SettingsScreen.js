@@ -20,6 +20,7 @@ import {
   showSuccess,
 } from "../../global/functions";
 import { CONFIG } from "../../global/config";
+import { ServerSettingsModal } from "../../global/components";
 import { headerGradient } from "../../public/styles/global";
 import { settingsStyles } from "./settingsStyles";
 import { checkForUpdate, applyUpdate } from "./updateHelper";
@@ -38,6 +39,7 @@ export const SettingsScreen = ({ navigation }) => {
   const [uploadingPicture, setUploadingPicture] = useState(false);
   const [updateStatus, setUpdateStatus] = useState(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [serverModal, setServerModal] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -282,6 +284,32 @@ export const SettingsScreen = ({ navigation }) => {
             </View>
           </View>
 
+          <View style={settingsStyles.divider} />
+          <TouchableOpacity
+            style={settingsStyles.settingRow}
+            onPress={() => setServerModal(true)}
+          >
+            <View style={settingsStyles.settingInfo}>
+              <Text style={settingsStyles.settingIcon}>🌐</Text>
+              <View style={settingsStyles.settingText}>
+                <Text style={[settingsStyles.settingLabel, dynamicStyles.text]}>
+                  Adresa serverului
+                </Text>
+                <Text
+                  style={[settingsStyles.settingDesc, dynamicStyles.textMuted]}
+                  numberOfLines={1}
+                >
+                  {CONFIG.SERVER_BASE}
+                </Text>
+              </View>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={theme.textMuted}
+            />
+          </TouchableOpacity>
+
           {Platform.OS !== "web" && (
             <>
               <View style={settingsStyles.divider} />
@@ -335,6 +363,11 @@ export const SettingsScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <ServerSettingsModal
+        visible={serverModal}
+        onClose={() => setServerModal(false)}
+      />
     </View>
   );
 };

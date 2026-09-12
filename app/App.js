@@ -24,6 +24,7 @@ import {
   TransitionOverlay,
 } from "./global/components";
 import { registerForPushNotifications } from "./global/services";
+import { initApiUrl } from "./global/config";
 import { colors } from "./public/styles/global";
 
 import { LoginScreen, RegisterScreen, ForgotPasswordScreen } from "./screens/auth";
@@ -180,9 +181,11 @@ const Navigation = () => {
 };
 
 export default function App() {
-  const [fontsLoaded, setFontsLoaded] = useState(false);
+  const [ready, setReady] = useState(false);
 
-  const loadFonts = useCallback(async () => {
+  const bootstrap = useCallback(async () => {
+    // Adresa serverului trebuie incarcata inaintea oricarei cereri de retea.
+    await initApiUrl();
     try {
       await Font.loadAsync({
         PilotCommand: require("./public/fonts/PilotCommandSpaced-0WodP-regular.otf"),
@@ -191,17 +194,17 @@ export default function App() {
         Raleway: require("./public/fonts/Raleway-VariableFont_wght-regular.ttf"),
         "IMFellEnglish-Italic": require("./public/fonts/IMFellEnglish-Italic.ttf"),
       });
-      setFontsLoaded(true);
+      setReady(true);
     } catch (e) {
-      setFontsLoaded(true);
+      setReady(true);
     }
   }, []);
 
   useEffect(() => {
-    loadFonts();
-  }, [loadFonts]);
+    bootstrap();
+  }, [bootstrap]);
 
-  if (!fontsLoaded) {
+  if (!ready) {
     return (
       <View
         style={{

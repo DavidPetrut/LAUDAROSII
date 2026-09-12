@@ -1,0 +1,22 @@
+# Dependinte - se reinstaleaza pe serverul EAS
+node_modules/
+**/node_modules/
+
+# Cache-uri Expo
+.expo/
+dist/
+web-build/
+
+# Backend - nu e necesar pentru build-ul mobile
+../server/
+
+# Fisiere temporare / diagnostice
+*.log
+npm-debug.*
+build_log*.txt
+log_raw.bin
+_getlog.js
+_embedtest*
+
+# Fisiere mari inutile pentru build
+"public/images/Detalii de plata deces.json"

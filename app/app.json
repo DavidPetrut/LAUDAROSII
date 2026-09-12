@@ -28,19 +28,19 @@
       "bundler": "metro",
       "output": "single"
     },
-    "updates": {
-      "url": "https://u.expo.dev/73e371e3-5fb8-4369-b3b8-b2f5e1a8cc45"
-    },
     "plugins": [
       "expo-font",
       "expo-secure-store",
       "expo-updates"
     ],
+    "owner": "davidpetruttt",
     "extra": {
       "eas": {
-        "projectId": "73e371e3-5fb8-4369-b3b8-b2f5e1a8cc45"
+        "projectId": "8bfe8882-ed8b-43fd-8bac-c52aad997302"
       }
     },
-    "owner": "davidpetrut"
+    "updates": {
+      "url": "https://u.expo.dev/8bfe8882-ed8b-43fd-8bac-c52aad997302"
+    }
   }
 }
