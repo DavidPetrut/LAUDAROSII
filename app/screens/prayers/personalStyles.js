@@ -68,8 +68,8 @@ export const personalStyles = StyleSheet.create({
   emptyText: { ...typography.body, color: colors.textMuted },
   fab: {
     position: "absolute",
-    right: spacing.lg,
-    bottom: 90,
+    right: 16,
+    bottom: 28,
     width: 56,
     height: 56,
     borderRadius: 16,

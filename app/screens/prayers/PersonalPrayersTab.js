@@ -13,7 +13,6 @@ import {
   Animated,
   Image,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 if (
   Platform.OS === "android" &&
@@ -160,7 +159,6 @@ export const PersonalPrayersTab = ({ onBack, navigation }) => {
   const { isDarkMode, theme } = useTheme();
   const { counts, markAsSeen } = useNotifications();
   const { setLayer, clearLayer } = useTesting();
-  const insets = useSafeAreaInsets();
 
   // Marcheaza layer-ul intern pentru modul de testare (sub-nivel al tabului Pray)
   useEffect(() => {
@@ -482,7 +480,7 @@ export const PersonalPrayersTab = ({ onBack, navigation }) => {
 
       {filter === "mine" && filteredPrayers.length < 5 && (
         <TouchableOpacity
-          style={[styles.fab, { backgroundColor: "#21c063", right: 16, bottom: insets.bottom + 92 }]}
+          style={[styles.fab, { backgroundColor: "#21c063" }]}
           onPress={() => setShowModal(true)}
         >
           <Text style={styles.fabText}>+</Text>
