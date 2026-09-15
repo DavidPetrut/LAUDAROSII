@@ -19,20 +19,30 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { captureScreen } from "react-native-view-shot";
 import { useTesting } from "../../testing/TestingContext";
 import { BUG_TYPES } from "../../testing/bugTaxonomy";
+import { FEATURE_TYPES } from "../../testing/featureTaxonomy";
 import { showSuccess, showError } from "../../functions";
+import { startWebInspect } from "./webInspector";
 
 // Culoare stridenta pentru marcarea elementului selectat (vizibil clar pe orice fundal)
 const MARKER_COLOR = "#FF00E5";
 
+// Pe web (PC) folosim inspectorul DOM real; pe nativ, punct pe screenshot.
+const IS_WEB = Platform.OS === "web";
+
 const PHASES = {
   IDLE: "idle",
   CONSENT: "consent",
+  CHOOSE: "choose", // BUG sau FEATURE (prima alegere, nimic altceva)
+  SCOPE: "scope", // (doar feature) element anume vs tot ecranul
   CAPTURING: "capturing",
-  PICK: "pick",
+  PICK: "pick", // nativ: alege punctul pe screenshot
+  INSPECT: "inspect", // web: alege elementul real din DOM
   TYPE: "type",
   DETAILS: "details",
   SAVING: "saving",
 };
+
+const getTaxonomy = (kind) => (kind === "feature" ? FEATURE_TYPES : BUG_TYPES);
 
 export const BugReporter = () => {
   const insets = useSafeAreaInsets();
@@ -40,28 +50,50 @@ export const BugReporter = () => {
     useTesting();
 
   const [phase, setPhase] = useState(PHASES.IDLE);
+  const [kind, setKind] = useState("bug"); // "bug" | "feature"
+  const [source, setSource] = useState(IS_WEB ? "local" : "mobile");
   const [shotUri, setShotUri] = useState(null);
-  const [marker, setMarker] = useState(null); // { x, y } in px pe imagine
+  const [marker, setMarker] = useState(null); // { x, y } in px pe imagine (nativ)
   const [imgLayout, setImgLayout] = useState({ width: 0, height: 0 });
+  const [webElement, setWebElement] = useState(null); // descriptor DOM (web)
   const [selectedType, setSelectedType] = useState(null);
   const [selectedCode, setSelectedCode] = useState(null);
   const [problem, setProblem] = useState("");
   const [solution, setSolution] = useState("");
 
+  const inspectStopRef = useRef(null);
+
+  const stopInspect = useCallback(() => {
+    if (inspectStopRef.current) {
+      try {
+        inspectStopRef.current();
+      } catch (e) {}
+      inspectStopRef.current = null;
+    }
+  }, []);
+
   const resetAll = useCallback(() => {
+    stopInspect();
     setPhase(PHASES.IDLE);
+    setKind("bug");
+    setSource(IS_WEB ? "local" : "mobile");
     setShotUri(null);
     setMarker(null);
+    setWebElement(null);
     setSelectedType(null);
     setSelectedCode(null);
     setProblem("");
     setSolution("");
-  }, []);
+  }, [stopInspect]);
 
-  const doCapture = useCallback(async () => {
+  // La demontare, opreste inspectorul DOM daca era pornit.
+  useEffect(() => stopInspect, [stopInspect]);
+
+  // ---- captura nativa (mobil) ----
+  const doCapture = useCallback(() => {
     setPhase(PHASES.CAPTURING);
     // Asteptam un frame ca butonul flotant sa dispara din captura
-    InteractionManager.runAfterInteractions(async () => {
+    InteractionManager.runAfterInteractions(() => {
       setTimeout(async () => {
         try {
           const uri = await captureScreen({
@@ -80,15 +112,71 @@ export const BugReporter = () => {
     });
   }, [resetAll]);
 
+  // ---- inspectie web (PC): alege elementul real din DOM ----
+  const doInspect = useCallback(() => {
+    setPhase(PHASES.INSPECT);
+    // Lasam modalul precedent sa se inchida inainte sa citim DOM-ul de sub cursor.
+    setTimeout(() => {
+      stopInspect();
+      inspectStopRef.current = startWebInspect(
+        (_el, descriptor) => {
+          inspectStopRef.current = null;
+          setWebElement(descriptor);
+          setPhase(PHASES.TYPE);
+        },
+        () => {
+          inspectStopRef.current = null;
+          resetAll();
+        }
+      );
+    }, 80);
+  }, [resetAll, stopInspect]);
+
+  // Porneste selectia de element (web = inspect DOM, nativ = captura + punct).
+  const beginPick = useCallback(() => {
+    if (IS_WEB) {
+      setSource("local");
+      doInspect();
+    } else {
+      setSource("mobile");
+      doCapture();
+    }
+  }, [doInspect, doCapture]);
+
+  // Alegerea BUG / FEATURE (primul ecran, nimic altceva).
+  const chooseKind = useCallback(
+    (k) => {
+      setKind(k);
+      setSelectedType(null);
+      setSelectedCode(null);
+      if (k === "feature") {
+        // Un feature poate viza un element anume SAU tot ecranul.
+        setPhase(PHASES.SCOPE);
+      } else {
+        beginPick();
+      }
+    },
+    [beginPick]
+  );
+
+  // (feature) alege domeniul: element anume vs tot ecranul
+  const chooseScopeWhole = useCallback(() => {
+    setSource(IS_WEB ? "local" : "mobile");
+    setWebElement(null);
+    setMarker(null);
+    setShotUri(null);
+    setPhase(PHASES.TYPE);
+  }, []);
+
   const onFabPress = useCallback(() => {
-    if (consentGiven) doCapture();
+    if (consentGiven) setPhase(PHASES.CHOOSE);
     else setPhase(PHASES.CONSENT);
-  }, [consentGiven, doCapture]);
+  }, [consentGiven]);
 
   const onConsentAccept = useCallback(async () => {
     await giveConsent();
-    doCapture();
-  }, [giveConsent, doCapture]);
+    setPhase(PHASES.CHOOSE);
+  }, [giveConsent]);
 
   // Pornire raportare declansata din alt loc (ex: buton din interiorul unui popup).
   const onFabPressRef = useRef(onFabPress);
@@ -110,12 +198,14 @@ export const BugReporter = () => {
     setPhase(PHASES.DETAILS);
   }, []);
 
-  const buildElement = useCallback(() => {
+  // Elementul nativ (punct pe screenshot).
+  const buildNativeElement = useCallback(() => {
+    if (!marker) return null;
     const w = imgLayout.width || 1;
     const h = imgLayout.height || 1;
     return {
-      tap: marker ? { x: Math.round(marker.x), y: Math.round(marker.y) } : null,
-      rel: marker ? { x: +(marker.x / w).toFixed(4), y: +(marker.y / h).toFixed(4) } : null,
+      tap: { x: Math.round(marker.x), y: Math.round(marker.y) },
+      rel: { x: +(marker.x / w).toFixed(4), y: +(marker.y / h).toFixed(4) },
       view: { width: Math.round(w), height: Math.round(h) },
       // Pe nativ nu exista HTML/DOM; ancora elementului este pozitia pe screenshot
       // coroborata cu fisierul ecranului (vezi folder/file din payload).
@@ -128,25 +218,43 @@ export const BugReporter = () => {
     setPhase(PHASES.SAVING);
     try {
       await submit({
-        element: buildElement(),
+        kind,
+        source,
+        element: source === "local" ? webElement : buildNativeElement(),
         bugType: selectedType,
         bugCode: selectedCode,
         problem,
         solution,
-        screenshot: shotUri,
+        screenshot: source === "local" ? null : shotUri,
       });
-      showSuccess("Mulțumim! Feedback-ul a fost trimis. 🙏");
+      showSuccess(
+        kind === "feature" ? "Mulțumim pentru idee! 💡" : "Mulțumim! Feedback-ul a fost trimis. 🙏"
+      );
       resetAll();
     } catch (e) {
       showError(e?.message || "Nu am putut trimite feedback-ul.");
       setPhase(PHASES.DETAILS);
     }
-  }, [selectedType, selectedCode, problem, solution, shotUri, submit, buildElement, resetAll]);
+  }, [
+    kind,
+    source,
+    webElement,
+    selectedType,
+    selectedCode,
+    problem,
+    solution,
+    shotUri,
+    submit,
+    buildNativeElement,
+    resetAll,
+  ]);
 
   if (!enabled) return null;
 
+  const isFeature = kind === "feature";
   const screenInfo = resolveCurrentScreen();
-  const activeType = BUG_TYPES.find((t) => t.key === selectedType);
+  const activeType = getTaxonomy(kind).find((t) => t.key === selectedType);
+  const accent = isFeature ? "#22c55e" : "#7c3aed";
 
   return (
     <>
@@ -156,7 +264,7 @@ export const BugReporter = () => {
           style={[styles.fab, { bottom: insets.bottom + 92, left: 16 }]}
           onPress={onFabPress}
           activeOpacity={0.85}
-          accessibilityLabel="Raportează un bug / feedback"
+          accessibilityLabel="Raportează un bug sau propune un feature"
           accessibilityRole="button"
         >
           <Ionicons name="bug" size={22} color="#fff" />
@@ -171,9 +279,10 @@ export const BugReporter = () => {
             <Ionicons name="shield-checkmark-outline" size={40} color="#22c55e" style={{ alignSelf: "center" }} />
             <Text style={styles.cardTitle}>Mod testare</Text>
             <Text style={styles.cardBody}>
-              Când raportezi ceva, aplicația va face o <Text style={styles.bold}>captură a ecranului</Text> curent
-              și va salva locul apăsat, plus detalii tehnice (versiune, model
-              telefon). NU se salvează parole, token-uri sau date de conectare.
+              Când raportezi ceva, aplicația salvează <Text style={styles.bold}>elementul ales</Text> și
+              detalii tehnice (versiune, model telefon). Pe telefon se face și o{" "}
+              <Text style={styles.bold}>captură a ecranului</Text> curent. NU se salvează parole,
+              token-uri sau date de conectare.
               {"\n\n"}Captura poate conține text de pe ecran — nu raporta pe ecrane
               cu date pe care nu vrei să le trimiți.
             </Text>
@@ -187,10 +296,82 @@ export const BugReporter = () => {
         </View>
       </Modal>
 
+      {/* ---- CHOOSE: BUG sau FEATURE (prima alegere, nimic altceva) ---- */}
+      <Modal visible={phase === PHASES.CHOOSE} transparent animationType="fade">
+        <View style={styles.centerOverlay}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Ce vrei să ne spui?</Text>
+            <Text style={[styles.cardBody, { textAlign: "center", marginBottom: 20 }]}>
+              {screenInfo.tab} · {screenInfo.screen}
+            </Text>
+            <View style={styles.kindRow}>
+              <TouchableOpacity
+                style={[styles.kindCard, { borderColor: "#7c3aed" }]}
+                onPress={() => chooseKind("bug")}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.kindIcon, { backgroundColor: "#7c3aed22" }]}>
+                  <Ionicons name="bug" size={28} color="#7c3aed" />
+                </View>
+                <Text style={styles.kindLabel}>BUG</Text>
+                <Text style={styles.kindHint}>Ceva nu merge / arată prost</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.kindCard, { borderColor: "#22c55e" }]}
+                onPress={() => chooseKind("feature")}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.kindIcon, { backgroundColor: "#22c55e22" }]}>
+                  <Ionicons name="bulb" size={28} color="#22c55e" />
+                </View>
+                <Text style={styles.kindLabel}>FEATURE</Text>
+                <Text style={styles.kindHint}>O idee / îmbunătățire</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity style={[styles.ghostBtn, { marginTop: 18 }]} onPress={resetAll}>
+              <Text style={styles.ghostBtnText}>Închide</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ---- SCOPE (feature): element anume vs tot ecranul ---- */}
+      <Modal visible={phase === PHASES.SCOPE} transparent animationType="fade">
+        <View style={styles.centerOverlay}>
+          <View style={styles.card}>
+            <Ionicons name="bulb-outline" size={38} color="#22c55e" style={{ alignSelf: "center" }} />
+            <Text style={styles.cardTitle}>La ce se referă ideea?</Text>
+            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: "#22c55e" }]} onPress={beginPick}>
+              <Ionicons name="locate-outline" size={18} color="#fff" />
+              <Text style={styles.primaryBtnText}>
+                {IS_WEB ? "  Un element anume (îl aleg)" : "  Un element anume (îl arăt)"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.ghostBtn, { marginTop: 10 }]} onPress={chooseScopeWhole}>
+              <Text style={styles.ghostBtnText}>E despre tot ecranul</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.ghostBtn, { marginTop: 8 }]} onPress={() => setPhase(PHASES.CHOOSE)}>
+              <Text style={styles.ghostBtnText}>Înapoi</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* ---- CAPTURING: nu afisam NIMIC (niciun overlay), ca sa nu apara in captura.
            Butonul flotant se ascunde oricum pentru ca phase != IDLE. ---- */}
 
-      {/* ---- PICK: alege elementul pe screenshot-ul inghetat ---- */}
+      {/* ---- INSPECT (web): banda-hint neblocanta; overlay-ul real e din DOM ---- */}
+      {phase === PHASES.INSPECT && (
+        <View style={[styles.inspectHint, { top: insets.top + 10 }]} pointerEvents="none">
+          <Ionicons name="scan-outline" size={16} color="#fff" />
+          <Text style={styles.inspectHintText}>
+            {isFeature ? "Alege elementul pentru idee" : "Alege elementul cu probleme"} · Esc anulează
+          </Text>
+        </View>
+      )}
+
+      {/* ---- PICK (nativ): alege elementul pe screenshot-ul inghetat ---- */}
       <Modal visible={phase === PHASES.PICK} transparent animationType="fade">
         <View style={styles.pickRoot}>
           {shotUri && (
@@ -222,7 +403,11 @@ export const BugReporter = () => {
           {/* bara sus */}
           <View style={[styles.topBar, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
             <Text style={styles.topBarText}>
-              {marker ? "Ai selectat acest loc?" : "Apasă pe elementul cu probleme"}
+              {marker
+                ? "Ai selectat acest loc?"
+                : isFeature
+                ? "Apasă pe elementul pentru idee"
+                : "Apasă pe elementul cu probleme"}
             </Text>
             <TouchableOpacity onPress={resetAll} style={styles.closeX}>
               <Ionicons name="close" size={26} color="#fff" />
@@ -245,12 +430,14 @@ export const BugReporter = () => {
         </View>
       </Modal>
 
-      {/* ---- TYPE: alege tipul de bug ---- */}
+      {/* ---- TYPE: alege categoria (bug sau feature, dupa kind) ---- */}
       <Modal visible={phase === PHASES.TYPE} transparent animationType="slide">
         <View style={styles.sheetRoot}>
           <View style={styles.sheet}>
             <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Ce fel de problemă e?</Text>
+              <Text style={styles.sheetTitle}>
+                {isFeature ? "Ce fel de idee ai?" : "Ce fel de problemă e?"}
+              </Text>
               <TouchableOpacity onPress={resetAll}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>
@@ -259,7 +446,7 @@ export const BugReporter = () => {
               {screenInfo.tab} · {screenInfo.screen}
             </Text>
             <View style={styles.typeGrid}>
-              {BUG_TYPES.map((t) => (
+              {getTaxonomy(kind).map((t) => (
                 <TouchableOpacity
                   key={t.key}
                   style={[styles.typeCard, { borderColor: t.color }]}
@@ -278,7 +465,7 @@ export const BugReporter = () => {
         </View>
       </Modal>
 
-      {/* ---- DETAILS: sub-problema + descriere problema + solutie ---- */}
+      {/* ---- DETAILS: sub-categorie + descriere + solutie ---- */}
       <Modal visible={phase === PHASES.DETAILS} transparent animationType="slide">
         <KeyboardAvoidingView
           style={styles.sheetRoot}
@@ -305,7 +492,7 @@ export const BugReporter = () => {
             >
               {activeType?.problems?.length > 0 && (
                 <>
-                  <Text style={styles.fieldLabel}>Alege problema</Text>
+                  <Text style={styles.fieldLabel}>{isFeature ? "Alege tipul ideii" : "Alege problema"}</Text>
                   <View style={styles.problemsWrap}>
                     {activeType.problems.map((p) => {
                       const active = selectedCode === p.code;
@@ -326,10 +513,14 @@ export const BugReporter = () => {
                 </>
               )}
 
-              <Text style={styles.fieldLabel}>Descrie problema</Text>
+              <Text style={styles.fieldLabel}>{isFeature ? "Ce ți-ai dori" : "Descrie problema"}</Text>
               <TextInput
                 style={styles.textArea}
-                placeholder="Ce nu e în regulă, în cuvintele tale…"
+                placeholder={
+                  isFeature
+                    ? "Ce funcționalitate/îmbunătățire vrei aici…"
+                    : "Ce nu e în regulă, în cuvintele tale…"
+                }
                 placeholderTextColor="#64748b"
                 value={problem}
                 onChangeText={setProblem}
@@ -337,10 +528,12 @@ export const BugReporter = () => {
                 maxLength={1000}
               />
 
-              <Text style={styles.fieldLabel}>Soluție / părere (opțional)</Text>
+              <Text style={styles.fieldLabel}>
+                {isFeature ? "Cum ai vrea să funcționeze (opțional)" : "Soluție / părere (opțional)"}
+              </Text>
               <TextInput
                 style={styles.textArea}
-                placeholder="Cum crezi că ar fi mai bine?"
+                placeholder={isFeature ? "Descrie pe scurt cum ar merge ideal…" : "Cum crezi că ar fi mai bine?"}
                 placeholderTextColor="#64748b"
                 value={solution}
                 onChangeText={setSolution}
@@ -353,11 +546,14 @@ export const BugReporter = () => {
                   <Text style={styles.ghostBtnText}>Închide</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.primaryBtn, { flex: 1, marginLeft: 12, opacity: problem.trim() || selectedCode ? 1 : 0.5 }]}
+                  style={[
+                    styles.primaryBtn,
+                    { flex: 1, marginLeft: 12, backgroundColor: accent, opacity: problem.trim() || selectedCode ? 1 : 0.5 },
+                  ]}
                   onPress={onSave}
                   disabled={!(problem.trim() || selectedCode)}
                 >
-                  <Text style={styles.primaryBtnText}>Salvează</Text>
+                  <Text style={styles.primaryBtnText}>Trimite</Text>
                 </TouchableOpacity>
               </View>
               <View style={{ height: 20 }} />
@@ -414,6 +610,41 @@ const styles = StyleSheet.create({
   cardTitle: { color: "#fff", fontSize: 20, fontWeight: "800", textAlign: "center", marginTop: 8, marginBottom: 10 },
   cardBody: { color: "#cbd5e1", fontSize: 14, lineHeight: 21, marginBottom: 18 },
   bold: { fontWeight: "800", color: "#fff" },
+
+  // ---- CHOOSE bug/feature ----
+  kindRow: { flexDirection: "row", gap: 12 },
+  kindCard: {
+    flex: 1,
+    backgroundColor: "#161a22",
+    borderRadius: 16,
+    borderWidth: 2,
+    paddingVertical: 20,
+    paddingHorizontal: 8,
+    alignItems: "center",
+  },
+  kindIcon: { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: 10 },
+  kindLabel: { color: "#fff", fontSize: 16, fontWeight: "900", letterSpacing: 1 },
+  kindHint: { color: "#94a3b8", fontSize: 11, textAlign: "center", marginTop: 4 },
+
+  // ---- INSPECT hint (web) ----
+  inspectHint: {
+    position: "absolute",
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(17,24,39,0.92)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    zIndex: 99999999,
+    left: 0,
+    right: 0,
+    marginHorizontal: "auto",
+    maxWidth: 340,
+    justifyContent: "center",
+  },
+  inspectHintText: { color: "#fff", fontSize: 13, fontWeight: "700" },
 
   captureOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center" },
 
@@ -517,7 +748,15 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   saveRow: { flexDirection: "row", alignItems: "center", marginTop: 20 },
-  primaryBtn: { backgroundColor: "#7c3aed", borderRadius: 14, paddingVertical: 14, alignItems: "center", marginTop: 6 },
+  primaryBtn: {
+    backgroundColor: "#7c3aed",
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    marginTop: 6,
+  },
   primaryBtnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
   ghostBtn: { paddingVertical: 14, paddingHorizontal: 18, borderRadius: 14, backgroundColor: "#334155", alignItems: "center", marginTop: 6 },
   ghostBtnText: { color: "#e2e8f0", fontWeight: "700", fontSize: 14 },

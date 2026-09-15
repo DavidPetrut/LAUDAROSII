@@ -4,10 +4,13 @@ const { authMiddleware, isAdmin, limiter } = require("../middleware");
 
 const router = express.Router();
 
-const VALID_TYPES = ["INTERFATA", "ACCES", "STRICAT", "EXPERIENTA", "CONTINUT", "ALTELE"];
+// Categorii valide per natura raportului (trebuie sa oglindeasca bug/featureTaxonomy din app)
+const BUG_TYPES = ["INTERFATA", "ACCES", "STRICAT", "EXPERIENTA", "CONTINUT", "ALTELE"];
+const FEATURE_TYPES = ["FUNCTIE_NOUA", "IMBUNATATIRE", "CONTINUT_NOU", "INTEGRARE", "AUTOMATIZARE", "PERSONALIZARE", "ALTELE"];
 const MAX_SHOT_CHARS = 4 * 1024 * 1024; // ~4MB data-URI (sub limita de 10mb a body-ului)
 
 const clip = (v, n) => (typeof v === "string" ? v.slice(0, n) : "");
+const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 /**
  * GET /api/testing/config
@@ -56,8 +59,12 @@ router.post("/bugs", authMiddleware, limiter(20), async (req, res) => {
   try {
     const b = req.body || {};
 
-    if (!VALID_TYPES.includes(b.bugType)) {
-      return res.status(400).json({ error: "Tip de bug invalid" });
+    const kind = b.kind === "feature" ? "feature" : "bug";
+    const source = b.source === "local" ? "local" : "mobile";
+
+    const allowedTypes = kind === "feature" ? FEATURE_TYPES : BUG_TYPES;
+    if (!allowedTypes.includes(b.bugType)) {
+      return res.status(400).json({ error: "Categorie invalidă pentru acest tip de raport" });
     }
 
     // screenshot: acceptam doar data-URI de imagine, sub limita de marime
@@ -79,24 +86,45 @@ router.post("/bugs", authMiddleware, limiter(20), async (req, res) => {
       }
     }
 
-    // element: whitelisting explicit
+    // element: whitelisting explicit. Doua forme:
+    //  - native-point (mobil): tap/rel/view
+    //  - dom-element (web/local): structura reala din DOM + stack de componente
     let element = null;
     if (b.element && typeof b.element === "object") {
-      element = {
-        kind: clip(b.element.kind, 40) || "native-point",
-        tap: b.element.tap && {
-          x: Number(b.element.tap.x) || 0,
-          y: Number(b.element.tap.y) || 0,
-        },
-        rel: b.element.rel && {
-          x: Number(b.element.rel.x) || 0,
-          y: Number(b.element.rel.y) || 0,
-        },
-        view: b.element.view && {
-          width: Number(b.element.view.width) || 0,
-          height: Number(b.element.view.height) || 0,
-        },
-      };
+      const el = b.element;
+      const elKind = clip(el.kind, 40) || "native-point";
+      element = { kind: elKind };
+
+      if (elKind === "dom-element") {
+        element.tag = clip(el.tag, 40) || null;
+        element.domId = clip(el.domId, 120) || null;
+        element.testId = clip(el.testId, 120) || null;
+        element.selector = clip(el.selector, 400) || null;
+        element.text = clip(el.text, 200) || null;
+        element.label = clip(el.label, 200) || null;
+        if (Array.isArray(el.componentStack)) {
+          element.componentStack = el.componentStack.slice(0, 8).map((s) => clip(s, 80)).filter(Boolean);
+        }
+        // handler-ele (onPress/onClick...) le pastram in text-ul de context al elementului
+        if (Array.isArray(el.handlers) && el.handlers.length) {
+          element.label = clip(
+            [element.label, `handlers: ${el.handlers.slice(0, 8).map((h) => clip(h, 30)).join(", ")}`]
+              .filter(Boolean)
+              .join(" · "),
+            200
+          );
+        }
+        if (el.rect && typeof el.rect === "object") {
+          element.rect = { x: num(el.rect.x), y: num(el.rect.y), width: num(el.rect.width), height: num(el.rect.height) };
+        }
+        if (el.view && typeof el.view === "object") {
+          element.view = { width: num(el.view.width), height: num(el.view.height) };
+        }
+      } else {
+        element.tap = el.tap && { x: num(el.tap.x), y: num(el.tap.y) };
+        element.rel = el.rel && { x: num(el.rel.x), y: num(el.rel.y) };
+        element.view = el.view && { width: num(el.view.width), height: num(el.view.height) };
+      }
     }
 
     // reporter: PII minim (nume din DB, o singura interogare usoara)
@@ -107,6 +135,8 @@ router.post("/bugs", authMiddleware, limiter(20), async (req, res) => {
     } catch (e) {}
 
     const doc = await TestBug.create({
+      kind,
+      source,
       tab: clip(b.tab, 60) || "Necunoscut",
       screen: clip(b.screen, 120) || "Ecran necunoscut",
       route: clip(b.route, 120) || null,

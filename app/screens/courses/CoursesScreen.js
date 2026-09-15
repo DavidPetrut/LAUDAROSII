@@ -91,7 +91,7 @@ export const CoursesScreen = ({ navigation }) => {
       >
         <View style={styles.headerContent}>
           <Ionicons name="book" size={28} color="#fff" />
-          <Text style={styles.gradientHeaderTitle}>CURSURI</Text>
+          <Text style={styles.gradientHeaderTitle}>RESURSE</Text>
         </View>
       </LinearGradient>
 

@@ -74,7 +74,7 @@ export const HomeScreen = ({ navigation }) => {
       params: { screen: "PrayRoomList" },
       bg: "#e6f4ff",
     },
-    { emoji: "🎓", title: "Cursuri", screen: "Courses", bg: "#e6fff0" },
+    { emoji: "🎓", title: "Resurse", screen: "Courses", bg: "#e6fff0" },
     { emoji: "🎮", title: "Jocuri", screen: "Games", bg: "#fff4e6" },
   ];
 

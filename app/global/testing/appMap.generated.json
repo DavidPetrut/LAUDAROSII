@@ -1,0 +1,2816 @@
+{
+  "generatedAt": "2026-09-15T14:53:29.021Z",
+  "appRoot": "app",
+  "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
+  "domains": {
+    "api": [
+      {
+        "path": "global/functions/api.js",
+        "exists": true
+      }
+    ],
+    "auth": [
+      {
+        "path": "global/context/AuthContext.js",
+        "exists": true
+      },
+      {
+        "path": "../server/middleware/roles.js",
+        "exists": true
+      }
+    ],
+    "realtime": [
+      {
+        "path": "global/services/socket.js",
+        "exists": true
+      }
+    ],
+    "notificari": [
+      {
+        "path": "global/services/notifications.js",
+        "exists": true
+      },
+      {
+        "path": "global/context/NotificationContext.js",
+        "exists": true
+      }
+    ],
+    "tema": [
+      {
+        "path": "global/context/ThemeContext.js",
+        "exists": true
+      },
+      {
+        "path": "public/styles/global",
+        "exists": true
+      }
+    ],
+    "storage": [
+      {
+        "path": "global/utils/storage.js",
+        "exists": true
+      }
+    ],
+    "toast": [
+      {
+        "path": "global/functions/toast.js",
+        "exists": true
+      },
+      {
+        "path": "global/context/ToastContext.js",
+        "exists": true
+      }
+    ],
+    "db": [
+      {
+        "path": "../server/config",
+        "exists": true
+      },
+      {
+        "path": "../server/models",
+        "exists": true
+      }
+    ]
+  },
+  "globals": {
+    "components": {
+      "DragProvider": {
+        "file": "global/components/DragAndDrop/index.js",
+        "purpose": ""
+      },
+      "useDrag": {
+        "file": "global/components/DragAndDrop/index.js",
+        "purpose": ""
+      },
+      "DraggableItem": {
+        "file": "global/components/DragAndDrop/index.js",
+        "purpose": ""
+      },
+      "DropZone": {
+        "file": "global/components/DragAndDrop/index.js",
+        "purpose": ""
+      },
+      "AnimatedCard": {
+        "file": "global/components/AnimatedCard.js",
+        "purpose": "const fadeAnim = useRef(new Animated.Value(0)).current;"
+      },
+      "GradientHeader": {
+        "file": "global/components/GradientHeader.js",
+        "purpose": "<View style={styles.container}>"
+      },
+      "LoadingSpinner": {
+        "file": "global/components/LoadingSpinner.js",
+        "purpose": "message = \"Se încarca...\","
+      },
+      "FullScreenLoader": {
+        "file": "global/components/LoadingSpinner.js",
+        "purpose": "message = \"Se încarca...\","
+      },
+      "ErrorBoundary": {
+        "file": "global/components/ErrorBoundary.js",
+        "purpose": "typography,"
+      },
+      "ScreenHeader": {
+        "file": "global/components/ScreenHeader.js",
+        "purpose": "Header global consistent pentru toate ecranele cu back button"
+      },
+      "RibbonBadge": {
+        "file": "global/components/RibbonBadge.js",
+        "purpose": "<View style={styles.container}>"
+      },
+      "UserAvatar": {
+        "file": "global/components/UserAvatar.js",
+        "purpose": "Component global pentru afișarea avatarului utilizatorului."
+      },
+      "BackArrowIcon": {
+        "file": "global/components/BackArrowIcon.js",
+        "purpose": "Iconița globala de back arrow"
+      },
+      "CustomTabBar": {
+        "file": "global/components/CustomTabBar.js",
+        "purpose": "const TABS = ["
+      },
+      "GlobalToast": {
+        "file": "global/components/GlobalToast.js",
+        "purpose": "TouchableOpacity,"
+      },
+      "ConfirmModal": {
+        "file": "global/components/ConfirmModal.js",
+        "purpose": "TouchableOpacity,"
+      },
+      "NotificationBadge": {
+        "file": "global/components/NotificationBadge.js",
+        "purpose": "Badge pentru afișarea numărului de notificări"
+      },
+      "BulbToggle": {
+        "file": "global/components/BulbToggle.js",
+        "purpose": "TouchableWithoutFeedback,"
+      },
+      "ServerSettingsModal": {
+        "file": "global/components/ServerSettingsModal.js",
+        "purpose": "TextInput,"
+      },
+      "TiledBackground": {
+        "file": "global/components/TiledBackground.js",
+        "purpose": "TiledBackground - Componenta pentru background cu tile-uri repetate"
+      },
+      "TransitionOverlay": {
+        "file": "global/components/TransitionOverlay.js",
+        "purpose": "TransitionOverlay - Overlay fullscreen pentru video tranziții"
+      },
+      "BugReporter": {
+        "file": "global/components/testing/BugReporter.js",
+        "purpose": "TouchableOpacity,"
+      },
+      "TestReportButton": {
+        "file": "global/components/testing/TestReportButton.js",
+        "purpose": "Buton TEST mic, de pus IN INTERIORUL popup-urilor (RN Modal)."
+      }
+    },
+    "context": {
+      "AuthProvider": {
+        "file": "global/context/AuthContext.js",
+        "purpose": "const AuthContext = createContext(null);"
+      },
+      "useAuth": {
+        "file": "global/context/AuthContext.js",
+        "purpose": "const AuthContext = createContext(null);"
+      },
+      "ThemeProvider": {
+        "file": "global/context/ThemeContext.js",
+        "purpose": "const ThemeContext = createContext(null);"
+      },
+      "useTheme": {
+        "file": "global/context/ThemeContext.js",
+        "purpose": "const ThemeContext = createContext(null);"
+      },
+      "ToastProvider": {
+        "file": "global/context/ToastContext.js",
+        "purpose": "createContext,"
+      },
+      "useToast": {
+        "file": "global/context/ToastContext.js",
+        "purpose": "createContext,"
+      },
+      "TransitionProvider": {
+        "file": "global/context/TransitionContext.js",
+        "purpose": "DIAGNOSTIC TEMPORAR: pe nativ sarim peste video ca sa verificam daca"
+      },
+      "useTransition": {
+        "file": "global/context/TransitionContext.js",
+        "purpose": "DIAGNOSTIC TEMPORAR: pe nativ sarim peste video ca sa verificam daca"
+      },
+      "TRANSITION_VIDEOS": {
+        "file": "global/context/TransitionContext.js",
+        "purpose": "DIAGNOSTIC TEMPORAR: pe nativ sarim peste video ca sa verificam daca"
+      },
+      "NotificationProvider": {
+        "file": "global/context/NotificationContext.js",
+        "purpose": "createContext,"
+      },
+      "useNotifications": {
+        "file": "global/context/NotificationContext.js",
+        "purpose": "createContext,"
+      }
+    },
+    "functions": {
+      "api": {
+        "file": "global/functions/api.js",
+        "purpose": "const getToken = async () => {"
+      },
+      "showToast": {
+        "file": "global/functions/toast.js",
+        "purpose": "let toastHandler = null;"
+      },
+      "showSuccess": {
+        "file": "global/functions/toast.js",
+        "purpose": "let toastHandler = null;"
+      },
+      "showError": {
+        "file": "global/functions/toast.js",
+        "purpose": "let toastHandler = null;"
+      },
+      "showWarning": {
+        "file": "global/functions/toast.js",
+        "purpose": "let toastHandler = null;"
+      },
+      "showInfo": {
+        "file": "global/functions/toast.js",
+        "purpose": "let toastHandler = null;"
+      },
+      "showConfirm": {
+        "file": "global/functions/toast.js",
+        "purpose": "let toastHandler = null;"
+      },
+      "formatDate": {
+        "file": "global/functions/formatters.js",
+        "purpose": "const date = new Date(dateString);"
+      },
+      "formatTime": {
+        "file": "global/functions/formatters.js",
+        "purpose": "const date = new Date(dateString);"
+      },
+      "formatDateTime": {
+        "file": "global/functions/formatters.js",
+        "purpose": "const date = new Date(dateString);"
+      },
+      "getTimeAgo": {
+        "file": "global/functions/formatters.js",
+        "purpose": "const date = new Date(dateString);"
+      },
+      "formatTeamRoles": {
+        "file": "global/functions/formatters.js",
+        "purpose": "const date = new Date(dateString);"
+      },
+      "teamRoleLabels": {
+        "file": "global/functions/formatters.js",
+        "purpose": "const date = new Date(dateString);"
+      },
+      "cache": {
+        "file": "global/functions/cache.js",
+        "purpose": "const getKey = (key) => CONFIG.CACHE_KEY_PREFIX + key;"
+      }
+    },
+    "services": {
+      "connectSocket": {
+        "file": "global/services/socket.js",
+        "purpose": "let socket = null;"
+      },
+      "getSocket": {
+        "file": "global/services/socket.js",
+        "purpose": "let socket = null;"
+      },
+      "disconnectSocket": {
+        "file": "global/services/socket.js",
+        "purpose": "let socket = null;"
+      },
+      "createRoom": {
+        "file": "global/services/socket.js",
+        "purpose": "let socket = null;"
+      },
+      "joinRoom": {
+        "file": "global/services/socket.js",
+        "purpose": "let socket = null;"
+      },
+      "startGame": {
+        "file": "global/services/socket.js",
+        "purpose": "let socket = null;"
+      },
+      "submitAnswer": {
+        "file": "global/services/socket.js",
+        "purpose": "let socket = null;"
+      },
+      "leaveRoom": {
+        "file": "global/services/socket.js",
+        "purpose": "let socket = null;"
+      },
+      "registerForPushNotifications": {
+        "file": "global/services/notifications.js",
+        "purpose": "let Notifications = null;"
+      },
+      "scheduleLocalNotification": {
+        "file": "global/services/notifications.js",
+        "purpose": "let Notifications = null;"
+      },
+      "addNotificationListener": {
+        "file": "global/services/notifications.js",
+        "purpose": "let Notifications = null;"
+      },
+      "addNotificationResponseListener": {
+        "file": "global/services/notifications.js",
+        "purpose": "let Notifications = null;"
+      }
+    },
+    "testing": {
+      "TestingProvider": {
+        "file": "global/testing/TestingContext.js",
+        "purpose": "createContext,"
+      },
+      "useTesting": {
+        "file": "global/testing/TestingContext.js",
+        "purpose": "createContext,"
+      },
+      "BUG_TYPES": {
+        "file": "global/testing/bugTaxonomy.js",
+        "purpose": "Taxonomia bug-urilor pentru modul de TESTARE."
+      },
+      "getBugType": {
+        "file": "global/testing/bugTaxonomy.js",
+        "purpose": "Taxonomia bug-urilor pentru modul de TESTARE."
+      },
+      "getProblemLabel": {
+        "file": "global/testing/bugTaxonomy.js",
+        "purpose": "Taxonomia bug-urilor pentru modul de TESTARE."
+      },
+      "FEATURE_TYPES": {
+        "file": "global/testing/featureTaxonomy.js",
+        "purpose": "Taxonomia cererilor de FEATURE pentru modul de TESTARE."
+      },
+      "getFeatureType": {
+        "file": "global/testing/featureTaxonomy.js",
+        "purpose": "Taxonomia cererilor de FEATURE pentru modul de TESTARE."
+      },
+      "getFeatureProblemLabel": {
+        "file": "global/testing/featureTaxonomy.js",
+        "purpose": "Taxonomia cererilor de FEATURE pentru modul de TESTARE."
+      },
+      "SCREEN_REGISTRY": {
+        "file": "global/testing/screenRegistry.js",
+        "purpose": "Harta ARHITECTURII aplicatiei: numele rutei (React Navigation) -> unde se afla"
+      },
+      "resolveScreen": {
+        "file": "global/testing/screenRegistry.js",
+        "purpose": "Harta ARHITECTURII aplicatiei: numele rutei (React Navigation) -> unde se afla"
+      },
+      "getActiveRouteName": {
+        "file": "global/testing/screenRegistry.js",
+        "purpose": "Harta ARHITECTURII aplicatiei: numele rutei (React Navigation) -> unde se afla"
+      },
+      "TAB_LABELS": {
+        "file": "global/testing/screenRegistry.js",
+        "purpose": "Harta ARHITECTURII aplicatiei: numele rutei (React Navigation) -> unde se afla"
+      },
+      "setLastApiBreadcrumb": {
+        "file": "global/testing/collectContext.js",
+        "purpose": "Colecteaza context tehnic SIGUR pentru un raport de bug."
+      }
+    },
+    "utils": {
+      "validateEmail": {
+        "file": "global/utils/validators.js",
+        "purpose": "const regex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;"
+      },
+      "validatePassword": {
+        "file": "global/utils/validators.js",
+        "purpose": "const regex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;"
+      },
+      "validateRequired": {
+        "file": "global/utils/validators.js",
+        "purpose": "const regex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;"
+      },
+      "validatePhone": {
+        "file": "global/utils/validators.js",
+        "purpose": "const regex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;"
+      },
+      "getValidationError": {
+        "file": "global/utils/validators.js",
+        "purpose": "const regex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;"
+      },
+      "storage": {
+        "file": "global/utils/storage.js",
+        "purpose": "const isWeb = Platform.OS === \"web\";"
+      }
+    }
+  },
+  "screens": {
+    "screens/admin/AdminScreen.js": {
+      "route": "Admin",
+      "tab": "Profile",
+      "screen": "Admin",
+      "stylesFile": "screens/admin/styles.js",
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "useAuth",
+          "file": "global/context/AuthContext.js"
+        },
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        },
+        {
+          "name": "UserAvatar",
+          "file": "global/components/UserAvatar.js"
+        }
+      ],
+      "styleTokens": [
+        "colors"
+      ],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "toast",
+        "auth"
+      ]
+    },
+    "screens/announcements/AnnouncementDetailScreen.js": {
+      "route": "AnnouncementDetail",
+      "tab": "Home",
+      "screen": "Detaliu anunț",
+      "stylesFile": "screens/announcements/styles.js",
+      "globals": [
+        {
+          "name": "BackArrowIcon",
+          "file": "global/components/BackArrowIcon.js"
+        },
+        {
+          "name": "UserAvatar",
+          "file": "global/components/UserAvatar.js"
+        },
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "formatDate",
+          "file": "global/functions/formatters.js"
+        }
+      ],
+      "styleTokens": [
+        "headerGradient",
+        "colors",
+        "spacing"
+      ],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "toast"
+      ]
+    },
+    "screens/announcements/AnnouncementsScreen.js": {
+      "route": "Announcements",
+      "tab": "Home",
+      "screen": "Anunțuri",
+      "stylesFile": "screens/announcements/styles.js",
+      "globals": [
+        {
+          "name": "useAuth",
+          "file": "global/context/AuthContext.js"
+        },
+        {
+          "name": "UserAvatar",
+          "file": "global/components/UserAvatar.js"
+        },
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "getTimeAgo",
+          "file": "global/functions/formatters.js"
+        }
+      ],
+      "styleTokens": [
+        "headerGradient"
+      ],
+      "crossScreens": [],
+      "domainsTouched": [
+        "auth",
+        "api",
+        "toast"
+      ]
+    },
+    "screens/auth/ForgotPasswordScreen.js": {
+      "route": "ForgotPassword",
+      "tab": "Auth",
+      "screen": "Resetare parolă",
+      "stylesFile": "screens/auth/styles.js",
+      "globals": [
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "toast"
+      ]
+    },
+    "screens/auth/forgotStyles.js": {
+      "stylesFile": "screens/auth/styles.js",
+      "globals": [],
+      "styleTokens": [
+        "colors",
+        "typography",
+        "spacing",
+        "borderRadius"
+      ],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/auth/LoginScreen.js": {
+      "route": "Login",
+      "tab": "Auth",
+      "screen": "Autentificare",
+      "stylesFile": "screens/auth/styles.js",
+      "globals": [
+        {
+          "name": "useAuth",
+          "file": "global/context/AuthContext.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "ServerSettingsModal",
+          "file": "global/components/ServerSettingsModal.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "auth",
+        "toast"
+      ]
+    },
+    "screens/auth/RegisterScreen.js": {
+      "route": "Register",
+      "tab": "Auth",
+      "screen": "Înregistrare",
+      "stylesFile": "screens/auth/styles.js",
+      "globals": [
+        {
+          "name": "useAuth",
+          "file": "global/context/AuthContext.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "teamRoleLabels",
+          "file": "global/functions/formatters.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "auth",
+        "toast"
+      ]
+    },
+    "screens/courses/CourseDetailScreen.js": {
+      "route": "CourseDetail",
+      "tab": "Courses",
+      "screen": "Detaliu curs",
+      "stylesFile": "screens/courses/styles.js",
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "formatDate",
+          "file": "global/functions/formatters.js"
+        },
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "toast"
+      ]
+    },
+    "screens/courses/CoursesScreen.js": {
+      "route": "Courses",
+      "tab": "Courses",
+      "screen": "Cursuri",
+      "stylesFile": "screens/courses/styles.js",
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        }
+      ],
+      "styleTokens": [
+        "headerGradient"
+      ],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "toast"
+      ]
+    },
+    "screens/games/GamesScreen.js": {
+      "route": "Games",
+      "tab": "Games",
+      "screen": "Jocuri",
+      "stylesFile": "screens/games/styles.js",
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "useAuth",
+          "file": "global/context/AuthContext.js"
+        }
+      ],
+      "styleTokens": [
+        "headerGradient"
+      ],
+      "crossScreens": [
+        "screens/games/game_pray-realm/index.js"
+      ],
+      "domainsTouched": [
+        "api",
+        "toast",
+        "auth"
+      ]
+    },
+    "screens/games/game_pray-realm/api/challengesApi.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/data/challenges.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/api/playerApi.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/db/schema.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/api/shopApi.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/data/shopItems.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/assets/images.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/belzy/belzyConfig.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/belzy/BelzyOverlay.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/assets/index.js",
+        "screens/games/game_pray-realm/constants/dimensions.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/belzy/BelzyPunishmentOverlay.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/assets/index.js",
+        "screens/games/game_pray-realm/constants/dimensions.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/belzy/belzyPunishments.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/belzy/BelzyPunishmentWheel.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/belzy/belzyQuestions.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/belzy/belzyRewards.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/belzy/BelzyShieldBlock.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/assets/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/belzy/BelzySwordScene.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/assets/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/belzy/belzyVillainState.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/api/playerApi.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/belzy/SwordCinematic.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/assets/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/belzy/useBelzy.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/api/playerApi.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/AchievementCard.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/screens/styles/achievementsStyles.js",
+        "screens/games/game_pray-realm/assets/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/AlabastruBadge.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/assets/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/AuraEffect.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/Avatar.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/styles/avatarStyles.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/AvatarWithBuffs.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "DropZone",
+          "file": "global/components/DragAndDrop/DropZone.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js",
+        "screens/games/game_pray-realm/data/shopItems.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/Background.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js",
+        "screens/games/game_pray-realm/constants/gameConfig.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/BelzyDeadIndicator.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/assets/index.js",
+        "screens/games/game_pray-realm/constants/dimensions.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/BuffIndicators.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js",
+        "screens/games/game_pray-realm/assets/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/ChallengeCard.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/screens/styles/challengesStyles.js",
+        "screens/games/game_pray-realm/assets/index.js",
+        "screens/games/game_pray-realm/data/challenges.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/DailyRewardModal.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/assets/index.js",
+        "screens/games/game_pray-realm/api/playerApi.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/DisabledOverlay.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/Explosion.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/GalleryCard.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/screens/styles/achievementsStyles.js",
+        "screens/games/game_pray-realm/assets/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/GameIcon.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/assets/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/GameToast.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/GameWorld.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/styles/gameStyles.js",
+        "screens/games/game_pray-realm/assets/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/HammerIcon.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/styles/platformStyles.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/LevelCostBadge.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/assets/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/LevelNumber.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/Platform.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/styles/platformStyles.js",
+        "screens/games/game_pray-realm/constants/dimensions.js",
+        "screens/games/game_pray-realm/utils/levelUtils.js",
+        "screens/games/game_pray-realm/constants/gameConfig.js",
+        "screens/games/game_pray-realm/data/levelCosts.js",
+        "screens/games/game_pray-realm/assets/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/PlatformList.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/utils/levelUtils.js",
+        "screens/games/game_pray-realm/utils/positionUtils.js",
+        "screens/games/game_pray-realm/constants/gameConfig.js",
+        "screens/games/game_pray-realm/assets/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/ShopItem.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/screens/styles/shopStyles.js",
+        "screens/games/game_pray-realm/assets/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/Toolbar.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "DraggableItem",
+          "file": "global/components/DragAndDrop/DraggableItem.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js",
+        "screens/games/game_pray-realm/assets/index.js",
+        "screens/games/game_pray-realm/data/shopItems.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/TreasureBag.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/assets/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/TrophyIcon.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/styles/platformStyles.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/components/WinOverlay.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/styles/overlayStyles.js",
+        "screens/games/game_pray-realm/assets/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/constants/dimensions.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/constants/gameConfig.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/constants/levels.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/context/GameContext.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/state/gameState.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/context/PlayerContext.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/api/playerApi.js",
+        "screens/games/game_pray-realm/api/challengesApi.js",
+        "screens/games/game_pray-realm/db/schema.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/context/UserProgressContext.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/data/achievements.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/data/challenges.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/data/levelCosts.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/data/shopItems.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/gameConfig.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/db/schema.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/hooks/useActiveBuffs.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/api/playerApi.js",
+        "screens/games/game_pray-realm/data/shopItems.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/hooks/useAvatarMovement.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/utils/positionUtils.js",
+        "screens/games/game_pray-realm/constants/gameConfig.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/hooks/useCamera.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/utils/positionUtils.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/hooks/useGameLoop.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/gameConfig.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/hooks/useGameState.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/state/gameState.js",
+        "screens/games/game_pray-realm/constants/gameConfig.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/hooks/useInventory.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/api/playerApi.js",
+        "screens/games/game_pray-realm/api/shopApi.js",
+        "screens/games/game_pray-realm/data/shopItems.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/hooks/usePrayerGameIntegration.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/services/prayerIntegrationService.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/hooks/useReveal.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/utils/levelUtils.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/missions/CreateMissionScreen.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/missions/ManageMissionsScreen.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/missions/missionAdmins.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/missions/MissionAdminSettings.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/missions/MissionCard.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/screens/styles/challengesStyles.js",
+        "screens/games/game_pray-realm/assets/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/missions/MissionPlayersScreen.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/missions/MissionRequestsScreen.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/missions/missionsApi.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api"
+      ]
+    },
+    "screens/games/game_pray-realm/missions/missionsSocket.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "CONFIG",
+          "file": "global/config.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/missions/styles/missionStyles.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/missions/useMissions.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "showMissionNotification",
+          "file": "global/functions/toast.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "toast"
+      ]
+    },
+    "screens/games/game_pray-realm/PrayRealmGame.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/styles/gameStyles.js",
+        "screens/games/game_pray-realm/components/index.js",
+        "screens/games/game_pray-realm/hooks/index.js",
+        "screens/games/game_pray-realm/utils/positionUtils.js",
+        "screens/games/game_pray-realm/constants/gameConfig.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/PrayRealmNavigator.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/screens/index.js",
+        "screens/games/game_pray-realm/context/PlayerContext.js",
+        "screens/games/game_pray-realm/api/playerApi.js",
+        "screens/games/game_pray-realm/stages/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/screens/AchievementsScreen.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/screens/styles/achievementsStyles.js",
+        "screens/games/game_pray-realm/components/GalleryCard.js",
+        "screens/games/game_pray-realm/assets/index.js",
+        "screens/games/game_pray-realm/api/playerApi.js",
+        "screens/games/game_pray-realm/data/achievements.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/screens/ChallengesScreen.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/screens/styles/challengesStyles.js",
+        "screens/games/game_pray-realm/components/ChallengeCard.js",
+        "screens/games/game_pray-realm/assets/index.js",
+        "screens/games/game_pray-realm/api/challengesApi.js",
+        "screens/games/game_pray-realm/api/playerApi.js",
+        "screens/games/game_pray-realm/data/challenges.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/screens/GameEntry.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/assets/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/screens/GamePlayScreen.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "DragProvider",
+          "file": "global/components/DragAndDrop/DragContext.js"
+        },
+        {
+          "name": "useTesting",
+          "file": "global/testing/TestingContext.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/styles/gameStyles.js",
+        "screens/games/game_pray-realm/components/index.js",
+        "screens/games/game_pray-realm/hooks/index.js",
+        "screens/games/game_pray-realm/utils/positionUtils.js",
+        "screens/games/game_pray-realm/constants/gameConfig.js",
+        "screens/games/game_pray-realm/data/levelCosts.js",
+        "screens/games/game_pray-realm/data/shopItems.js",
+        "screens/games/game_pray-realm/api/playerApi.js",
+        "screens/games/game_pray-realm/assets/index.js",
+        "screens/games/game_pray-realm/constants/dimensions.js",
+        "screens/games/game_pray-realm/belzy/index.js",
+        "screens/games/game_pray-realm/utils/levelUtils.js",
+        "screens/games/game_pray-realm/components/DailyRewardModal.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/screens/InventoryScreen.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/assets/index.js",
+        "screens/games/game_pray-realm/constants/dimensions.js",
+        "screens/games/game_pray-realm/data/shopItems.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/screens/MainMenu.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/assets/index.js",
+        "screens/games/game_pray-realm/screens/styles/mainMenuStyles.js",
+        "screens/games/game_pray-realm/missions/index.js",
+        "screens/games/game_pray-realm/constants/dimensions.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/screens/PrayerShopScreen.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/screens/styles/shopStyles.js",
+        "screens/games/game_pray-realm/components/ShopItem.js",
+        "screens/games/game_pray-realm/assets/index.js",
+        "screens/games/game_pray-realm/api/shopApi.js",
+        "screens/games/game_pray-realm/api/playerApi.js",
+        "screens/games/game_pray-realm/data/shopItems.js",
+        "screens/games/game_pray-realm/missions/index.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/screens/styles/achievementsStyles.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/screens/styles/challengesStyles.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/screens/styles/mainMenuStyles.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/screens/styles/shopStyles.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/services/gameService.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/services/prayerIntegrationService.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/api/challengesApi.js",
+        "screens/games/game_pray-realm/api/playerApi.js",
+        "screens/games/game_pray-realm/data/challenges.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/services/taskIntegrationService.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/stages/GameTransition.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/stages/IntroScene.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/stages/IntroTextBox.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/stages/stage1IntroData.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/stages/stageConfig.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/stages/StageIntro.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/state/gameState.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/levels.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/styles/avatarStyles.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/styles/backgroundStyles.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/styles/gameStyles.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/styles/overlayStyles.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/styles/platformStyles.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/utils/animationUtils.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/utils/levelUtils.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/levels.js",
+        "screens/games/game_pray-realm/constants/gameConfig.js",
+        "screens/games/game_pray-realm/data/levelCosts.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/game_pray-realm/utils/positionUtils.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/constants/dimensions.js",
+        "screens/games/game_pray-realm/constants/gameConfig.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/games/LeaderboardScreen.js": {
+      "route": "Leaderboard",
+      "tab": "Games",
+      "screen": "Clasament",
+      "stylesFile": "screens/games/styles.js",
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "toast"
+      ]
+    },
+    "screens/games/MemoryGameScreen.js": {
+      "route": "MemoryGame",
+      "tab": "Games",
+      "screen": "Memorează versetul",
+      "stylesFile": "screens/games/styles.js",
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "BackArrowIcon",
+          "file": "global/components/BackArrowIcon.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "toast"
+      ]
+    },
+    "screens/games/MultiplayerLobbyScreen.js": {
+      "route": "MultiplayerLobby",
+      "tab": "Games",
+      "screen": "Lobby multiplayer",
+      "stylesFile": "screens/games/styles.js",
+      "globals": [
+        {
+          "name": "useAuth",
+          "file": "global/context/AuthContext.js"
+        },
+        {
+          "name": "getSocket",
+          "file": "global/services/socket.js"
+        },
+        {
+          "name": "createRoom",
+          "file": "global/services/socket.js"
+        },
+        {
+          "name": "joinRoom",
+          "file": "global/services/socket.js"
+        },
+        {
+          "name": "startGame",
+          "file": "global/services/socket.js"
+        },
+        {
+          "name": "leaveRoom",
+          "file": "global/services/socket.js"
+        },
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "auth",
+        "realtime"
+      ]
+    },
+    "screens/games/QuizGameScreen.js": {
+      "route": "QuizGame",
+      "tab": "Games",
+      "screen": "Quiz Biblic",
+      "stylesFile": "screens/games/styles.js",
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "BackArrowIcon",
+          "file": "global/components/BackArrowIcon.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "toast"
+      ]
+    },
+    "screens/home/HomeScreen.js": {
+      "route": "HomeScreen",
+      "tab": "Home",
+      "screen": "Home",
+      "stylesFile": "screens/home/styles.js",
+      "globals": [
+        {
+          "name": "useAuth",
+          "file": "global/context/AuthContext.js"
+        },
+        {
+          "name": "UserAvatar",
+          "file": "global/components/UserAvatar.js"
+        },
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "getTimeAgo",
+          "file": "global/functions/formatters.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "auth",
+        "api"
+      ]
+    },
+    "screens/prayers/AchievementsScreen.js": {
+      "route": "Achievements",
+      "tab": "Prayers",
+      "screen": "Realizări",
+      "stylesFile": "screens/prayers/styles.js",
+      "globals": [
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        },
+        {
+          "name": "TiledBackground",
+          "file": "global/components/TiledBackground.js"
+        },
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "tema"
+      ]
+    },
+    "screens/prayers/AddPrayerModal.js": {
+      "stylesFile": "screens/prayers/styles.js",
+      "globals": [
+        {
+          "name": "BulbToggle",
+          "file": "global/components/BulbToggle.js"
+        },
+        {
+          "name": "TestReportButton",
+          "file": "global/components/testing/TestReportButton.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/analyze/AnalysisScreen.js": {
+      "route": "PrayerAnalysis",
+      "tab": "Prayers",
+      "screen": "Analiză rugăciuni",
+      "stylesFile": "screens/prayers/analyze/styles.js",
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "toast"
+      ]
+    },
+    "screens/prayers/analyze/creierAnalizator.js": {
+      "stylesFile": "screens/prayers/analyze/styles.js",
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/analyzeStyles.js": {
+      "stylesFile": "screens/prayers/styles.js",
+      "globals": [],
+      "styleTokens": [
+        "colors",
+        "typography",
+        "spacing"
+      ],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/AnalyzeTab.js": {
+      "stylesFile": "screens/prayers/styles.js",
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/AnimatedPrayerCard.js": {
+      "stylesFile": "screens/prayers/styles.js",
+      "globals": [
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "tema"
+      ]
+    },
+    "screens/prayers/CreateListModal.js": {
+      "stylesFile": "screens/prayers/styles.js",
+      "globals": [
+        {
+          "name": "UserAvatar",
+          "file": "global/components/UserAvatar.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/GoldenMedalAnimation.js": {
+      "stylesFile": "screens/prayers/styles.js",
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/PersonalPrayersTab.js": {
+      "stylesFile": "screens/prayers/styles.js",
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "useAuth",
+          "file": "global/context/AuthContext.js"
+        },
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        },
+        {
+          "name": "useNotifications",
+          "file": "global/context/NotificationContext.js"
+        },
+        {
+          "name": "useTesting",
+          "file": "global/testing/TestingContext.js"
+        },
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        },
+        {
+          "name": "TiledBackground",
+          "file": "global/components/TiledBackground.js"
+        },
+        {
+          "name": "NotificationBadge",
+          "file": "global/components/NotificationBadge.js"
+        },
+        {
+          "name": "BulbToggle",
+          "file": "global/components/BulbToggle.js"
+        },
+        {
+          "name": "TestReportButton",
+          "file": "global/components/testing/TestReportButton.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "toast",
+        "auth",
+        "tema",
+        "notificari"
+      ]
+    },
+    "screens/prayers/personalStyles.js": {
+      "stylesFile": "screens/prayers/styles.js",
+      "globals": [],
+      "styleTokens": [
+        "colors",
+        "typography",
+        "spacing",
+        "borderRadius"
+      ],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/pray-room/FinalScoreModal.js": {
+      "stylesFile": "screens/prayers/pray-room/styles.js",
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/pray-room/MilestoneBar.js": {
+      "stylesFile": "screens/prayers/pray-room/styles.js",
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/pray-room/ParticipantPicker.js": {
+      "stylesFile": "screens/prayers/pray-room/styles.js",
+      "globals": [
+        {
+          "name": "UserAvatar",
+          "file": "global/components/UserAvatar.js"
+        },
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api"
+      ]
+    },
+    "screens/prayers/pray-room/PrayRoomCard.js": {
+      "stylesFile": "screens/prayers/pray-room/styles.js",
+      "globals": [
+        {
+          "name": "UserAvatar",
+          "file": "global/components/UserAvatar.js"
+        },
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "tema"
+      ]
+    },
+    "screens/prayers/pray-room/PrayRoomEntry.js": {
+      "route": "PrayRoomEntry",
+      "tab": "Prayers",
+      "screen": "Pray Room - intrare",
+      "stylesFile": "screens/prayers/pray-room/styles.js",
+      "globals": [
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        },
+        {
+          "name": "TiledBackground",
+          "file": "global/components/TiledBackground.js"
+        },
+        {
+          "name": "BackArrowIcon",
+          "file": "global/components/BackArrowIcon.js"
+        },
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "toast",
+        "tema"
+      ]
+    },
+    "screens/prayers/pray-room/PrayRoomList.js": {
+      "route": "PrayRoomList",
+      "tab": "Prayers",
+      "screen": "Pray Rooms - listă",
+      "stylesFile": "screens/prayers/pray-room/styles.js",
+      "globals": [
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        },
+        {
+          "name": "TiledBackground",
+          "file": "global/components/TiledBackground.js"
+        },
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "tema"
+      ]
+    },
+    "screens/prayers/pray-room/PrayRoomScreen.js": {
+      "route": "PrayRoomScreen",
+      "tab": "Prayers",
+      "screen": "Pray Room - sesiune",
+      "stylesFile": "screens/prayers/pray-room/styles.js",
+      "globals": [
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        },
+        {
+          "name": "TiledBackground",
+          "file": "global/components/TiledBackground.js"
+        },
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "useAuth",
+          "file": "global/context/AuthContext.js"
+        },
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/PrayerCard.js"
+      ],
+      "domainsTouched": [
+        "api",
+        "toast",
+        "auth",
+        "tema"
+      ]
+    },
+    "screens/prayers/pray-room/PrayRoomSetup.js": {
+      "route": "PrayRoomSetup",
+      "tab": "Prayers",
+      "screen": "Pray Room - configurare",
+      "stylesFile": "screens/prayers/pray-room/styles.js",
+      "globals": [
+        {
+          "name": "BackArrowIcon",
+          "file": "global/components/BackArrowIcon.js"
+        },
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "toast"
+      ]
+    },
+    "screens/prayers/pray-room/prayRoomSocket.js": {
+      "stylesFile": "screens/prayers/pray-room/styles.js",
+      "globals": [
+        {
+          "name": "CONFIG",
+          "file": "global/config.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/pray-room/PrayRoulette.js": {
+      "stylesFile": "screens/prayers/pray-room/styles.js",
+      "globals": [
+        {
+          "name": "UserAvatar",
+          "file": "global/components/UserAvatar.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/PrayedButton.js": {
+      "stylesFile": "screens/prayers/styles.js",
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/games/game_pray-realm/services/prayerIntegrationService.js"
+      ],
+      "domainsTouched": [
+        "api",
+        "toast"
+      ]
+    },
+    "screens/prayers/PrayedCounter.js": {
+      "stylesFile": "screens/prayers/styles.js",
+      "globals": [
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        }
+      ],
+      "styleTokens": [
+        "colors",
+        "typography",
+        "spacing",
+        "borderRadius"
+      ],
+      "crossScreens": [],
+      "domainsTouched": [
+        "tema"
+      ]
+    },
+    "screens/prayers/PrayerCard.js": {
+      "stylesFile": "screens/prayers/styles.js",
+      "globals": [
+        {
+          "name": "UserAvatar",
+          "file": "global/components/UserAvatar.js"
+        },
+        {
+          "name": "RibbonBadge",
+          "file": "global/components/RibbonBadge.js"
+        },
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        }
+      ],
+      "styleTokens": [
+        "colors",
+        "typography",
+        "spacing",
+        "borderRadius"
+      ],
+      "crossScreens": [],
+      "domainsTouched": [
+        "tema"
+      ]
+    },
+    "screens/prayers/PrayersScreen.js": {
+      "route": "PrayersMain",
+      "tab": "Prayers",
+      "screen": "Rugăciuni (selector)",
+      "stylesFile": "screens/prayers/styles.js",
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "useAuth",
+          "file": "global/context/AuthContext.js"
+        },
+        {
+          "name": "useTransition",
+          "file": "global/context/TransitionContext.js"
+        },
+        {
+          "name": "TRANSITION_VIDEOS",
+          "file": "global/context/TransitionContext.js"
+        }
+      ],
+      "styleTokens": [
+        "colors"
+      ],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "auth"
+      ]
+    },
+    "screens/prayers/PrayerWinstreak.js": {
+      "stylesFile": "screens/prayers/styles.js",
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/ProgramPrayersTab.js": {
+      "stylesFile": "screens/prayers/styles.js",
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "useAuth",
+          "file": "global/context/AuthContext.js"
+        },
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        },
+        {
+          "name": "useTesting",
+          "file": "global/testing/TestingContext.js"
+        },
+        {
+          "name": "CONFIG",
+          "file": "global/config.js"
+        },
+        {
+          "name": "RibbonBadge",
+          "file": "global/components/RibbonBadge.js"
+        },
+        {
+          "name": "UserAvatar",
+          "file": "global/components/UserAvatar.js"
+        },
+        {
+          "name": "BackArrowIcon",
+          "file": "global/components/BackArrowIcon.js"
+        },
+        {
+          "name": "TiledBackground",
+          "file": "global/components/TiledBackground.js"
+        },
+        {
+          "name": "storage",
+          "file": "global/utils/storage.js"
+        }
+      ],
+      "styleTokens": [
+        "headerGradient"
+      ],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "toast",
+        "auth",
+        "tema",
+        "storage"
+      ]
+    },
+    "screens/prayers/ShareMenuModal.js": {
+      "stylesFile": "screens/prayers/styles.js",
+      "globals": [
+        {
+          "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        }
+      ],
+      "styleTokens": [
+        "headerGradient",
+        "colors"
+      ],
+      "crossScreens": [],
+      "domainsTouched": [
+        "toast"
+      ]
+    },
+    "screens/prayers/timer/ProgramSelector.js": {
+      "stylesFile": "screens/prayers/timer/styles.js",
+      "globals": [],
+      "styleTokens": [
+        "colors",
+        "spacing"
+      ],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/timer/TimerOverlay.js": {
+      "stylesFile": "screens/prayers/timer/styles.js",
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/timer/TimerScreen.js": {
+      "route": "PrayerTimer",
+      "tab": "Prayers",
+      "screen": "Timer rugăciune",
+      "stylesFile": "screens/prayers/timer/styles.js",
+      "globals": [
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/UserPrayersList.js": {
+      "stylesFile": "screens/prayers/styles.js",
+      "globals": [
+        {
+          "name": "RibbonBadge",
+          "file": "global/components/RibbonBadge.js"
+        },
+        {
+          "name": "UserAvatar",
+          "file": "global/components/UserAvatar.js"
+        },
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "tema"
+      ]
+    },
+    "screens/profile/EditProfileScreen.js": {
+      "route": "EditProfile",
+      "tab": "Profile",
+      "screen": "Editează profil",
+      "stylesFile": "screens/profile/styles.js",
+      "globals": [
+        {
+          "name": "useAuth",
+          "file": "global/context/AuthContext.js"
+        },
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "teamRoleLabels",
+          "file": "global/functions/formatters.js"
+        },
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "auth",
+        "api",
+        "toast"
+      ]
+    },
+    "screens/profile/ProfileScreen.js": {
+      "route": "Profile",
+      "tab": "Profile",
+      "screen": "Profil",
+      "stylesFile": "screens/profile/styles.js",
+      "globals": [
+        {
+          "name": "useAuth",
+          "file": "global/context/AuthContext.js"
+        },
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        },
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "teamRoleLabels",
+          "file": "global/functions/formatters.js"
+        }
+      ],
+      "styleTokens": [
+        "headerGradient"
+      ],
+      "crossScreens": [],
+      "domainsTouched": [
+        "auth",
+        "tema",
+        "api"
+      ]
+    },
+    "screens/profile/SettingsScreen.js": {
+      "route": "Settings",
+      "tab": "Profile",
+      "screen": "Setări",
+      "stylesFile": "screens/profile/styles.js",
+      "globals": [
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        },
+        {
+          "name": "useAuth",
+          "file": "global/context/AuthContext.js"
+        },
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showConfirm",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "CONFIG",
+          "file": "global/config.js"
+        },
+        {
+          "name": "ServerSettingsModal",
+          "file": "global/components/ServerSettingsModal.js"
+        }
+      ],
+      "styleTokens": [
+        "headerGradient"
+      ],
+      "crossScreens": [],
+      "domainsTouched": [
+        "tema",
+        "auth",
+        "api",
+        "toast"
+      ]
+    },
+    "screens/profile/settingsStyles.js": {
+      "stylesFile": "screens/profile/styles.js",
+      "globals": [],
+      "styleTokens": [
+        "colors",
+        "typography",
+        "spacing",
+        "borderRadius"
+      ],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/profile/updateHelper.js": {
+      "stylesFile": "screens/profile/styles.js",
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    }
+  },
+  "reverseGlobals": {
+    "global/functions/api.js": [
+      "screens/admin/AdminScreen.js",
+      "screens/announcements/AnnouncementDetailScreen.js",
+      "screens/announcements/AnnouncementsScreen.js",
+      "screens/courses/CourseDetailScreen.js",
+      "screens/courses/CoursesScreen.js",
+      "screens/games/GamesScreen.js",
+      "screens/games/game_pray-realm/missions/missionsApi.js",
+      "screens/games/LeaderboardScreen.js",
+      "screens/games/MemoryGameScreen.js",
+      "screens/games/QuizGameScreen.js",
+      "screens/home/HomeScreen.js",
+      "screens/prayers/AchievementsScreen.js",
+      "screens/prayers/analyze/AnalysisScreen.js",
+      "screens/prayers/PersonalPrayersTab.js",
+      "screens/prayers/pray-room/ParticipantPicker.js",
+      "screens/prayers/pray-room/PrayRoomEntry.js",
+      "screens/prayers/pray-room/PrayRoomList.js",
+      "screens/prayers/pray-room/PrayRoomScreen.js",
+      "screens/prayers/pray-room/PrayRoomSetup.js",
+      "screens/prayers/PrayedButton.js",
+      "screens/prayers/PrayersScreen.js",
+      "screens/prayers/ProgramPrayersTab.js",
+      "screens/profile/EditProfileScreen.js",
+      "screens/profile/ProfileScreen.js",
+      "screens/profile/SettingsScreen.js"
+    ],
+    "global/functions/toast.js": [
+      "screens/admin/AdminScreen.js",
+      "screens/announcements/AnnouncementDetailScreen.js",
+      "screens/announcements/AnnouncementsScreen.js",
+      "screens/auth/ForgotPasswordScreen.js",
+      "screens/auth/LoginScreen.js",
+      "screens/auth/RegisterScreen.js",
+      "screens/courses/CourseDetailScreen.js",
+      "screens/courses/CoursesScreen.js",
+      "screens/games/GamesScreen.js",
+      "screens/games/game_pray-realm/missions/useMissions.js",
+      "screens/games/LeaderboardScreen.js",
+      "screens/games/MemoryGameScreen.js",
+      "screens/games/QuizGameScreen.js",
+      "screens/prayers/analyze/AnalysisScreen.js",
+      "screens/prayers/PersonalPrayersTab.js",
+      "screens/prayers/pray-room/PrayRoomEntry.js",
+      "screens/prayers/pray-room/PrayRoomScreen.js",
+      "screens/prayers/pray-room/PrayRoomSetup.js",
+      "screens/prayers/PrayedButton.js",
+      "screens/prayers/ProgramPrayersTab.js",
+      "screens/prayers/ShareMenuModal.js",
+      "screens/profile/EditProfileScreen.js",
+      "screens/profile/SettingsScreen.js"
+    ],
+    "global/context/AuthContext.js": [
+      "screens/admin/AdminScreen.js",
+      "screens/announcements/AnnouncementsScreen.js",
+      "screens/auth/LoginScreen.js",
+      "screens/auth/RegisterScreen.js",
+      "screens/games/GamesScreen.js",
+      "screens/games/MultiplayerLobbyScreen.js",
+      "screens/home/HomeScreen.js",
+      "screens/prayers/PersonalPrayersTab.js",
+      "screens/prayers/pray-room/PrayRoomScreen.js",
+      "screens/prayers/PrayersScreen.js",
+      "screens/prayers/ProgramPrayersTab.js",
+      "screens/profile/EditProfileScreen.js",
+      "screens/profile/ProfileScreen.js",
+      "screens/profile/SettingsScreen.js"
+    ],
+    "global/components/ScreenHeader.js": [
+      "screens/admin/AdminScreen.js",
+      "screens/courses/CourseDetailScreen.js",
+      "screens/games/LeaderboardScreen.js",
+      "screens/games/MultiplayerLobbyScreen.js",
+      "screens/prayers/AchievementsScreen.js",
+      "screens/prayers/analyze/AnalysisScreen.js",
+      "screens/prayers/PersonalPrayersTab.js",
+      "screens/prayers/pray-room/PrayRoomEntry.js",
+      "screens/prayers/pray-room/PrayRoomList.js",
+      "screens/prayers/pray-room/PrayRoomScreen.js",
+      "screens/prayers/timer/TimerScreen.js",
+      "screens/profile/EditProfileScreen.js"
+    ],
+    "global/components/UserAvatar.js": [
+      "screens/admin/AdminScreen.js",
+      "screens/announcements/AnnouncementDetailScreen.js",
+      "screens/announcements/AnnouncementsScreen.js",
+      "screens/home/HomeScreen.js",
+      "screens/prayers/CreateListModal.js",
+      "screens/prayers/pray-room/ParticipantPicker.js",
+      "screens/prayers/pray-room/PrayRoomCard.js",
+      "screens/prayers/pray-room/PrayRoulette.js",
+      "screens/prayers/PrayerCard.js",
+      "screens/prayers/ProgramPrayersTab.js",
+      "screens/prayers/UserPrayersList.js"
+    ],
+    "global/components/BackArrowIcon.js": [
+      "screens/announcements/AnnouncementDetailScreen.js",
+      "screens/games/MemoryGameScreen.js",
+      "screens/games/QuizGameScreen.js",
+      "screens/prayers/pray-room/PrayRoomEntry.js",
+      "screens/prayers/pray-room/PrayRoomSetup.js",
+      "screens/prayers/ProgramPrayersTab.js"
+    ],
+    "global/functions/formatters.js": [
+      "screens/announcements/AnnouncementDetailScreen.js",
+      "screens/announcements/AnnouncementsScreen.js",
+      "screens/auth/RegisterScreen.js",
+      "screens/courses/CourseDetailScreen.js",
+      "screens/home/HomeScreen.js",
+      "screens/profile/EditProfileScreen.js",
+      "screens/profile/ProfileScreen.js"
+    ],
+    "global/components/ServerSettingsModal.js": [
+      "screens/auth/LoginScreen.js",
+      "screens/profile/SettingsScreen.js"
+    ],
+    "global/components/DragAndDrop/DropZone.js": [
+      "screens/games/game_pray-realm/components/AvatarWithBuffs.js"
+    ],
+    "global/components/DragAndDrop/DraggableItem.js": [
+      "screens/games/game_pray-realm/components/Toolbar.js"
+    ],
+    "global/config.js": [
+      "screens/games/game_pray-realm/missions/missionsSocket.js",
+      "screens/prayers/pray-room/prayRoomSocket.js",
+      "screens/prayers/ProgramPrayersTab.js",
+      "screens/profile/SettingsScreen.js"
+    ],
+    "global/components/DragAndDrop/DragContext.js": [
+      "screens/games/game_pray-realm/screens/GamePlayScreen.js"
+    ],
+    "global/testing/TestingContext.js": [
+      "screens/games/game_pray-realm/screens/GamePlayScreen.js",
+      "screens/prayers/PersonalPrayersTab.js",
+      "screens/prayers/ProgramPrayersTab.js"
+    ],
+    "global/services/socket.js": [
+      "screens/games/MultiplayerLobbyScreen.js"
+    ],
+    "global/components/TiledBackground.js": [
+      "screens/prayers/AchievementsScreen.js",
+      "screens/prayers/PersonalPrayersTab.js",
+      "screens/prayers/pray-room/PrayRoomEntry.js",
+      "screens/prayers/pray-room/PrayRoomList.js",
+      "screens/prayers/pray-room/PrayRoomScreen.js",
+      "screens/prayers/ProgramPrayersTab.js"
+    ],
+    "global/context/ThemeContext.js": [
+      "screens/prayers/AchievementsScreen.js",
+      "screens/prayers/AnimatedPrayerCard.js",
+      "screens/prayers/PersonalPrayersTab.js",
+      "screens/prayers/pray-room/PrayRoomCard.js",
+      "screens/prayers/pray-room/PrayRoomEntry.js",
+      "screens/prayers/pray-room/PrayRoomList.js",
+      "screens/prayers/pray-room/PrayRoomScreen.js",
+      "screens/prayers/PrayedCounter.js",
+      "screens/prayers/PrayerCard.js",
+      "screens/prayers/ProgramPrayersTab.js",
+      "screens/prayers/UserPrayersList.js",
+      "screens/profile/ProfileScreen.js",
+      "screens/profile/SettingsScreen.js"
+    ],
+    "global/components/BulbToggle.js": [
+      "screens/prayers/AddPrayerModal.js",
+      "screens/prayers/PersonalPrayersTab.js"
+    ],
+    "global/components/testing/TestReportButton.js": [
+      "screens/prayers/AddPrayerModal.js",
+      "screens/prayers/PersonalPrayersTab.js"
+    ],
+    "global/context/NotificationContext.js": [
+      "screens/prayers/PersonalPrayersTab.js"
+    ],
+    "global/components/NotificationBadge.js": [
+      "screens/prayers/PersonalPrayersTab.js"
+    ],
+    "global/components/RibbonBadge.js": [
+      "screens/prayers/PrayerCard.js",
+      "screens/prayers/ProgramPrayersTab.js",
+      "screens/prayers/UserPrayersList.js"
+    ],
+    "global/context/TransitionContext.js": [
+      "screens/prayers/PrayersScreen.js"
+    ],
+    "global/utils/storage.js": [
+      "screens/prayers/ProgramPrayersTab.js"
+    ]
+  }
+}

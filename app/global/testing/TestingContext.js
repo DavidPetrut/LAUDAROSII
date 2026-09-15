@@ -94,12 +94,15 @@ export const TestingProvider = ({ children }) => {
 
   /**
    * Construieste payload-ul final si il trimite la server.
-   * @param {object} report - { element, bugType, bugCode, problem, solution, screenshot }
+   * @param {object} report - { kind, source, element, bugType, bugCode, problem, solution, screenshot }
    */
   const submit = useCallback(
     async (report) => {
       const screenInfo = resolveCurrentScreen();
       const payload = {
+        // natura raportului
+        kind: report.kind === "feature" ? "feature" : "bug",
+        source: report.source === "local" ? "local" : "mobile",
         // ierarhie (nivel 1 tab, nivel 2 ecran)
         tab: screenInfo.tab,
         screen: screenInfo.screen,
@@ -107,7 +110,7 @@ export const TestingProvider = ({ children }) => {
         layer: screenInfo.layer || null,
         folder: screenInfo.folder,
         file: screenInfo.file,
-        // element selectat
+        // element selectat (native-point pe mobil, dom-element pe web)
         element: report.element || null,
         // clasificare
         bugType: report.bugType,
