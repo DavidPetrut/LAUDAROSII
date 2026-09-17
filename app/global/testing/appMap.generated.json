@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15T15:04:09.750Z",
+  "generatedAt": "2026-09-17T16:20:11.881Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -2428,35 +2428,42 @@
         "toast"
       ]
     },
-    "screens/prayers/timer/ProgramSelector.js": {
-      "stylesFile": "screens/prayers/timer/styles.js",
-      "globals": [],
-      "styleTokens": [
-        "colors",
-        "spacing"
-      ],
-      "crossScreens": [],
-      "domainsTouched": []
-    },
-    "screens/prayers/timer/TimerOverlay.js": {
-      "stylesFile": "screens/prayers/timer/styles.js",
+    "screens/prayers/timer/DevotionalPlayer.js": {
+      "stylesFile": null,
       "globals": [],
       "styleTokens": [],
       "crossScreens": [],
       "domainsTouched": []
     },
-    "screens/prayers/timer/TimerScreen.js": {
+    "screens/prayers/timer/DevotionalScreen.js": {
       "route": "PrayerTimer",
       "tab": "Prayers",
-      "screen": "Timer rugăciune",
-      "stylesFile": "screens/prayers/timer/styles.js",
+      "screen": "Devotional",
+      "stylesFile": null,
       "globals": [
         {
           "name": "ScreenHeader",
           "file": "global/components/ScreenHeader.js"
+        },
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
         }
       ],
       "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api"
+      ]
+    },
+    "screens/prayers/timer/devotionalStyles.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [
+        "colors",
+        "typography",
+        "spacing"
+      ],
       "crossScreens": [],
       "domainsTouched": []
     },
@@ -2648,6 +2655,7 @@
       "screens/prayers/PrayedButton.js",
       "screens/prayers/PrayersScreen.js",
       "screens/prayers/ProgramPrayersTab.js",
+      "screens/prayers/timer/DevotionalScreen.js",
       "screens/profile/EditProfileScreen.js",
       "screens/profile/ProfileScreen.js",
       "screens/profile/SettingsScreen.js"
@@ -2704,7 +2712,7 @@
       "screens/prayers/pray-room/PrayRoomEntry.js",
       "screens/prayers/pray-room/PrayRoomList.js",
       "screens/prayers/pray-room/PrayRoomScreen.js",
-      "screens/prayers/timer/TimerScreen.js",
+      "screens/prayers/timer/DevotionalScreen.js",
       "screens/profile/EditProfileScreen.js"
     ],
     "global/components/UserAvatar.js": [

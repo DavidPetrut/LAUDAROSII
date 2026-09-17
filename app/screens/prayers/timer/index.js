@@ -1,3 +1,2 @@
-export { TimerScreen } from "./TimerScreen";
-export { TimerOverlay } from "./TimerOverlay";
-export { ProgramSelector } from "./ProgramSelector";
+export { DevotionalScreen } from "./DevotionalScreen";
+export { DevotionalPlayer } from "./DevotionalPlayer";

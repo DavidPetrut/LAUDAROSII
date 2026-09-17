@@ -13,6 +13,7 @@ import {
   Animated,
   Image,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 if (
   Platform.OS === "android" &&
@@ -159,6 +160,16 @@ export const PersonalPrayersTab = ({ onBack, navigation }) => {
   const { isDarkMode, theme } = useTheme();
   const { counts, markAsSeen } = useNotifications();
   const { setLayer, clearLayer } = useTesting();
+  const insets = useSafeAreaInsets();
+
+  // Aliniaza butonul "+" exact cu butonul flotant TEST (aceeasi distanta fata de
+  // baza reala a ecranului), dinamic pe orice telefon. Bara de taburi oglindeste
+  // formula din CustomTabBar; pe web ecranul se intinde sub bara, pe nativ deasupra ei.
+  const tabBarHeight = 64 + (insets.bottom > 0 ? insets.bottom : 8);
+  const fabBottom =
+    Platform.OS === "web"
+      ? insets.bottom + 92
+      : insets.bottom + 92 - tabBarHeight;
 
   // Marcheaza layer-ul intern pentru modul de testare (sub-nivel al tabului Pray)
   useEffect(() => {
@@ -480,7 +491,7 @@ export const PersonalPrayersTab = ({ onBack, navigation }) => {
 
       {filter === "mine" && filteredPrayers.length < 5 && (
         <TouchableOpacity
-          style={[styles.fab, { backgroundColor: "#21c063" }]}
+          style={[styles.fab, { backgroundColor: "#21c063", bottom: fabBottom }]}
           onPress={() => setShowModal(true)}
         >
           <Text style={styles.fabText}>+</Text>

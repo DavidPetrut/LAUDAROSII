@@ -6,7 +6,7 @@ export { UserPrayersList } from "./UserPrayersList";
 export { CreateListModal } from "./CreateListModal";
 export { AddPrayerModal } from "./AddPrayerModal";
 export { AnalysisScreen } from "./analyze";
-export { TimerScreen } from "./timer";
+export { DevotionalScreen } from "./timer";
 export { AchievementsScreen } from "./AchievementsScreen";
 export {
   PrayRoomEntry,

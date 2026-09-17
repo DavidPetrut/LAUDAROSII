@@ -37,7 +37,7 @@ export const SCREEN_REGISTRY = {
   PrayRoomSetup: { tab: "Prayers", screen: "Pray Room - configurare", folder: "screens/prayers/pray-room", file: "screens/prayers/pray-room/PrayRoomSetup.js" },
   PrayRoomScreen: { tab: "Prayers", screen: "Pray Room - sesiune", folder: "screens/prayers/pray-room", file: "screens/prayers/pray-room/PrayRoomScreen.js" },
   PrayerAnalysis: { tab: "Prayers", screen: "Analiză rugăciuni", folder: "screens/prayers/analyze", file: "screens/prayers/analyze/AnalysisScreen.js" },
-  PrayerTimer: { tab: "Prayers", screen: "Timer rugăciune", folder: "screens/prayers/timer", file: "screens/prayers/timer/TimerScreen.js" },
+  PrayerTimer: { tab: "Prayers", screen: "Devotional", folder: "screens/prayers/timer", file: "screens/prayers/timer/DevotionalScreen.js" },
   Achievements: { tab: "Prayers", screen: "Realizări", folder: "screens/prayers", file: "screens/prayers/AchievementsScreen.js" },
 
   // ---- COURSES tab ----

@@ -35,7 +35,7 @@ import { HomeScreen } from "./screens/home";
 import {
   PrayersScreen,
   AnalysisScreen,
-  TimerScreen,
+  DevotionalScreen,
   AchievementsScreen,
   PrayRoomEntry,
   PrayRoomSetup,
@@ -74,7 +74,7 @@ const PrayersStackScreen = () => (
     <PrayersNav.Screen name="PrayRoomSetup" component={PrayRoomSetup} />
     <PrayersNav.Screen name="PrayRoomScreen" component={PrayRoomScreen} />
     <PrayersNav.Screen name="PrayerAnalysis" component={AnalysisScreen} />
-    <PrayersNav.Screen name="PrayerTimer" component={TimerScreen} />
+    <PrayersNav.Screen name="PrayerTimer" component={DevotionalScreen} />
     <PrayersNav.Screen name="Achievements" component={AchievementsScreen} />
   </PrayersNav.Navigator>
 );
