@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-18T17:52:26.039Z",
+  "generatedAt": "2026-09-18T19:10:23.470Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -319,6 +319,22 @@
       "addNotificationResponseListener": {
         "file": "global/services/notifications.js",
         "purpose": "let Notifications = null;"
+      },
+      "ensureNotificationChannel": {
+        "file": "global/services/notifications.js",
+        "purpose": "let Notifications = null;"
+      },
+      "scheduleWeeklyReminders": {
+        "file": "global/services/notifications.js",
+        "purpose": "let Notifications = null;"
+      },
+      "cancelScheduledNotifications": {
+        "file": "global/services/notifications.js",
+        "purpose": "let Notifications = null;"
+      },
+      "navigateFromNotification": {
+        "file": "global/services/notificationRouting.js",
+        "purpose": "Rutarea notificarilor: cand userul apasa pe o notificare, o ducem la ecranul"
       }
     },
     "testing": {
@@ -2428,13 +2444,6 @@
         "toast"
       ]
     },
-    "screens/prayers/timer/DevotionalPlayer.js": {
-      "stylesFile": null,
-      "globals": [],
-      "styleTokens": [],
-      "crossScreens": [],
-      "domainsTouched": []
-    },
     "screens/prayers/timer/DevotionalScreen.js": {
       "route": "PrayerTimer",
       "tab": "Prayers",
@@ -2451,7 +2460,12 @@
         }
       ],
       "styleTokens": [],
-      "crossScreens": [],
+      "crossScreens": [
+        "screens/prayers/timer/session/index.js",
+        "screens/prayers/timer/goals/index.js",
+        "screens/prayers/timer/personal/index.js",
+        "screens/prayers/timer/notifications/index.js"
+      ],
       "domainsTouched": [
         "api"
       ]
@@ -2462,8 +2476,122 @@
       "styleTokens": [
         "colors",
         "typography",
-        "spacing"
+        "spacing",
+        "borderRadius"
       ],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/timer/goals/goalsApi.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "storage",
+          "file": "global/utils/storage.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "storage"
+      ]
+    },
+    "screens/prayers/timer/goals/GoalsQuiz.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/timer/devotionalStyles.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/prayers/timer/notifications/devotionalNotifications.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "storage",
+          "file": "global/utils/storage.js"
+        },
+        {
+          "name": "scheduleWeeklyReminders",
+          "file": "global/services/notifications.js"
+        },
+        {
+          "name": "cancelScheduledNotifications",
+          "file": "global/services/notifications.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "storage",
+        "notificari"
+      ]
+    },
+    "screens/prayers/timer/notifications/DevotionalNotificationsTab.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/timer/devotionalStyles.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/prayers/timer/personal/PersonalScreen.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/timer/devotionalStyles.js",
+        "screens/prayers/timer/goals/goalsApi.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/prayers/timer/personal/ProgressChart.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/timer/devotionalStyles.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/prayers/timer/session/DevotionalPlayer.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/timer/devotionalStyles.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/prayers/timer/session/PlayerControls.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/timer/devotionalStyles.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/prayers/timer/session/SessionSetup.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/timer/devotionalStyles.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/prayers/timer/session/useDevotionalAudio.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
       "crossScreens": [],
       "domainsTouched": []
     },
@@ -2656,6 +2784,7 @@
       "screens/prayers/PrayersScreen.js",
       "screens/prayers/ProgramPrayersTab.js",
       "screens/prayers/timer/DevotionalScreen.js",
+      "screens/prayers/timer/goals/goalsApi.js",
       "screens/profile/EditProfileScreen.js",
       "screens/profile/ProfileScreen.js",
       "screens/profile/SettingsScreen.js"
@@ -2818,7 +2947,12 @@
       "screens/prayers/PrayersScreen.js"
     ],
     "global/utils/storage.js": [
-      "screens/prayers/ProgramPrayersTab.js"
+      "screens/prayers/ProgramPrayersTab.js",
+      "screens/prayers/timer/goals/goalsApi.js",
+      "screens/prayers/timer/notifications/devotionalNotifications.js"
+    ],
+    "global/services/notifications.js": [
+      "screens/prayers/timer/notifications/devotionalNotifications.js"
     ]
   }
 }

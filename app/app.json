@@ -16,7 +16,10 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.laudarosii.vertical"
+      "bundleIdentifier": "com.laudarosii.vertical",
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -32,7 +35,9 @@
       "expo-font",
       "expo-secure-store",
       "expo-updates",
-      "expo-video"
+      "expo-video",
+      "expo-av",
+      "expo-notifications"
     ],
     "owner": "davidpetruttt",
     "extra": {

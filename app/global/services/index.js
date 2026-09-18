@@ -14,4 +14,9 @@ export {
   scheduleLocalNotification,
   addNotificationListener,
   addNotificationResponseListener,
+  ensureNotificationChannel,
+  scheduleWeeklyReminders,
+  cancelScheduledNotifications,
 } from "./notifications";
+
+export { navigateFromNotification } from "./notificationRouting";

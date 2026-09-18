@@ -26,7 +26,12 @@ import {
   BugReporter,
 } from "./global/components";
 import { TestingProvider, useTesting, getActiveRouteName } from "./global/testing";
-import { registerForPushNotifications } from "./global/services";
+import {
+  registerForPushNotifications,
+  addNotificationResponseListener,
+  navigateFromNotification,
+  ensureNotificationChannel,
+} from "./global/services";
 import { initApiUrl } from "./global/config";
 import { colors } from "./public/styles/global";
 
@@ -130,8 +135,21 @@ const Navigation = () => {
   useEffect(() => {
     if (user && Platform.OS !== "web") {
       registerForPushNotifications();
+      ensureNotificationChannel();
     }
   }, [user]);
+
+  // Ruteaza catre ecranul corect cand userul apasa pe o notificare (inclusiv cold start).
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const sub = addNotificationResponseListener((response) => {
+      navigateFromNotification(
+        navigationRef.current,
+        response?.notification?.request?.content?.data
+      );
+    });
+    return () => sub?.remove?.();
+  }, []);
 
   const handleNavigationReady = () => {
     try {
