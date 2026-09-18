@@ -85,8 +85,8 @@ const testBugSchema = new mongoose.Schema(
       ],
     },
     bugCode: { type: String, default: null, index: true, maxlength: 40 },
-    problem: { type: String, default: "", maxlength: 2000 },
-    solution: { type: String, default: "", maxlength: 2000 },
+    problem: { type: String, default: "", maxlength: 4000 },
+    solution: { type: String, default: "", maxlength: 4000 },
 
     // ---- media ----
     screenshot: { type: String, default: null }, // data-URI JPEG, optional

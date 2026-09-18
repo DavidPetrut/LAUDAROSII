@@ -525,7 +525,7 @@ export const BugReporter = () => {
                 value={problem}
                 onChangeText={setProblem}
                 multiline
-                maxLength={1000}
+                maxLength={isFeature ? 4000 : 1000}
               />
 
               <Text style={styles.fieldLabel}>
@@ -538,7 +538,7 @@ export const BugReporter = () => {
                 value={solution}
                 onChangeText={setSolution}
                 multiline
-                maxLength={1000}
+                maxLength={isFeature ? 4000 : 1000}
               />
 
               <View style={styles.saveRow}>

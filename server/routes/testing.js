@@ -146,8 +146,8 @@ router.post("/bugs", authMiddleware, limiter(20), async (req, res) => {
       element,
       bugType: b.bugType,
       bugCode: clip(b.bugCode, 40) || null,
-      problem: clip(b.problem, 2000),
-      solution: clip(b.solution, 2000),
+      problem: clip(b.problem, 4000),
+      solution: clip(b.solution, 4000),
       screenshot,
       context,
       reporter: {
