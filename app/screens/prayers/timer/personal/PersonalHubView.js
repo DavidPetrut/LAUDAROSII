@@ -13,12 +13,7 @@ const ITEMS = [
  * Hub-ul "Personale": punctul de acces catre devotionale, progres si notificari.
  */
 export const PersonalHubView = ({ onNavigate }) => (
-  <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-    <View style={styles.introCard}>
-      <Text style={styles.introTitle}>Personale</Text>
-      <Text style={styles.introDesc}>Tot ce ține de parcursul tău devotional.</Text>
-    </View>
-
+  <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40, paddingTop: 8 }} showsVerticalScrollIndicator={false}>
     {ITEMS.map((it) => (
       <TouchableOpacity key={it.key} style={styles.hubRow} onPress={() => onNavigate(it.key)} activeOpacity={0.85}>
         <View style={styles.hubIcon}>
