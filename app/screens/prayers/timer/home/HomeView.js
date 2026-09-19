@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { QuoteCard } from "./QuoteCard";
-import { DevotionalIcon } from "../devotionals/DevotionalIcon";
 
 /**
  * Ecranul principal Devotional: citatul zilei + doua actiuni mari (Incepe
@@ -41,9 +40,9 @@ export const HomeView = ({ quote, defaultDevotional, onToast, onStartPrayer, onS
       )}
 
       {dev && !dev.completedToday && (
-        <TouchableOpacity style={[styles.bigBtn, { backgroundColor: dev.color }]} onPress={() => onStartDevotional(dev)} activeOpacity={0.9}>
-          <DevotionalIcon set={dev.iconSet} name={dev.icon} size={26} color="#fff" />
-          <Text style={styles.bigBtnText}>Începe {dev.name}</Text>
+        <TouchableOpacity style={styles.bigBtn} onPress={() => onStartDevotional(dev)} activeOpacity={0.9}>
+          <Ionicons name="book-outline" size={26} color="#fff" />
+          <Text style={styles.bigBtnText}>Începe devotional</Text>
         </TouchableOpacity>
       )}
     </ScrollView>

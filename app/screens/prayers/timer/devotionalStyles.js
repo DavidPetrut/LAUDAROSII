@@ -83,6 +83,9 @@ export const devotionalStyles = StyleSheet.create({
   menuItemText: { ...typography.body, color: TEXT, fontWeight: "600" },
   menuDivider: { height: 1, backgroundColor: BORDER, marginHorizontal: spacing.md },
   colorSheet: { backgroundColor: SHEET_BG, borderRadius: borderRadius.lg, width: "100%", maxWidth: 340, padding: spacing.lg },
+  numRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  numInput: { flex: 1, ...typography.h3, color: TEXT, backgroundColor: "transparent", borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.25)", paddingVertical: spacing.sm },
+  numUnit: { ...typography.body, color: DIM },
 
   // ---- Bottom sheet ----
   sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
@@ -230,4 +233,6 @@ export const devotionalStyles = StyleSheet.create({
   runnerIcon: { width: 140, height: 140, borderRadius: 70, alignItems: "center", justifyContent: "center", marginBottom: spacing.xl },
   runnerTitle: { ...typography.h2, color: "#e5e7eb", textAlign: "center", paddingHorizontal: spacing.xl },
   runnerTimer: { fontSize: 56, fontFamily: "Raleway", color: "#d4d4d8", fontWeight: "500", marginTop: spacing.md },
+  runnerNextBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: borderRadius.full, borderWidth: 1.5, marginTop: spacing.lg },
+  runnerNextText: { ...typography.body, fontWeight: "700" },
 });

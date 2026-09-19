@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, Modal, Pressable, ScrollView } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, Modal, Pressable, ScrollView, Switch } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { DevotionalIcon } from "./DevotionalIcon";
 import { IconPicker } from "./IconPicker";
 import { ColorSwatches } from "./ColorSwatches";
+import { NumberPromptModal } from "./NumberPromptModal";
 
-const DURATIONS = [5, 10, 15, 20, 30];
+const DURATIONS = [5, 10, 15];
 
 // momente gata facute, oferite doar cand adaugi un moment nou
 const SUGGESTIONS = [
@@ -28,8 +29,10 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", onSav
   const [icon, setIcon] = useState({ set: "ionicons", name: "flower-outline" });
   const [color, setColor] = useState(baseColor);
   const [durationMin, setDurationMin] = useState(10);
+  const [music, setMusic] = useState({ enabled: false, category: "instrumental" });
   const [picker, setPicker] = useState(false);
   const [colorPicker, setColorPicker] = useState(false);
+  const [durationPrompt, setDurationPrompt] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -37,6 +40,7 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", onSav
       setIcon({ set: initial?.iconSet || "ionicons", name: initial?.icon || "flower-outline" });
       setColor(initial?.color || baseColor);
       setDurationMin(initial?.durationMin || 10);
+      setMusic(initial?.music || { enabled: false, category: "instrumental" });
     }
   }, [visible, initial, baseColor]);
 
@@ -48,7 +52,7 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", onSav
 
   const save = () => {
     if (!title.trim()) return;
-    onSave({ title: title.trim(), icon: icon.name, iconSet: icon.set, color, durationMin });
+    onSave({ title: title.trim(), icon: icon.name, iconSet: icon.set, color, durationMin, music });
   };
 
   return (
@@ -109,7 +113,44 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", onSav
                 <Text style={[styles.chipText, durationMin === d && styles.chipTextActive]}>{d} min</Text>
               </TouchableOpacity>
             ))}
+            <TouchableOpacity
+              style={[styles.chip, !DURATIONS.includes(durationMin) && styles.chipActive]}
+              onPress={() => setDurationPrompt(true)}
+            >
+              <Text style={[styles.chipText, !DURATIONS.includes(durationMin) && styles.chipTextActive]}>
+                {DURATIONS.includes(durationMin) ? "custom" : `${durationMin} min`}
+              </Text>
+            </TouchableOpacity>
           </View>
+
+          <View style={styles.repeatRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.repeatTitle}>Adaugă muzică</Text>
+              <Text style={styles.repeatDesc}>Redată în timpul acestui moment</Text>
+            </View>
+            <Switch
+              value={music.enabled}
+              onValueChange={(v) => setMusic((m) => ({ ...m, enabled: v }))}
+              trackColor={{ true: color, false: "rgba(255,255,255,0.2)" }}
+              thumbColor="#fff"
+            />
+          </View>
+          {music.enabled && (
+            <View style={[styles.optRow, { marginTop: 8 }]}>
+              <TouchableOpacity
+                style={[styles.optCard, music.category === "instrumental" && styles.optCardActive]}
+                onPress={() => setMusic((m) => ({ ...m, category: "instrumental" }))}
+              >
+                <Text style={[styles.optCardText, music.category === "instrumental" && styles.optCardTextActive]}>Instrumental</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.optCard, music.category === "lyrics" && styles.optCardActive]}
+                onPress={() => setMusic((m) => ({ ...m, category: "lyrics" }))}
+              >
+                <Text style={[styles.optCardText, music.category === "lyrics" && styles.optCardTextActive]}>Cu versuri</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <TouchableOpacity
             style={[styles.startBtn, !title.trim() && styles.startBtnDisabled]}
@@ -141,6 +182,17 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", onSav
           </View>
         </Pressable>
       </Modal>
+
+      <NumberPromptModal
+        visible={durationPrompt}
+        title="Durată (minute)"
+        unit="min"
+        initial={durationMin}
+        min={1}
+        max={180}
+        onConfirm={(n) => { setDurationMin(n); setDurationPrompt(false); }}
+        onClose={() => setDurationPrompt(false)}
+      />
     </Modal>
   );
 };

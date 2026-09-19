@@ -14,6 +14,10 @@ const taskSchema = new mongoose.Schema(
     iconSet: { type: String, default: "ionicons" },
     color: { type: String, default: "#10b981" },
     durationMin: { type: Number, default: 5, min: 1, max: 180 },
+    music: {
+      enabled: { type: Boolean, default: false },
+      category: { type: String, enum: ["instrumental", "lyrics"], default: "instrumental" },
+    },
   },
   { _id: true }
 );

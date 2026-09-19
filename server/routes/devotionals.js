@@ -43,6 +43,10 @@ const sanitizeDevotional = (body) => {
       iconSet: safeIconSet(t.iconSet),
       color: safeColor(t.color),
       durationMin: Math.min(180, Math.max(1, parseInt(t.durationMin, 10) || 5)),
+      music: {
+        enabled: !!t.music?.enabled,
+        category: t.music?.category === "lyrics" ? "lyrics" : "instrumental",
+      },
     })),
     schedule: {
       weekdays: Array.isArray(body.schedule?.weekdays)
@@ -225,6 +229,7 @@ router.post("/:id/share", authMiddleware, async (req, res) => {
           iconSet: t.iconSet,
           color: t.color,
           durationMin: t.durationMin,
+          music: { enabled: !!t.music?.enabled, category: t.music?.category || "instrumental" },
         })),
       },
     });

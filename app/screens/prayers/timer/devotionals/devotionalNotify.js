@@ -6,8 +6,7 @@ import {
 
 const keyFor = (id) => `devnotif:${id}`;
 
-export const DEFAULT_NOTIF_MESSAGE =
-  "Devotionalul tău te așteaptă. Oprește-te un moment pentru rugăciune și închinare.";
+export const DEFAULT_NOTIF_MESSAGE = "Oprește-te un moment pentru devotionalul tău.";
 
 /**
  * Sincronizeaza notificarea locala a unui devotional: anuleaza programarea veche

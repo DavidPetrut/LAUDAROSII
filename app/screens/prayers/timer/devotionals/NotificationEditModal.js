@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, Modal, Pressable } from "react
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { DEFAULT_NOTIF_MESSAGE } from "./devotionalNotify";
+import { NumberPromptModal } from "./NumberPromptModal";
 
 const MINUTES = [0, 15, 30, 45];
 const MSG_MAX = 160;
@@ -17,6 +18,7 @@ export const NotificationEditModal = ({ visible, value, onSave, onClose }) => {
   const [message, setMessage] = useState("");
   const [hour, setHour] = useState(8);
   const [minute, setMinute] = useState(0);
+  const [minutePrompt, setMinutePrompt] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -69,6 +71,14 @@ export const NotificationEditModal = ({ visible, value, onSave, onClose }) => {
                 <Text style={[styles.chipText, minute === m && styles.chipTextActive]}>:{pad(m)}</Text>
               </TouchableOpacity>
             ))}
+            <TouchableOpacity
+              style={[styles.chip, !MINUTES.includes(minute) && styles.chipActive]}
+              onPress={() => setMinutePrompt(true)}
+            >
+              <Text style={[styles.chipText, !MINUTES.includes(minute) && styles.chipTextActive]}>
+                {MINUTES.includes(minute) ? "custom" : `:${pad(minute)}`}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity
@@ -76,10 +86,21 @@ export const NotificationEditModal = ({ visible, value, onSave, onClose }) => {
             onPress={() => onSave({ message: message.trim() || DEFAULT_NOTIF_MESSAGE, hour, minute })}
             activeOpacity={0.9}
           >
-            <Text style={styles.startBtnText}>Salvează notificarea</Text>
+            <Text style={styles.startBtnText}>Salvează</Text>
           </TouchableOpacity>
         </Pressable>
       </Pressable>
+
+      <NumberPromptModal
+        visible={minutePrompt}
+        title="Minut exact"
+        unit="min"
+        initial={minute}
+        min={0}
+        max={59}
+        onConfirm={(n) => { setMinute(n); setMinutePrompt(false); }}
+        onClose={() => setMinutePrompt(false)}
+      />
     </Modal>
   );
 };

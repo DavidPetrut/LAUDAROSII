@@ -12,6 +12,7 @@ const snapshotTaskSchema = new mongoose.Schema(
     iconSet: String,
     color: String,
     durationMin: Number,
+    music: { enabled: Boolean, category: String },
   },
   { _id: false }
 );

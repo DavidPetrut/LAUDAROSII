@@ -169,6 +169,7 @@ export const DevotionalScreen = () => {
       {running && (
         <DevotionalRunner
           devotional={running}
+          program={program}
           onComplete={() => completeDevotional(running)}
           onExit={() => setRunning(null)}
         />
