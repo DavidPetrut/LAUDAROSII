@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Switch } from "react-native";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { DevotionalIcon } from "./DevotionalIcon";
-import { ColorSwatches } from "./ColorSwatches";
 import { TaskEditorModal } from "./TaskEditorModal";
 import { TaskTimeline } from "./TaskTimeline";
 import { DevotionalHeaderImage } from "./DevotionalHeaderImage";
@@ -34,13 +33,14 @@ const SUGGESTIONS = [
 export const BuilderView = ({ initial, onSaved, onCancel }) => {
   const [name, setName] = useState(initial?.name || "");
   const [image, setImage] = useState(initial?.image || "");
-  const [color, setColor] = useState(initial?.color || "#10b981");
+  const color = initial?.color || "#10b981";
   const [weekdays, setWeekdays] = useState(initial?.schedule?.weekdays || []);
   const [repeatWeekly, setRepeatWeekly] = useState(initial?.schedule?.repeatWeekly !== false);
   const [tasks, setTasks] = useState(initial?.tasks || []);
   const [taskEditor, setTaskEditor] = useState({ open: false, index: null });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [showMissing, setShowMissing] = useState(false);
 
   const toggleDay = (wd) =>
     setWeekdays((prev) => (prev.includes(wd) ? prev.filter((x) => x !== wd) : [...prev, wd]));
@@ -59,6 +59,19 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
   };
 
   const canSave = name.trim().length > 0 && tasks.length > 0;
+  const missing = [
+    ...(name.trim().length === 0 ? ["Adaugă un nume devotionalului"] : []),
+    ...(tasks.length === 0 ? ["Adaugă minim un moment"] : []),
+  ];
+
+  const attemptSave = () => {
+    if (saving) return;
+    if (!canSave) {
+      setShowMissing(true);
+      return;
+    }
+    save();
+  };
 
   const save = async () => {
     if (!canSave) return;
@@ -85,9 +98,6 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
   return (
     <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
       <DevotionalHeaderImage image={image} name={name} onChangeName={setName} onPickImage={setImage} />
-
-      <Text style={styles.stepLabel}>Culoare</Text>
-      <ColorSwatches value={color} onChange={setColor} />
 
       <Text style={styles.stepLabel}>Momente</Text>
       <TaskTimeline
@@ -136,10 +146,19 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
 
       {!!error && <Text style={styles.errorNote}>{error}</Text>}
 
+      {showMissing && !canSave && (
+        <View style={styles.missingCard}>
+          <Text style={styles.missingTitle}>Ca să creezi devotionalul, mai ai de făcut:</Text>
+          {missing.map((m) => (
+            <Text key={m} style={styles.missingItem}>• {m}</Text>
+          ))}
+        </View>
+      )}
+
       <TouchableOpacity
         style={[styles.startBtn, !canSave && styles.startBtnDisabled]}
-        onPress={save}
-        disabled={!canSave || saving}
+        onPress={attemptSave}
+        disabled={saving}
         activeOpacity={0.9}
       >
         {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.startBtnText}>{initial ? "Salvează" : "Creează devotional"}</Text>}

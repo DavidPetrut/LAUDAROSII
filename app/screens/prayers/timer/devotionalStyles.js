@@ -143,6 +143,11 @@ export const devotionalStyles = StyleSheet.create({
   repeatTitle: { ...typography.body, color: TEXT, fontWeight: "700" },
   repeatDesc: { ...typography.caption, color: DIM, marginTop: 2 },
 
+  // ---- "Ce lipseste" (validare buton) ----
+  missingCard: { backgroundColor: "rgba(245,158,11,0.12)", borderRadius: borderRadius.lg, borderWidth: 1, borderColor: "rgba(245,158,11,0.4)", padding: spacing.md, marginTop: spacing.lg },
+  missingTitle: { ...typography.bodySmall, color: "#fbbf24", fontWeight: "700", marginBottom: spacing.xs },
+  missingItem: { ...typography.bodySmall, color: DIM, marginTop: 2 },
+
   // ---- Card devotional (icon fallback) ----
   devCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: SURF, borderRadius: borderRadius.lg, padding: spacing.md, marginTop: spacing.sm, borderWidth: 1.5, borderColor: BORDER },
   devCardDefault: { borderColor: ACCENT },
