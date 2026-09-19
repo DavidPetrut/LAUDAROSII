@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, Modal, Pressable } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, Modal, Pressable, ScrollView } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { DevotionalIcon } from "./DevotionalIcon";
 import { IconPicker } from "./IconPicker";
@@ -7,11 +8,22 @@ import { ColorSwatches } from "./ColorSwatches";
 
 const DURATIONS = [5, 10, 15, 20, 30];
 
+// momente gata facute, oferite doar cand adaugi un moment nou
+const SUGGESTIONS = [
+  { title: "Rugăciune", icon: "hands-pray", iconSet: "material", durationMin: 15 },
+  { title: "Închinare", icon: "musical-notes-outline", iconSet: "ionicons", durationMin: 10 },
+  { title: "Citirea Cuvântului", icon: "book-outline", iconSet: "ionicons", durationMin: 10 },
+  { title: "Mulțumire", icon: "happy-outline", iconSet: "ionicons", durationMin: 5 },
+  { title: "Meditație", icon: "meditation", iconSet: "material", durationMin: 10 },
+  { title: "Mijlocire", icon: "people-outline", iconSet: "ionicons", durationMin: 10 },
+];
+
 /**
- * Editor pentru un task: titlu, iconita (din picker), culoare proprie (modala) si
- * durata. Fiecare task isi are propria culoare, independent de devotional.
+ * Editor pentru un moment: titlu, iconita, culoare proprie si durata. La adaugarea
+ * unui moment nou ofera si sugestii gata facute (populeaza campurile la apasare).
  */
 export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", onSave, onClose }) => {
+  const insets = useSafeAreaInsets();
   const [title, setTitle] = useState("");
   const [icon, setIcon] = useState({ set: "ionicons", name: "flower-outline" });
   const [color, setColor] = useState(baseColor);
@@ -28,6 +40,12 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", onSav
     }
   }, [visible, initial, baseColor]);
 
+  const applySuggestion = (s) => {
+    setTitle(s.title);
+    setIcon({ set: s.iconSet, name: s.icon });
+    setDurationMin(s.durationMin);
+  };
+
   const save = () => {
     if (!title.trim()) return;
     onSave({ title: title.trim(), icon: icon.name, iconSet: icon.set, color, durationMin });
@@ -36,7 +54,7 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", onSav
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
+        <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]} onPress={() => {}}>
           <View style={styles.sheetHandle} />
           <Text style={styles.sheetTitle}>{initial ? "Editează moment" : "Moment nou"}</Text>
 
@@ -61,6 +79,25 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", onSav
             />
           </View>
 
+          {!initial && (
+            <>
+              <Text style={styles.stepLabel}>Momente rapide</Text>
+              <ScrollView style={styles.suggestList} keyboardShouldPersistTaps="handled">
+                {SUGGESTIONS.map((s) => (
+                  <TouchableOpacity key={s.title} style={styles.suggestRow} onPress={() => applySuggestion(s)} activeOpacity={0.8}>
+                    <View style={[styles.suggestIcon, { backgroundColor: baseColor + "22" }]}>
+                      <DevotionalIcon set={s.iconSet} name={s.icon} size={20} color={baseColor} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.suggestMeta}>{s.durationMin} min</Text>
+                      <Text style={styles.suggestName}>{s.title}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </>
+          )}
+
           <Text style={styles.stepLabel}>Durată</Text>
           <View style={styles.chipsRow}>
             {DURATIONS.map((d) => (
@@ -80,7 +117,7 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", onSav
             disabled={!title.trim()}
             activeOpacity={0.9}
           >
-            <Text style={styles.startBtnText}>Salvează</Text>
+            <Text style={styles.startBtnText}>{initial ? "Salvează" : "Adaugă"}</Text>
           </TouchableOpacity>
         </Pressable>
       </Pressable>

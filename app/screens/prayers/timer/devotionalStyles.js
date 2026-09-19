@@ -134,9 +134,12 @@ export const devotionalStyles = StyleSheet.create({
   tlMeta: { ...typography.caption, color: DIM, marginTop: 2 },
   tlAddLabel: { ...typography.body, color: ACCENT, fontWeight: "700" },
 
-  // ---- Adauga rapid ----
-  suggestionChip: { flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: SURF, borderRadius: borderRadius.full, borderWidth: 1, borderColor: BORDER, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  suggestionText: { ...typography.caption, color: TEXT, fontWeight: "600" },
+  // ---- Momente rapide (in popup) ----
+  suggestList: { maxHeight: 220 },
+  suggestRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: SURF, borderRadius: borderRadius.lg, padding: spacing.md, marginBottom: spacing.sm },
+  suggestIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  suggestMeta: { ...typography.caption, color: DIM },
+  suggestName: { ...typography.body, color: TEXT, fontWeight: "700" },
 
   // ---- Repetabil ----
   repeatRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: SURF, borderRadius: borderRadius.lg, padding: spacing.md, marginTop: spacing.md, borderWidth: 1, borderColor: BORDER },

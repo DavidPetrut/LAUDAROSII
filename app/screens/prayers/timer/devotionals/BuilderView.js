@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Switch } from "react-native";
 import { devotionalStyles as styles } from "../devotionalStyles";
-import { DevotionalIcon } from "./DevotionalIcon";
 import { TaskEditorModal } from "./TaskEditorModal";
 import { TaskTimeline } from "./TaskTimeline";
 import { DevotionalHeaderImage } from "./DevotionalHeaderImage";
@@ -15,15 +14,6 @@ const DAYS = [
   { label: "Vi", wd: 6 },
   { label: "Sâ", wd: 7 },
   { label: "Du", wd: 1 },
-];
-
-const SUGGESTIONS = [
-  { title: "Rugăciune", icon: "hands-pray", iconSet: "material", durationMin: 15 },
-  { title: "Închinare", icon: "musical-notes-outline", iconSet: "ionicons", durationMin: 10 },
-  { title: "Citirea Cuvântului", icon: "book-outline", iconSet: "ionicons", durationMin: 10 },
-  { title: "Mulțumire", icon: "happy-outline", iconSet: "ionicons", durationMin: 5 },
-  { title: "Meditație", icon: "meditation", iconSet: "material", durationMin: 10 },
-  { title: "Mijlocire", icon: "people-outline", iconSet: "ionicons", durationMin: 10 },
 ];
 
 /**
@@ -45,7 +35,6 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
   const toggleDay = (wd) =>
     setWeekdays((prev) => (prev.includes(wd) ? prev.filter((x) => x !== wd) : [...prev, wd]));
 
-  const addSuggestion = (s) => setTasks((prev) => [...prev, { ...s, color }]);
   const removeTask = (i) => setTasks((prev) => prev.filter((_, idx) => idx !== i));
 
   const saveTask = (task) => {
@@ -107,16 +96,6 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
         onRemove={removeTask}
         onAdd={() => setTaskEditor({ open: true, index: null })}
       />
-
-      <Text style={styles.stepLabel}>Adaugă rapid</Text>
-      <View style={styles.chipsRow}>
-        {SUGGESTIONS.map((s) => (
-          <TouchableOpacity key={s.title} style={styles.suggestionChip} onPress={() => addSuggestion(s)}>
-            <DevotionalIcon set={s.iconSet} name={s.icon} size={16} color="#e5e7eb" />
-            <Text style={styles.suggestionText}>{s.title}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
 
       <Text style={styles.stepLabel}>Zile</Text>
       <View style={styles.daysRow}>
