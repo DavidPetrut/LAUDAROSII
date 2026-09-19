@@ -5,6 +5,7 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { PlayerControls } from "./PlayerControls";
 import { useDevotionalAudio } from "./useDevotionalAudio";
+import { useImmersive } from "../../../../global/context";
 
 const fmt = (total) => {
   const s = Math.max(0, total);
@@ -23,9 +24,15 @@ const fmt = (total) => {
 export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onComplete }) => {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
+  const { setImmersive } = useImmersive();
   const landscape = width > height;
 
   const [remaining, setRemaining] = useState(durationMin * 60);
+  const timeStr = fmt(remaining);
+  // Timer-ul umple ecranul: dimensiune calculata din latime si nr. de caractere,
+  // plafonata pe inaltime ca sa nu iasa din ecran (mai ales pe landscape).
+  const cap = landscape ? height * 0.52 : 128;
+  const fontSize = Math.min(cap, (width * (landscape ? 0.9 : 0.86)) / (timeStr.length * 0.58));
   const audio = useDevotionalAudio({ tracks, withMusic });
   const audioRef = useRef(audio);
   audioRef.current = audio;
@@ -34,6 +41,7 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
   const exitedRef = useRef(false);
 
   useEffect(() => {
+    setImmersive(true);
     if (Platform.OS !== "web") {
       ScreenOrientation.unlockAsync().catch(() => {});
     }
@@ -49,6 +57,7 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
     }, 1000);
 
     return () => {
+      setImmersive(false);
       if (tickRef.current) clearInterval(tickRef.current);
       if (Platform.OS !== "web") {
         ScreenOrientation.lockAsync(
@@ -73,8 +82,8 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
 
   return (
     <View style={styles.overlay}>
-      <Text style={[styles.overlayTimer, landscape && styles.overlayTimerLandscape]}>
-        {fmt(remaining)}
+      <Text style={[styles.overlayTimer, { fontSize, lineHeight: fontSize * 1.06 }]}>
+        {timeStr}
       </Text>
       {withMusic && !!audio.trackTitle && (
         <Text style={styles.overlayTrack} numberOfLines={1}>

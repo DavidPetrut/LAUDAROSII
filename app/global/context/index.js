@@ -7,3 +7,4 @@ export {
   TRANSITION_VIDEOS,
 } from "./TransitionContext";
 export { NotificationProvider, useNotifications } from "./NotificationContext";
+export { ImmersiveProvider, useImmersive } from "./ImmersiveContext";

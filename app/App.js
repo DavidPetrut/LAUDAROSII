@@ -18,6 +18,7 @@ import {
   ToastProvider,
   TransitionProvider,
   NotificationProvider,
+  ImmersiveProvider,
 } from "./global/context";
 import {
   ErrorBoundary,
@@ -263,6 +264,7 @@ export default function App() {
           <ThemeProvider>
             <AuthProvider>
               <NotificationProvider>
+                <ImmersiveProvider>
                 <ToastProvider>
                   <TransitionProvider>
                     <TestingProvider>
@@ -276,6 +278,7 @@ export default function App() {
                     </TestingProvider>
                   </TransitionProvider>
                 </ToastProvider>
+                </ImmersiveProvider>
               </NotificationProvider>
             </AuthProvider>
           </ThemeProvider>

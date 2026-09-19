@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Animated } from "react-native
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useTheme } from "../context";
+import { useTheme, useImmersive } from "../context";
 import { colors } from "../../public/styles/global";
 
 const TABS = [
@@ -105,7 +105,11 @@ const TabButton = ({ route, isFocused, onPress, tab }) => {
 
 export const CustomTabBar = ({ state, descriptors, navigation }) => {
   const { isDarkMode, theme } = useTheme();
+  const { immersive } = useImmersive();
   const insets = useSafeAreaInsets();
+
+  // In mod imersiv (ex: sesiune Devotional) bara de jos dispare complet.
+  if (immersive) return null;
 
   const gradientColors = isDarkMode
     ? theme.headerGradient

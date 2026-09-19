@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-18T19:10:23.470Z",
+  "generatedAt": "2026-09-19T14:22:48.812Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -211,6 +211,14 @@
       "useNotifications": {
         "file": "global/context/NotificationContext.js",
         "purpose": "createContext,"
+      },
+      "ImmersiveProvider": {
+        "file": "global/context/ImmersiveContext.js",
+        "purpose": "Mod imersiv: cat timp e activ, ascunde cromul aplicatiei (ex: bara de navigatie"
+      },
+      "useImmersive": {
+        "file": "global/context/ImmersiveContext.js",
+        "purpose": "Mod imersiv: cat timp e activ, ascunde cromul aplicatiei (ex: bara de navigatie"
       }
     },
     "functions": {
@@ -2536,7 +2544,9 @@
     "screens/prayers/timer/notifications/DevotionalNotificationsTab.js": {
       "stylesFile": null,
       "globals": [],
-      "styleTokens": [],
+      "styleTokens": [
+        "colors"
+      ],
       "crossScreens": [
         "screens/prayers/timer/devotionalStyles.js"
       ],
@@ -2563,7 +2573,12 @@
     },
     "screens/prayers/timer/session/DevotionalPlayer.js": {
       "stylesFile": null,
-      "globals": [],
+      "globals": [
+        {
+          "name": "useImmersive",
+          "file": "global/context/ImmersiveContext.js"
+        }
+      ],
       "styleTokens": [],
       "crossScreens": [
         "screens/prayers/timer/devotionalStyles.js"
@@ -2953,6 +2968,9 @@
     ],
     "global/services/notifications.js": [
       "screens/prayers/timer/notifications/devotionalNotifications.js"
+    ],
+    "global/context/ImmersiveContext.js": [
+      "screens/prayers/timer/session/DevotionalPlayer.js"
     ]
   }
 }

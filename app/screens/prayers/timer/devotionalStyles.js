@@ -213,7 +213,40 @@ export const devotionalStyles = StyleSheet.create({
     borderColor: colors.borderLight,
   },
   reminderTime: { ...typography.h3, color: colors.textPrimary },
+  reminderTitle: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: "600", marginTop: 2 },
   reminderDays: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
+
+  // ---- Notificari: input custom + preview preset ----
+  inputCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  inputHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.xs },
+  inputLabel: { ...typography.caption, color: colors.textSecondary, fontWeight: "700" },
+  charCount: { ...typography.caption, color: colors.textMuted },
+  inputBox: {
+    ...typography.body,
+    color: colors.textPrimary,
+    backgroundColor: colors.background,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  inputMultiline: { minHeight: 72, textAlignVertical: "top" },
+  previewCard: {
+    backgroundColor: colors.borderLight,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+  },
+  previewTitle: { ...typography.body, color: colors.textPrimary, fontWeight: "700" },
+  previewBody: { ...typography.bodySmall, color: colors.textSecondary, marginTop: 2 },
   reminderDelete: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   reminderDeleteText: { ...typography.bodySmall, color: colors.error, fontWeight: "700" },
 
@@ -236,7 +269,6 @@ export const devotionalStyles = StyleSheet.create({
     fontWeight: "500",
     letterSpacing: 3,
   },
-  overlayTimerLandscape: { fontSize: 120 },
   overlayTrack: {
     ...typography.body,
     color: "rgba(212,212,216,0.55)",

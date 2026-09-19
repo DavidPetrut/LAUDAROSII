@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Platform } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform } from "react-native";
 import { devotionalStyles as styles } from "../devotionalStyles";
-import { devotionalReminders } from "./devotionalNotifications";
+import { colors } from "../../../../public/styles/global";
+import {
+  devotionalReminders,
+  TITLE_MAX,
+  BODY_MAX,
+} from "./devotionalNotifications";
 
 // eticheta -> weekday expo (Duminica=1 ... Sambata=7)
 const DAYS = [
@@ -14,15 +19,28 @@ const DAYS = [
   { label: "Du", wd: 1 },
 ];
 const MINUTES = [0, 15, 30, 45];
+
+// notificari gata scrise, de ales rapid dintr-o lista
+const PRESETS = [
+  { key: "prayer", label: "Rugăciune", title: "Timp de rugăciune", body: "Oprește-te un moment și vorbește cu Dumnezeu." },
+  { key: "worship", label: "Închinare", title: "Timp de închinare", body: "Un moment de laudă și mulțumire." },
+  { key: "reading", label: "Citire", title: "Citirea Cuvântului", body: "Deschide Biblia și lasă-te condus de El." },
+  { key: "thanks", label: "Mulțumire", title: "Recunoștință", body: "Amintește-ți trei lucruri pentru care ești recunoscător." },
+];
+const MAX_REMINDERS = 10;
 const pad = (n) => n.toString().padStart(2, "0");
 const wdLabel = (wd) => DAYS.find((d) => d.wd === wd)?.label || "";
 
 /**
- * Tab intern: creare de memento-uri devotional repetabile (ore + zile). Sunt
+ * Tab intern: memento-uri devotional repetabile. Userul alege un text gata scris
+ * (presets) SAU scrie unul propriu (cu limita), apoi ora si zilele. Sunt
  * notificari mobile programate care duc in ecranul Devotional cand sunt apasate.
  */
 export const DevotionalNotificationsTab = () => {
   const [list, setList] = useState([]);
+  const [presetKey, setPresetKey] = useState("prayer");
+  const [customTitle, setCustomTitle] = useState("");
+  const [customBody, setCustomBody] = useState("");
   const [hour, setHour] = useState(8);
   const [minute, setMinute] = useState(0);
   const [days, setDays] = useState([]);
@@ -31,18 +49,28 @@ export const DevotionalNotificationsTab = () => {
     devotionalReminders.list().then(setList);
   }, []);
 
+  const isCustom = presetKey === "custom";
   const toggleDay = (wd) =>
     setDays((prev) => (prev.includes(wd) ? prev.filter((x) => x !== wd) : [...prev, wd]));
-
   const stepHour = (delta) => setHour((h) => (h + delta + 24) % 24);
 
-  const canAdd = days.length > 0;
+  const customValid = !isCustom || customTitle.trim().length > 0;
+  const canAdd = days.length > 0 && customValid && list.length < MAX_REMINDERS;
 
   const add = async () => {
     if (!canAdd) return;
-    const next = await devotionalReminders.add({ hour, minute, weekdays: days });
+    const preset = PRESETS.find((p) => p.key === presetKey);
+    const next = await devotionalReminders.add({
+      title: isCustom ? customTitle : preset.title,
+      body: isCustom ? customBody : preset.body,
+      hour,
+      minute,
+      weekdays: days,
+    });
     setList(next);
     setDays([]);
+    setCustomTitle("");
+    setCustomBody("");
   };
 
   const remove = async (id) => setList(await devotionalReminders.remove(id));
@@ -64,6 +92,62 @@ export const DevotionalNotificationsTab = () => {
         <Text style={styles.helperNote}>
           Notificările programate funcționează pe aplicația mobilă.
         </Text>
+      )}
+
+      <Text style={styles.stepLabel}>Mesaj</Text>
+      <View style={styles.chipsRow}>
+        {PRESETS.map((p) => (
+          <TouchableOpacity
+            key={p.key}
+            style={[styles.chip, presetKey === p.key && styles.chipActive]}
+            onPress={() => setPresetKey(p.key)}
+          >
+            <Text style={[styles.chipText, presetKey === p.key && styles.chipTextActive]}>
+              {p.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+        <TouchableOpacity
+          style={[styles.chip, isCustom && styles.chipActive]}
+          onPress={() => setPresetKey("custom")}
+        >
+          <Text style={[styles.chipText, isCustom && styles.chipTextActive]}>✎ Personalizat</Text>
+        </TouchableOpacity>
+      </View>
+
+      {isCustom ? (
+        <View style={styles.inputCard}>
+          <View style={styles.inputHeader}>
+            <Text style={styles.inputLabel}>Titlu</Text>
+            <Text style={styles.charCount}>{customTitle.length}/{TITLE_MAX}</Text>
+          </View>
+          <TextInput
+            style={styles.inputBox}
+            value={customTitle}
+            onChangeText={setCustomTitle}
+            placeholder="Ex: Timp cu Dumnezeu"
+            placeholderTextColor={colors.textMuted}
+            maxLength={TITLE_MAX}
+          />
+          <View style={[styles.inputHeader, { marginTop: 12 }]}>
+            <Text style={styles.inputLabel}>Mesaj</Text>
+            <Text style={styles.charCount}>{customBody.length}/{BODY_MAX}</Text>
+          </View>
+          <TextInput
+            style={[styles.inputBox, styles.inputMultiline]}
+            value={customBody}
+            onChangeText={setCustomBody}
+            placeholder="Ex: Oprește-te un moment pentru rugăciune."
+            placeholderTextColor={colors.textMuted}
+            maxLength={BODY_MAX}
+            multiline
+          />
+        </View>
+      ) : (
+        <View style={styles.previewCard}>
+          <Text style={styles.previewTitle}>{PRESETS.find((p) => p.key === presetKey)?.title}</Text>
+          <Text style={styles.previewBody}>{PRESETS.find((p) => p.key === presetKey)?.body}</Text>
+        </View>
       )}
 
       <Text style={styles.stepLabel}>Ora</Text>
@@ -105,6 +189,10 @@ export const DevotionalNotificationsTab = () => {
         ))}
       </View>
 
+      {list.length >= MAX_REMINDERS && (
+        <Text style={styles.helperNote}>Ai atins limita de {MAX_REMINDERS} memento-uri.</Text>
+      )}
+
       <TouchableOpacity
         style={[styles.startBtn, !canAdd && styles.startBtnDisabled]}
         onPress={add}
@@ -121,6 +209,11 @@ export const DevotionalNotificationsTab = () => {
             <Text style={styles.reminderTime}>
               {pad(r.hour)}:{pad(r.minute)}
             </Text>
+            {!!r.title && (
+              <Text style={styles.reminderTitle} numberOfLines={1}>
+                {r.title}
+              </Text>
+            )}
             <Text style={styles.reminderDays}>
               {[...r.weekdays].sort().map(wdLabel).join(" · ")}
             </Text>
