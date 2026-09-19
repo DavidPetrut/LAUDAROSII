@@ -19,7 +19,7 @@ export const IconPicker = ({ visible, color = "#10b981", selected, onSelect, onC
       <View style={styles.pickerContainer}>
         <View style={styles.pickerHeader}>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Ionicons name="close" size={26} color={colors.textPrimary} />
+            <Ionicons name="close" size={26} color="#e5e7eb" />
           </TouchableOpacity>
           <Text style={styles.pickerTitle}>Alege o iconiță</Text>
           <View style={{ width: 26 }} />
@@ -50,7 +50,7 @@ export const IconPicker = ({ visible, color = "#10b981", selected, onSelect, onC
                       onPress={() => onSelect(it.set, it.name)}
                       activeOpacity={0.8}
                     >
-                      <DevotionalIcon set={it.set} name={it.name} size={26} color={active ? color : colors.textPrimary} />
+                      <DevotionalIcon set={it.set} name={it.name} size={26} color={active ? color : "#e5e7eb"} />
                     </TouchableOpacity>
                   );
                 })}

@@ -29,9 +29,12 @@ const devotionalSchema = new mongoose.Schema({
   icon: { type: String, default: "book-outline" },
   iconSet: { type: String, default: "ionicons" },
   color: { type: String, default: "#10b981" },
+  // imaginea devotionalului: "preset:<cheie>" (poza din app) sau data URI (upload)
+  image: { type: String, default: "" },
   tasks: { type: [taskSchema], default: [] },
   schedule: {
     weekdays: { type: [Number], default: [] },
+    repeatWeekly: { type: Boolean, default: true },
   },
   isDefault: { type: Boolean, default: false, index: true },
   completions: { type: [Date], default: [] },

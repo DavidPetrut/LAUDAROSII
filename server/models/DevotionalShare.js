@@ -30,6 +30,7 @@ const devotionalShareSchema = new mongoose.Schema({
     icon: String,
     iconSet: String,
     color: String,
+    image: String,
     tasks: { type: [snapshotTaskSchema], default: [] },
   },
   status: {

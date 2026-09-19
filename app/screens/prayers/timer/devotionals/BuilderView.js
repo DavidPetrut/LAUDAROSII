@@ -1,12 +1,11 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Switch } from "react-native";
 import { devotionalStyles as styles } from "../devotionalStyles";
-import { colors } from "../../../../public/styles/global";
 import { DevotionalIcon } from "./DevotionalIcon";
-import { IconPicker } from "./IconPicker";
 import { ColorSwatches } from "./ColorSwatches";
 import { TaskEditorModal } from "./TaskEditorModal";
+import { TaskTimeline } from "./TaskTimeline";
+import { DevotionalHeaderImage } from "./DevotionalHeaderImage";
 import { devotionalsApi } from "./devotionalsApi";
 
 const DAYS = [
@@ -29,16 +28,16 @@ const SUGGESTIONS = [
 ];
 
 /**
- * Ecran de construire/editare a unui devotional: nume, iconita, culoare, zilele
- * programate si lista de task-uri (adaugate din sugestii sau custom).
+ * Ecran de construire/editare devotional: imagine + nume, culoare de accent,
+ * momente ca timeline vertical si programul (zile + repetabil) la final.
  */
 export const BuilderView = ({ initial, onSaved, onCancel }) => {
   const [name, setName] = useState(initial?.name || "");
-  const [icon, setIcon] = useState({ set: initial?.iconSet || "ionicons", name: initial?.icon || "book-outline" });
+  const [image, setImage] = useState(initial?.image || "");
   const [color, setColor] = useState(initial?.color || "#10b981");
   const [weekdays, setWeekdays] = useState(initial?.schedule?.weekdays || []);
+  const [repeatWeekly, setRepeatWeekly] = useState(initial?.schedule?.repeatWeekly !== false);
   const [tasks, setTasks] = useState(initial?.tasks || []);
-  const [iconPicker, setIconPicker] = useState(false);
   const [taskEditor, setTaskEditor] = useState({ open: false, index: null });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -67,11 +66,10 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
     setError("");
     const payload = {
       name: name.trim(),
-      icon: icon.name,
-      iconSet: icon.set,
+      image,
       color,
       tasks,
-      schedule: { weekdays },
+      schedule: { weekdays, repeatWeekly },
     };
     try {
       const res = initial
@@ -86,28 +84,32 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
 
   return (
     <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-      <View style={styles.builderHeaderRow}>
-        <TouchableOpacity
-          style={[styles.taskIconBtn, { backgroundColor: color + "22", borderColor: color }]}
-          onPress={() => setIconPicker(true)}
-        >
-          <DevotionalIcon set={icon.set} name={icon.name} size={30} color={color} />
-        </TouchableOpacity>
-        <TextInput
-          style={[styles.inputBox, { flex: 1 }]}
-          value={name}
-          onChangeText={setName}
-          placeholder="Nume devotional"
-          placeholderTextColor={colors.textMuted}
-          maxLength={60}
-        />
-      </View>
+      <DevotionalHeaderImage image={image} name={name} onChangeName={setName} onPickImage={setImage} />
 
       <Text style={styles.stepLabel}>Culoare</Text>
       <ColorSwatches value={color} onChange={setColor} />
 
-      <Text style={styles.stepLabel}>Zile (opțional)</Text>
+      <Text style={styles.stepLabel}>Momente</Text>
+      <TaskTimeline
+        tasks={tasks}
+        accent={color}
+        onEdit={(i) => setTaskEditor({ open: true, index: i })}
+        onRemove={removeTask}
+        onAdd={() => setTaskEditor({ open: true, index: null })}
+      />
+
+      <Text style={styles.stepLabel}>Adaugă rapid</Text>
       <View style={styles.chipsRow}>
+        {SUGGESTIONS.map((s) => (
+          <TouchableOpacity key={s.title} style={styles.suggestionChip} onPress={() => addSuggestion(s)}>
+            <DevotionalIcon set={s.iconSet} name={s.icon} size={16} color="#e5e7eb" />
+            <Text style={styles.suggestionText}>{s.title}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <Text style={styles.stepLabel}>Zile</Text>
+      <View style={styles.daysRow}>
         {DAYS.map((d) => (
           <TouchableOpacity
             key={d.wd}
@@ -119,35 +121,18 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
         ))}
       </View>
 
-      <Text style={styles.stepLabel}>Momente</Text>
-      {tasks.map((t, i) => (
-        <View key={`${t.title}-${i}`} style={styles.taskRow}>
-          <View style={[styles.taskDot, { backgroundColor: (t.color || color) + "22" }]}>
-            <DevotionalIcon set={t.iconSet} name={t.icon} size={20} color={t.color || color} />
-          </View>
-          <TouchableOpacity style={{ flex: 1 }} onPress={() => setTaskEditor({ open: true, index: i })}>
-            <Text style={styles.taskTitle}>{t.title}</Text>
-            <Text style={styles.taskMeta}>{t.durationMin} min</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => removeTask(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="close-circle" size={22} color={colors.textMuted} />
-          </TouchableOpacity>
+      <View style={styles.repeatRow}>
+        <View>
+          <Text style={styles.repeatTitle}>Repetabil</Text>
+          <Text style={styles.repeatDesc}>Se repetă în fiecare săptămână</Text>
         </View>
-      ))}
-
-      <Text style={styles.stepLabel}>Adaugă rapid</Text>
-      <View style={styles.chipsRow}>
-        {SUGGESTIONS.map((s) => (
-          <TouchableOpacity key={s.title} style={styles.suggestionChip} onPress={() => addSuggestion(s)}>
-            <DevotionalIcon set={s.iconSet} name={s.icon} size={16} color={colors.textSecondary} />
-            <Text style={styles.suggestionText}>{s.title}</Text>
-          </TouchableOpacity>
-        ))}
+        <Switch
+          value={repeatWeekly}
+          onValueChange={setRepeatWeekly}
+          trackColor={{ true: color, false: "rgba(255,255,255,0.2)" }}
+          thumbColor="#fff"
+        />
       </View>
-      <TouchableOpacity style={styles.addCustomBtn} onPress={() => setTaskEditor({ open: true, index: null })}>
-        <Ionicons name="add" size={20} color={color} />
-        <Text style={[styles.addCustomText, { color }]}>Task personalizat</Text>
-      </TouchableOpacity>
 
       {!!error && <Text style={styles.errorNote}>{error}</Text>}
 
@@ -163,16 +148,6 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
         <Text style={styles.skipBtnText}>Anulează</Text>
       </TouchableOpacity>
 
-      <IconPicker
-        visible={iconPicker}
-        color={color}
-        selected={icon}
-        onSelect={(set, name) => {
-          setIcon({ set, name });
-          setIconPicker(false);
-        }}
-        onClose={() => setIconPicker(false)}
-      />
       <TaskEditorModal
         visible={taskEditor.open}
         initial={taskEditor.index !== null ? tasks[taskEditor.index] : null}

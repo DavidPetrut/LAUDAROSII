@@ -6,10 +6,23 @@ const router = express.Router();
 
 const ICON_SETS = ["ionicons", "material", "feather", "fontawesome5"];
 const HEX = /^#[0-9a-fA-F]{6}$/;
+const IMAGE_PRESETS = ["sim_duminica", "sim_duminica2", "war_room_1"];
+const MAX_IMAGE_LEN = 900000; // ~data URI comprimat
 
 const safeColor = (c) => (HEX.test(String(c || "")) ? c : "#10b981");
 const safeIconSet = (s) => (ICON_SETS.includes(s) ? s : "ionicons");
 const safeStr = (s, max) => String(s || "").trim().slice(0, max);
+
+/**
+ * Accepta doar o cheie de preset din whitelist sau un data URI de imagine sub o
+ * limita de marime. Orice altceva devine "" (fara imagine).
+ */
+const safeImage = (v) => {
+  const s = String(v || "");
+  if (s.startsWith("preset:") && IMAGE_PRESETS.includes(s.slice(7))) return s;
+  if (/^data:image\/(jpeg|jpg|png|webp);base64,/.test(s) && s.length <= MAX_IMAGE_LEN) return s;
+  return "";
+};
 
 /**
  * Curata si valideaza un devotional venit de la client (nume, iconita, culoare,
@@ -23,6 +36,7 @@ const sanitizeDevotional = (body) => {
     icon: safeStr(body.icon, 40) || "book-outline",
     iconSet: safeIconSet(body.iconSet),
     color: safeColor(body.color),
+    image: safeImage(body.image),
     tasks: tasks.slice(0, 20).map((t) => ({
       title: safeStr(t.title, 60) || "Moment",
       icon: safeStr(t.icon, 40) || "flower-outline",
@@ -34,6 +48,7 @@ const sanitizeDevotional = (body) => {
       weekdays: Array.isArray(body.schedule?.weekdays)
         ? [...new Set(body.schedule.weekdays.map(Number).filter((n) => n >= 1 && n <= 7))]
         : [],
+      repeatWeekly: body.schedule?.repeatWeekly !== false,
     },
   };
 };
@@ -50,7 +65,8 @@ const sameDay = (a, b) =>
 const serialize = (d) => {
   const now = new Date();
   const todayWd = now.getDay() + 1;
-  const dueToday = d.schedule?.weekdays?.includes(todayWd) || false;
+  const repeatWeekly = d.schedule?.repeatWeekly !== false;
+  const dueToday = repeatWeekly && (d.schedule?.weekdays?.includes(todayWd) || false);
   const completedToday = (d.completions || []).some((c) => sameDay(new Date(c), now));
   return {
     _id: d._id,
@@ -58,6 +74,7 @@ const serialize = (d) => {
     icon: d.icon,
     iconSet: d.iconSet,
     color: d.color,
+    image: d.image,
     tasks: d.tasks,
     schedule: d.schedule,
     isDefault: d.isDefault,
@@ -194,6 +211,7 @@ router.post("/:id/share", authMiddleware, async (req, res) => {
         icon: devotional.icon,
         iconSet: devotional.iconSet,
         color: devotional.color,
+        image: devotional.image,
         tasks: devotional.tasks.map((t) => ({
           title: t.title,
           icon: t.icon,
@@ -243,6 +261,7 @@ router.post("/shares/:id/accept", authMiddleware, async (req, res) => {
       icon: share.snapshot.icon,
       iconSet: share.snapshot.iconSet,
       color: share.snapshot.color,
+      image: share.snapshot.image,
       tasks: share.snapshot.tasks,
       isDefault: count === 0,
     });

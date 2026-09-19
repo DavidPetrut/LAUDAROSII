@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-19T15:35:54.131Z",
+  "generatedAt": "2026-09-19T16:25:10.425Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -2455,9 +2455,7 @@
     "screens/prayers/timer/devotionals/BuilderView.js": {
       "stylesFile": null,
       "globals": [],
-      "styleTokens": [
-        "colors"
-      ],
+      "styleTokens": [],
       "crossScreens": [
         "screens/prayers/timer/devotionalStyles.js"
       ],
@@ -2481,7 +2479,23 @@
       ],
       "domainsTouched": []
     },
+    "screens/prayers/timer/devotionals/DevotionalHeaderImage.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/timer/devotionalStyles.js"
+      ],
+      "domainsTouched": []
+    },
     "screens/prayers/timer/devotionals/DevotionalIcon.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/timer/devotionals/devotionalImages.js": {
       "stylesFile": null,
       "globals": [],
       "styleTokens": [],
@@ -2558,9 +2572,16 @@
     "screens/prayers/timer/devotionals/TaskEditorModal.js": {
       "stylesFile": null,
       "globals": [],
-      "styleTokens": [
-        "colors"
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/timer/devotionalStyles.js"
       ],
+      "domainsTouched": []
+    },
+    "screens/prayers/timer/devotionals/TaskTimeline.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
       "crossScreens": [
         "screens/prayers/timer/devotionalStyles.js"
       ],
@@ -2606,7 +2627,6 @@
       "stylesFile": null,
       "globals": [],
       "styleTokens": [
-        "colors",
         "typography",
         "spacing",
         "borderRadius"
