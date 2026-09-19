@@ -36,6 +36,13 @@ const devotionalSchema = new mongoose.Schema({
     weekdays: { type: [Number], default: [] },
     repeatWeekly: { type: Boolean, default: true },
   },
+  // o singura notificare (memento) per devotional, locala pe telefonul userului
+  notification: {
+    enabled: { type: Boolean, default: false },
+    message: { type: String, default: "", maxlength: 160 },
+    hour: { type: Number, default: 8, min: 0, max: 23 },
+    minute: { type: Number, default: 0, min: 0, max: 59 },
+  },
   isDefault: { type: Boolean, default: false, index: true },
   completions: { type: [Date], default: [] },
   createdAt: { type: Date, default: Date.now },

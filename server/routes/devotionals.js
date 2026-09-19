@@ -50,6 +50,12 @@ const sanitizeDevotional = (body) => {
         : [],
       repeatWeekly: body.schedule?.repeatWeekly !== false,
     },
+    notification: {
+      enabled: !!body.notification?.enabled,
+      message: safeStr(body.notification?.message, 160),
+      hour: Math.min(23, Math.max(0, parseInt(body.notification?.hour, 10) || 8)),
+      minute: Math.min(59, Math.max(0, parseInt(body.notification?.minute, 10) || 0)),
+    },
   };
 };
 
@@ -81,6 +87,7 @@ const serialize = (d) => {
     dueToday,
     completedToday,
     completions: d.completions,
+    notification: d.notification,
     createdAt: d.createdAt,
   };
 };

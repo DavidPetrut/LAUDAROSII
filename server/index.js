@@ -15,6 +15,7 @@ const {
   prayerProgramsRoutes,
   devotionalPlansRoutes,
   devotionalsRoutes,
+  broadcastsRoutes,
   notificationsRoutes,
   statsRoutes,
   missionsRoutes,
@@ -25,6 +26,7 @@ const {
   setupGameSockets,
   setupMissionSockets,
   setupPrayRoomSockets,
+  startBroadcastScheduler,
 } = require("./services");
 const { securityLog } = require("./middleware/securityLog");
 
@@ -59,6 +61,7 @@ app.use("/api/songs", songsRoutes);
 app.use("/api/prayer-programs", prayerProgramsRoutes);
 app.use("/api/devotional-plans", devotionalPlansRoutes);
 app.use("/api/devotionals", devotionalsRoutes);
+app.use("/api/admin/broadcasts", broadcastsRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/missions", missionsRoutes);
@@ -73,6 +76,7 @@ app.get("/api/health", (req, res) => {
 setupGameSockets(io);
 setupMissionSockets(io);
 setupPrayRoomSockets(io);
+startBroadcastScheduler();
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {

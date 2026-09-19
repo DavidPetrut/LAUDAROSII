@@ -9,7 +9,6 @@ import { HomeView, PrayerSetupModal, randomQuote } from "./home";
 import { DevotionalPlayer } from "./session";
 import { DevotionalsView, BuilderView, ShareView, DevotionalRunner, devotionalsApi } from "./devotionals";
 import { PersonalHubView, ProgressView } from "./personal";
-import { DevotionalNotificationsTab } from "./notifications";
 
 const BG_DARK = require("../../../public/images/dark-mode-small.png");
 
@@ -20,7 +19,6 @@ const TITLES = {
   builder: "Devotional",
   share: "Distribuie",
   progress: "Progresul meu",
-  notifications: "Notificări",
 };
 
 /**
@@ -147,7 +145,6 @@ export const DevotionalScreen = () => {
         )}
 
         {current.view === "progress" && <ProgressView />}
-        {current.view === "notifications" && <DevotionalNotificationsTab />}
       </TiledBackground>
 
       <PrayerSetupModal

@@ -64,6 +64,7 @@ import {
   ProfileScreen,
   EditProfileScreen,
   SettingsScreen,
+  BroadcastScreen,
 } from "./screens/profile";
 import { AdminScreen } from "./screens/admin";
 
@@ -125,6 +126,7 @@ const AppStack = () => (
     <Stack.Screen name="EditProfile" component={EditProfileScreen} />
     <Stack.Screen name="Admin" component={AdminScreen} />
     <Stack.Screen name="Settings" component={SettingsScreen} />
+    <Stack.Screen name="Broadcast" component={BroadcastScreen} />
   </Stack.Navigator>
 );
 

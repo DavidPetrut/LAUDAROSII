@@ -145,6 +145,7 @@ export const devotionalStyles = StyleSheet.create({
   repeatRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: SURF, borderRadius: borderRadius.lg, padding: spacing.md, marginTop: spacing.md, borderWidth: 1, borderColor: BORDER },
   repeatTitle: { ...typography.body, color: TEXT, fontWeight: "700" },
   repeatDesc: { ...typography.caption, color: DIM, marginTop: 2 },
+  notifEditBtn: { paddingHorizontal: spacing.sm, marginRight: spacing.xs },
 
   // ---- "Ce lipseste" (validare buton) ----
   missingCard: { backgroundColor: "rgba(245,158,11,0.12)", borderRadius: borderRadius.lg, borderWidth: 1, borderColor: "rgba(245,158,11,0.4)", padding: spacing.md, marginTop: spacing.lg },

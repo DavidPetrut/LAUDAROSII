@@ -19,8 +19,16 @@ const {
   emitMemberJoined,
   emitMemberLeft,
 } = require("./prayRoomSocket");
+const {
+  countAudience,
+  deliverBroadcast,
+  startBroadcastScheduler,
+} = require("./broadcastService");
 
 module.exports = {
+  countAudience,
+  deliverBroadcast,
+  startBroadcastScheduler,
   setupGameSockets,
   cleanupUserData,
   cleanupCourseData,

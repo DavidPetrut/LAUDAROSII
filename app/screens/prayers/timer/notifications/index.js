@@ -1,1 +1,0 @@
-export { DevotionalNotificationsTab } from "./DevotionalNotificationsTab";

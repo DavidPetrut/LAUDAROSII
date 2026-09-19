@@ -187,6 +187,12 @@ const userSchema = new mongoose.Schema({
     type: [String],
     default: [],
   },
+  // statusuri/etichete atribuite de super-admin pentru targetarea notificarilor
+  tags: {
+    type: [String],
+    default: [],
+    index: true,
+  },
   hiddenPersonalPrayers: {
     type: [String],
     default: [],

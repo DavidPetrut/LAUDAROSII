@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-19T17:26:22.143Z",
+  "generatedAt": "2026-09-19T17:36:34.129Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -2502,6 +2502,29 @@
       "crossScreens": [],
       "domainsTouched": []
     },
+    "screens/prayers/timer/devotionals/devotionalNotify.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "storage",
+          "file": "global/utils/storage.js"
+        },
+        {
+          "name": "scheduleWeeklyReminders",
+          "file": "global/services/notifications.js"
+        },
+        {
+          "name": "cancelScheduledNotifications",
+          "file": "global/services/notifications.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "storage",
+        "notificari"
+      ]
+    },
     "screens/prayers/timer/devotionals/DevotionalRunner.js": {
       "stylesFile": null,
       "globals": [
@@ -2553,6 +2576,15 @@
       "styleTokens": [
         "colors"
       ],
+      "crossScreens": [
+        "screens/prayers/timer/devotionalStyles.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/prayers/timer/devotionals/NotificationEditModal.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
       "crossScreens": [
         "screens/prayers/timer/devotionalStyles.js"
       ],
@@ -2615,8 +2647,7 @@
         "screens/prayers/timer/home/index.js",
         "screens/prayers/timer/session/index.js",
         "screens/prayers/timer/devotionals/index.js",
-        "screens/prayers/timer/personal/index.js",
-        "screens/prayers/timer/notifications/index.js"
+        "screens/prayers/timer/personal/index.js"
       ],
       "domainsTouched": [
         "toast",
@@ -2667,40 +2698,6 @@
       "globals": [],
       "styleTokens": [],
       "crossScreens": [],
-      "domainsTouched": []
-    },
-    "screens/prayers/timer/notifications/devotionalNotifications.js": {
-      "stylesFile": null,
-      "globals": [
-        {
-          "name": "storage",
-          "file": "global/utils/storage.js"
-        },
-        {
-          "name": "scheduleWeeklyReminders",
-          "file": "global/services/notifications.js"
-        },
-        {
-          "name": "cancelScheduledNotifications",
-          "file": "global/services/notifications.js"
-        }
-      ],
-      "styleTokens": [],
-      "crossScreens": [],
-      "domainsTouched": [
-        "storage",
-        "notificari"
-      ]
-    },
-    "screens/prayers/timer/notifications/DevotionalNotificationsTab.js": {
-      "stylesFile": null,
-      "globals": [],
-      "styleTokens": [
-        "colors"
-      ],
-      "crossScreens": [
-        "screens/prayers/timer/devotionalStyles.js"
-      ],
       "domainsTouched": []
     },
     "screens/prayers/timer/personal/PersonalHubView.js": {
@@ -2793,6 +2790,85 @@
       "domainsTouched": [
         "tema"
       ]
+    },
+    "screens/profile/broadcast/AudienceView.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [
+        "colors"
+      ],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/profile/broadcast/broadcastApi.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api"
+      ]
+    },
+    "screens/profile/broadcast/BroadcastScreen.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/profile/broadcast/broadcastStyles.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [
+        "colors",
+        "typography",
+        "spacing",
+        "borderRadius"
+      ],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/profile/broadcast/ComposeView.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "useToast",
+          "file": "global/context/ToastContext.js"
+        }
+      ],
+      "styleTokens": [
+        "colors"
+      ],
+      "crossScreens": [],
+      "domainsTouched": [
+        "toast"
+      ]
+    },
+    "screens/profile/broadcast/ScheduledView.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/profile/broadcast/ScheduleModal.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [
+        "colors"
+      ],
+      "crossScreens": [],
+      "domainsTouched": []
     },
     "screens/profile/EditProfileScreen.js": {
       "route": "EditProfile",
@@ -2962,6 +3038,7 @@
       "screens/prayers/ProgramPrayersTab.js",
       "screens/prayers/timer/devotionals/devotionalsApi.js",
       "screens/prayers/timer/DevotionalScreen.js",
+      "screens/profile/broadcast/broadcastApi.js",
       "screens/profile/EditProfileScreen.js",
       "screens/profile/ProfileScreen.js",
       "screens/profile/SettingsScreen.js"
@@ -3019,6 +3096,7 @@
       "screens/prayers/pray-room/PrayRoomList.js",
       "screens/prayers/pray-room/PrayRoomScreen.js",
       "screens/prayers/timer/DevotionalScreen.js",
+      "screens/profile/broadcast/BroadcastScreen.js",
       "screens/profile/EditProfileScreen.js"
     ],
     "global/components/UserAvatar.js": [
@@ -3126,17 +3204,18 @@
     ],
     "global/utils/storage.js": [
       "screens/prayers/ProgramPrayersTab.js",
-      "screens/prayers/timer/notifications/devotionalNotifications.js"
+      "screens/prayers/timer/devotionals/devotionalNotify.js"
+    ],
+    "global/services/notifications.js": [
+      "screens/prayers/timer/devotionals/devotionalNotify.js"
     ],
     "global/context/ImmersiveContext.js": [
       "screens/prayers/timer/devotionals/DevotionalRunner.js",
       "screens/prayers/timer/session/DevotionalPlayer.js"
     ],
     "global/context/ToastContext.js": [
-      "screens/prayers/timer/DevotionalScreen.js"
-    ],
-    "global/services/notifications.js": [
-      "screens/prayers/timer/notifications/devotionalNotifications.js"
+      "screens/prayers/timer/DevotionalScreen.js",
+      "screens/profile/broadcast/ComposeView.js"
     ]
   }
 }

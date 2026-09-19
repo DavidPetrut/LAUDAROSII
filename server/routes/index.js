@@ -8,6 +8,7 @@ const songsRoutes = require("./songs");
 const prayerProgramsRoutes = require("./prayerPrograms");
 const devotionalPlansRoutes = require("./devotionalPlans");
 const devotionalsRoutes = require("./devotionals");
+const broadcastsRoutes = require("./broadcasts");
 const notificationsRoutes = require("./notifications");
 const statsRoutes = require("./stats");
 const missionsRoutes = require("./missions");
@@ -25,6 +26,7 @@ module.exports = {
   prayerProgramsRoutes,
   devotionalPlansRoutes,
   devotionalsRoutes,
+  broadcastsRoutes,
   notificationsRoutes,
   statsRoutes,
   missionsRoutes,

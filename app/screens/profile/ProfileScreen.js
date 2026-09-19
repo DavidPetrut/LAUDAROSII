@@ -99,6 +99,16 @@ export const ProfileScreen = ({ navigation }) => {
               <Text style={styles.adminButtonText}>Panel Admin</Text>
             </TouchableOpacity>
           )}
+
+          {user?.role === "superadmin" && (
+            <TouchableOpacity
+              style={[styles.adminButton, { backgroundColor: "#0ea5e9", marginTop: 12 }]}
+              onPress={() => navigation.navigate("Broadcast")}
+            >
+              <Ionicons name="megaphone" size={24} color="#fff" />
+              <Text style={styles.adminButtonText}>Notificări broadcast</Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </View>
     </View>

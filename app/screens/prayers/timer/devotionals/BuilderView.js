@@ -1,10 +1,13 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Switch } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { TaskEditorModal } from "./TaskEditorModal";
 import { TaskTimeline } from "./TaskTimeline";
 import { DevotionalHeaderImage } from "./DevotionalHeaderImage";
+import { NotificationEditModal } from "./NotificationEditModal";
 import { devotionalsApi } from "./devotionalsApi";
+import { syncDevotionalNotification } from "./devotionalNotify";
 
 const DAYS = [
   { label: "Lu", wd: 2 },
@@ -27,7 +30,11 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
   const [weekdays, setWeekdays] = useState(initial?.schedule?.weekdays || []);
   const [repeatWeekly, setRepeatWeekly] = useState(initial?.schedule?.repeatWeekly !== false);
   const [tasks, setTasks] = useState(initial?.tasks || []);
+  const [notification, setNotification] = useState(
+    initial?.notification || { enabled: false, message: "", hour: 8, minute: 0 }
+  );
   const [taskEditor, setTaskEditor] = useState({ open: false, index: null });
+  const [notifEditor, setNotifEditor] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showMissing, setShowMissing] = useState(false);
@@ -72,11 +79,13 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
       color,
       tasks,
       schedule: { weekdays, repeatWeekly },
+      notification,
     };
     try {
       const res = initial
         ? await devotionalsApi.update(initial._id, payload)
         : await devotionalsApi.create(payload);
+      await syncDevotionalNotification(res.devotional);
       onSaved(res.devotional);
     } catch (e) {
       setError(e.message || "Nu am putut salva.");
@@ -123,6 +132,28 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
         />
       </View>
 
+      <View style={styles.repeatRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.repeatTitle}>Notificare</Text>
+          <Text style={styles.repeatDesc}>Un memento pe telefon la ora aleasă</Text>
+        </View>
+        {notification.enabled && (
+          <TouchableOpacity
+            style={styles.notifEditBtn}
+            onPress={() => setNotifEditor(true)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="create-outline" size={22} color={color} />
+          </TouchableOpacity>
+        )}
+        <Switch
+          value={notification.enabled}
+          onValueChange={(v) => setNotification((n) => ({ ...n, enabled: v }))}
+          trackColor={{ true: color, false: "rgba(255,255,255,0.2)" }}
+          thumbColor="#fff"
+        />
+      </View>
+
       {!!error && <Text style={styles.errorNote}>{error}</Text>}
 
       {showMissing && !canSave && (
@@ -152,6 +183,16 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
         baseColor={color}
         onSave={saveTask}
         onClose={() => setTaskEditor({ open: false, index: null })}
+      />
+
+      <NotificationEditModal
+        visible={notifEditor}
+        value={notification}
+        onSave={(v) => {
+          setNotification((n) => ({ ...n, ...v }));
+          setNotifEditor(false);
+        }}
+        onClose={() => setNotifEditor(false)}
       />
     </ScrollView>
   );

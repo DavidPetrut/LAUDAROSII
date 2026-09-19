@@ -7,7 +7,6 @@ import { colors } from "../../../../public/styles/global";
 const ITEMS = [
   { key: "devotionals", icon: "book-outline", title: "Devotionalele mele", desc: "Creează, editează, partajează" },
   { key: "progress", icon: "trending-up-outline", title: "Progresul meu", desc: "Completări și consecvență" },
-  { key: "notifications", icon: "notifications-outline", title: "Notificări", desc: "Memento-uri repetabile" },
 ];
 
 /**

@@ -9,6 +9,9 @@ const DevotionalPlan = require("./DevotionalPlan");
 const Devotional = require("./Devotional");
 const DevotionalShare = require("./DevotionalShare");
 const Notification = require("./Notification");
+const NotificationTag = require("./NotificationTag");
+const Broadcast = require("./Broadcast");
+const BroadcastTemplate = require("./BroadcastTemplate");
 const UserStats = require("./UserStats");
 const Mission = require("./Mission");
 const PrayRoom = require("./PrayRoom");
@@ -27,6 +30,9 @@ module.exports = {
   Devotional,
   DevotionalShare,
   Notification,
+  NotificationTag,
+  Broadcast,
+  BroadcastTemplate,
   UserStats,
   Mission,
   PrayRoom,
