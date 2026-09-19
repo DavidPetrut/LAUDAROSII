@@ -13,6 +13,7 @@ import { analyzeStyles as styles } from "./analyzeStyles";
 
 const MEDAL_ICON = require("../../public/icons/medal.png");
 const ROOM_ICON = require("../../public/icons/room_icon1.png");
+const DEVOTIONAL_ICON = require("../../public/icons/room_icon3.png");
 
 export const AnalyzeTab = ({ answeredPrayers, navigation }) => {
   const scrollAnim = useRef(new Animated.Value(0)).current;
@@ -182,10 +183,10 @@ export const AnalyzeTab = ({ answeredPrayers, navigation }) => {
           style={styles.timerBtn}
           onPress={() => navigation.navigate("PrayerTimer")}
         >
-          <Text style={styles.btnEmoji}>⏱️</Text>
+          <Image source={DEVOTIONAL_ICON} style={styles.btnIcon} />
           <View style={styles.btnTextWrap}>
-            <Text style={styles.btnTitle}>Start Praying</Text>
-            <Text style={styles.btnSubtitle}>Timer pentru rugaciune</Text>
+            <Text style={styles.btnTitle}>Devotionalul meu</Text>
+            <Text style={styles.btnSubtitle}>Momentul tău devotional</Text>
           </View>
         </TouchableOpacity>
       </View>
