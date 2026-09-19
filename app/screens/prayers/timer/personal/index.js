@@ -1,1 +1,2 @@
-export { PersonalScreen } from "./PersonalScreen";
+export { PersonalHubView } from "./PersonalHubView";
+export { ProgressView } from "./ProgressView";

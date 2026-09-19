@@ -247,6 +247,138 @@ export const devotionalStyles = StyleSheet.create({
   },
   previewTitle: { ...typography.body, color: colors.textPrimary, fontWeight: "700" },
   previewBody: { ...typography.bodySmall, color: colors.textSecondary, marginTop: 2 },
+
+  // ---- Home (fundal negru) ----
+  bg: { flex: 1 },
+  quoteCard: {
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    padding: spacing.lg,
+    paddingTop: spacing.xl,
+    marginTop: spacing.md,
+  },
+  quoteCopyBtn: { position: "absolute", top: spacing.md, right: spacing.md, zIndex: 2 },
+  quoteMark: { fontSize: 40, color: "rgba(16,185,129,0.6)", fontFamily: "IMFellEnglish-Italic", marginBottom: -spacing.md },
+  quoteText: { fontSize: 20, lineHeight: 30, color: "#e5e7eb", fontFamily: "IMFellEnglish-Italic" },
+  quoteAuthor: { ...typography.bodySmall, color: "rgba(229,231,235,0.6)", textAlign: "right", marginTop: spacing.md, fontStyle: "italic" },
+
+  bigBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    backgroundColor: ACCENT,
+    paddingVertical: spacing.lg,
+    borderRadius: borderRadius.xl,
+    marginTop: spacing.lg,
+  },
+  bigBtnGhost: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: ACCENT },
+  bigBtnDone: { backgroundColor: "rgba(16,185,129,0.12)" },
+  bigBtnText: { ...typography.h3, color: "#fff", fontWeight: "800" },
+
+  // ---- Meniu mic (copy/share, actiuni card) ----
+  menuBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: spacing.xl },
+  menuSheet: { backgroundColor: "#1f2937", borderRadius: borderRadius.lg, width: "100%", maxWidth: 320, paddingVertical: spacing.sm },
+  menuHeader: { ...typography.caption, color: "rgba(255,255,255,0.5)", paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  menuItem: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  menuItemText: { ...typography.body, color: "#e5e7eb", fontWeight: "600" },
+  menuDivider: { height: 1, backgroundColor: "rgba(255,255,255,0.08)", marginHorizontal: spacing.md },
+
+  // ---- Bottom sheet (setup rugaciune / task) ----
+  sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
+  sheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: spacing.lg,
+    paddingBottom: spacing.xl,
+  },
+  sheetHandle: { alignSelf: "center", width: 44, height: 5, borderRadius: 3, backgroundColor: colors.border, marginBottom: spacing.md },
+  sheetTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.sm },
+  taskEditRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+
+  // ---- Icon picker ----
+  pickerContainer: { flex: 1, backgroundColor: colors.background, paddingTop: spacing.xxl },
+  pickerHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.md, paddingVertical: spacing.md },
+  pickerTitle: { ...typography.h3, color: colors.textPrimary },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+  },
+  searchInput: { flex: 1, ...typography.body, color: colors.textPrimary, padding: 0 },
+  pickerCategory: { ...typography.caption, color: colors.textSecondary, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginTop: spacing.lg, marginBottom: spacing.sm, marginHorizontal: spacing.md },
+  iconGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, paddingHorizontal: spacing.md },
+  iconCell: {
+    width: 56,
+    height: 56,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // ---- Culori ----
+  swatchRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.xs },
+  swatch: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  swatchActive: { borderWidth: 2, borderColor: "#fff" },
+
+  // ---- Builder ----
+  builderHeaderRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md },
+  taskIconBtn: { width: 56, height: 56, borderRadius: borderRadius.lg, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  taskRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.md, marginTop: spacing.sm, borderWidth: 1, borderColor: colors.borderLight },
+  taskDot: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  taskTitle: { ...typography.body, color: colors.textPrimary, fontWeight: "600" },
+  taskMeta: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
+  suggestionChip: { flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: colors.surface, borderRadius: borderRadius.full, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  suggestionText: { ...typography.caption, color: colors.textSecondary, fontWeight: "600" },
+  addCustomBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, paddingVertical: spacing.md, marginTop: spacing.sm },
+  addCustomText: { ...typography.body, fontWeight: "700" },
+
+  // ---- Card devotional + liste ----
+  devCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.md, marginTop: spacing.sm, borderWidth: 1.5, borderColor: colors.borderLight },
+  devCardDefault: { borderColor: "#10b981" },
+  devCardIcon: { width: 48, height: 48, borderRadius: borderRadius.md, alignItems: "center", justifyContent: "center" },
+  devCardName: { ...typography.body, color: colors.textPrimary, fontWeight: "700" },
+  devCardMeta: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
+  defaultBadge: { flexDirection: "row", alignItems: "center", gap: 3 },
+  defaultBadgeText: { ...typography.caption, color: "#10b981", fontWeight: "700" },
+  listHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.lg },
+  newBtn: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: ACCENT, borderRadius: borderRadius.full, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
+  newBtnText: { ...typography.caption, color: "#fff", fontWeight: "700" },
+  shareRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "rgba(16,185,129,0.08)", borderRadius: borderRadius.lg, padding: spacing.md, marginTop: spacing.sm, borderWidth: 1, borderColor: "rgba(16,185,129,0.3)" },
+  shareAccept: { backgroundColor: ACCENT, borderRadius: borderRadius.full, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  shareAcceptText: { ...typography.caption, color: "#fff", fontWeight: "700" },
+  shareDecline: { padding: spacing.sm },
+
+  // ---- Share: user search ----
+  userRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.md, marginTop: spacing.sm, borderWidth: 1, borderColor: colors.borderLight },
+  userAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.borderLight, alignItems: "center", justifyContent: "center" },
+  userName: { ...typography.body, color: colors.textPrimary, fontWeight: "600", flex: 1 },
+
+  // ---- Personale hub ----
+  hubRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.md, marginTop: spacing.sm, borderWidth: 1, borderColor: colors.borderLight },
+  hubIcon: { width: 44, height: 44, borderRadius: borderRadius.md, backgroundColor: "rgba(16,185,129,0.12)", alignItems: "center", justifyContent: "center" },
+  hubTitle: { ...typography.body, color: colors.textPrimary, fontWeight: "700" },
+  hubDesc: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
+
+  // ---- Runner devotional ----
+  runnerStep: { ...typography.body, color: "rgba(212,212,216,0.5)", marginBottom: spacing.lg, letterSpacing: 2 },
+  runnerIcon: { width: 140, height: 140, borderRadius: 70, alignItems: "center", justifyContent: "center", marginBottom: spacing.xl },
+  runnerTitle: { ...typography.h2, color: "#e5e7eb", textAlign: "center", paddingHorizontal: spacing.xl },
+  runnerTimer: { fontSize: 56, fontFamily: "Raleway", color: "#d4d4d8", fontWeight: "500", marginTop: spacing.md },
   reminderDelete: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   reminderDeleteText: { ...typography.bodySmall, color: colors.error, fontWeight: "700" },
 

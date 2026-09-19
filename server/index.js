@@ -14,6 +14,7 @@ const {
   songsRoutes,
   prayerProgramsRoutes,
   devotionalPlansRoutes,
+  devotionalsRoutes,
   notificationsRoutes,
   statsRoutes,
   missionsRoutes,
@@ -57,6 +58,7 @@ app.use("/api/games", gamesRoutes);
 app.use("/api/songs", songsRoutes);
 app.use("/api/prayer-programs", prayerProgramsRoutes);
 app.use("/api/devotional-plans", devotionalPlansRoutes);
+app.use("/api/devotionals", devotionalsRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/missions", missionsRoutes);

@@ -27,7 +27,8 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
   const { setImmersive } = useImmersive();
   const landscape = width > height;
 
-  const [remaining, setRemaining] = useState(durationMin * 60);
+  const unlimited = durationMin == null;
+  const [remaining, setRemaining] = useState(unlimited ? 0 : durationMin * 60);
   const timeStr = fmt(remaining);
   // Timer-ul umple ecranul: dimensiune calculata din latime si nr. de caractere,
   // plafonata pe inaltime ca sa nu iasa din ecran (mai ales pe landscape).
@@ -48,6 +49,7 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
     tickRef.current = setInterval(() => {
       if (audioRef.current.paused) return;
       setRemaining((prev) => {
+        if (unlimited) return prev + 1;
         if (prev <= 1) {
           finish();
           return 0;

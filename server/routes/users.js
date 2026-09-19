@@ -68,6 +68,35 @@ router.put("/me", authMiddleware, async (req, res) => {
   }
 });
 
+/**
+ * GET /users/search?q= - cautare minimala de utilizatori dupa nume, pentru
+ * partajarea unui devotional. Expune DOAR id, nume si poza (nu email/telefon).
+ * Query escapat (fara regex/NoSQL injection), minim 2 caractere, limita 20.
+ */
+router.get("/search", authMiddleware, async (req, res) => {
+  try {
+    const q = String(req.query.q || "").trim();
+    if (q.length < 2) return res.json({ users: [] });
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const users = await User.find({
+      _id: { $ne: req.user.id },
+      "status.isActive": true,
+      "personalData.fullName": { $regex: escaped, $options: "i" },
+    })
+      .select("_id personalData.fullName personalData.profilePicture")
+      .limit(20);
+    res.json({
+      users: users.map((u) => ({
+        _id: u._id,
+        fullName: u.personalData?.fullName || "Utilizator",
+        profilePicture: u.personalData?.profilePicture || null,
+      })),
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Eroare la cautare" });
+  }
+});
+
 router.get("/", authMiddleware, isAdmin, async (req, res) => {
   try {
     const users = await User.find()

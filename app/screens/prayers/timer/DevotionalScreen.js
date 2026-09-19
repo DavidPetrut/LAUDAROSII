@@ -1,65 +1,85 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
-import { ScreenHeader } from "../../../global/components";
+import { Ionicons } from "@expo/vector-icons";
+import { ScreenHeader, TiledBackground } from "../../../global/components";
+import { useToast } from "../../../global/context";
 import { api } from "../../../global/functions";
 import { devotionalStyles as styles } from "./devotionalStyles";
-import { SessionSetup, DevotionalPlayer } from "./session";
-import { GoalsQuiz, goalsApi, quizSkip } from "./goals";
-import { PersonalScreen } from "./personal";
+import { HomeView, PrayerSetupModal, randomQuote } from "./home";
+import { DevotionalPlayer } from "./session";
+import { DevotionalsView, BuilderView, ShareView, DevotionalRunner, devotionalsApi } from "./devotionals";
+import { PersonalHubView, ProgressView } from "./personal";
 import { DevotionalNotificationsTab } from "./notifications";
 
-const TABS = [
-  { key: "session", label: "Sesiune" },
-  { key: "personal", label: "Personale" },
-  { key: "notifications", label: "Notificări" },
-];
+const BG_DARK = require("../../../public/images/dark-mode-small.png");
+
+const TITLES = {
+  home: "Devotional",
+  personalHub: "Personale",
+  devotionals: "Devotionalele mele",
+  builder: "Devotional",
+  share: "Distribuie",
+  progress: "Progresul meu",
+  notifications: "Notificări",
+};
 
 /**
- * Hub-ul Devotional: la prima intrare fara plan afiseaza quiz-ul de goluri (cu
- * skip). Apoi ofera trei zone interne - sesiunea de inchinare, statisticile
- * personale si memento-urile. Sesiunea porneste overlay-ul player-ului.
+ * Hub-ul Devotional: ecran principal cu citat + actiuni, plus zone interne
+ * (devotionale, personale, progres, notificari) printr-un mic stack local.
+ * Overlay-urile de sesiune (rugaciune / runner devotional) stau peste tot.
  */
 export const DevotionalScreen = () => {
+  const { showSuccess } = useToast();
   const [loading, setLoading] = useState(true);
   const [program, setProgram] = useState(null);
-  const [view, setView] = useState("session");
-  const [tab, setTab] = useState("session");
-  const [session, setSession] = useState(null);
+  const [devotionals, setDevotionals] = useState([]);
+  const [quote] = useState(() => randomQuote());
+  const [stack, setStack] = useState([{ view: "home" }]);
+
+  const [prayerSetup, setPrayerSetup] = useState(false);
+  const [prayerConfig, setPrayerConfig] = useState(null);
+  const [running, setRunning] = useState(null);
+
+  const current = stack[stack.length - 1];
+  const defaultDevotional = devotionals.find((d) => d.isDefault) || devotionals[0] || null;
+
+  const loadDevotionals = useCallback(async () => {
+    try {
+      const res = await devotionalsApi.list();
+      setDevotionals(res.devotionals || []);
+    } catch (e) {
+      setDevotionals([]);
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
     (async () => {
-      try {
-        const [prog, active_] = await Promise.all([
-          api.get("/prayer-programs/worship").catch(() => null),
-          goalsApi.getActive().catch(() => ({ plan: null })),
-        ]);
-        if (!active) return;
-        setProgram(prog);
-        const skipped = await quizSkip.get();
-        if (!active_.plan && !skipped) setView("quiz");
-      } finally {
-        if (active) setLoading(false);
-      }
+      const prog = await api.get("/prayer-programs/worship").catch(() => null);
+      if (!active) return;
+      setProgram(prog);
+      await loadDevotionals();
+      if (active) setLoading(false);
     })();
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadDevotionals]);
 
-  const startSession = (config) => setSession(config);
+  const go = (view, params = {}) => setStack((s) => [...s, { view, params }]);
+  const back = () => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
 
-  const endSession = async (completed) => {
-    if (completed) {
-      try {
-        await goalsApi.logSession();
-      } catch (e) {}
-    }
+  const startPrayer = (config) => {
+    setPrayerSetup(false);
+    setPrayerConfig(config);
   };
 
-  const goTab = (key) => {
-    setTab(key);
-    setView(key);
+  const completeDevotional = async (dev) => {
+    try {
+      await devotionalsApi.complete(dev._id);
+      await loadDevotionals();
+      showSuccess("Devotional completat");
+    } catch (e) {}
   };
 
   if (loading) {
@@ -74,44 +94,86 @@ export const DevotionalScreen = () => {
     );
   }
 
+  const headerRight =
+    current.view === "home" ? (
+      <TouchableOpacity onPress={() => go("personalHub")} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <Ionicons name="person-circle-outline" size={28} color="#fff" />
+      </TouchableOpacity>
+    ) : null;
+
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Devotional" />
+      <ScreenHeader
+        title={TITLES[current.view] || "Devotional"}
+        onBack={stack.length > 1 ? back : undefined}
+        rightComponent={headerRight}
+      />
 
-      {view === "quiz" ? (
-        <GoalsQuiz onDone={() => goTab("session")} />
-      ) : (
-        <>
-          <View style={styles.tabBar}>
-            {TABS.map((t) => (
-              <TouchableOpacity
-                key={t.key}
-                style={[styles.tabItem, tab === t.key && styles.tabItemActive]}
-                onPress={() => goTab(t.key)}
-                activeOpacity={0.85}
-              >
-                <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>
-                  {t.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+      <TiledBackground tileSource={BG_DARK} style={styles.bg}>
+        {current.view === "home" && (
+          <HomeView
+            quote={quote}
+            defaultDevotional={defaultDevotional}
+            onToast={(m) => showSuccess(m)}
+            onStartPrayer={() => setPrayerSetup(true)}
+            onStartDevotional={(dev) => setRunning(dev)}
+            onCreateDevotional={() => go("builder", { initial: null })}
+          />
+        )}
 
-          {view === "session" && <SessionSetup program={program} onStart={startSession} />}
-          {view === "personal" && <PersonalScreen onCreatePlan={() => setView("quiz")} />}
-          {view === "notifications" && <DevotionalNotificationsTab />}
-        </>
+        {current.view === "personalHub" && <PersonalHubView onNavigate={(v) => go(v)} />}
+
+        {current.view === "devotionals" && (
+          <DevotionalsView
+            onCreate={() => go("builder", { initial: null })}
+            onEdit={(item) => go("builder", { initial: item })}
+            onShare={(item) => go("share", { devotional: item })}
+          />
+        )}
+
+        {current.view === "builder" && (
+          <BuilderView
+            initial={current.params?.initial}
+            onSaved={async () => {
+              await loadDevotionals();
+              back();
+            }}
+            onCancel={back}
+          />
+        )}
+
+        {current.view === "share" && (
+          <ShareView devotional={current.params.devotional} onDone={back} onCancel={back} />
+        )}
+
+        {current.view === "progress" && <ProgressView />}
+        {current.view === "notifications" && <DevotionalNotificationsTab />}
+      </TiledBackground>
+
+      <PrayerSetupModal
+        visible={prayerSetup}
+        program={program}
+        onStart={startPrayer}
+        onClose={() => setPrayerSetup(false)}
+      />
+
+      {prayerConfig && (
+        <DevotionalPlayer
+          durationMin={prayerConfig.minutes}
+          withMusic={prayerConfig.withMusic}
+          tracks={(program?.playlist || []).filter(
+            (t) => t.category === prayerConfig.category && t.url
+          )}
+          onComplete={() => {}}
+          onExit={() => setPrayerConfig(null)}
+        />
       )}
 
-      {session && (
-        <DevotionalPlayer
-          durationMin={session.minutes}
-          withMusic={session.withMusic}
-          tracks={(program?.playlist || []).filter(
-            (t) => t.category === session.category && t.url
-          )}
-          onComplete={() => endSession(true)}
-          onExit={() => setSession(null)}
+      {running && (
+        <DevotionalRunner
+          devotional={running}
+          onComplete={() => completeDevotional(running)}
+          onExit={() => setRunning(null)}
         />
       )}
     </View>

@@ -6,6 +6,8 @@ const Song = require("./Song");
 const PrayerList = require("./PrayerList");
 const PrayerProgram = require("./PrayerProgram");
 const DevotionalPlan = require("./DevotionalPlan");
+const Devotional = require("./Devotional");
+const DevotionalShare = require("./DevotionalShare");
 const Notification = require("./Notification");
 const UserStats = require("./UserStats");
 const Mission = require("./Mission");
@@ -22,6 +24,8 @@ module.exports = {
   PrayerList,
   PrayerProgram,
   DevotionalPlan,
+  Devotional,
+  DevotionalShare,
   Notification,
   UserStats,
   Mission,
