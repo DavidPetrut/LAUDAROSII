@@ -66,7 +66,7 @@ export const HomeScreen = ({ navigation }) => {
   };
 
   const quickActions = [
-    { icon: ICON_PRAY, title: "Rugaciuni", screen: "Prayers", params: { screen: "PrayersMain" }, bg: "#f0e6ff" },
+    { icon: ICON_PRAY, title: "Devotionalul meu", screen: "Prayers", params: { screen: "PrayerTimer" }, bg: "#f0e6ff" },
     {
       icon: ICON_ROOMS,
       title: "Pray Rooms",
