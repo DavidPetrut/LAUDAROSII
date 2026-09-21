@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, TouchableOpacity, Animated, Easing, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Audio } from "expo-av";
+import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { Ionicons } from "@expo/vector-icons";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { devotionalStyles as styles } from "../devotionalStyles";
@@ -98,15 +98,15 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
 
-  const stopMusic = async () => {
+  const stopMusic = () => {
     const s = soundRef.current;
     soundRef.current = null;
     if (s) {
-      try { await s.stopAsync(); await s.unloadAsync(); } catch (e) {}
+      try { s.pause(); s.remove(); } catch (e) {}
     }
   };
 
-  const playAt = async (i) => {
+  const playAt = (i) => {
     if (!activeRef.current || orderRef.current.length === 0) return;
     if (i >= orderRef.current.length) {
       orderRef.current = shuffle(orderRef.current);
@@ -115,22 +115,29 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
     posRef.current = i;
     const track = orderRef.current[i];
     try {
-      await stopMusic();
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: Platform.OS !== "web" });
-      const { sound } = await Audio.Sound.createAsync({ uri: track.url }, { shouldPlay: true });
-      if (!activeRef.current) { try { await sound.unloadAsync(); } catch (e) {} return; }
-      soundRef.current = sound;
-      sound.setOnPlaybackStatusUpdate((st) => {
+      stopMusic();
+      const player = createAudioPlayer({ uri: track.url });
+      if (!activeRef.current) { try { player.remove(); } catch (e) {} return; }
+      soundRef.current = player;
+      player.play();
+      player.addListener("playbackStatusUpdate", (st) => {
         if (st?.didJustFinish) playAt(posRef.current + 1);
       });
     } catch (e) {}
   };
 
   const playTaskMusic = async (task) => {
-    await stopMusic();
+    stopMusic();
     if (!task?.music?.enabled) return;
     const tracks = (program?.playlist || []).filter((t) => t.category === task.music.category && t.url);
     if (tracks.length === 0) return;
+    try {
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        shouldPlayInBackground: Platform.OS !== "web",
+        interruptionMode: "doNotMix",
+      });
+    } catch (e) {}
     orderRef.current = shuffle(tracks);
     playAt(0);
   };

@@ -18,16 +18,23 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.laudarosii.vertical",
       "infoPlist": {
-        "UIBackgroundModes": ["audio"],
+        "UIBackgroundModes": [
+          "audio"
+        ],
         "CFBundleDisplayName": "Vertical București",
-        "NSPhotoLibraryUsageDescription": "Aplicația folosește pozele tale pentru a alege o imagine pentru devotional."
-      }
+        "NSPhotoLibraryUsageDescription": "Aplicația folosește pozele tale pentru a alege o imagine pentru devotional.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#6366f1"
       },
-      "package": "com.laudarosii.vertical"
+      "package": "com.laudarosii.vertical",
+      "permissions": [
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -38,8 +45,14 @@
       "expo-secure-store",
       "expo-updates",
       "expo-video",
-      ["expo-av", { "microphonePermission": false }],
-      "expo-notifications"
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false
+        }
+      ],
+      "expo-notifications",
+      "expo-asset"
     ],
     "owner": "davidpetruttt",
     "extra": {

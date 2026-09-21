@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
-import { Audio } from "expo-av";
+import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
 
 const shuffle = (arr) => {
   const a = [...arr];
@@ -20,7 +20,7 @@ export const useDevotionalAudio = ({ tracks, withMusic }) => {
   const [trackTitle, setTrackTitle] = useState("");
   const [paused, setPaused] = useState(false);
 
-  const soundRef = useRef(null);
+  const playerRef = useRef(null);
   const orderRef = useRef([]);
   const posRef = useRef(0);
   const activeRef = useRef(true);
@@ -35,18 +35,18 @@ export const useDevotionalAudio = ({ tracks, withMusic }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const unload = async () => {
-    const s = soundRef.current;
-    soundRef.current = null;
-    if (s) {
+  const unload = () => {
+    const p = playerRef.current;
+    playerRef.current = null;
+    if (p) {
       try {
-        await s.stopAsync();
-        await s.unloadAsync();
+        p.pause();
+        p.remove();
       } catch (e) {}
     }
   };
 
-  const playAt = async (pos) => {
+  const playAt = (pos) => {
     if (!activeRef.current || orderRef.current.length === 0) return;
     if (pos >= orderRef.current.length) {
       // s-a terminat lista: reamesteca pentru a continua random
@@ -57,17 +57,16 @@ export const useDevotionalAudio = ({ tracks, withMusic }) => {
     const track = orderRef.current[pos];
     setTrackTitle(track.title || "");
     try {
-      await unload();
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: track.url },
-        { shouldPlay: true, volume: 1 }
-      );
+      unload();
+      const player = createAudioPlayer({ uri: track.url });
       if (!activeRef.current) {
-        try { await sound.unloadAsync(); } catch (e) {}
+        try { player.remove(); } catch (e) {}
         return;
       }
-      soundRef.current = sound;
-      sound.setOnPlaybackStatusUpdate((status) => {
+      playerRef.current = player;
+      player.volume = 1;
+      player.play();
+      player.addListener("playbackStatusUpdate", (status) => {
         if (status?.didJustFinish) playAt(posRef.current + 1);
       });
     } catch (e) {
@@ -78,44 +77,40 @@ export const useDevotionalAudio = ({ tracks, withMusic }) => {
 
   const start = async () => {
     try {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: Platform.OS !== "web",
-        shouldDuckAndroid: false,
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        shouldPlayInBackground: Platform.OS !== "web",
+        interruptionMode: "doNotMix",
       });
     } catch (e) {}
     orderRef.current = shuffle(tracks);
     playAt(0);
   };
 
-  const pause = async () => {
+  const pause = () => {
     setPaused(true);
-    try {
-      await soundRef.current?.pauseAsync();
-    } catch (e) {}
+    try { playerRef.current?.pause(); } catch (e) {}
   };
 
-  const resume = async () => {
+  const resume = () => {
     setPaused(false);
-    try {
-      await soundRef.current?.playAsync();
-    } catch (e) {}
+    try { playerRef.current?.play(); } catch (e) {}
   };
 
   // Scade lin volumul si opreste (fade-out fin, nu brusc).
   const stop = async ({ fade = true } = {}) => {
     activeRef.current = false;
-    const s = soundRef.current;
-    if (fade && s) {
+    const p = playerRef.current;
+    if (fade && p) {
       try {
         const steps = 12;
         for (let i = steps - 1; i >= 0; i--) {
-          await s.setVolumeAsync(i / steps);
+          p.volume = i / steps;
           await new Promise((r) => setTimeout(r, 55));
         }
       } catch (e) {}
     }
-    await unload();
+    unload();
   };
 
   return { trackTitle, paused, pause, resume, stop };

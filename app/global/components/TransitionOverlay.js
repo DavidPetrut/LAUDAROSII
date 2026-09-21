@@ -1,6 +1,5 @@
 import React, { useRef, useEffect, useState } from "react";
-import { StyleSheet, Animated, Platform, Dimensions, View } from "react-native";
-import { Video, ResizeMode } from "expo-av";
+import { StyleSheet, Animated, Platform, Dimensions } from "react-native";
 import { useTransition } from "../context/TransitionContext";
 
 /**
@@ -110,40 +109,8 @@ const TransitionOverlay = () => {
     );
   }
 
-  // ============ NATIVE RENDER ============
-  return (
-    <Animated.View
-      style={[
-        styles.container,
-        {
-          opacity: fadeAnim,
-          backgroundColor: bgColor,
-        },
-      ]}
-    >
-      <View style={styles.videoWrapper}>
-        <Video
-          ref={videoRef}
-          source={currentTransition.video}
-          style={{
-            width: dimensions.width * scale,
-            height: dimensions.height * scale,
-          }}
-          resizeMode={ResizeMode.CONTAIN}
-          shouldPlay={true}
-          isLooping={false}
-          isMuted={false}
-          onPlaybackStatusUpdate={(status) => {
-            if (status.didJustFinish) handleVideoEnd();
-          }}
-          onError={(e) => {
-            console.warn("Video error:", e);
-            handleVideoEnd();
-          }}
-        />
-      </View>
-    </Animated.View>
-  );
+  // Pe nativ tranzitiile video sunt dezactivate (vezi SKIP_VIDEO_ON_NATIVE).
+  return null;
 };
 
 const styles = StyleSheet.create({
