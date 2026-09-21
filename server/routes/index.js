@@ -1,6 +1,7 @@
 const authRoutes = require("./auth");
 const usersRoutes = require("./users");
 const prayersRoutes = require("./prayers");
+const prayerBoardsRoutes = require("./prayerBoards");
 const announcementsRoutes = require("./announcements");
 const coursesRoutes = require("./courses");
 const gamesRoutes = require("./games");
@@ -19,6 +20,7 @@ module.exports = {
   authRoutes,
   usersRoutes,
   prayersRoutes,
+  prayerBoardsRoutes,
   announcementsRoutes,
   coursesRoutes,
   gamesRoutes,

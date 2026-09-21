@@ -9,7 +9,20 @@ const HEX = /^#[0-9a-fA-F]{6}$/;
 const IMAGE_PRESETS = ["sim_duminica", "sim_duminica2", "war_room_1"];
 const MAX_IMAGE_LEN = 900000; // ~data URI comprimat
 
+const OBJECT_ID = /^[0-9a-fA-F]{24}$/;
+
 const safeColor = (c) => (HEX.test(String(c || "")) ? c : "#10b981");
+
+/**
+ * Normalizeaza referinta la lista de rugaciuni a unui moment. "public" nu are
+ * boardId; "private" cere un ObjectId valid; orice altceva devine referinta goala.
+ */
+const safePrayerList = (pl) => {
+  if (pl?.kind === "public") return { kind: "public", boardId: null };
+  if (pl?.kind === "private" && OBJECT_ID.test(String(pl.boardId || "")))
+    return { kind: "private", boardId: pl.boardId };
+  return { kind: null, boardId: null };
+};
 const safeIconSet = (s) => (ICON_SETS.includes(s) ? s : "ionicons");
 const safeStr = (s, max) => String(s || "").trim().slice(0, max);
 
@@ -47,6 +60,7 @@ const sanitizeDevotional = (body) => {
         enabled: !!t.music?.enabled,
         category: t.music?.category === "lyrics" ? "lyrics" : "instrumental",
       },
+      prayerList: safePrayerList(t.prayerList),
     })),
     schedule: {
       weekdays: Array.isArray(body.schedule?.weekdays)

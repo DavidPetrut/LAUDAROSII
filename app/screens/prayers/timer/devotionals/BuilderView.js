@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { TaskEditorModal } from "./TaskEditorModal";
 import { TaskTimeline } from "./TaskTimeline";
+import { PrayerListPickerModal } from "./PrayerListPickerModal";
 import { DevotionalHeaderImage } from "./DevotionalHeaderImage";
 import { NotificationEditModal } from "./NotificationEditModal";
 import { devotionalsApi } from "./devotionalsApi";
@@ -34,6 +35,7 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
     initial?.notification || { enabled: false, message: "", hour: 8, minute: 0 }
   );
   const [taskEditor, setTaskEditor] = useState({ open: false, index: null });
+  const [listPicker, setListPicker] = useState({ open: false, index: null });
   const [notifEditor, setNotifEditor] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -48,10 +50,21 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
     setTasks((prev) => {
       if (taskEditor.index === null) return [...prev, task];
       const copy = [...prev];
-      copy[taskEditor.index] = task;
+      copy[taskEditor.index] = { ...copy[taskEditor.index], ...task };
       return copy;
     });
     setTaskEditor({ open: false, index: null });
+  };
+
+  const setTaskList = (prayerList) => {
+    setTasks((prev) => {
+      const copy = [...prev];
+      const idx = listPicker.index;
+      if (idx === null || !copy[idx]) return prev;
+      copy[idx] = { ...copy[idx], prayerList: prayerList || { kind: null, boardId: null } };
+      return copy;
+    });
+    setListPicker({ open: false, index: null });
   };
 
   const canSave = name.trim().length > 0 && tasks.length > 0;
@@ -104,6 +117,7 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
         onEdit={(i) => setTaskEditor({ open: true, index: i })}
         onRemove={removeTask}
         onAdd={() => setTaskEditor({ open: true, index: null })}
+        onPickList={(i) => setListPicker({ open: true, index: i })}
       />
 
       <Text style={styles.stepLabel}>Zile</Text>
@@ -183,6 +197,13 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
         baseColor={color}
         onSave={saveTask}
         onClose={() => setTaskEditor({ open: false, index: null })}
+      />
+
+      <PrayerListPickerModal
+        visible={listPicker.open}
+        selected={listPicker.index !== null ? tasks[listPicker.index]?.prayerList : null}
+        onSelect={setTaskList}
+        onClose={() => setListPicker({ open: false, index: null })}
       />
 
       <NotificationEditModal

@@ -42,6 +42,11 @@ router.post("/personal", authMiddleware, async (req, res) => {
     if (!text?.trim())
       return res.status(400).json({ error: "Motivul este obligatoriu" });
     const user = await User.findById(req.user.id);
+    const activePublic = user.content.prayers.filter((p) => !p.answered).length;
+    if (activePublic >= 3)
+      return res
+        .status(400)
+        .json({ error: "Lista publica permite maxim 3 motive" });
     user.content.prayers.push({
       text: text.trim(),
       isUrgent: isUrgent || false,

@@ -5,13 +5,10 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
-  TextInput,
-  Modal,
   LayoutAnimation,
   Platform,
   UIManager,
   Animated,
-  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -24,40 +21,25 @@ if (
 
 const BG_LIGHT = require("../../public/images/day-light-mode-background.png");
 const BG_DARK = require("../../public/images/dark-mode-small.png");
-const TAG_BEFORE = require("../../public/icons/before_tag.png");
-const TAG_AFTER = require("../../public/icons/after_tag.png");
 
-import { api, showError, showSuccess } from "../../global/functions";
+import { api, showError } from "../../global/functions";
 import { useAuth, useTheme, useNotifications } from "../../global/context";
 import { useTesting } from "../../global/testing";
 import {
   ScreenHeader,
   TiledBackground,
   NotificationBadge,
-  BulbToggle,
-  TestReportButton,
 } from "../../global/components";
-import { PrayerCard } from "./PrayerCard";
 import { AnimatedPrayerCard } from "./AnimatedPrayerCard";
 import { AnalyzeTab } from "./AnalyzeTab";
-import {
-  personalStyles as styles,
-  personalModalStyles as modalStyles,
-} from "./personalStyles";
+import { personalStyles as styles } from "./personalStyles";
 import { PrayerWinstreak } from "./PrayerWinstreak";
+import { PrayerListsView } from "./lists";
 
 const FILTERS = [
-  { key: "mine", label: "PERSONALE" },
+  { key: "mine", label: "RUGACIUNI" },
   { key: "all", label: "BISERICA" },
   { key: "analyze", label: "MAI MULTE" },
-];
-
-const MOODS = [
-  { key: "nelinistit", label: "Ma simt nelinistit" },
-  { key: "astept", label: "Aștept un răspuns" },
-  { key: "eliberare", label: "Nevoie de eliberare" },
-  { key: "voia_lui", label: "Accept Voia Lui" },
-  { key: "persistent", label: "Persistent" },
 ];
 
 // Componenta TabButton cu animatie underline si badge notificari
@@ -183,11 +165,6 @@ export const PersonalPrayersTab = ({ onBack, navigation }) => {
   const [prayers, setPrayers] = useState([]);
   const [filter, setFilter] = useState("all");
   const [refreshing, setRefreshing] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [newPrayer, setNewPrayer] = useState("");
-  const [isUrgent, setIsUrgent] = useState(false);
-  const [selectedMood, setSelectedMood] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
 
   // Memorează user ID pentru a detecta schimbări
@@ -254,28 +231,6 @@ export const PersonalPrayersTab = ({ onBack, navigation }) => {
     setRefreshing(true);
     await loadPrayers();
     setRefreshing(false);
-  };
-
-  const handleAdd = async () => {
-    if (!newPrayer.trim()) return showError("Scrie un motiv");
-    setSubmitting(true);
-    try {
-      await api.post("/prayers/personal", {
-        text: newPrayer.trim(),
-        isUrgent,
-        mood: selectedMood,
-      });
-      showSuccess("Adaugat!");
-      setNewPrayer("");
-      setIsUrgent(false);
-      setSelectedMood(null);
-      setShowModal(false);
-      loadPrayers();
-    } catch (e) {
-      showError("Eroare");
-    } finally {
-      setSubmitting(false);
-    }
   };
 
   const handleMarkAnswered = async (id) => {
@@ -454,6 +409,8 @@ export const PersonalPrayersTab = ({ onBack, navigation }) => {
 
       {filter === "analyze" ? (
         <AnalyzeTab answeredPrayers={answeredPrayers} navigation={navigation} />
+      ) : filter === "mine" ? (
+        <PrayerListsView currentUserId={currentUserId} fabBottom={fabBottom} />
       ) : (
         <FlatList
           data={filteredPrayers}
@@ -488,119 +445,6 @@ export const PersonalPrayersTab = ({ onBack, navigation }) => {
           }
         />
       )}
-
-      {filter === "mine" && filteredPrayers.length < 5 && (
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: "#21c063", bottom: fabBottom }]}
-          onPress={() => setShowModal(true)}
-        >
-          <Text style={styles.fabText}>+</Text>
-        </TouchableOpacity>
-      )}
-
-      <Modal visible={showModal} animationType="slide" transparent>
-        <View style={modalStyles.modalOverlay}>
-          <View style={modalStyles.modalContent}>
-            <TestReportButton style={{ left: undefined, right: 46, top: 6 }} />
-            <View style={modalStyles.modalHeader}>
-              <Text style={modalStyles.modalTitle}>Adauga un motiv</Text>
-              <TouchableOpacity onPress={() => setShowModal(false)}>
-                <Text style={modalStyles.closeBtn}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Textarea cu counter integrat */}
-            <View style={modalStyles.textareaWrapper}>
-              <TextInput
-                style={modalStyles.input}
-                placeholder="Scrie aici…"
-                placeholderTextColor="#64748b"
-                value={newPrayer}
-                onChangeText={setNewPrayer}
-                multiline
-                maxLength={500}
-              />
-              <Text style={modalStyles.charCountInside}>
-                {newPrayer.length}/500
-              </Text>
-            </View>
-
-            {/* Toggle urgent modern cu BulbToggle */}
-            <View style={modalStyles.urgentToggleRow}>
-              <View style={modalStyles.urgentLabelContainer}>
-                {isUrgent && (
-                  <Image
-                    source={TAG_AFTER}
-                    style={modalStyles.urgentTagImage}
-                  />
-                )}
-                <Text
-                  style={[
-                    modalStyles.urgentLabel,
-                    isUrgent && modalStyles.urgentLabelActive,
-                  ]}
-                >
-                  {isUrgent ? "URGENT!" : "ESTE URGENTA?"}
-                </Text>
-              </View>
-              <BulbToggle
-                value={isUrgent}
-                onValueChange={setIsUrgent}
-                size="small"
-                activeColor="#dc2626"
-                activeGlowColor="#ef4444"
-                sparkColor="#f87171"
-                trackColor="#e5e7eb"
-                activeTrackColor="#f87171"
-                activeBorderColor="#dc2626"
-                bulbColor="#9ca3af"
-                activeBulbColor="#ef4444"
-              />
-            </View>
-
-            <Text style={modalStyles.sectionLabel}>Comunica o stare</Text>
-            <View style={modalStyles.moodsContainer}>
-              {MOODS.map((m) => (
-                <TouchableOpacity
-                  key={m.key}
-                  style={[
-                    modalStyles.moodBtn,
-                    selectedMood === m.key && modalStyles.moodActive,
-                  ]}
-                  onPress={() =>
-                    setSelectedMood(selectedMood === m.key ? null : m.key)
-                  }
-                >
-                  <Text
-                    style={[
-                      modalStyles.moodText,
-                      selectedMood === m.key && modalStyles.moodTextActive,
-                    ]}
-                  >
-                    {m.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Buton Adaugă - success, dreapta jos */}
-            <View style={modalStyles.submitRow}>
-              <TouchableOpacity
-                style={[
-                  modalStyles.submitBtn,
-                  submitting && modalStyles.submitDisabled,
-                ]}
-                onPress={handleAdd}
-                disabled={submitting}
-              >
-                <Text style={modalStyles.submitText}>
-                  {submitting ? "Se adaugă..." : "Salveaza"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
 
       {/* Prayer Winstreak - apare doar în tabul Biserica */}
       <PrayerWinstreak

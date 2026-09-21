@@ -126,6 +126,7 @@ export const DevotionalScreen = () => {
             onCreate={() => go("builder", { initial: null })}
             onEdit={(item) => go("builder", { initial: item })}
             onShare={(item) => go("share", { devotional: item })}
+            onChanged={loadDevotionals}
           />
         )}
 

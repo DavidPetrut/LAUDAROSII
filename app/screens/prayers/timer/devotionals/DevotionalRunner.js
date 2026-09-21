@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, Animated, Easing, Platform } from "react-native";
+import { View, Text, TouchableOpacity, Animated, Easing, Platform, FlatList, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,7 +7,9 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { PlayerControls } from "../session/PlayerControls";
 import { DevotionalIcon } from "./DevotionalIcon";
-import { useImmersive } from "../../../../global/context";
+import { useImmersive, useAuth } from "../../../../global/context";
+import { api } from "../../../../global/functions";
+import { prayerBoardsApi } from "../../lists/prayerBoardsApi";
 
 const fmt = (total) => {
   const s = Math.max(0, total);
@@ -32,12 +34,17 @@ const shuffle = (arr) => {
 export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) => {
   const insets = useSafeAreaInsets();
   const { setImmersive } = useImmersive();
+  const { user } = useAuth();
+  const { width, height } = useWindowDimensions();
+  const landscape = width > height;
   const tasks = devotional.tasks || [];
 
   const [index, setIndex] = useState(0);
   const [remaining, setRemaining] = useState((tasks[0]?.durationMin || 1) * 60);
   const [ready, setReady] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [listMode, setListMode] = useState(false);
+  const [motives, setMotives] = useState([]);
 
   const pausedRef = useRef(false);
   pausedRef.current = paused;
@@ -90,13 +97,39 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // La schimbarea momentului: reseteaza timpul, opreste "ready" si porneste muzica lui.
+  // La schimbarea momentului: reseteaza timpul, opreste "ready", inchide modul lista
+  // si porneste muzica lui.
   useEffect(() => {
     setRemaining((tasks[index]?.durationMin || 1) * 60);
     setReady(false);
+    setListMode(false);
+    setMotives([]);
     playTaskMusic(tasks[index]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
+
+  // Incarca motivele listei atasate momentului curent (publica = ale userului,
+  // privata = dintr-un board propriu) si deschide modul lista.
+  const openList = async () => {
+    setListMode(true);
+    const pl = tasks[index]?.prayerList;
+    try {
+      if (pl?.kind === "public") {
+        const all = await api.get("/prayers/personal");
+        const mine = (all || []).filter(
+          (p) => p.userId?._id?.toString() === user?._id?.toString() && !p.answered
+        );
+        setMotives(mine.map((p) => ({ id: p._id, text: p.text })));
+      } else if (pl?.kind === "private" && pl.boardId) {
+        const res = await prayerBoardsApi.list();
+        const board = (res.boards || []).find((b) => String(b._id) === String(pl.boardId));
+        const items = (board?.prayers || []).filter((p) => !p.answered);
+        setMotives(items.map((p) => ({ id: p._id, text: p.text })));
+      }
+    } catch (e) {
+      setMotives([]);
+    }
+  };
 
   const stopMusic = () => {
     const s = soundRef.current;
@@ -159,19 +192,61 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
     onExit?.();
   };
 
-  const pause = async () => {
+  const pause = () => {
     setPaused(true);
-    try { await soundRef.current?.pauseAsync(); } catch (e) {}
+    try { soundRef.current?.pause(); } catch (e) {}
   };
-  const resume = async () => {
+  const resume = () => {
     setPaused(false);
-    try { await soundRef.current?.playAsync(); } catch (e) {}
+    try { soundRef.current?.play(); } catch (e) {}
   };
 
   const task = tasks[index] || {};
   const accent = task.color || devotional.color || "#10b981";
   const isLast = index >= tasks.length - 1;
   const nextTask = tasks[index + 1];
+  const hasList = !!task.prayerList?.kind;
+
+  // Controalele compacte din modul lista: iconita momentului, timp, pauza si
+  // butonul activ de lista (care inchide modul). Aceleasi elemente in portrait
+  // (rand jos) si in landscape (coloana dreapta).
+  const compactControls = (
+    <>
+      <View style={[styles.compactIcon, { backgroundColor: accent + "22" }]}>
+        <DevotionalIcon set={task.iconSet} name={task.icon} size={22} color={accent} />
+      </View>
+      <Text style={styles.compactTime}>{fmt(remaining)}</Text>
+      <TouchableOpacity style={styles.compactBtn} onPress={paused ? resume : pause} activeOpacity={0.85}>
+        <Text style={{ color: "#d4d4d8", fontSize: 15 }}>{paused ? "▶" : "❚❚"}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.compactBtn, styles.compactBtnActive]}
+        onPress={() => setListMode(false)}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="list" size={22} color="#10b981" />
+      </TouchableOpacity>
+    </>
+  );
+
+  const motivesList = (
+    <FlatList
+      data={motives}
+      keyExtractor={(item) => item.id}
+      style={styles.listMotives}
+      contentContainerStyle={[
+        styles.listMotivesContent,
+        !landscape && { paddingBottom: 130 },
+      ]}
+      showsVerticalScrollIndicator={false}
+      renderItem={({ item }) => (
+        <View style={styles.listMotiveRow}>
+          <Text style={styles.listMotiveText} numberOfLines={1}>{item.text}</Text>
+        </View>
+      )}
+      ListEmptyComponent={<Text style={styles.listMotivesEmpty}>Nicio rugăciune în această listă.</Text>}
+    />
+  );
 
   return (
     <View style={styles.overlay}>
@@ -184,8 +259,13 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
       <Text style={styles.runnerTitle}>{task.title}</Text>
       <Text style={styles.runnerTimer}>{fmt(remaining)}</Text>
 
-      <View style={[styles.controlsWrap, { marginTop: 32 }]}>
+      <View style={[styles.runnerControlsRow, { marginTop: 32 }]}>
         <PlayerControls paused={paused} onPause={pause} onResume={resume} onStop={() => leave(false)} />
+        {hasList && (
+          <TouchableOpacity style={styles.runnerListBtn} onPress={openList} activeOpacity={0.85}>
+            <Ionicons name="list" size={26} color="#d4d4d8" />
+          </TouchableOpacity>
+        )}
       </View>
 
       {ready && (
@@ -200,6 +280,24 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
       <Text style={[styles.overlayHint, { bottom: insets.bottom + 24 }]}>
         {ready ? "Poți sta cât ai nevoie — apasă când ești gata." : "Următorul moment îl pornești tu."}
       </Text>
+
+      {listMode && (
+        <View style={styles.listMode}>
+          {landscape ? (
+            <View style={styles.listModeRow}>
+              {motivesList}
+              <View style={styles.compactBarLandscape}>{compactControls}</View>
+            </View>
+          ) : (
+            <>
+              {motivesList}
+              <View style={[styles.compactBarPortrait, { bottom: insets.bottom + 20 }]}>
+                {compactControls}
+              </View>
+            </>
+          )}
+        </View>
+      )}
     </View>
   );
 };

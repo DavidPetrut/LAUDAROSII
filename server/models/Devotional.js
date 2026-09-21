@@ -18,6 +18,12 @@ const taskSchema = new mongoose.Schema(
       enabled: { type: Boolean, default: false },
       category: { type: String, enum: ["instrumental", "lyrics"], default: "instrumental" },
     },
+    // lista de rugaciuni atasata momentului: "public" = lista publica a userului,
+    // "private" = un PrayerBoard al userului (boardId). Rezolvata la rulare.
+    prayerList: {
+      kind: { type: String, enum: ["public", "private", null], default: null },
+      boardId: { type: mongoose.Schema.Types.ObjectId, ref: "PrayerBoard", default: null },
+    },
   },
   { _id: true }
 );

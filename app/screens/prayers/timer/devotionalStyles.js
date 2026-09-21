@@ -228,6 +228,17 @@ export const devotionalStyles = StyleSheet.create({
   ctrlStop: { paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: borderRadius.full, borderWidth: 1.5, borderColor: "rgba(212,212,216,0.35)" },
   ctrlStopText: { ...typography.body, color: PLAYER_TEXT, fontWeight: "700" },
 
+  // ---- Iconite actiuni pe momentul din timeline (muzica / lista / more) ----
+  tlActions: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginRight: spacing.xs },
+  tlActionBtn: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: SURF },
+
+  // ---- Picker liste de rugaciuni (pentru un moment) ----
+  pickListRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: SURF, borderRadius: borderRadius.lg, padding: spacing.sm, marginTop: spacing.sm, borderWidth: 2, borderColor: "transparent" },
+  pickListRowActive: { borderColor: ACCENT, backgroundColor: "rgba(16,185,129,0.12)" },
+  pickListThumb: { width: 54, height: 40, borderRadius: 8, overflow: "hidden", backgroundColor: SURF2 },
+  pickListThumbEmpty: { alignItems: "center", justifyContent: "center" },
+  pickListName: { ...typography.body, color: TEXT, fontWeight: "700", flex: 1 },
+
   // ---- Runner devotional ----
   runnerStep: { ...typography.body, color: "rgba(212,212,216,0.5)", marginBottom: spacing.lg, letterSpacing: 2 },
   runnerIcon: { width: 140, height: 140, borderRadius: 70, alignItems: "center", justifyContent: "center", marginBottom: spacing.xl },
@@ -235,4 +246,25 @@ export const devotionalStyles = StyleSheet.create({
   runnerTimer: { fontSize: 56, fontFamily: "Raleway", color: "#d4d4d8", fontWeight: "500", marginTop: spacing.md },
   runnerNextBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: borderRadius.full, borderWidth: 1.5, marginTop: spacing.lg },
   runnerNextText: { ...typography.body, fontWeight: "700" },
+
+  // ---- Buton "Lista" langa controale (deschide modul lista) ----
+  runnerListBtn: { width: 64, height: 64, borderRadius: 32, borderWidth: 1.5, borderColor: "rgba(212,212,216,0.25)", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.03)" },
+  runnerControlsRow: { flexDirection: "row", alignItems: "center", gap: spacing.lg },
+
+  // ---- Mod Lista (overlay negru cu motivele) ----
+  listMode: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: PLAYER_BG, zIndex: 200 },
+  listModeRow: { flex: 1, flexDirection: "row" },
+  listMotives: { flex: 1 },
+  listMotivesContent: { paddingHorizontal: spacing.xl, paddingVertical: spacing.xl },
+  listMotiveRow: { paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.07)" },
+  listMotiveText: { fontSize: 21, lineHeight: 28, color: "rgba(229,231,235,0.92)", fontFamily: "IMFellEnglish-Italic" },
+  listMotivesEmpty: { color: "rgba(212,212,216,0.4)", ...typography.body, textAlign: "center", marginTop: spacing.xxl },
+
+  // ---- Bara compacta (portrait: jos, landscape: dreapta) ----
+  compactBarPortrait: { position: "absolute", left: spacing.md, right: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(0,0,0,0.45)", borderRadius: borderRadius.xl, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  compactBarLandscape: { position: "absolute", top: 0, bottom: 0, right: 0, width: 120, alignItems: "center", justifyContent: "center", gap: spacing.lg, backgroundColor: "rgba(0,0,0,0.45)", borderLeftWidth: 1, borderLeftColor: "rgba(255,255,255,0.08)" },
+  compactIcon: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  compactTime: { fontSize: 26, fontFamily: "Raleway", color: "#d4d4d8", fontWeight: "500", minWidth: 64, textAlign: "center" },
+  compactBtn: { width: 48, height: 48, borderRadius: 24, borderWidth: 1.5, borderColor: "rgba(212,212,216,0.3)", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.04)" },
+  compactBtnActive: { borderColor: "#10b981", backgroundColor: "rgba(16,185,129,0.15)" },
 });

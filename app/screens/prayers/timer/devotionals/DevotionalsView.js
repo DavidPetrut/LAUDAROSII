@@ -9,7 +9,7 @@ import { devotionalsApi } from "./devotionalsApi";
  * Lista devotionalelor userului: creare, activare (default), editare, share,
  * stergere si acceptarea devotionalelor primite de la alti useri.
  */
-export const DevotionalsView = ({ onCreate, onEdit, onShare }) => {
+export const DevotionalsView = ({ onCreate, onEdit, onShare, onChanged }) => {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
   const [shares, setShares] = useState([]);
@@ -38,7 +38,8 @@ export const DevotionalsView = ({ onCreate, onEdit, onShare }) => {
     setMenu(null);
     try {
       await devotionalsApi.setDefault(item._id);
-      load();
+      await load();
+      onChanged?.();
     } catch (e) {}
   };
 
@@ -47,13 +48,15 @@ export const DevotionalsView = ({ onCreate, onEdit, onShare }) => {
     try {
       await devotionalsApi.remove(item._id);
       setItems((prev) => prev.filter((d) => d._id !== item._id));
+      onChanged?.();
     } catch (e) {}
   };
 
   const acceptShare = async (s) => {
     try {
       await devotionalsApi.acceptShare(s._id);
-      load();
+      await load();
+      onChanged?.();
     } catch (e) {}
   };
 

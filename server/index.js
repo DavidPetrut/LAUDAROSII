@@ -8,6 +8,7 @@ const {
   authRoutes,
   usersRoutes,
   prayersRoutes,
+  prayerBoardsRoutes,
   announcementsRoutes,
   coursesRoutes,
   gamesRoutes,
@@ -54,6 +55,7 @@ app.use(securityLog); // inregistreaza tentativele blocate (401/403/429)
 app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/prayers", prayersRoutes);
+app.use("/api/prayer-boards", prayerBoardsRoutes);
 app.use("/api/announcements", announcementsRoutes);
 app.use("/api/courses", coursesRoutes);
 app.use("/api/games", gamesRoutes);

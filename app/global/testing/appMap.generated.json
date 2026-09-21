@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-21T15:38:14.247Z",
+  "generatedAt": "2026-09-21T19:33:34.204Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -1976,8 +1976,80 @@
       "crossScreens": [],
       "domainsTouched": []
     },
-    "screens/prayers/PersonalPrayersTab.js": {
-      "stylesFile": "screens/prayers/styles.js",
+    "screens/prayers/lists/CreatePrayerListView.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/timer/devotionalStyles.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/prayers/lists/listImages.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/lists/listsStyles.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [
+        "colors",
+        "typography",
+        "spacing",
+        "borderRadius"
+      ],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/lists/prayerBoardsApi.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api"
+      ]
+    },
+    "screens/prayers/lists/PrayerFormModal.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "BulbToggle",
+          "file": "global/components/BulbToggle.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/timer/devotionalStyles.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/prayers/lists/PrayerListDetail.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/AnimatedPrayerCard.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/prayers/lists/PrayerListRow.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/lists/PrayerListsView.js": {
+      "stylesFile": null,
       "globals": [
         {
           "name": "api",
@@ -1989,6 +2061,25 @@
         },
         {
           "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "toast"
+      ]
+    },
+    "screens/prayers/PersonalPrayersTab.js": {
+      "stylesFile": "screens/prayers/styles.js",
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showError",
           "file": "global/functions/toast.js"
         },
         {
@@ -2018,18 +2109,12 @@
         {
           "name": "NotificationBadge",
           "file": "global/components/NotificationBadge.js"
-        },
-        {
-          "name": "BulbToggle",
-          "file": "global/components/BulbToggle.js"
-        },
-        {
-          "name": "TestReportButton",
-          "file": "global/components/testing/TestReportButton.js"
         }
       ],
       "styleTokens": [],
-      "crossScreens": [],
+      "crossScreens": [
+        "screens/prayers/lists/index.js"
+      ],
       "domainsTouched": [
         "api",
         "toast",
@@ -2531,14 +2616,26 @@
         {
           "name": "useImmersive",
           "file": "global/context/ImmersiveContext.js"
+        },
+        {
+          "name": "useAuth",
+          "file": "global/context/AuthContext.js"
+        },
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
         }
       ],
       "styleTokens": [],
       "crossScreens": [
         "screens/prayers/timer/devotionalStyles.js",
-        "screens/prayers/timer/session/PlayerControls.js"
+        "screens/prayers/timer/session/PlayerControls.js",
+        "screens/prayers/lists/prayerBoardsApi.js"
       ],
-      "domainsTouched": []
+      "domainsTouched": [
+        "auth",
+        "api"
+      ]
     },
     "screens/prayers/timer/devotionals/devotionalsApi.js": {
       "stylesFile": null,
@@ -2596,6 +2693,17 @@
       "styleTokens": [],
       "crossScreens": [
         "screens/prayers/timer/devotionalStyles.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/prayers/timer/devotionals/PrayerListPickerModal.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/timer/devotionalStyles.js",
+        "screens/prayers/lists/prayerBoardsApi.js",
+        "screens/prayers/lists/listImages.js"
       ],
       "domainsTouched": []
     },
@@ -3035,6 +3143,8 @@
       "screens/home/HomeScreen.js",
       "screens/prayers/AchievementsScreen.js",
       "screens/prayers/analyze/AnalysisScreen.js",
+      "screens/prayers/lists/prayerBoardsApi.js",
+      "screens/prayers/lists/PrayerListsView.js",
       "screens/prayers/PersonalPrayersTab.js",
       "screens/prayers/pray-room/ParticipantPicker.js",
       "screens/prayers/pray-room/PrayRoomEntry.js",
@@ -3044,6 +3154,7 @@
       "screens/prayers/PrayedButton.js",
       "screens/prayers/PrayersScreen.js",
       "screens/prayers/ProgramPrayersTab.js",
+      "screens/prayers/timer/devotionals/DevotionalRunner.js",
       "screens/prayers/timer/devotionals/devotionalsApi.js",
       "screens/prayers/timer/DevotionalScreen.js",
       "screens/profile/broadcast/broadcastApi.js",
@@ -3066,6 +3177,7 @@
       "screens/games/MemoryGameScreen.js",
       "screens/games/QuizGameScreen.js",
       "screens/prayers/analyze/AnalysisScreen.js",
+      "screens/prayers/lists/PrayerListsView.js",
       "screens/prayers/PersonalPrayersTab.js",
       "screens/prayers/pray-room/PrayRoomEntry.js",
       "screens/prayers/pray-room/PrayRoomScreen.js",
@@ -3088,6 +3200,7 @@
       "screens/prayers/pray-room/PrayRoomScreen.js",
       "screens/prayers/PrayersScreen.js",
       "screens/prayers/ProgramPrayersTab.js",
+      "screens/prayers/timer/devotionals/DevotionalRunner.js",
       "screens/profile/EditProfileScreen.js",
       "screens/profile/ProfileScreen.js",
       "screens/profile/SettingsScreen.js"
@@ -3190,11 +3303,10 @@
     ],
     "global/components/BulbToggle.js": [
       "screens/prayers/AddPrayerModal.js",
-      "screens/prayers/PersonalPrayersTab.js"
+      "screens/prayers/lists/PrayerFormModal.js"
     ],
     "global/components/testing/TestReportButton.js": [
-      "screens/prayers/AddPrayerModal.js",
-      "screens/prayers/PersonalPrayersTab.js"
+      "screens/prayers/AddPrayerModal.js"
     ],
     "global/context/NotificationContext.js": [
       "screens/prayers/PersonalPrayersTab.js"
