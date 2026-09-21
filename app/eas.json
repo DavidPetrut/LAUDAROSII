@@ -48,7 +48,10 @@
     "production": {
       "ios": {
         "ascAppId": "6814520620",
-        "appleTeamId": "89T5MG3WB9"
+        "appleTeamId": "89T5MG3WB9",
+        "ascApiKeyPath": "../../APPLE MOBILE/AuthKey_TS63R7HMRT.p8",
+        "ascApiKeyId": "TS63R7HMRT",
+        "ascApiKeyIssuerId": "e05a0cc5-58db-451f-9e13-d55445163733"
       }
     }
   }
