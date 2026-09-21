@@ -20,10 +20,10 @@ Ghid unic pentru livrare: iOS (App Store / TestFlight), Android, OTA și backend
 | Canal OTA testeri | `preview` |
 | Versiune / runtime curent | `1.0.2` |
 
-**Cheie App Store Connect API (secret — NU pe git):**
-`C:\Users\DavidPetrut\Desktop\PROIECTE\PERSONALE\APPLE MOBILE\AuthKey_TS63R7HMRT.p8`
-Key ID: `TS63R7HMRT` · Issuer ID: `e05a0cc5-58db-451f-9e13-d55445163733`
-(configurate în `app/eas.json` → submit.production.ios; `.p8` e gitignored)
+**Cheie App Store Connect API:**
+- **Conectată la EAS** (Project Settings → Connections → App Store Connect app / ASC API key) → EAS o folosește automat la build/submit. NU mai depinde de fișierul local, nici nu mai e în `eas.json`.
+- Backup local (secret, gitignored): `C:\Users\DavidPetrut\Desktop\PROIECTE\PERSONALE\APPLE MOBILE\AuthKey_TS63R7HMRT.p8`
+- Key ID: `TS63R7HMRT` · Issuer ID: `e05a0cc5-58db-451f-9e13-d55445163733`
 
 ---
 
