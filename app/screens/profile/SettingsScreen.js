@@ -43,7 +43,17 @@ export const SettingsScreen = ({ navigation }) => {
 
   useEffect(() => {
     loadProfile();
+    autoCheckUpdate();
   }, []);
+
+  // Verifica automat daca exista un update OTA la deschiderea ecranului.
+  const autoCheckUpdate = async () => {
+    if (Platform.OS === "web") return;
+    setCheckingUpdate(true);
+    const result = await checkForUpdate();
+    setUpdateStatus(result);
+    setCheckingUpdate(false);
+  };
 
   const loadProfile = async () => {
     try {
@@ -57,22 +67,15 @@ export const SettingsScreen = ({ navigation }) => {
     showConfirm("Deconectare", "Ești sigur ca vrei sa te deconectezi?", logout);
   };
 
-  // Verificare update OTA (doar pe nativ, nu pe web)
-  const handleCheckUpdate = async () => {
-    setCheckingUpdate(true);
-    const result = await checkForUpdate();
-    setUpdateStatus(result);
-    setCheckingUpdate(false);
-    if (result.available) {
-      showSuccess("Update disponibil!");
-    } else {
-      showSuccess(result.message || "Esti la ultima versiune");
-    }
-  };
-
-  const handleApplyUpdate = async () => {
-    setCheckingUpdate(true);
-    await applyUpdate();
+  const handleApplyUpdate = () => {
+    showConfirm(
+      "Actualizează aplicația",
+      "Aplicația se va reporni pentru a instala versiunea nouă.",
+      async () => {
+        setCheckingUpdate(true);
+        await applyUpdate();
+      }
+    );
   };
 
   const handlePickImage = async () => {
@@ -314,34 +317,35 @@ export const SettingsScreen = ({ navigation }) => {
             <>
               <View style={settingsStyles.divider} />
               <TouchableOpacity
-                style={settingsStyles.settingRow}
-                onPress={updateStatus?.available ? handleApplyUpdate : handleCheckUpdate}
-                disabled={checkingUpdate}
+                style={[settingsStyles.settingRow, !updateStatus?.available && { opacity: 0.5 }]}
+                onPress={handleApplyUpdate}
+                disabled={checkingUpdate || !updateStatus?.available}
+                activeOpacity={0.85}
               >
                 <View style={settingsStyles.settingInfo}>
                   <Text style={settingsStyles.settingIcon}>
-                    {checkingUpdate ? "⏳" : updateStatus?.available ? "⬆️" : "🔄"}
+                    {checkingUpdate ? "⏳" : updateStatus?.available ? "⬆️" : "✅"}
                   </Text>
                   <View style={settingsStyles.settingText}>
                     <Text style={[settingsStyles.settingLabel, dynamicStyles.text]}>
                       {checkingUpdate
-                        ? "Se verifica..."
+                        ? "Se verifică actualizări…"
                         : updateStatus?.available
-                        ? "Instaleaza update"
-                        : "Verifica update"}
+                        ? "Actualizează aplicația"
+                        : "Ești la zi"}
                     </Text>
                     <Text style={[settingsStyles.settingDesc, dynamicStyles.textMuted]}>
                       {updateStatus?.available
-                        ? "O noua versiune este disponibila"
-                        : "Verifica daca exista actualizari"}
+                        ? "Versiune nouă disponibilă. Aplicația se va reporni."
+                        : "Nicio actualizare disponibilă."}
                     </Text>
                   </View>
                 </View>
                 {checkingUpdate ? (
                   <ActivityIndicator size="small" color={theme.textMuted} />
-                ) : (
-                  <Ionicons name="chevron-forward" size={20} color={theme.textMuted} />
-                )}
+                ) : updateStatus?.available ? (
+                  <Ionicons name="chevron-forward" size={20} color="#10b981" />
+                ) : null}
               </TouchableOpacity>
             </>
           )}
