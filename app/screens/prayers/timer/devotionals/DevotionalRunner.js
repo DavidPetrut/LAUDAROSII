@@ -10,6 +10,7 @@ import { DevotionalIcon } from "./DevotionalIcon";
 import { useImmersive, useAuth } from "../../../../global/context";
 import { api } from "../../../../global/functions";
 import { prayerBoardsApi } from "../../lists/prayerBoardsApi";
+import { useHorizontalSwipe } from "../useHorizontalSwipe";
 
 const fmt = (total) => {
   const s = Math.max(0, total);
@@ -159,6 +160,15 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
     } catch (e) {}
   };
 
+  // Sare la piesa urmatoare / anterioara din ordinea random (cu wrap la capete).
+  const nextTrack = () => playAt(posRef.current + 1);
+  const prevTrack = () => {
+    const len = orderRef.current.length;
+    if (len === 0) return;
+    const target = posRef.current - 1;
+    playAt(target < 0 ? len - 1 : target);
+  };
+
   const playTaskMusic = async (task) => {
     stopMusic();
     if (!task?.music?.enabled) return;
@@ -207,6 +217,12 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
   const nextTask = tasks[index + 1];
   const hasList = !!task.prayerList?.kind;
 
+  const swipe = useHorizontalSwipe({
+    enabled: !!task.music?.enabled,
+    onSwipeRight: nextTrack,
+    onSwipeLeft: prevTrack,
+  });
+
   // Controalele compacte din modul lista: iconita momentului, timp, pauza si
   // butonul activ de lista (care inchide modul). Aceleasi elemente in portrait
   // (rand jos) si in landscape (coloana dreapta).
@@ -249,7 +265,7 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
   );
 
   return (
-    <View style={styles.overlay}>
+    <View style={styles.overlay} {...swipe}>
       <Text style={styles.runnerStep}>{index + 1} / {tasks.length}</Text>
 
       <Animated.View style={[styles.runnerIcon, { backgroundColor: accent + "22", transform: [{ scale: pulse }] }]}>

@@ -87,6 +87,15 @@ export const useDevotionalAudio = ({ tracks, withMusic }) => {
     playAt(0);
   };
 
+  // Sare la piesa urmatoare / anterioara din ordinea random (cu wrap la capete).
+  const next = () => playAt(posRef.current + 1);
+  const prev = () => {
+    const len = orderRef.current.length;
+    if (len === 0) return;
+    const target = posRef.current - 1;
+    playAt(target < 0 ? len - 1 : target);
+  };
+
   const pause = () => {
     setPaused(true);
     try { playerRef.current?.pause(); } catch (e) {}
@@ -113,5 +122,5 @@ export const useDevotionalAudio = ({ tracks, withMusic }) => {
     unload();
   };
 
-  return { trackTitle, paused, pause, resume, stop };
+  return { trackTitle, paused, pause, resume, stop, next, prev };
 };

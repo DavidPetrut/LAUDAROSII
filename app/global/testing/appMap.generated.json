@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-21T19:33:34.204Z",
+  "generatedAt": "2026-09-21T19:38:07.071Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -2630,7 +2630,8 @@
       "crossScreens": [
         "screens/prayers/timer/devotionalStyles.js",
         "screens/prayers/timer/session/PlayerControls.js",
-        "screens/prayers/lists/prayerBoardsApi.js"
+        "screens/prayers/lists/prayerBoardsApi.js",
+        "screens/prayers/timer/useHorizontalSwipe.js"
       ],
       "domainsTouched": [
         "auth",
@@ -2856,7 +2857,8 @@
       ],
       "styleTokens": [],
       "crossScreens": [
-        "screens/prayers/timer/devotionalStyles.js"
+        "screens/prayers/timer/devotionalStyles.js",
+        "screens/prayers/timer/useHorizontalSwipe.js"
       ],
       "domainsTouched": []
     },
@@ -2879,6 +2881,13 @@
       "domainsTouched": []
     },
     "screens/prayers/timer/session/useDevotionalAudio.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/timer/useHorizontalSwipe.js": {
       "stylesFile": null,
       "globals": [],
       "styleTokens": [],

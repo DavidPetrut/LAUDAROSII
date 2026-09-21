@@ -5,6 +5,7 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { PlayerControls } from "./PlayerControls";
 import { useDevotionalAudio } from "./useDevotionalAudio";
+import { useHorizontalSwipe } from "../useHorizontalSwipe";
 import { useImmersive } from "../../../../global/context";
 
 const fmt = (total) => {
@@ -37,6 +38,12 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
   const audio = useDevotionalAudio({ tracks, withMusic });
   const audioRef = useRef(audio);
   audioRef.current = audio;
+
+  const swipe = useHorizontalSwipe({
+    enabled: withMusic && tracks.length > 0,
+    onSwipeRight: audio.next,
+    onSwipeLeft: audio.prev,
+  });
 
   const tickRef = useRef(null);
   const exitedRef = useRef(false);
@@ -83,7 +90,7 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
   const handleStop = () => leave(false);
 
   return (
-    <View style={styles.overlay}>
+    <View style={styles.overlay} {...swipe}>
       <Text style={[styles.overlayTimer, { fontSize, lineHeight: fontSize * 1.06 }]}>
         {timeStr}
       </Text>
