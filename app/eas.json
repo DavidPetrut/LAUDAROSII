@@ -24,6 +24,17 @@
         "buildType": "apk"
       }
     },
+    "testflight": {
+      "channel": "preview",
+      "autoIncrement": true,
+      "credentialsSource": "remote",
+      "env": {
+        "NODE_OPTIONS": "--max-old-space-size=4096"
+      },
+      "ios": {
+        "resourceClass": "m-medium"
+      }
+    },
     "production": {
       "channel": "production",
       "autoIncrement": true,
@@ -34,6 +45,12 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "sg.petrut@gmail.com",
+        "ascAppId": "6814520620",
+        "appleTeamId": "89T5MG3WB9"
+      }
+    }
   }
 }

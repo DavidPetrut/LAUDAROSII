@@ -18,7 +18,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.laudarosii.vertical",
       "infoPlist": {
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": ["audio"],
+        "CFBundleDisplayName": "Vertical București",
+        "NSPhotoLibraryUsageDescription": "Aplicația folosește pozele tale pentru a alege o imagine pentru devotional."
       }
     },
     "android": {
@@ -36,7 +38,7 @@
       "expo-secure-store",
       "expo-updates",
       "expo-video",
-      "expo-av",
+      ["expo-av", { "microphonePermission": false }],
       "expo-notifications"
     ],
     "owner": "davidpetruttt",
