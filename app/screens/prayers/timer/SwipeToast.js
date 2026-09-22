@@ -28,9 +28,9 @@ export const SwipeToast = ({ toast }) => {
   return (
     <Animated.View pointerEvents="none" style={[styles.swipeToastWrap, { opacity }]}>
       <View style={styles.swipeToast}>
-        {toast.dir === "left" && <Ionicons name="arrow-back" size={16} color="#d4d4d8" />}
+        {toast.dir === "right" && <Ionicons name="arrow-back" size={16} color="#d4d4d8" />}
         <Text style={styles.swipeToastText} numberOfLines={1}>{toast.title}</Text>
-        {toast.dir === "right" && <Ionicons name="arrow-forward" size={16} color="#d4d4d8" />}
+        {toast.dir === "left" && <Ionicons name="arrow-forward" size={16} color="#d4d4d8" />}
       </View>
     </Animated.View>
   );

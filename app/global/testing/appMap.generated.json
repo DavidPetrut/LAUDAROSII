@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-22T08:01:16.543Z",
+  "generatedAt": "2026-09-22T08:25:04.453Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -2642,7 +2642,8 @@
         "screens/prayers/timer/useExitConfirm.js",
         "screens/prayers/timer/ExitConfirm.js",
         "screens/prayers/timer/SwipeToast.js",
-        "screens/prayers/timer/devotionalProgress.js"
+        "screens/prayers/timer/devotionalProgress.js",
+        "screens/prayers/timer/trackFilter.js"
       ],
       "domainsTouched": [
         "auth",
@@ -2909,6 +2910,13 @@
       "domainsTouched": []
     },
     "screens/prayers/timer/SwipeToast.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/timer/trackFilter.js": {
       "stylesFile": null,
       "globals": [],
       "styleTokens": [],

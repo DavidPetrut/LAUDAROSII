@@ -10,6 +10,7 @@ import { DevotionalPlayer } from "./session";
 import { DevotionalsView, BuilderView, ShareView, DevotionalRunner, devotionalsApi } from "./devotionals";
 import { PersonalHubView, ProgressView } from "./personal";
 import { loadProgress } from "./devotionalProgress";
+import { pickTracks } from "./trackFilter";
 
 const BG_DARK = require("../../../public/images/dark-mode-small.png");
 
@@ -171,9 +172,7 @@ export const DevotionalScreen = () => {
         <DevotionalPlayer
           durationMin={prayerConfig.minutes}
           withMusic={prayerConfig.withMusic}
-          tracks={(program?.playlist || []).filter(
-            (t) => t.category === prayerConfig.category && t.url
-          )}
+          tracks={pickTracks(program?.playlist, prayerConfig.category)}
           onComplete={() => {}}
           onExit={() => setPrayerConfig(null)}
         />

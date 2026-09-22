@@ -15,6 +15,7 @@ import { useExitConfirm } from "../useExitConfirm";
 import { ExitConfirm } from "../ExitConfirm";
 import { SwipeToast } from "../SwipeToast";
 import { saveProgress, clearProgress } from "../devotionalProgress";
+import { pickTracks } from "../trackFilter";
 
 const fmt = (total) => {
   const s = Math.max(0, total);
@@ -207,7 +208,7 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
   const playTaskMusic = async (task) => {
     stopMusic();
     if (!task?.music?.enabled) return;
-    const tracks = (program?.playlist || []).filter((t) => t.category === task.music.category && t.url);
+    const tracks = pickTracks(program?.playlist, task.music.category);
     if (tracks.length === 0) return;
     try {
       await setAudioModeAsync({
