@@ -9,6 +9,7 @@ import { HomeView, PrayerSetupModal, randomQuote } from "./home";
 import { DevotionalPlayer } from "./session";
 import { DevotionalsView, BuilderView, ShareView, DevotionalRunner, devotionalsApi } from "./devotionals";
 import { PersonalHubView, ProgressView } from "./personal";
+import { loadProgress } from "./devotionalProgress";
 
 const BG_DARK = require("../../../public/images/dark-mode-small.png");
 
@@ -37,9 +38,19 @@ export const DevotionalScreen = () => {
   const [prayerSetup, setPrayerSetup] = useState(false);
   const [prayerConfig, setPrayerConfig] = useState(null);
   const [running, setRunning] = useState(null);
+  const [resume, setResume] = useState(null);
 
   const current = stack[stack.length - 1];
   const defaultDevotional = devotionals.find((d) => d.isDefault) || devotionals[0] || null;
+
+  const reloadResume = useCallback(async () => {
+    const dev = devotionals.find((d) => d.isDefault) || devotionals[0] || null;
+    setResume(dev ? await loadProgress(dev._id) : null);
+  }, [devotionals]);
+
+  useEffect(() => {
+    reloadResume();
+  }, [reloadResume]);
 
   const loadDevotionals = useCallback(async () => {
     try {
@@ -112,9 +123,10 @@ export const DevotionalScreen = () => {
           <HomeView
             quote={quote}
             defaultDevotional={defaultDevotional}
+            hasResume={!!resume}
             onToast={(m) => showSuccess(m)}
             onStartPrayer={() => setPrayerSetup(true)}
-            onStartDevotional={(dev) => setRunning(dev)}
+            onStartDevotional={(dev) => setRunning({ dev, resume })}
             onCreateDevotional={() => go("builder", { initial: null })}
           />
         )}
@@ -169,10 +181,14 @@ export const DevotionalScreen = () => {
 
       {running && (
         <DevotionalRunner
-          devotional={running}
+          devotional={running.dev}
           program={program}
-          onComplete={() => completeDevotional(running)}
-          onExit={() => setRunning(null)}
+          resumeProgress={running.resume}
+          onComplete={() => completeDevotional(running.dev)}
+          onExit={() => {
+            setRunning(null);
+            reloadResume();
+          }}
         />
       )}
     </View>

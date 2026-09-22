@@ -13,6 +13,8 @@ import { prayerBoardsApi } from "../../lists/prayerBoardsApi";
 import { useHorizontalSwipe } from "../useHorizontalSwipe";
 import { useExitConfirm } from "../useExitConfirm";
 import { ExitConfirm } from "../ExitConfirm";
+import { SwipeToast } from "../SwipeToast";
+import { saveProgress, clearProgress } from "../devotionalProgress";
 
 const fmt = (total) => {
   const s = Math.max(0, total);
@@ -34,7 +36,7 @@ const shuffle = (arr) => {
  * moment nu avanseaza automat: apare un buton fin cu numele momentului urmator,
  * apasat de user. Fiecare moment isi reda muzica proprie (daca e activata).
  */
-export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) => {
+export const DevotionalRunner = ({ devotional, program, resumeProgress, onComplete, onExit }) => {
   const insets = useSafeAreaInsets();
   const { setImmersive } = useImmersive();
   const { user } = useAuth();
@@ -42,13 +44,20 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
   const landscape = width > height;
   const tasks = devotional.tasks || [];
 
-  const [index, setIndex] = useState(0);
-  const [remaining, setRemaining] = useState((tasks[0]?.durationMin || 1) * 60);
+  const startIndex =
+    resumeProgress && resumeProgress.taskIndex >= 0 && resumeProgress.taskIndex < tasks.length
+      ? resumeProgress.taskIndex
+      : 0;
+
+  const [index, setIndex] = useState(startIndex);
+  const [remaining, setRemaining] = useState(
+    resumeProgress?.remaining > 0 ? resumeProgress.remaining : (tasks[startIndex]?.durationMin || 1) * 60
+  );
   const [ready, setReady] = useState(false);
   const [paused, setPaused] = useState(false);
   const [listMode, setListMode] = useState(false);
   const [motives, setMotives] = useState([]);
-  const [trackTitle, setTrackTitle] = useState("");
+  const [toast, setToast] = useState(null);
 
   const pausedRef = useRef(false);
   pausedRef.current = paused;
@@ -56,6 +65,9 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
   readyRef.current = ready;
   const indexRef = useRef(0);
   indexRef.current = index;
+  const remainingRef = useRef(remaining);
+  remainingRef.current = remaining;
+  const didInitRef = useRef(false);
 
   const tickRef = useRef(null);
   const exitedRef = useRef(false);
@@ -102,8 +114,16 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
   }, []);
 
   // La schimbarea momentului: reseteaza timpul, opreste "ready", inchide modul lista
-  // si porneste muzica lui.
+  // si porneste muzica lui. La primul mount cu progres salvat, pastreaza timpul reluat.
   useEffect(() => {
+    if (!didInitRef.current) {
+      didInitRef.current = true;
+      if (resumeProgress?.remaining > 0 && index === startIndex) {
+        setReady(false);
+        playTaskMusic(tasks[index]);
+        return;
+      }
+    }
     setRemaining((tasks[index]?.durationMin || 1) * 60);
     setReady(false);
     setListMode(false);
@@ -151,7 +171,6 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
     }
     posRef.current = i;
     const track = orderRef.current[i];
-    setTrackTitle(track.title || "");
     try {
       stopMusic();
       const player = createAudioPlayer({ uri: track.url });
@@ -167,18 +186,26 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
     }
   };
 
-  // Sare la piesa urmatoare / anterioara din ordinea random (cu wrap la capete).
-  const nextTrack = () => playAt(posRef.current + 1);
+  // Sare la piesa urmatoare / anterioara din ordinea random (cu wrap) si arata
+  // titlul piesei noi ca toast, cu directia swipe-ului.
+  const showTrackToast = (dir) => {
+    const title = orderRef.current[posRef.current]?.title || "";
+    if (title) setToast({ id: Date.now(), title, dir });
+  };
+  const nextTrack = () => {
+    playAt(posRef.current + 1);
+    showTrackToast("right");
+  };
   const prevTrack = () => {
     const len = orderRef.current.length;
     if (len === 0) return;
     const target = posRef.current - 1;
     playAt(target < 0 ? len - 1 : target);
+    showTrackToast("left");
   };
 
   const playTaskMusic = async (task) => {
     stopMusic();
-    setTrackTitle("");
     if (!task?.music?.enabled) return;
     const tracks = (program?.playlist || []).filter((t) => t.category === task.music.category && t.url);
     if (tracks.length === 0) return;
@@ -206,7 +233,12 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
     exitedRef.current = true;
     if (tickRef.current) clearInterval(tickRef.current);
     await stopMusic();
-    if (completed) onComplete?.();
+    if (completed) {
+      await clearProgress();
+      onComplete?.();
+    } else {
+      await saveProgress(devotional._id, indexRef.current, remainingRef.current);
+    }
     onExit?.();
   };
 
@@ -269,7 +301,7 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
       contentContainerStyle={[
         styles.listMotivesContent,
         !landscape && { paddingBottom: 130 },
-        landscape && { paddingRight: 0 },
+        landscape && { paddingLeft: insets.left + 28, paddingRight: 132 },
       ]}
       showsVerticalScrollIndicator={false}
       renderItem={({ item }) => (
@@ -288,10 +320,6 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
   );
   const titleEl = <Text style={styles.runnerTitle}>{task.title}</Text>;
   const timerEl = <Text style={styles.runnerTimer}>{fmt(remaining)}</Text>;
-  const trackEl =
-    hasMusic && !!trackTitle ? (
-      <Text style={styles.runnerTrack} numberOfLines={1}>♪ {trackTitle}</Text>
-    ) : null;
   const controlsEl = (
     <View style={[styles.runnerControlsRow, { marginTop: 32 }]}>
       <PlayerControls paused={paused} onPause={pause} onResume={resume} onStop={() => leave(false)} />
@@ -321,7 +349,6 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
           </View>
           <View style={styles.runnerLandCol}>
             {timerEl}
-            {trackEl}
             {controlsEl}
             {readyEl}
           </View>
@@ -332,7 +359,6 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
           {iconEl}
           {titleEl}
           {timerEl}
-          {trackEl}
           {controlsEl}
           {readyEl}
         </>
@@ -347,12 +373,7 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
           {landscape ? (
             <View style={styles.listModeRow}>
               {motivesList}
-              <View style={styles.compactBarLandscape}>
-                {compactControls}
-                {hasMusic && !!trackTitle && (
-                  <Text style={styles.landTrackTitle} numberOfLines={2}>♪ {trackTitle}</Text>
-                )}
-              </View>
+              <View style={styles.compactBarLandscape}>{compactControls}</View>
             </View>
           ) : (
             <>
@@ -364,6 +385,8 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
           )}
         </View>
       )}
+
+      <SwipeToast toast={toast} />
 
       <ExitConfirm visible={exitConfirm.visible} onStay={exitConfirm.stay} onExit={exitConfirm.exit} />
     </View>

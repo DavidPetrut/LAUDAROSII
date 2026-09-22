@@ -8,6 +8,7 @@ import { useDevotionalAudio } from "./useDevotionalAudio";
 import { useHorizontalSwipe } from "../useHorizontalSwipe";
 import { useExitConfirm } from "../useExitConfirm";
 import { ExitConfirm } from "../ExitConfirm";
+import { SwipeToast } from "../SwipeToast";
 import { useImmersive } from "../../../../global/context";
 
 const fmt = (total) => {
@@ -41,10 +42,11 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
   const audioRef = useRef(audio);
   audioRef.current = audio;
 
+  const [toast, setToast] = useState(null);
   const swipe = useHorizontalSwipe({
     enabled: withMusic && tracks.length > 0,
-    onSwipeRight: audio.next,
-    onSwipeLeft: audio.prev,
+    onSwipeRight: () => setToast({ id: Date.now(), title: audio.next(), dir: "right" }),
+    onSwipeLeft: () => setToast({ id: Date.now(), title: audio.prev(), dir: "left" }),
   });
 
   const tickRef = useRef(null);
@@ -102,12 +104,6 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
       <Text style={[styles.overlayTimer, { fontSize, lineHeight: fontSize * 1.06 }]}>
         {timeStr}
       </Text>
-      {withMusic && !!audio.trackTitle && (
-        <Text style={styles.overlayTrack} numberOfLines={1}>
-          ♪ {audio.trackTitle}
-        </Text>
-      )}
-
       <View style={[styles.controlsWrap, { marginTop: landscape ? 20 : 48 }]}>
         <PlayerControls
           paused={audio.paused}
@@ -120,6 +116,8 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
       <Text style={[styles.overlayHint, { bottom: insets.bottom + 24 }]}>
         Rugăciunea continuă și cu ecranul închis, până la finalul timerului.
       </Text>
+
+      <SwipeToast toast={toast} />
 
       <ExitConfirm visible={exitConfirm.visible} onStay={exitConfirm.stay} onExit={exitConfirm.exit} />
     </View>

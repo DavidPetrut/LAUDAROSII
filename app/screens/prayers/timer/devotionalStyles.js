@@ -250,7 +250,11 @@ export const devotionalStyles = StyleSheet.create({
   // ---- Buton "Lista" langa controale (aceeasi marime ca butonul de pauza/stop) ----
   runnerListBtn: { width: 96, height: 96, borderRadius: 48, borderWidth: 1.5, borderColor: "rgba(212,212,216,0.25)", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.03)" },
   runnerControlsRow: { flexDirection: "row", alignItems: "center", gap: spacing.lg },
-  runnerTrack: { ...typography.body, color: "rgba(212,212,216,0.6)", marginTop: spacing.sm, textAlign: "center", paddingHorizontal: spacing.xl },
+
+  // ---- Toast la swipe (titlu melodie + sageata, fade in/out) ----
+  swipeToastWrap: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", zIndex: 300 },
+  swipeToast: { flexDirection: "row", alignItems: "center", gap: spacing.sm, maxWidth: "80%", backgroundColor: "rgba(5,5,5,0.92)", borderWidth: 1, borderColor: "rgba(255,255,255,0.14)", borderRadius: borderRadius.full, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  swipeToastText: { ...typography.body, color: "#e5e7eb", fontWeight: "600" },
 
   // ---- Layout landscape "simplu" (fara lista): doua coloane, elemente mari ----
   runnerLandscape: { width: "100%", height: "100%", flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xl, gap: spacing.xl },
@@ -266,9 +270,6 @@ export const devotionalStyles = StyleSheet.create({
   confirmStayText: { ...typography.body, color: TEXT, fontWeight: "700" },
   confirmExit: { flex: 1, backgroundColor: "#ef4444", borderRadius: borderRadius.md, paddingVertical: spacing.md, alignItems: "center" },
   confirmExitText: { ...typography.body, color: "#fff", fontWeight: "800" },
-
-  // ---- Titlu melodie in coloana landscape (modul lista) ----
-  landTrackTitle: { ...typography.caption, color: "rgba(212,212,216,0.6)", textAlign: "center", paddingHorizontal: spacing.sm, marginTop: spacing.sm },
 
   // ---- Mod Lista (overlay negru cu motivele) ----
   listMode: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: PLAYER_BG, zIndex: 200 },

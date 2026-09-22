@@ -87,13 +87,18 @@ export const useDevotionalAudio = ({ tracks, withMusic }) => {
     playAt(0);
   };
 
-  // Sare la piesa urmatoare / anterioara din ordinea random (cu wrap la capete).
-  const next = () => playAt(posRef.current + 1);
+  // Sare la piesa urmatoare / anterioara din ordinea random (cu wrap). Intoarce
+  // titlul piesei acum active (pentru feedback vizual la swipe).
+  const next = () => {
+    playAt(posRef.current + 1);
+    return orderRef.current[posRef.current]?.title || "";
+  };
   const prev = () => {
     const len = orderRef.current.length;
-    if (len === 0) return;
+    if (len === 0) return "";
     const target = posRef.current - 1;
     playAt(target < 0 ? len - 1 : target);
+    return orderRef.current[posRef.current]?.title || "";
   };
 
   const pause = () => {

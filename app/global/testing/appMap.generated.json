@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-22T07:27:46.431Z",
+  "generatedAt": "2026-09-22T07:53:27.802Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -2537,6 +2537,13 @@
         "toast"
       ]
     },
+    "screens/prayers/timer/devotionalProgress.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
     "screens/prayers/timer/devotionals/BuilderView.js": {
       "stylesFile": null,
       "globals": [],
@@ -2633,7 +2640,9 @@
         "screens/prayers/lists/prayerBoardsApi.js",
         "screens/prayers/timer/useHorizontalSwipe.js",
         "screens/prayers/timer/useExitConfirm.js",
-        "screens/prayers/timer/ExitConfirm.js"
+        "screens/prayers/timer/ExitConfirm.js",
+        "screens/prayers/timer/SwipeToast.js",
+        "screens/prayers/timer/devotionalProgress.js"
       ],
       "domainsTouched": [
         "auth",
@@ -2869,7 +2878,8 @@
         "screens/prayers/timer/devotionalStyles.js",
         "screens/prayers/timer/useHorizontalSwipe.js",
         "screens/prayers/timer/useExitConfirm.js",
-        "screens/prayers/timer/ExitConfirm.js"
+        "screens/prayers/timer/ExitConfirm.js",
+        "screens/prayers/timer/SwipeToast.js"
       ],
       "domainsTouched": []
     },
@@ -2892,6 +2902,13 @@
       "domainsTouched": []
     },
     "screens/prayers/timer/session/useDevotionalAudio.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/timer/SwipeToast.js": {
       "stylesFile": null,
       "globals": [],
       "styleTokens": [],

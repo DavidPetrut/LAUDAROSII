@@ -9,7 +9,7 @@ import { QuoteCard } from "./QuoteCard";
  * rugaciunea / Incepe devotional). Butonul de devotional se schimba in functie
  * de starea planului activ (neexistent / de facut azi / completat azi).
  */
-export const HomeView = ({ quote, defaultDevotional, onToast, onStartPrayer, onStartDevotional, onCreateDevotional }) => {
+export const HomeView = ({ quote, defaultDevotional, hasResume, onToast, onStartPrayer, onStartDevotional, onCreateDevotional }) => {
   const dev = defaultDevotional;
 
   return (
@@ -41,8 +41,8 @@ export const HomeView = ({ quote, defaultDevotional, onToast, onStartPrayer, onS
 
       {dev && !dev.completedToday && (
         <TouchableOpacity style={styles.bigBtn} onPress={() => onStartDevotional(dev)} activeOpacity={0.9}>
-          <Ionicons name="book-outline" size={26} color="#fff" />
-          <Text style={styles.bigBtnText}>Începe devotional</Text>
+          <Ionicons name={hasResume ? "play-forward-outline" : "book-outline"} size={26} color="#fff" />
+          <Text style={styles.bigBtnText}>{hasResume ? "Continuă devotionalul" : "Începe devotional"}</Text>
         </TouchableOpacity>
       )}
     </ScrollView>
