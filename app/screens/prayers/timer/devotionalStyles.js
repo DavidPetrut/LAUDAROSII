@@ -247,9 +247,28 @@ export const devotionalStyles = StyleSheet.create({
   runnerNextBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: borderRadius.full, borderWidth: 1.5, marginTop: spacing.lg },
   runnerNextText: { ...typography.body, fontWeight: "700" },
 
-  // ---- Buton "Lista" langa controale (deschide modul lista) ----
-  runnerListBtn: { width: 64, height: 64, borderRadius: 32, borderWidth: 1.5, borderColor: "rgba(212,212,216,0.25)", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.03)" },
+  // ---- Buton "Lista" langa controale (aceeasi marime ca butonul de pauza/stop) ----
+  runnerListBtn: { width: 96, height: 96, borderRadius: 48, borderWidth: 1.5, borderColor: "rgba(212,212,216,0.25)", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.03)" },
   runnerControlsRow: { flexDirection: "row", alignItems: "center", gap: spacing.lg },
+  runnerTrack: { ...typography.body, color: "rgba(212,212,216,0.6)", marginTop: spacing.sm, textAlign: "center", paddingHorizontal: spacing.xl },
+
+  // ---- Layout landscape "simplu" (fara lista): doua coloane, elemente mari ----
+  runnerLandscape: { width: "100%", height: "100%", flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xl, gap: spacing.xl },
+  runnerLandCol: { flex: 1, alignItems: "center", justifyContent: "center" },
+
+  // ---- Confirmare iesire (tema inchisa) ----
+  confirmBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  confirmSheet: { backgroundColor: "#1a1f2b", borderRadius: borderRadius.lg, borderWidth: 1, borderColor: BORDER, padding: spacing.lg, width: "100%", maxWidth: 340 },
+  confirmTitle: { ...typography.h3, color: TEXT },
+  confirmDesc: { ...typography.bodySmall, color: DIM, marginTop: spacing.xs },
+  confirmRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.lg },
+  confirmStay: { flex: 1, borderWidth: 1.5, borderColor: BORDER, borderRadius: borderRadius.md, paddingVertical: spacing.md, alignItems: "center" },
+  confirmStayText: { ...typography.body, color: TEXT, fontWeight: "700" },
+  confirmExit: { flex: 1, backgroundColor: "#ef4444", borderRadius: borderRadius.md, paddingVertical: spacing.md, alignItems: "center" },
+  confirmExitText: { ...typography.body, color: "#fff", fontWeight: "800" },
+
+  // ---- Titlu melodie in coloana landscape (modul lista) ----
+  landTrackTitle: { ...typography.caption, color: "rgba(212,212,216,0.6)", textAlign: "center", paddingHorizontal: spacing.sm, marginTop: spacing.sm },
 
   // ---- Mod Lista (overlay negru cu motivele) ----
   listMode: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: PLAYER_BG, zIndex: 200 },

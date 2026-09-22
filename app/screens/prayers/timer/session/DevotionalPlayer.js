@@ -6,6 +6,8 @@ import { devotionalStyles as styles } from "../devotionalStyles";
 import { PlayerControls } from "./PlayerControls";
 import { useDevotionalAudio } from "./useDevotionalAudio";
 import { useHorizontalSwipe } from "../useHorizontalSwipe";
+import { useExitConfirm } from "../useExitConfirm";
+import { ExitConfirm } from "../ExitConfirm";
 import { useImmersive } from "../../../../global/context";
 
 const fmt = (total) => {
@@ -89,6 +91,12 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
   const finish = () => leave(true);
   const handleStop = () => leave(false);
 
+  const exitConfirm = useExitConfirm({
+    onExit: () => leave(false),
+    onPause: audio.pause,
+    onResume: audio.resume,
+  });
+
   return (
     <View style={styles.overlay} {...swipe}>
       <Text style={[styles.overlayTimer, { fontSize, lineHeight: fontSize * 1.06 }]}>
@@ -112,6 +120,8 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
       <Text style={[styles.overlayHint, { bottom: insets.bottom + 24 }]}>
         Rugăciunea continuă și cu ecranul închis, până la finalul timerului.
       </Text>
+
+      <ExitConfirm visible={exitConfirm.visible} onStay={exitConfirm.stay} onExit={exitConfirm.exit} />
     </View>
   );
 };

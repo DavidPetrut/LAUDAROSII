@@ -11,6 +11,8 @@ import { useImmersive, useAuth } from "../../../../global/context";
 import { api } from "../../../../global/functions";
 import { prayerBoardsApi } from "../../lists/prayerBoardsApi";
 import { useHorizontalSwipe } from "../useHorizontalSwipe";
+import { useExitConfirm } from "../useExitConfirm";
+import { ExitConfirm } from "../ExitConfirm";
 
 const fmt = (total) => {
   const s = Math.max(0, total);
@@ -46,6 +48,7 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
   const [paused, setPaused] = useState(false);
   const [listMode, setListMode] = useState(false);
   const [motives, setMotives] = useState([]);
+  const [trackTitle, setTrackTitle] = useState("");
 
   const pausedRef = useRef(false);
   pausedRef.current = paused;
@@ -148,16 +151,20 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
     }
     posRef.current = i;
     const track = orderRef.current[i];
+    setTrackTitle(track.title || "");
     try {
       stopMusic();
       const player = createAudioPlayer({ uri: track.url });
       if (!activeRef.current) { try { player.remove(); } catch (e) {} return; }
       soundRef.current = player;
+      player.volume = 1;
       player.play();
       player.addListener("playbackStatusUpdate", (st) => {
         if (st?.didJustFinish) playAt(posRef.current + 1);
       });
-    } catch (e) {}
+    } catch (e) {
+      if (activeRef.current) setTimeout(() => playAt(i + 1), 400);
+    }
   };
 
   // Sare la piesa urmatoare / anterioara din ordinea random (cu wrap la capete).
@@ -171,6 +178,7 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
 
   const playTaskMusic = async (task) => {
     stopMusic();
+    setTrackTitle("");
     if (!task?.music?.enabled) return;
     const tracks = (program?.playlist || []).filter((t) => t.category === task.music.category && t.url);
     if (tracks.length === 0) return;
@@ -217,10 +225,18 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
   const nextTask = tasks[index + 1];
   const hasList = !!task.prayerList?.kind;
 
+  const hasMusic = !!task.music?.enabled;
+
   const swipe = useHorizontalSwipe({
-    enabled: !!task.music?.enabled,
+    enabled: hasMusic,
     onSwipeRight: nextTrack,
     onSwipeLeft: prevTrack,
+  });
+
+  const exitConfirm = useExitConfirm({
+    onExit: () => leave(false),
+    onPause: pause,
+    onResume: resume,
   });
 
   // Controalele compacte din modul lista: iconita momentului, timp, pauza si
@@ -253,44 +269,73 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
       contentContainerStyle={[
         styles.listMotivesContent,
         !landscape && { paddingBottom: 130 },
+        landscape && { paddingRight: 0 },
       ]}
       showsVerticalScrollIndicator={false}
       renderItem={({ item }) => (
         <View style={styles.listMotiveRow}>
-          <Text style={styles.listMotiveText} numberOfLines={1}>{item.text}</Text>
+          <Text style={styles.listMotiveText}>{item.text}</Text>
         </View>
       )}
       ListEmptyComponent={<Text style={styles.listMotivesEmpty}>Nicio rugăciune în această listă.</Text>}
     />
   );
 
+  const iconEl = (
+    <Animated.View style={[styles.runnerIcon, { backgroundColor: accent + "22", transform: [{ scale: pulse }] }]}>
+      <DevotionalIcon set={task.iconSet} name={task.icon} size={64} color={accent} />
+    </Animated.View>
+  );
+  const titleEl = <Text style={styles.runnerTitle}>{task.title}</Text>;
+  const timerEl = <Text style={styles.runnerTimer}>{fmt(remaining)}</Text>;
+  const trackEl =
+    hasMusic && !!trackTitle ? (
+      <Text style={styles.runnerTrack} numberOfLines={1}>♪ {trackTitle}</Text>
+    ) : null;
+  const controlsEl = (
+    <View style={[styles.runnerControlsRow, { marginTop: 32 }]}>
+      <PlayerControls paused={paused} onPause={pause} onResume={resume} onStop={() => leave(false)} />
+      {hasList && (
+        <TouchableOpacity style={styles.runnerListBtn} onPress={openList} activeOpacity={0.85}>
+          <Ionicons name="list" size={30} color="#d4d4d8" />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+  const readyEl = ready ? (
+    <TouchableOpacity style={[styles.runnerNextBtn, { borderColor: accent }]} onPress={advance} activeOpacity={0.85}>
+      <Text style={[styles.runnerNextText, { color: accent }]}>
+        {isLast ? "Termină" : nextTask?.title}
+      </Text>
+      <Ionicons name="arrow-forward" size={18} color={accent} />
+    </TouchableOpacity>
+  ) : null;
+
   return (
     <View style={styles.overlay} {...swipe}>
-      <Text style={styles.runnerStep}>{index + 1} / {tasks.length}</Text>
-
-      <Animated.View style={[styles.runnerIcon, { backgroundColor: accent + "22", transform: [{ scale: pulse }] }]}>
-        <DevotionalIcon set={task.iconSet} name={task.icon} size={64} color={accent} />
-      </Animated.View>
-
-      <Text style={styles.runnerTitle}>{task.title}</Text>
-      <Text style={styles.runnerTimer}>{fmt(remaining)}</Text>
-
-      <View style={[styles.runnerControlsRow, { marginTop: 32 }]}>
-        <PlayerControls paused={paused} onPause={pause} onResume={resume} onStop={() => leave(false)} />
-        {hasList && (
-          <TouchableOpacity style={styles.runnerListBtn} onPress={openList} activeOpacity={0.85}>
-            <Ionicons name="list" size={26} color="#d4d4d8" />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {ready && (
-        <TouchableOpacity style={[styles.runnerNextBtn, { borderColor: accent }]} onPress={advance} activeOpacity={0.85}>
-          <Text style={[styles.runnerNextText, { color: accent }]}>
-            {isLast ? "Termină" : nextTask?.title}
-          </Text>
-          <Ionicons name="arrow-forward" size={18} color={accent} />
-        </TouchableOpacity>
+      {landscape && !listMode ? (
+        <View style={styles.runnerLandscape}>
+          <View style={styles.runnerLandCol}>
+            {iconEl}
+            {titleEl}
+          </View>
+          <View style={styles.runnerLandCol}>
+            {timerEl}
+            {trackEl}
+            {controlsEl}
+            {readyEl}
+          </View>
+        </View>
+      ) : (
+        <>
+          <Text style={styles.runnerStep}>{index + 1} / {tasks.length}</Text>
+          {iconEl}
+          {titleEl}
+          {timerEl}
+          {trackEl}
+          {controlsEl}
+          {readyEl}
+        </>
       )}
 
       <Text style={[styles.overlayHint, { bottom: insets.bottom + 24 }]}>
@@ -302,7 +347,12 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
           {landscape ? (
             <View style={styles.listModeRow}>
               {motivesList}
-              <View style={styles.compactBarLandscape}>{compactControls}</View>
+              <View style={styles.compactBarLandscape}>
+                {compactControls}
+                {hasMusic && !!trackTitle && (
+                  <Text style={styles.landTrackTitle} numberOfLines={2}>♪ {trackTitle}</Text>
+                )}
+              </View>
             </View>
           ) : (
             <>
@@ -314,6 +364,8 @@ export const DevotionalRunner = ({ devotional, program, onComplete, onExit }) =>
           )}
         </View>
       )}
+
+      <ExitConfirm visible={exitConfirm.visible} onStay={exitConfirm.stay} onExit={exitConfirm.exit} />
     </View>
   );
 };
