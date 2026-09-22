@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, Text, View } from "react-native";
+import { Animated, Easing, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { devotionalStyles as styles } from "./devotionalStyles";
 
@@ -15,9 +15,9 @@ export const SwipeToast = ({ toast }) => {
     if (!toast?.id) return;
     opacity.setValue(0);
     const anim = Animated.sequence([
-      Animated.timing(opacity, { toValue: 1, duration: 220, useNativeDriver: true }),
-      Animated.delay(1100),
-      Animated.timing(opacity, { toValue: 0, duration: 340, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 450, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.delay(2500),
+      Animated.timing(opacity, { toValue: 0, duration: 650, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
     ]);
     anim.start();
     return () => anim.stop();
