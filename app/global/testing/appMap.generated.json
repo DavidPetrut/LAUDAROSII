@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-23T04:49:23.312Z",
+  "generatedAt": "2026-09-23T08:42:42.831Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -2139,19 +2139,39 @@
       "crossScreens": [],
       "domainsTouched": []
     },
-    "screens/prayers/pray-room/FinalScoreModal.js": {
+    "screens/prayers/pray-room/AddPrayerMenu.js": {
       "stylesFile": "screens/prayers/pray-room/styles.js",
       "globals": [],
-      "styleTokens": [],
+      "styleTokens": [
+        "typography",
+        "spacing",
+        "borderRadius"
+      ],
       "crossScreens": [],
       "domainsTouched": []
     },
-    "screens/prayers/pray-room/MilestoneBar.js": {
+    "screens/prayers/pray-room/ExistingPrayerPicker.js": {
       "stylesFile": "screens/prayers/pray-room/styles.js",
-      "globals": [],
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        }
+      ],
       "styleTokens": [],
-      "crossScreens": [],
-      "domainsTouched": []
+      "crossScreens": [
+        "screens/prayers/timer/devotionalStyles.js",
+        "screens/prayers/lists/prayerBoardsApi.js",
+        "screens/prayers/lists/listImages.js"
+      ],
+      "domainsTouched": [
+        "api",
+        "toast"
+      ]
     },
     "screens/prayers/pray-room/ParticipantPicker.js": {
       "stylesFile": "screens/prayers/pray-room/styles.js",
@@ -2179,11 +2199,20 @@
           "file": "global/components/UserAvatar.js"
         },
         {
+          "name": "RibbonBadge",
+          "file": "global/components/RibbonBadge.js"
+        },
+        {
           "name": "useTheme",
           "file": "global/context/ThemeContext.js"
         }
       ],
-      "styleTokens": [],
+      "styleTokens": [
+        "colors",
+        "typography",
+        "spacing",
+        "borderRadius"
+      ],
       "crossScreens": [],
       "domainsTouched": [
         "tema"
@@ -2295,7 +2324,7 @@
       ],
       "styleTokens": [],
       "crossScreens": [
-        "screens/prayers/PrayerCard.js"
+        "screens/prayers/lists/PrayerFormModal.js"
       ],
       "domainsTouched": [
         "api",
@@ -2719,14 +2748,21 @@
     },
     "screens/prayers/timer/devotionals/PrayerListPickerModal.js": {
       "stylesFile": null,
-      "globals": [],
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        }
+      ],
       "styleTokens": [],
       "crossScreens": [
         "screens/prayers/timer/devotionalStyles.js",
         "screens/prayers/lists/prayerBoardsApi.js",
         "screens/prayers/lists/listImages.js"
       ],
-      "domainsTouched": []
+      "domainsTouched": [
+        "api"
+      ]
     },
     "screens/prayers/timer/devotionals/ShareView.js": {
       "stylesFile": null,
@@ -3206,6 +3242,7 @@
       "screens/prayers/lists/prayerBoardsApi.js",
       "screens/prayers/lists/PrayerListsView.js",
       "screens/prayers/PersonalPrayersTab.js",
+      "screens/prayers/pray-room/ExistingPrayerPicker.js",
       "screens/prayers/pray-room/ParticipantPicker.js",
       "screens/prayers/pray-room/PrayRoomEntry.js",
       "screens/prayers/pray-room/PrayRoomList.js",
@@ -3216,6 +3253,7 @@
       "screens/prayers/ProgramPrayersTab.js",
       "screens/prayers/timer/devotionals/DevotionalRunner.js",
       "screens/prayers/timer/devotionals/devotionalsApi.js",
+      "screens/prayers/timer/devotionals/PrayerListPickerModal.js",
       "screens/prayers/timer/DevotionalScreen.js",
       "screens/profile/broadcast/broadcastApi.js",
       "screens/profile/EditProfileScreen.js",
@@ -3239,6 +3277,7 @@
       "screens/prayers/analyze/AnalysisScreen.js",
       "screens/prayers/lists/PrayerListsView.js",
       "screens/prayers/PersonalPrayersTab.js",
+      "screens/prayers/pray-room/ExistingPrayerPicker.js",
       "screens/prayers/pray-room/PrayRoomEntry.js",
       "screens/prayers/pray-room/PrayRoomScreen.js",
       "screens/prayers/pray-room/PrayRoomSetup.js",
@@ -3379,6 +3418,7 @@
       "screens/prayers/PersonalPrayersTab.js"
     ],
     "global/components/RibbonBadge.js": [
+      "screens/prayers/pray-room/PrayRoomCard.js",
       "screens/prayers/PrayerCard.js",
       "screens/prayers/ProgramPrayersTab.js",
       "screens/prayers/UserPrayersList.js"

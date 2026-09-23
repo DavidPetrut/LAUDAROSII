@@ -25,18 +25,18 @@ const MOODS = [
  * din devotionale (fundal inchis, input lizibil, chip-uri de stare). Se reseteaza
  * de fiecare data cand se deschide.
  */
-export const PrayerFormModal = ({ visible, onClose, onSubmit, submitting, title = "Adaugă un motiv" }) => {
+export const PrayerFormModal = ({ visible, onClose, onSubmit, submitting, title = "Adaugă un motiv", initial = null }) => {
   const [text, setText] = useState("");
   const [isUrgent, setIsUrgent] = useState(false);
   const [mood, setMood] = useState(null);
 
   useEffect(() => {
     if (visible) {
-      setText("");
-      setIsUrgent(false);
-      setMood(null);
+      setText(initial?.text || "");
+      setIsUrgent(!!initial?.isUrgent);
+      setMood(initial?.mood || null);
     }
-  }, [visible]);
+  }, [visible, initial]);
 
   const canSave = text.trim().length > 0 && !submitting;
 

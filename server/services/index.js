@@ -4,10 +4,9 @@ const {
   cleanupCourseData,
   cleanupGameData,
   validateReferences,
-  finalizePrayRooms,
-  cleanupFinishedPrayRooms,
   cleanupPrayRoomUserData,
 } = require("./cleanupService");
+const { startPrayRoomScheduler } = require("./prayRoomScheduler");
 const {
   setupMissionSockets,
   emitToUser,
@@ -34,9 +33,8 @@ module.exports = {
   cleanupCourseData,
   cleanupGameData,
   validateReferences,
-  finalizePrayRooms,
-  cleanupFinishedPrayRooms,
   cleanupPrayRoomUserData,
+  startPrayRoomScheduler,
   setupMissionSockets,
   emitToUser,
   emitToAll,

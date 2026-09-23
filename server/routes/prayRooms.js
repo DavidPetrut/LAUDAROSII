@@ -4,7 +4,38 @@ const { authMiddleware } = require("../middleware");
 
 const router = express.Router();
 
-// Lista de useri disponibili pentru selectia roulette
+const MOODS = [
+  "tulburat",
+  "incredere",
+  "eliberare",
+  "voia_lui",
+  "persistent",
+  "nelinistit",
+  "astept",
+];
+const OBJECT_ID = /^[0-9a-fA-F]{24}$/;
+const MAX_ROOMS = 5;
+
+const safeStr = (s, max) => String(s || "").trim().slice(0, max);
+const safeMood = (m) => (MOODS.includes(m) ? m : null);
+
+const POPULATE_PRAYERS = { path: "prayers.userId", select: "personalData" };
+
+// Populeaza si serializeaza motivele unei camere (pentru raspunsurile de CRUD)
+const populatedPrayers = async (roomId) => {
+  const room = await PrayRoom.findById(roomId).populate(POPULATE_PRAYERS);
+  return room ? room.prayers : [];
+};
+
+// Verifica daca userul are acces la camera (creator, membru activ sau invitat)
+const hasAccess = (room, userId) => {
+  if (room.createdBy.toString() === userId) return true;
+  if (room.members.some((m) => m.userId.toString() === userId && m.hasAccepted)) return true;
+  if (room.selectedParticipants?.some((p) => p.toString() === userId)) return true;
+  return false;
+};
+
+// Lista de useri disponibili pentru selectia participantilor
 router.get("/users/available", authMiddleware, async (req, res) => {
   try {
     const users = await User.find(
@@ -22,49 +53,68 @@ router.post("/", authMiddleware, async (req, res) => {
   try {
     const canCreate = await PrayRoom.canJoinOrCreate(req.user.id);
     if (!canCreate) {
-      return res.status(400).json({ error: "Ai atins limita de 3 camere active" });
+      return res.status(400).json({ error: `Poti fi in maxim ${MAX_ROOMS} camere` });
     }
 
     const { name, icon, roomType, settings, selectedParticipants } = req.body;
-    const roomCode = await PrayRoom.generateRoomCode();
-    const defaultName = name || `Pray Room #${roomCode}`;
+    const type = ["common", "targeted", "roulette"].includes(roomType) ? roomType : "common";
 
+    const invited = [
+      ...new Set(
+        (Array.isArray(selectedParticipants) ? selectedParticipants : [])
+          .map((id) => String(id))
+          .filter((id) => OBJECT_ID.test(id) && id !== req.user.id)
+      ),
+    ];
+
+    if (type === "roulette" && invited.length < 2) {
+      return res.status(400).json({ error: "Tragerea la sort are nevoie de minim 3 persoane" });
+    }
+
+    const durationDays = parseInt(settings?.durationDays, 10) || 1;
+    const whoCanPost = type === "targeted" ? "CREATOR_ONLY" : "ALL";
+    const maxPrayers = type === "common" ? 2 : type === "roulette" ? 10 : 20;
+
+    const roomCode = await PrayRoom.generateRoomCode();
     const now = new Date();
-    const joinDeadline = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-    const startDate = now;
-    const endDate = new Date(now.getTime() + settings.durationDays * 24 * 60 * 60 * 1000);
+
+    const members = [{ userId: req.user.id, hasAccepted: true, joinedAt: now }];
+    for (const uid of invited) {
+      const ok = await PrayRoom.canJoinOrCreate(uid);
+      if (ok) members.push({ userId: uid, hasAccepted: true, joinedAt: now });
+    }
 
     const room = new PrayRoom({
       roomCode,
-      name: defaultName,
-      icon: icon || "room_icon1",
-      roomType: roomType || "common",
+      name: safeStr(name, 100) || `Pray Room #${roomCode}`,
+      icon: ["room_icon1", "room_icon2", "room_icon3"].includes(icon) ? icon : "room_icon1",
+      roomType: type,
       createdBy: req.user.id,
-      members: [{ userId: req.user.id, hasAccepted: true, joinedAt: now }],
-      settings: {
-        durationDays: settings.durationDays,
-        prayerDays: settings.prayerDays,
-        minMinutes: settings.minMinutes || 0,
-        whoCanPost: settings.whoCanPost || "ALL",
-        maxPrayers: settings.maxPrayers || 2,
-      },
-      selectedParticipants: roomType === "roulette"
-        ? [req.user.id, ...(selectedParticipants || [])]
-        : [],
-      state: "ACTIVE",
-      startDate,
-      endDate,
-      joinDeadline,
+      members,
+      settings: { durationDays, whoCanPost, maxPrayers },
+      selectedParticipants: [req.user.id, ...invited],
+      startDate: now,
+      endDate: PrayRoom.computeEndDate(durationDays),
+      joinDeadline: new Date(now.getTime() + 48 * 60 * 60 * 1000),
     });
 
-    // Roulette: genereaza derangement imediat la creare
-    if (roomType === "roulette" && selectedParticipants?.length >= 1) {
-      const allIds = [req.user.id, ...selectedParticipants];
-      const assignments = PrayRoom.generateDerangement(allIds);
-      if (assignments) room.rouletteAssignments = assignments;
-    }
+    if (type === "roulette") room.ensureRouletteForToday();
 
     await room.save();
+
+    for (const uid of invited) {
+      if (members.some((m) => m.userId.toString() === uid)) {
+        await Notification.create({
+          userId: uid,
+          type: "pray_room_joined",
+          category: "more",
+          title: "Ai fost adaugat intr-o camera",
+          body: `Faci parte din ${room.name}`,
+          data: { roomId: room._id, roomCode: room.roomCode },
+        });
+      }
+    }
+
     const populated = await PrayRoom.findById(room._id)
       .populate("createdBy", "personalData")
       .populate("members.userId", "personalData");
@@ -75,17 +125,11 @@ router.post("/", authMiddleware, async (req, res) => {
   }
 });
 
-// Roomurile userului: active + finished nefinalizate
+// Roomurile userului (in care e membru activ)
 router.get("/my", authMiddleware, async (req, res) => {
   try {
     const rooms = await PrayRoom.find({
-      members: {
-        $elemMatch: {
-          userId: req.user.id,
-          hasAccepted: true,
-          hasFinalized: false,
-        },
-      },
+      members: { $elemMatch: { userId: req.user.id, hasAccepted: true } },
     })
       .populate("createdBy", "personalData")
       .populate("members.userId", "personalData")
@@ -97,38 +141,39 @@ router.get("/my", authMiddleware, async (req, res) => {
   }
 });
 
-// Returneaza detalii room dupa cod
+// Detalii room dupa cod (pentru ecranul de join)
 router.get("/code/:code", authMiddleware, async (req, res) => {
   try {
     const room = await PrayRoom.findOne({ roomCode: req.params.code })
       .populate("createdBy", "personalData")
       .populate("members.userId", "personalData");
 
-    if (!room) {
-      return res.status(404).json({ error: "Camera nu exista" });
-    }
-
+    if (!room) return res.status(404).json({ error: "Camera nu exista" });
     res.json(room);
   } catch (error) {
     res.status(500).json({ error: "Eroare" });
   }
 });
 
-// Returneaza detalii room dupa ID
+// Detalii room dupa ID (doar membri/invitati)
 router.get("/:id", authMiddleware, async (req, res) => {
   try {
-    const room = await PrayRoom.findById(req.params.id)
-      .populate("createdBy", "personalData")
-      .populate("members.userId", "personalData")
-      .populate("prayers.userId", "personalData");
-
-    if (!room) {
-      return res.status(404).json({ error: "Camera nu exista" });
+    const room = await PrayRoom.findById(req.params.id);
+    if (!room) return res.status(404).json({ error: "Camera nu exista" });
+    if (!hasAccess(room, req.user.id)) {
+      return res.status(403).json({ error: "Nu ai acces la aceasta camera" });
     }
 
-    const dailyScore = await PrayRoom.calculateDailyScore(room._id, new Date());
+    if (room.roomType === "roulette" && room.ensureRouletteForToday()) {
+      await room.save();
+    }
 
-    res.json({ ...room.toObject(), dailyScore });
+    const populated = await PrayRoom.findById(room._id)
+      .populate("createdBy", "personalData")
+      .populate("members.userId", "personalData")
+      .populate(POPULATE_PRAYERS);
+
+    res.json(populated);
   } catch (error) {
     res.status(500).json({ error: "Eroare" });
   }
@@ -139,34 +184,34 @@ router.post("/join/:code", authMiddleware, async (req, res) => {
   try {
     const room = await PrayRoom.findOne({ roomCode: req.params.code });
     if (!room) return res.status(404).json({ error: "Camera nu exista" });
-    if (room.state === "FINISHED") return res.status(400).json({ error: "Camera s-a terminat" });
-    if (new Date() > room.joinDeadline) return res.status(400).json({ error: "Perioada de join a expirat" });
+    if (room.joinDeadline && new Date() > room.joinDeadline) {
+      return res.status(400).json({ error: "Perioada de intrare a expirat" });
+    }
 
-    // Roulette: doar participantii selectati pot da join
-    if (room.roomType === "roulette" && room.selectedParticipants?.length > 0) {
-      const isAuthorized = room.selectedParticipants.some(
-        (sp) => sp.toString() === req.user.id
-      );
-      if (!isAuthorized) {
-        return res.status(403).json({ error: "Nu ai fost invitat in aceasta camera" });
-      }
+    // Daca exista o lista de participanti, doar ei pot intra cu cod
+    if (room.selectedParticipants?.length > 0) {
+      const invited = room.selectedParticipants.some((p) => p.toString() === req.user.id);
+      if (!invited) return res.status(403).json({ error: "Nu ai fost invitat in aceasta camera" });
+    }
+
+    const existing = room.members.find((m) => m.userId.toString() === req.user.id);
+    if (existing?.hasAccepted) {
+      return res.status(400).json({ error: "Esti deja in aceasta camera" });
     }
 
     const canJoin = await PrayRoom.canJoinOrCreate(req.user.id);
-    if (!canJoin) return res.status(400).json({ error: "Ai atins limita de 3 camere active" });
+    if (!canJoin) return res.status(400).json({ error: `Poti fi in maxim ${MAX_ROOMS} camere` });
 
-    const existingMember = room.members.find(
-      (m) => m.userId.toString() === req.user.id
-    );
-
-    if (existingMember) {
-      if (existingMember.hasAccepted) {
-        return res.status(400).json({ error: "Esti deja in aceasta camera" });
-      }
-      existingMember.hasAccepted = true;
-      existingMember.joinedAt = new Date();
+    if (existing) {
+      existing.hasAccepted = true;
+      existing.joinedAt = new Date();
     } else {
       room.members.push({ userId: req.user.id, hasAccepted: true, joinedAt: new Date() });
+    }
+
+    if (room.roomType === "roulette") {
+      room.rouletteDay = null;
+      room.ensureRouletteForToday();
     }
 
     await room.save();
@@ -186,55 +231,27 @@ router.post("/join/:code", authMiddleware, async (req, res) => {
 
     res.json(populated);
   } catch (error) {
-    res.status(500).json({ error: "Eroare la join" });
+    res.status(500).json({ error: "Eroare la intrare" });
   }
 });
 
-// Modifica setarile (doar room-creator)
-router.put("/:id/settings", authMiddleware, async (req, res) => {
-  try {
-    const room = await PrayRoom.findById(req.params.id);
-    if (!room) {
-      return res.status(404).json({ error: "Camera nu exista" });
-    }
-
-    if (room.createdBy.toString() !== req.user.id) {
-      return res.status(403).json({ error: "Nu ai permisiunea" });
-    }
-
-    const { minMinutes, whoCanPost } = req.body;
-    if (minMinutes !== undefined) room.settings.minMinutes = minMinutes;
-    if (whoCanPost !== undefined) room.settings.whoCanPost = whoCanPost;
-
-    await room.save();
-    res.json(room);
-  } catch (error) {
-    res.status(500).json({ error: "Eroare" });
-  }
-});
-
-// Scoate un membru (doar room-creator)
+// Scoate un membru (doar creator)
 router.delete("/:id/members/:userId", authMiddleware, async (req, res) => {
   try {
     const room = await PrayRoom.findById(req.params.id);
-    if (!room) {
-      return res.status(404).json({ error: "Camera nu exista" });
-    }
-
+    if (!room) return res.status(404).json({ error: "Camera nu exista" });
     if (room.createdBy.toString() !== req.user.id) {
       return res.status(403).json({ error: "Nu ai permisiunea" });
     }
-
     if (req.params.userId === req.user.id) {
       return res.status(400).json({ error: "Nu te poti scoate pe tine" });
     }
 
-    const member = room.members.find(
-      (m) => m.userId.toString() === req.params.userId
+    const member = room.members.find((m) => m.userId.toString() === req.params.userId);
+    if (member) member.hasAccepted = false;
+    room.selectedParticipants = room.selectedParticipants.filter(
+      (p) => p.toString() !== req.params.userId
     );
-    if (member) {
-      member.hasAccepted = false;
-    }
 
     await room.save();
     res.json({ message: "Membru scos" });
@@ -247,216 +264,120 @@ router.delete("/:id/members/:userId", authMiddleware, async (req, res) => {
 router.post("/:id/prayers", authMiddleware, async (req, res) => {
   try {
     const room = await PrayRoom.findById(req.params.id);
-    if (!room) {
-      return res.status(404).json({ error: "Camera nu exista" });
-    }
+    if (!room) return res.status(404).json({ error: "Camera nu exista" });
 
     const member = room.members.find(
       (m) => m.userId.toString() === req.user.id && m.hasAccepted
     );
-    if (!member) {
-      return res.status(403).json({ error: "Nu esti in aceasta camera" });
+    if (!member) return res.status(403).json({ error: "Nu esti in aceasta camera" });
+
+    if (room.settings.whoCanPost === "CREATOR_ONLY" && room.createdBy.toString() !== req.user.id) {
+      return res.status(403).json({ error: "Doar creatorul poate adauga motive" });
     }
 
-    if (room.settings.whoCanPost === "CREATOR_ONLY" && 
-        room.createdBy.toString() !== req.user.id) {
-      return res.status(403).json({ error: "Doar creatorul poate posta" });
+    const userCount = room.prayers.filter((p) => p.userId.toString() === req.user.id).length;
+    const max = room.settings.maxPrayers || 2;
+    if (userCount >= max) {
+      return res.status(400).json({ error: `Ai atins limita de ${max} motive` });
     }
 
-    const userPrayerCount = room.prayers.filter(
-      (p) => p.userId.toString() === req.user.id
-    ).length;
-    const maxPrayers = room.settings.maxPrayers || 2;
-    if (userPrayerCount >= maxPrayers) {
-      return res.status(400).json({ error: `Ai atins limita de ${maxPrayers} motive` });
-    }
+    const text = safeStr(req.body.text, 1000);
+    if (!text) return res.status(400).json({ error: "Motivul este obligatoriu" });
 
-    const { text } = req.body;
-    if (!text?.trim()) {
-      return res.status(400).json({ error: "Motivul este obligatoriu" });
-    }
-
-    room.prayers.push({ userId: req.user.id, text: text.trim() });
+    room.prayers.push({
+      userId: req.user.id,
+      text,
+      isUrgent: !!req.body.isUrgent,
+      mood: safeMood(req.body.mood),
+    });
     await room.save();
 
-    res.status(201).json({ message: "Motiv adaugat" });
+    res.status(201).json({ prayers: await populatedPrayers(room._id) });
   } catch (error) {
     res.status(500).json({ error: "Eroare" });
   }
 });
 
-// Marcheaza "M-am rugat" pentru un motiv specific
-router.post("/:id/complete-prayer/:prayerId", authMiddleware, async (req, res) => {
+// Editeaza propriul motiv
+router.patch("/:id/prayers/:prayerId", authMiddleware, async (req, res) => {
   try {
     const room = await PrayRoom.findById(req.params.id);
-    if (!room) {
-      return res.status(404).json({ error: "Camera nu exista" });
-    }
-
-    const member = room.members.find(
-      (m) => m.userId.toString() === req.user.id && m.hasAccepted
-    );
-    if (!member) {
-      return res.status(403).json({ error: "Nu esti in aceasta camera" });
-    }
+    if (!room) return res.status(404).json({ error: "Camera nu exista" });
 
     const prayer = room.prayers.id(req.params.prayerId);
-    if (!prayer) {
-      return res.status(404).json({ error: "Motivul nu exista" });
+    if (!prayer) return res.status(404).json({ error: "Motivul nu exista" });
+    if (prayer.userId.toString() !== req.user.id) {
+      return res.status(403).json({ error: "Poti edita doar motivele tale" });
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    let todayIdx = room.dailyProgress.findIndex((dp) => {
-      const dpDate = new Date(dp.date);
-      dpDate.setHours(0, 0, 0, 0);
-      return dpDate.getTime() === today.getTime();
-    });
-
-    if (todayIdx === -1) {
-      room.dailyProgress.push({ date: today, completions: [] });
-      todayIdx = room.dailyProgress.length - 1;
+    if (req.body.text !== undefined) {
+      const text = safeStr(req.body.text, 1000);
+      if (!text) return res.status(400).json({ error: "Motivul este obligatoriu" });
+      prayer.text = text;
     }
-
-    const alreadyCompleted = room.dailyProgress[todayIdx].completions.find(
-      (c) => c.userId.toString() === req.user.id && c.prayerId?.toString() === req.params.prayerId
-    );
-    if (alreadyCompleted) {
-      return res.status(400).json({ error: "Te-ai rugat deja pentru acest motiv" });
-    }
-
-    room.dailyProgress[todayIdx].completions.push({
-      userId: req.user.id,
-      prayerId: prayer._id,
-      completedAt: new Date(),
-    });
+    if (req.body.isUrgent !== undefined) prayer.isUrgent = !!req.body.isUrgent;
+    if (req.body.mood !== undefined) prayer.mood = safeMood(req.body.mood);
 
     await room.save();
-    const dailyScore = await PrayRoom.calculateDailyScore(room._id, today);
-
-    const completedPrayerIds = room.dailyProgress[todayIdx].completions
-      .filter((c) => c.userId.toString() === req.user.id)
-      .map((c) => c.prayerId?.toString())
-      .filter(Boolean);
-
-    res.json({ dailyScore, completedPrayerIds });
+    res.json({ prayers: await populatedPrayers(room._id) });
   } catch (error) {
     res.status(500).json({ error: "Eroare" });
   }
 });
 
-// Returneaza progresul curent
-router.get("/:id/progress", authMiddleware, async (req, res) => {
+// Sterge propriul motiv
+router.delete("/:id/prayers/:prayerId", authMiddleware, async (req, res) => {
   try {
     const room = await PrayRoom.findById(req.params.id);
-    if (!room) {
-      return res.status(404).json({ error: "Camera nu exista" });
+    if (!room) return res.status(404).json({ error: "Camera nu exista" });
+
+    const prayer = room.prayers.id(req.params.prayerId);
+    if (!prayer) return res.status(404).json({ error: "Motivul nu exista" });
+    if (prayer.userId.toString() !== req.user.id) {
+      return res.status(403).json({ error: "Poti sterge doar motivele tale" });
     }
 
-    const dailyScore = await PrayRoom.calculateDailyScore(room._id, new Date());
-    const activeMembers = room.members.filter((m) => m.hasAccepted).length;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayProgress = room.dailyProgress.find((dp) => {
-      const dpDate = new Date(dp.date);
-      dpDate.setHours(0, 0, 0, 0);
-      return dpDate.getTime() === today.getTime();
-    });
-
-    const completedPrayerIds = todayProgress
-      ? todayProgress.completions
-          .filter((c) => c.userId.toString() === req.user.id)
-          .map((c) => c.prayerId?.toString())
-          .filter(Boolean)
-      : [];
-
-    res.json({
-      dailyScore,
-      activeMembers,
-      completedPrayerIds,
-    });
+    room.prayers.pull(req.params.prayerId);
+    await room.save();
+    res.json({ prayers: await populatedPrayers(room._id) });
   } catch (error) {
     res.status(500).json({ error: "Eroare" });
   }
 });
 
-// Finalizeaza anticipat (doar room-creator)
-router.post("/:id/finalize", authMiddleware, async (req, res) => {
-  try {
-    const room = await PrayRoom.findById(req.params.id);
-    if (!room) {
-      return res.status(404).json({ error: "Camera nu exista" });
-    }
-
-    if (room.createdBy.toString() !== req.user.id) {
-      return res.status(403).json({ error: "Nu ai permisiunea" });
-    }
-
-    if (room.state === "FINISHED") {
-      return res.status(400).json({ error: "Camera e deja finalizata" });
-    }
-
-    const finalScore = await PrayRoom.calculateFinalScore(room._id);
-    const verdict = PrayRoom.getVerdict(finalScore);
-
-    room.state = "FINISHED";
-    room.finalScore = finalScore;
-    room.finishedAt = new Date();
-    await room.save();
-
-    const activeMembers = room.members.filter((m) => m.hasAccepted);
-    for (const member of activeMembers) {
-      await Notification.create({
-        userId: member.userId,
-        type: "pray_room_finished",
-        category: "more",
-        title: "Camera s-a terminat",
-        body: `${room.name}: ${verdict}`,
-        data: { roomId: room._id, finalScore, verdict },
-      });
-    }
-
-    res.json({ finalScore, verdict, room });
-  } catch (error) {
-    res.status(500).json({ error: "Eroare la finalizare" });
-  }
-});
-
-// Returneaza atribuirea roulette pre-aranjata pentru user-ul curent
+// Tragere la sort: cine i-a picat userului azi
 router.get("/:id/my-assignment", authMiddleware, async (req, res) => {
   try {
-    const room = await PrayRoom.findById(req.params.id)
-      .populate("rouletteAssignments.assignedTo", "personalData")
-      .populate("members.userId", "personalData");
-
+    const room = await PrayRoom.findById(req.params.id);
     if (!room || room.roomType !== "roulette") {
-      return res.status(400).json({ error: "Camera nu e de tip roulette" });
+      return res.status(400).json({ error: "Camera nu e de tip tragere la sort" });
     }
+    if (!hasAccess(room, req.user.id)) {
+      return res.status(403).json({ error: "Nu ai acces la aceasta camera" });
+    }
+
+    if (room.ensureRouletteForToday()) await room.save();
 
     const assignment = room.rouletteAssignments.find(
       (a) => a.userId.toString() === req.user.id
     );
-
     if (!assignment) {
-      const total = room.selectedParticipants?.length || 0;
-      const joined = room.members.filter((m) => m.hasAccepted).length;
-      return res.json({ ready: false, total, joined });
+      const active = room.members.filter((m) => m.hasAccepted).length;
+      return res.json({ ready: false, activeMembers: active });
     }
 
+    const assignedTo = await User.findById(assignment.assignedTo, { personalData: 1 });
     res.json({
       ready: true,
       revealed: assignment.revealed || false,
-      assignedTo: assignment.assignedTo,
-      members: room.members.filter((m) => m.hasAccepted),
+      assignedTo,
     });
   } catch (error) {
     res.status(500).json({ error: "Eroare" });
   }
 });
 
-// Marcheaza ca user-ul a vazut animatia de reveal
+// Marcheaza reveal-ul zilei
 router.post("/:id/mark-revealed", authMiddleware, async (req, res) => {
   try {
     const room = await PrayRoom.findById(req.params.id);
@@ -475,142 +396,57 @@ router.post("/:id/mark-revealed", authMiddleware, async (req, res) => {
   }
 });
 
-// Returneaza TOATE motivele PERSONALE neimplinite ale persoanei atribuite
+// Motivele persoanei care i-a picat userului (motivele ei din camera)
 router.get("/:id/assigned-prayers", authMiddleware, async (req, res) => {
   try {
-    const room = await PrayRoom.findById(req.params.id);
+    const room = await PrayRoom.findById(req.params.id).populate(POPULATE_PRAYERS);
     if (!room || room.roomType !== "roulette") {
-      return res.status(400).json({ error: "Camera nu e de tip roulette" });
+      return res.status(400).json({ error: "Camera nu e de tip tragere la sort" });
+    }
+    if (!hasAccess(room, req.user.id)) {
+      return res.status(403).json({ error: "Nu ai acces la aceasta camera" });
     }
 
     const assignment = room.rouletteAssignments.find(
       (a) => a.userId.toString() === req.user.id
     );
-    if (!assignment) {
-      return res.json({ prayers: [], total: 0, hasAssignment: false });
-    }
+    if (!assignment) return res.json({ prayers: [], hasAssignment: false });
 
-    const owner = await User.findById(assignment.assignedTo, {
-      "content.prayers": 1,
-      personalData: 1,
-    });
-    if (!owner) {
-      return res.json({ prayers: [], total: 0, hasAssignment: true });
-    }
-
-    // Reset zilnic la midnight daca azi e zi de rugaciune (zilele sunt 0-6, 0=Duminica)
-    const todayDayNum = new Date().getDay();
-    const prayerDays = room.settings?.prayerDays || [];
-    const lastReset = assignment.lastCompletedReset ? new Date(assignment.lastCompletedReset) : null;
-    const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
-
-    if (prayerDays.includes(todayDayNum) && (!lastReset || lastReset < todayMidnight)) {
-      assignment.completedPrayerIds = [];
-      assignment.lastCompletedReset = new Date();
-      await room.save();
-    }
-
-    const completed = assignment.completedPrayerIds || [];
-    const allActive = (owner.content?.prayers || []).filter((p) => !p.answered);
-
-    const prayers = allActive.map((p) => ({
-      _id: p._id,
-      text: p.text,
-      date: p.date,
-      answered: false,
-      mood: p.mood,
-      isUrgent: p.isUrgent || false,
-      prayedBy: p.prayedBy || [],
-      prayedCount: p.prayedBy?.length || 0,
-      completedInRoom: completed.includes(p._id.toString()),
-      userId: { _id: owner._id, personalData: owner.personalData },
-    }));
-
-    res.json({
-      prayers,
-      total: allActive.length,
-      completedCount: completed.filter((id) => allActive.some((p) => p._id.toString() === id)).length,
-      hasAssignment: true,
-      assignedToId: owner._id,
-    });
+    const prayers = room.prayers.filter(
+      (p) => (p.userId?._id || p.userId).toString() === assignment.assignedTo.toString()
+    );
+    res.json({ prayers, hasAssignment: true, assignedToId: assignment.assignedTo });
   } catch (error) {
     res.status(500).json({ error: "Eroare" });
   }
 });
 
-// Marcheaza un motiv ca completat DOAR in contextul roulette (independent de BISERICA)
-router.post("/:id/roulette-pray/:prayerId", authMiddleware, async (req, res) => {
+// Iesi din camera (elibereaza slot). Fara membri activi -> sterge camera.
+router.post("/:id/leave", authMiddleware, async (req, res) => {
   try {
     const room = await PrayRoom.findById(req.params.id);
     if (!room) return res.status(404).json({ error: "Camera nu exista" });
 
-    const assignment = room.rouletteAssignments.find(
-      (a) => a.userId.toString() === req.user.id
-    );
-    if (!assignment) return res.status(400).json({ error: "Nu ai atribuire" });
-
-    const prayerId = req.params.prayerId;
-    if (!assignment.completedPrayerIds.includes(prayerId)) {
-      assignment.completedPrayerIds.push(prayerId);
-      await room.save();
-    }
-
-    res.json({ ok: true });
-  } catch (error) {
-    res.status(500).json({ error: "Eroare" });
-  }
-});
-
-// Iesi din room (pastreaza datele, elibereaza slot)
-router.post("/:id/leave", authMiddleware, async (req, res) => {
-  try {
-    const room = await PrayRoom.findById(req.params.id);
-    if (!room) {
-      return res.status(404).json({ error: "Camera nu exista" });
-    }
-
-    const member = room.members.find(
-      (m) => m.userId.toString() === req.user.id
-    );
+    const member = room.members.find((m) => m.userId.toString() === req.user.id);
     if (!member || !member.hasAccepted) {
       return res.status(400).json({ error: "Nu esti in aceasta camera" });
     }
 
     member.hasAccepted = false;
-    await room.save();
-    res.json({ message: "Ai iesit din camera" });
-  } catch (error) {
-    res.status(500).json({ error: "Eroare" });
-  }
-});
 
-// User-ul confirma ca a vazut scorul final (elibereaza slot)
-router.post("/:id/acknowledge-finish", authMiddleware, async (req, res) => {
-  try {
-    const room = await PrayRoom.findById(req.params.id);
-    if (!room) {
-      return res.status(404).json({ error: "Camera nu exista" });
-    }
-
-    const member = room.members.find(
-      (m) => m.userId.toString() === req.user.id
-    );
-    if (!member) {
-      return res.status(400).json({ error: "Nu esti in aceasta camera" });
-    }
-
-    member.hasFinalized = true;
-    await room.save();
-
-    // Daca toti membrii au finalizat, sterge room-ul din DB
-    const remaining = room.members.filter(
-      (m) => m.hasAccepted && !m.hasFinalized
-    );
+    const remaining = room.members.filter((m) => m.hasAccepted);
     if (remaining.length === 0) {
       await PrayRoom.findByIdAndDelete(room._id);
+      return res.json({ message: "Ai iesit din camera" });
     }
 
-    res.json({ message: "Camera finalizata" });
+    if (room.roomType === "roulette") {
+      room.rouletteDay = null;
+      room.ensureRouletteForToday();
+    }
+
+    await room.save();
+    res.json({ message: "Ai iesit din camera" });
   } catch (error) {
     res.status(500).json({ error: "Eroare" });
   }

@@ -18,10 +18,12 @@ const safeColor = (c) => (HEX.test(String(c || "")) ? c : "#10b981");
  * boardId; "private" cere un ObjectId valid; orice altceva devine referinta goala.
  */
 const safePrayerList = (pl) => {
-  if (pl?.kind === "public") return { kind: "public", boardId: null };
+  if (pl?.kind === "public") return { kind: "public", boardId: null, roomId: null };
   if (pl?.kind === "private" && OBJECT_ID.test(String(pl.boardId || "")))
-    return { kind: "private", boardId: pl.boardId };
-  return { kind: null, boardId: null };
+    return { kind: "private", boardId: pl.boardId, roomId: null };
+  if (pl?.kind === "prayroom" && OBJECT_ID.test(String(pl.roomId || "")))
+    return { kind: "prayroom", boardId: null, roomId: pl.roomId };
+  return { kind: null, boardId: null, roomId: null };
 };
 const safeIconSet = (s) => (ICON_SETS.includes(s) ? s : "ionicons");
 const safeStr = (s, max) => String(s || "").trim().slice(0, max);

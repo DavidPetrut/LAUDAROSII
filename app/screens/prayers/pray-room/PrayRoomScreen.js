@@ -5,10 +5,9 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
-  TextInput,
   Modal,
+  Pressable,
   Platform,
-  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -16,16 +15,21 @@ import { ScreenHeader, TiledBackground } from "../../../global/components";
 import { api, showError, showSuccess } from "../../../global/functions";
 import { useAuth, useTheme } from "../../../global/context";
 import { usePrayRoomSocket } from "./prayRoomSocket";
-import { MilestoneBar } from "./MilestoneBar";
-import { FinalScoreModal } from "./FinalScoreModal";
 import { PrayRoomCard } from "./PrayRoomCard";
 import { PrayRoulette } from "./PrayRoulette";
-import { PrayerCard } from "../PrayerCard";
+import { AddPrayerMenu } from "./AddPrayerMenu";
+import { ExistingPrayerPicker } from "./ExistingPrayerPicker";
+import { PrayerFormModal } from "../lists/PrayerFormModal";
 import { prayRoomStyles as styles } from "./styles";
 
 const BG_LIGHT = require("../../../public/images/day-light-mode-background.png");
 const BG_DARK = require("../../../public/images/dark-mode-small.png");
-const VITRALIU = require("../../../public/assets/vitraliu.png");
+
+const TYPE_LABELS = {
+  common: "Motive Comune",
+  targeted: "Motive de Grup",
+  roulette: "Tragere la Sort",
+};
 
 export const PrayRoomScreen = ({ navigation, route }) => {
   const { roomId } = route.params;
@@ -35,125 +39,133 @@ export const PrayRoomScreen = ({ navigation, route }) => {
   const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [completedPrayerIds, setCompletedPrayerIds] = useState([]);
-  const [dailyScore, setDailyScore] = useState(0);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newPrayer, setNewPrayer] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [showFinalModal, setShowFinalModal] = useState(false);
-  const [finalData, setFinalData] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
 
-  // Roulette state
+  const [addMenu, setAddMenu] = useState(false);
+  const [formModal, setFormModal] = useState({ open: false, editing: null });
+  const [existingModal, setExistingModal] = useState(false);
+  const [crudPrayer, setCrudPrayer] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  const [rouletteMode, setRouletteMode] = useState("pray");
   const [showRoulette, setShowRoulette] = useState(false);
   const [assignedMember, setAssignedMember] = useState(null);
-  const [assignedPrayers, setAssignedPrayers] = useState([]);
   const [hasRevealed, setHasRevealed] = useState(false);
-  const [rouletteTotal, setRouletteTotal] = useState(0);
-  const [roulettePrayed, setRoulettePrayed] = useState(0);
+  const [assignedPrayers, setAssignedPrayers] = useState([]);
 
-  const { socketProgress, emitPrayerCompleted } = usePrayRoomSocket(roomId, user?._id);
+  const { roomUpdatedAt, emitPrayerChanged } = usePrayRoomSocket(roomId, user?._id);
+
+  const isRoulette = room?.roomType === "roulette";
+  const isTargeted = room?.roomType === "targeted";
+  const isCreator = room?.createdBy?._id === user?._id;
 
   const loadRoom = useCallback(async () => {
     try {
       const data = await api.get(`/pray-rooms/${roomId}`);
       setRoom(data);
-      if (data.state === "FINISHED") {
-        setFinalData({ finalScore: data.finalScore });
-        setShowFinalModal(true);
-      }
-    } catch {
-      showError("Eroare la incarcare");
+    } catch (e) {
+      showError(e.response?.data?.error || "Eroare la incarcare");
       navigation.goBack();
     } finally {
       setLoading(false);
     }
   }, [roomId]);
 
-  const loadProgress = useCallback(async () => {
-    try {
-      const data = await api.get(`/pray-rooms/${roomId}/progress`);
-      setDailyScore(data.dailyScore || 0);
-      setCompletedPrayerIds(data.completedPrayerIds || []);
-    } catch {}
-  }, [roomId]);
-
-  // Roulette: verifica atribuirea si daca a fost deja revealed
   const loadAssignment = useCallback(async () => {
     try {
       const data = await api.get(`/pray-rooms/${roomId}/my-assignment`);
       if (data.ready) {
         setAssignedMember(data.assignedTo);
-        if (data.revealed) setHasRevealed(true);
+        setHasRevealed(!!data.revealed);
+      } else {
+        setAssignedMember(null);
+        setHasRevealed(false);
       }
     } catch {}
   }, [roomId]);
 
-  // Roulette: incarca TOATE motivele PERSONALE ale persoanei atribuite (progres independent de BISERICA)
   const loadAssignedPrayers = useCallback(async () => {
     try {
       const data = await api.get(`/pray-rooms/${roomId}/assigned-prayers`);
-      if (!data.hasAssignment) return;
-      const notCompleted = (data.prayers || []).filter((p) => !p.completedInRoom);
-      setAssignedPrayers(notCompleted);
-      setRouletteTotal(data.total || 0);
-      setRoulettePrayed(data.completedCount || 0);
-    } catch (e) {
-      showError("Nu s-au putut incarca motivele");
-    }
+      setAssignedPrayers(data.hasAssignment ? data.prayers || [] : []);
+    } catch {}
   }, [roomId]);
 
-  useFocusEffect(useCallback(() => { loadRoom(); loadProgress(); }, [loadRoom, loadProgress]));
+  useFocusEffect(useCallback(() => { loadRoom(); }, [loadRoom]));
 
   useEffect(() => {
-    if (room?.roomType === "roulette") loadAssignment();
-  }, [room?.roomType, loadAssignment]);
-
-  // Incarca motivele doar dupa reveal
-  useEffect(() => {
-    if (hasRevealed && room?.roomType === "roulette") loadAssignedPrayers();
-  }, [hasRevealed, room?.roomType, loadAssignedPrayers]);
+    if (isRoulette) loadAssignment();
+  }, [isRoulette, loadAssignment]);
 
   useEffect(() => {
-    if (socketProgress) setDailyScore(socketProgress.dailyScore ?? dailyScore);
-  }, [socketProgress]);
+    if (hasRevealed && isRoulette) loadAssignedPrayers();
+  }, [hasRevealed, isRoulette, loadAssignedPrayers]);
+
+  useEffect(() => {
+    if (roomUpdatedAt) {
+      loadRoom();
+      if (isRoulette && hasRevealed) loadAssignedPrayers();
+    }
+  }, [roomUpdatedAt]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadRoom(), loadProgress()]);
-    if (room?.roomType === "roulette") {
+    await loadRoom();
+    if (isRoulette) {
       await loadAssignment();
-      await loadAssignedPrayers();
+      if (hasRevealed) await loadAssignedPrayers();
     }
     setRefreshing(false);
   };
 
-  // Pentru motive comune si targetate (logica existenta din pray room)
-  const handleCompletePrayer = async (prayerId) => {
+  const applyPrayers = (prayers) => {
+    setRoom((prev) => (prev ? { ...prev, prayers } : prev));
+    emitPrayerChanged();
+  };
+
+  const submitNew = async (text, isUrgent, mood) => {
+    setSubmitting(true);
     try {
-      const res = await api.post(`/pray-rooms/${roomId}/complete-prayer/${prayerId}`);
-      setDailyScore(res.dailyScore);
-      setCompletedPrayerIds(res.completedPrayerIds || []);
-      emitPrayerCompleted(prayerId);
-      showSuccess("Te-ai rugat!");
+      if (formModal.editing) {
+        const res = await api.patch(`/pray-rooms/${roomId}/prayers/${formModal.editing._id}`, { text, isUrgent, mood });
+        applyPrayers(res.prayers);
+        showSuccess("Motiv actualizat");
+      } else {
+        const res = await api.post(`/pray-rooms/${roomId}/prayers`, { text, isUrgent, mood });
+        applyPrayers(res.prayers);
+        showSuccess("Motiv adaugat");
+      }
+      setFormModal({ open: false, editing: null });
     } catch (e) {
-      showError(e.response?.data?.error || "Eroare");
+      showError(e.response?.data?.error || e.message || "Eroare");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleAddPrayer = async () => {
-    if (!newPrayer.trim()) return showError("Scrie un motiv");
+  const pickExisting = async ({ text, isUrgent, mood }) => {
     setSubmitting(true);
     try {
-      await api.post(`/pray-rooms/${roomId}/prayers`, { text: newPrayer.trim() });
+      const res = await api.post(`/pray-rooms/${roomId}/prayers`, { text, isUrgent, mood });
+      applyPrayers(res.prayers);
+      setExistingModal(false);
       showSuccess("Motiv adaugat");
-      setNewPrayer("");
-      setShowAddModal(false);
-      loadRoom();
     } catch (e) {
-      showError(e.response?.data?.error || "Eroare");
+      showError(e.response?.data?.error || e.message || "Eroare");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const deletePrayer = async (prayer) => {
+    setConfirmDelete(null);
+    try {
+      const res = await api.delete(`/pray-rooms/${roomId}/prayers/${prayer._id}`);
+      applyPrayers(res.prayers);
+      showSuccess("Motiv sters");
+    } catch (e) {
+      showError(e.response?.data?.error || "Eroare");
     }
   };
 
@@ -168,17 +180,6 @@ export const PrayRoomScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleFinalize = async () => {
-    try {
-      const res = await api.post(`/pray-rooms/${roomId}/finalize`);
-      setFinalData({ finalScore: res.finalScore });
-      setShowSettings(false);
-      setShowFinalModal(true);
-    } catch (e) {
-      showError(e.response?.data?.error || "Eroare");
-    }
-  };
-
   const handleLeaveRoom = async () => {
     try {
       await api.post(`/pray-rooms/${roomId}/leave`);
@@ -190,68 +191,45 @@ export const PrayRoomScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleAcknowledgeFinish = async () => {
-    try {
-      await api.post(`/pray-rooms/${roomId}/acknowledge-finish`);
-      setShowFinalModal(false);
-      navigation.goBack();
-    } catch (e) {
-      showError(e.response?.data?.error || "Eroare");
-    }
-  };
-
-  const handleRevealComplete = async () => {
+  const handleRevealComplete = () => {
     setHasRevealed(true);
     loadAssignedPrayers();
     api.post(`/pray-rooms/${roomId}/mark-revealed`).catch(() => {});
     setTimeout(() => setShowRoulette(false), 500);
   };
 
-  // Roulette: marcheaza motivul ca completat in room (UI local)
-  const handleRoulettePrayed = (prayerId) => {
-    setAssignedPrayers((prev) => prev.filter((p) => p._id !== prayerId));
-    setRoulettePrayed((prev) => prev + 1);
-  };
-
-  // Roulette: apeleaza endpoint dedicat (completedPrayerIds + prayedBy)
-  const roulettePrayHandler = (prayerId) =>
-    api.post(`/pray-rooms/${roomId}/roulette-pray/${prayerId}`);
-
-  const isCreator = room?.createdBy?._id === user?._id;
-  const isRoulette = room?.roomType === "roulette";
-  const isTargeted = room?.roomType === "targeted";
-  const isFinished = room?.state === "FINISHED";
+  const myPrayers = (room?.prayers || []).filter((p) => (p.userId?._id || p.userId) === user?._id);
   const maxP = room?.settings?.maxPrayers || 2;
-  const myCount = room?.prayers?.filter((p) => p.userId?._id === user?._id).length || 0;
-  const canPost = !isFinished && !isRoulette && (room?.settings?.whoCanPost === "ALL" || isCreator) && myCount < maxP;
+  const canPost = (() => {
+    if (!room) return false;
+    if (isTargeted) return isCreator;
+    return myPrayers.length < maxP;
+  })();
 
-  const getVisiblePrayers = () => {
-    if (!room) return [];
-    if (isRoulette) return [];
-    return room.prayers || [];
-  };
+  const daysLeft = room?.endDate
+    ? Math.max(0, Math.ceil((new Date(room.endDate) - new Date()) / 86400000))
+    : 0;
 
-  const canPrayFor = (prayer) => {
-    if (isFinished) return false;
-    if (isTargeted) return true;
-    return prayer.userId?._id !== user?._id;
-  };
-
-  const prayers = getVisiblePrayers();
   const activeMembers = room?.members?.filter((m) => m.hasAccepted) || [];
-  const rouletteScore = rouletteTotal > 0 ? Math.round((roulettePrayed / rouletteTotal) * 100) : 0;
-  const rouletteComplete = isRoulette && hasRevealed && rouletteTotal > 0 && roulettePrayed >= rouletteTotal;
-
-  // Roulette: lista pentru animatie include si assignedMember chiar daca nu a dat join inca
   const rouletteMembers = (() => {
     if (!isRoulette || !assignedMember) return activeMembers;
     const list = [...activeMembers];
-    const assignedId = assignedMember._id;
-    if (!list.some((m) => (m.userId?._id || m.userId) === assignedId)) {
+    const id = assignedMember._id;
+    if (!list.some((m) => (m.userId?._id || m.userId) === id)) {
       list.push({ userId: assignedMember, hasAccepted: true });
     }
     return list;
   })();
+
+  const openMenu = (prayer) => setCrudPrayer(prayer);
+
+  const renderCard = ({ item }) => (
+    <PrayRoomCard
+      prayer={item}
+      isMine={(item.userId?._id || item.userId) === user?._id}
+      onMenu={openMenu}
+    />
+  );
 
   if (loading) {
     return (
@@ -263,6 +241,21 @@ export const PrayRoomScreen = ({ navigation, route }) => {
     );
   }
 
+  const commonList = (data, emptyText) => (
+    <FlatList
+      data={data}
+      keyExtractor={(item) => item._id}
+      renderItem={renderCard}
+      contentContainerStyle={styles.listContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      ListEmptyComponent={
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyTitle}>{emptyText}</Text>
+        </View>
+      }
+    />
+  );
+
   return (
     <TiledBackground tileSource={BG_DARK} solidSource={BG_LIGHT} useTiled={isDarkMode} style={styles.container}>
       <View style={styles.roomHeader}>
@@ -272,123 +265,97 @@ export const PrayRoomScreen = ({ navigation, route }) => {
           onBack={() => navigation.goBack()}
         />
         <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.headerActionBtn}
-            onPress={handleCopyCode}
-            accessibilityLabel="Copiaza codul"
-          >
+          <TouchableOpacity style={styles.headerActionBtn} onPress={handleCopyCode} accessibilityLabel="Copiaza codul">
             <Ionicons name="copy-outline" size={20} color="#fff" />
           </TouchableOpacity>
-          {!isFinished && (
-            <TouchableOpacity
-              style={styles.headerActionBtn}
-              onPress={() => setShowSettings(true)}
-              accessibilityLabel="Setari camera"
-            >
-              <Ionicons name="settings-outline" size={20} color="#fff" />
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity style={styles.headerActionBtn} onPress={() => setShowSettings(true)} accessibilityLabel="Setari camera">
+            <Ionicons name="settings-outline" size={20} color="#fff" />
+          </TouchableOpacity>
         </View>
       </View>
 
-      {(!isRoulette || hasRevealed) && (
-        <MilestoneBar score={isRoulette ? rouletteScore : (socketProgress?.dailyScore ?? dailyScore)} />
-      )}
+      <View style={styles.roomInfoBar}>
+        <Text style={styles.roomInfoText}>{TYPE_LABELS[room?.roomType]}</Text>
+        <Text style={styles.roomInfoText}>•</Text>
+        <Text style={styles.roomInfoText}>{daysLeft} zile ramase</Text>
+      </View>
 
-      {isRoulette && !isFinished && !hasRevealed && (
-        <View style={styles.revealCenterWrap}>
-          {assignedMember ? (
-            <TouchableOpacity style={styles.revealCenterBtn} onPress={() => setShowRoulette(true)}>
-              <Text style={styles.revealCenterText}>Vezi cine ti-a picat</Text>
+      {isRoulette && (
+        <View style={styles.segmentRow}>
+          {[["pray", "De rugat"], ["mine", "Ale mele"]].map(([key, label]) => (
+            <TouchableOpacity
+              key={key}
+              style={[styles.segmentBtn, rouletteMode === key && styles.segmentBtnActive]}
+              onPress={() => setRouletteMode(key)}
+            >
+              <Text style={[styles.segmentText, rouletteMode === key && styles.segmentTextActive]}>{label}</Text>
             </TouchableOpacity>
-          ) : (
-            <Text style={styles.waitingText}>Se pregateste camera...</Text>
-          )}
+          ))}
         </View>
       )}
 
-      {isRoulette && hasRevealed ? (
-        rouletteComplete ? (
-          <View style={styles.vitraliu100Wrap}>
-            <Image source={VITRALIU} style={styles.vitraliuImg} resizeMode="contain" />
+      {isRoulette ? (
+        rouletteMode === "mine" ? (
+          commonList(myPrayers, "Nu ai adaugat motive. Apasa + ca sa te roage cineva.")
+        ) : !hasRevealed ? (
+          <View style={styles.revealCenterWrap}>
+            {assignedMember ? (
+              <TouchableOpacity style={styles.revealCenterBtn} onPress={() => setShowRoulette(true)}>
+                <Text style={styles.revealCenterText}>Vezi cine ti-a picat</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.waitingText}>Se pregateste tragerea la sort (minim 3 persoane)...</Text>
+            )}
           </View>
         ) : (
-        <FlatList
-          data={assignedPrayers}
-          keyExtractor={(item) => item._id}
-          renderItem={({ item }) => (
-            <PrayerCard
-              prayer={item}
-              isOwner={false}
-              showPrayedButton={!isFinished}
-              showPrayedCount={false}
-              currentUserId={user?._id}
-              onPrayed={handleRoulettePrayed}
-              onCustomPray={roulettePrayHandler}
-              tab="church"
-            />
-          )}
-          contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyTitle}>
-                {assignedMember?.personalData?.fullName || "Persoana"} nu are motive de rugaciune inca
-              </Text>
-            </View>
-          }
-        />
+          <FlatList
+            data={assignedPrayers}
+            keyExtractor={(item) => item._id}
+            renderItem={({ item }) => <PrayRoomCard prayer={item} isMine={false} onMenu={() => {}} />}
+            contentContainerStyle={styles.listContent}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyTitle}>
+                  {assignedMember?.personalData?.fullName || "Persoana"} nu a adaugat motive inca
+                </Text>
+              </View>
+            }
+          />
         )
       ) : (
-        <FlatList
-          data={prayers}
-          keyExtractor={(item) => item._id}
-          renderItem={({ item }) => (
-            <PrayRoomCard
-              prayer={item}
-              canPray={canPrayFor(item)}
-              isCompleted={completedPrayerIds.includes(item._id)}
-              onPray={handleCompletePrayer}
-            />
-          )}
-          contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          ListEmptyComponent={
-            !isRoulette ? (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyTitle}>Nu sunt motive inca</Text>
-              </View>
-            ) : null
-          }
-        />
+        commonList(room?.prayers || [], "Nu sunt motive inca")
       )}
 
-      {canPost && (
-        <TouchableOpacity style={styles.fab} onPress={() => setShowAddModal(true)}>
+      {canPost && (!isRoulette || rouletteMode === "mine") && (
+        <TouchableOpacity style={styles.fab} onPress={() => setAddMenu(true)}>
           <Text style={styles.fabText}>+</Text>
         </TouchableOpacity>
       )}
 
-      <Modal visible={showAddModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Adauga motiv</Text>
-            <TextInput style={[styles.modalInput, { color: theme.textPrimary }]}
-              value={newPrayer} onChangeText={setNewPrayer}
-              placeholder="Scrie motivul tau..." placeholderTextColor="#666"
-              multiline maxLength={500} />
-            <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setShowAddModal(false)}>
-                <Text style={styles.modalCancelText}>Anuleaza</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalSubmit, submitting && styles.btnDisabled]}
-                onPress={handleAddPrayer} disabled={submitting}>
-                <Text style={styles.modalSubmitText}>{submitting ? "..." : "Adauga"}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <AddPrayerMenu
+        visible={addMenu}
+        onClose={() => setAddMenu(false)}
+        onNew={() => { setAddMenu(false); setFormModal({ open: true, editing: null }); }}
+        onExisting={() => { setAddMenu(false); setExistingModal(true); }}
+      />
+
+      <PrayerFormModal
+        visible={formModal.open}
+        submitting={submitting}
+        title={formModal.editing ? "Editeaza motivul" : "Adauga un motiv"}
+        initial={formModal.editing}
+        onClose={() => setFormModal({ open: false, editing: null })}
+        onSubmit={submitNew}
+      />
+
+      <ExistingPrayerPicker
+        visible={existingModal}
+        currentUserId={user?._id}
+        submitting={submitting}
+        onClose={() => setExistingModal(false)}
+        onPick={pickExisting}
+      />
 
       <PrayRoulette
         visible={showRoulette}
@@ -398,15 +365,48 @@ export const PrayRoomScreen = ({ navigation, route }) => {
         onClose={() => setShowRoulette(false)}
       />
 
+      <Modal visible={!!crudPrayer} transparent animationType="fade" onRequestClose={() => setCrudPrayer(null)}>
+        <Pressable style={styles.crudBackdrop} onPress={() => setCrudPrayer(null)}>
+          <View style={styles.crudSheet}>
+            <TouchableOpacity
+              style={styles.crudItem}
+              onPress={() => { const p = crudPrayer; setCrudPrayer(null); setFormModal({ open: true, editing: p }); }}
+            >
+              <Ionicons name="create-outline" size={20} color="#e5e7eb" />
+              <Text style={styles.crudItemText}>Editeaza</Text>
+            </TouchableOpacity>
+            <View style={styles.crudDivider} />
+            <TouchableOpacity
+              style={styles.crudItem}
+              onPress={() => { const p = crudPrayer; setCrudPrayer(null); setConfirmDelete(p); }}
+            >
+              <Ionicons name="trash-outline" size={20} color="#ef4444" />
+              <Text style={[styles.crudItemText, { color: "#ef4444" }]}>Sterge</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={!!confirmDelete} transparent animationType="fade" onRequestClose={() => setConfirmDelete(null)}>
+        <Pressable style={styles.crudBackdrop} onPress={() => setConfirmDelete(null)}>
+          <View style={styles.crudSheet}>
+            <Text style={[styles.crudItemText, { paddingHorizontal: 24, paddingTop: 16 }]}>Stergi motivul?</Text>
+            <TouchableOpacity style={styles.crudItem} onPress={() => deletePrayer(confirmDelete)}>
+              <Ionicons name="trash-outline" size={20} color="#ef4444" />
+              <Text style={[styles.crudItemText, { color: "#ef4444" }]}>Da, sterge</Text>
+            </TouchableOpacity>
+            <View style={styles.crudDivider} />
+            <TouchableOpacity style={styles.crudItem} onPress={() => setConfirmDelete(null)}>
+              <Ionicons name="close-outline" size={20} color="#e5e7eb" />
+              <Text style={styles.crudItemText}>Anuleaza</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
       <Modal visible={showSettings} transparent animationType="fade">
         <TouchableOpacity style={styles.settingsOverlay} activeOpacity={1} onPress={() => setShowSettings(false)}>
           <View style={styles.settingsCard}>
-            {isCreator && (
-              <TouchableOpacity style={styles.settingsOption} onPress={handleFinalize}>
-                <Ionicons name="flag-outline" size={20} color="#ef4444" />
-                <Text style={styles.settingsOptionTextDanger}>Finalizeaza camera</Text>
-              </TouchableOpacity>
-            )}
             <TouchableOpacity style={styles.settingsOption} onPress={handleLeaveRoom}>
               <Ionicons name="exit-outline" size={20} color="#f59e0b" />
               <Text style={styles.settingsOptionTextWarn}>Iesi din camera</Text>
@@ -417,9 +417,6 @@ export const PrayRoomScreen = ({ navigation, route }) => {
           </View>
         </TouchableOpacity>
       </Modal>
-
-      <FinalScoreModal visible={showFinalModal} finalScore={finalData?.finalScore}
-        onClose={handleAcknowledgeFinish} />
     </TiledBackground>
   );
 };

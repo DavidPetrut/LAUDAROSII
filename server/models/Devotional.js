@@ -19,10 +19,12 @@ const taskSchema = new mongoose.Schema(
       category: { type: String, enum: ["instrumental", "lyrics"], default: "instrumental" },
     },
     // lista de rugaciuni atasata momentului: "public" = lista publica a userului,
-    // "private" = un PrayerBoard al userului (boardId). Rezolvata la rulare.
+    // "private" = un PrayerBoard al userului (boardId), "prayroom" = o camera de
+    // rugaciune a userului (roomId). Rezolvata la rulare.
     prayerList: {
-      kind: { type: String, enum: ["public", "private", null], default: null },
+      kind: { type: String, enum: ["public", "private", "prayroom", null], default: null },
       boardId: { type: mongoose.Schema.Types.ObjectId, ref: "PrayerBoard", default: null },
+      roomId: { type: mongoose.Schema.Types.ObjectId, ref: "PrayRoom", default: null },
     },
   },
   { _id: true }

@@ -4,8 +4,8 @@ import { CONFIG } from "../../../global/config";
 import { socketAuthOption } from "../../../global/services/socketAuth";
 
 export const usePrayRoomSocket = (roomId, userId) => {
-  const [socketProgress, setSocketProgress] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [roomUpdatedAt, setRoomUpdatedAt] = useState(0);
   const socketRef = useRef(null);
 
   const connect = useCallback(() => {
@@ -24,31 +24,8 @@ export const usePrayRoomSocket = (roomId, userId) => {
 
     socket.on("disconnect", () => setIsConnected(false));
 
-    socket.on("room-state", (data) => {
-      setSocketProgress({
-        dailyScore: data.dailyScore,
-        activeMembers: data.activeMembers,
-      });
-    });
-
-    socket.on("progress-updated", (data) => {
-      if (data.roomId === roomId) {
-        setSocketProgress({
-          dailyScore: data.dailyScore,
-          activeMembers: data.activeMembers,
-        });
-      }
-    });
-
-    socket.on("room-finalized", (data) => {
-      if (data.roomId === roomId) {
-        setSocketProgress((prev) => ({
-          ...prev,
-          finalScore: data.finalScore,
-          verdict: data.verdict,
-          isFinished: true,
-        }));
-      }
+    socket.on("room-updated", (data) => {
+      if (data.roomId === roomId) setRoomUpdatedAt(Date.now());
     });
 
     socketRef.current = socket;
@@ -64,14 +41,11 @@ export const usePrayRoomSocket = (roomId, userId) => {
     };
   }, [connect, roomId, userId]);
 
-  const emitPrayerCompleted = useCallback(
-    (prayerId) => {
-      if (socketRef.current && isConnected) {
-        socketRef.current.emit("prayer-completed", { roomId, userId, prayerId });
-      }
-    },
-    [roomId, userId, isConnected]
-  );
+  const emitPrayerChanged = useCallback(() => {
+    if (socketRef.current && isConnected) {
+      socketRef.current.emit("prayer-changed", { roomId });
+    }
+  }, [roomId, isConnected]);
 
-  return { socketProgress, isConnected, emitPrayerCompleted };
+  return { isConnected, roomUpdatedAt, emitPrayerChanged };
 };

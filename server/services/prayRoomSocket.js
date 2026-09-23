@@ -38,12 +38,10 @@ const setupPrayRoomSockets = (io) => {
         }
         prayRoomConnections.get(roomId).add(userId);
 
-        const dailyScore = await PrayRoom.calculateDailyScore(roomId, new Date());
         const activeMembers = room.members.filter((m) => m.hasAccepted).length;
 
         socket.emit("room-state", {
           roomId,
-          dailyScore,
           activeMembers,
           connectedUsers: prayRoomConnections.get(roomId).size,
         });
@@ -61,30 +59,9 @@ const setupPrayRoomSockets = (io) => {
       handleLeaveRoom(socket, prayNamespace, roomId, userId);
     });
 
-    socket.on("prayer-completed", async ({ roomId, userId }) => {
-      try {
-        const dailyScore = await PrayRoom.calculateDailyScore(roomId, new Date());
-        const room = await PrayRoom.findById(roomId);
-        const activeMembers = room.members.filter((m) => m.hasAccepted).length;
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const todayProgress = room.dailyProgress.find((dp) => {
-          const dpDate = new Date(dp.date);
-          dpDate.setHours(0, 0, 0, 0);
-          return dpDate.getTime() === today.getTime();
-        });
-        const completedToday = todayProgress ? todayProgress.completions.length : 0;
-
-        prayNamespace.to(roomId).emit("progress-updated", {
-          roomId,
-          dailyScore,
-          activeMembers,
-          completedToday,
-        });
-      } catch (error) {
-        socket.emit("error", { message: "Eroare la update progress" });
-      }
+    // Un motiv a fost adaugat/editat/sters: anunta ceilalti sa reincarce lista
+    socket.on("prayer-changed", ({ roomId }) => {
+      if (roomId) prayNamespace.to(roomId).emit("room-updated", { roomId });
     });
 
     socket.on("disconnect", () => {

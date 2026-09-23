@@ -60,7 +60,7 @@ export const PrayRoomList = ({ navigation }) => {
     return diff > 0 ? diff : 0;
   };
 
-  const isMaxRooms = rooms.length >= 3;
+  const isMaxRooms = rooms.length >= 5;
 
   const renderRoom = ({ item }) => (
     <TouchableOpacity
@@ -116,7 +116,7 @@ export const PrayRoomList = ({ navigation }) => {
         <Image source={ROOM_BTN} style={styles.fabImage} />
       </TouchableOpacity>
       {isMaxRooms && (
-        <Text style={styles.maxRoomsHint}>Poti fi in maxim 3 camere de rugaciune</Text>
+        <Text style={styles.maxRoomsHint}>Poti fi in maxim 5 camere de rugaciune</Text>
       )}
     </TiledBackground>
   );

@@ -30,6 +30,7 @@ const {
   setupMissionSockets,
   setupPrayRoomSockets,
   startBroadcastScheduler,
+  startPrayRoomScheduler,
 } = require("./services");
 const { securityLog } = require("./middleware/securityLog");
 const { socketAuth } = require("./middleware/socketAuth");
@@ -97,6 +98,7 @@ setupGameSockets(io);
 setupMissionSockets(io);
 setupPrayRoomSockets(io);
 startBroadcastScheduler();
+startPrayRoomScheduler();
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {

@@ -150,6 +150,9 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
         const board = (res.boards || []).find((b) => String(b._id) === String(pl.boardId));
         const items = (board?.prayers || []).filter((p) => !p.answered);
         setMotives(items.map((p) => ({ id: p._id, text: p.text })));
+      } else if (pl?.kind === "prayroom" && pl.roomId) {
+        const room = await api.get(`/pray-rooms/${pl.roomId}`);
+        setMotives((room?.prayers || []).map((p) => ({ id: p._id, text: p.text })));
       }
     } catch (e) {
       setMotives([]);

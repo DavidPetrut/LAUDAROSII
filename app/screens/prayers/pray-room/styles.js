@@ -85,6 +85,13 @@ export const prayRoomStyles = StyleSheet.create({
   daySelected: { backgroundColor: "#21c063" },
   dayText: { color: "#fff", fontWeight: "600" },
   dayTextSelected: { color: "#fff" },
+  customRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.md },
+  customInput: {
+    flex: 1, backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 12,
+    padding: spacing.md, fontSize: 18, color: "#fff", textAlign: "center",
+  },
+  customUnit: { color: "rgba(255,255,255,0.7)", fontSize: 16 },
+  durationHint: { color: "rgba(255,255,255,0.55)", fontSize: 12, textAlign: "center", marginBottom: spacing.lg },
   nextBtn: {
     backgroundColor: "rgba(33,192,99,0.15)", padding: spacing.lg, alignItems: "center",
     borderRadius: 16, borderWidth: 1, borderColor: "rgba(33,192,99,0.4)", marginTop: spacing.md,
@@ -216,4 +223,25 @@ export const prayRoomStyles = StyleSheet.create({
   // Vitraliu 100%
   vitraliu100Wrap: { flex: 1, justifyContent: "center", alignItems: "center" },
   vitraliuImg: { width: "80%", height: "60%", maxWidth: 320, maxHeight: 400 },
+
+  // Segment ruleta (De rugat / Ale mele)
+  segmentRow: {
+    flexDirection: "row", marginHorizontal: spacing.md, marginTop: spacing.sm,
+    backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 12, padding: 4, gap: 4,
+  },
+  segmentBtn: { flex: 1, paddingVertical: spacing.sm, borderRadius: 10, alignItems: "center" },
+  segmentBtnActive: { backgroundColor: "#21c063" },
+  segmentText: { color: "rgba(255,255,255,0.7)", fontWeight: "600", fontSize: 14 },
+  segmentTextActive: { color: "#fff" },
+
+  // Meniu CRUD motiv (editeaza/sterge)
+  crudBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: spacing.xl },
+  crudSheet: { backgroundColor: "#1f2937", borderRadius: 16, width: "100%", maxWidth: 320, paddingVertical: spacing.sm },
+  crudItem: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  crudItemText: { color: "#e5e7eb", fontSize: 16, fontWeight: "600" },
+  crudDivider: { height: 1, backgroundColor: "rgba(255,255,255,0.1)", marginHorizontal: spacing.md },
+
+  // Info camera (tip + zile ramase)
+  roomInfoBar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: spacing.xs },
+  roomInfoText: { color: "rgba(255,255,255,0.65)", fontSize: 12, fontWeight: "600" },
 });

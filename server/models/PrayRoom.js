@@ -1,5 +1,15 @@
 const mongoose = require("mongoose");
 
+const MOODS = [
+  "tulburat",
+  "incredere",
+  "eliberare",
+  "voia_lui",
+  "persistent",
+  "nelinistit",
+  "astept",
+];
+
 const memberSchema = new mongoose.Schema(
   {
     userId: {
@@ -8,10 +18,6 @@ const memberSchema = new mongoose.Schema(
       required: true,
     },
     hasAccepted: {
-      type: Boolean,
-      default: false,
-    },
-    hasFinalized: {
       type: Boolean,
       default: false,
     },
@@ -35,6 +41,15 @@ const prayerSchema = new mongoose.Schema(
       required: true,
       maxlength: 1000,
     },
+    isUrgent: {
+      type: Boolean,
+      default: false,
+    },
+    mood: {
+      type: String,
+      enum: [...MOODS, null],
+      default: null,
+    },
     createdAt: {
       type: Date,
       default: Date.now,
@@ -43,31 +58,11 @@ const prayerSchema = new mongoose.Schema(
   { _id: true }
 );
 
-const completionSchema = new mongoose.Schema(
+const rouletteAssignmentSchema = new mongoose.Schema(
   {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    prayerId: {
-      type: mongoose.Schema.Types.ObjectId,
-    },
-    completedAt: {
-      type: Date,
-      default: Date.now,
-    },
-  },
-  { _id: false }
-);
-
-const dailyProgressSchema = new mongoose.Schema(
-  {
-    date: {
-      type: Date,
-      required: true,
-    },
-    completions: [completionSchema],
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    revealed: { type: Boolean, default: false },
   },
   { _id: false }
 );
@@ -103,21 +98,9 @@ const prayRoomSchema = new mongoose.Schema({
   settings: {
     durationDays: {
       type: Number,
-      enum: [3, 7, 30],
       required: true,
-    },
-    prayerDays: {
-      type: [Number],
-      validate: {
-        validator: (arr) => arr.every((d) => d >= 0 && d <= 6),
-        message: "Zilele trebuie sa fie intre 0 (Duminica) si 6 (Sambata)",
-      },
-      required: true,
-    },
-    minMinutes: {
-      type: Number,
-      enum: [0, 15, 30],
-      default: 0,
+      min: 1,
+      max: 3650,
     },
     whoCanPost: {
       type: String,
@@ -128,33 +111,19 @@ const prayRoomSchema = new mongoose.Schema({
       type: Number,
       default: 2,
       min: 1,
-      max: 10,
+      max: 50,
     },
   },
   prayers: [prayerSchema],
-  dailyProgress: [dailyProgressSchema],
-  state: {
-    type: String,
-    enum: ["PENDING", "ACTIVE", "FINISHED"],
-    default: "PENDING",
-  },
   startDate: {
     type: Date,
-    default: null,
+    default: Date.now,
   },
   endDate: {
     type: Date,
     default: null,
   },
   joinDeadline: {
-    type: Date,
-    default: null,
-  },
-  finalScore: {
-    type: Number,
-    default: null,
-  },
-  finishedAt: {
     type: Date,
     default: null,
   },
@@ -165,22 +134,17 @@ const prayRoomSchema = new mongoose.Schema({
   selectedParticipants: [
     { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   ],
-  rouletteAssignments: [
-    {
-      userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-      assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-      assignedAt: { type: Date, default: Date.now },
-      revealed: { type: Boolean, default: false },
-      completedPrayerIds: [{ type: String }],
-      lastCompletedReset: { type: Date, default: Date.now },
-    },
-  ],
+  rouletteAssignments: [rouletteAssignmentSchema],
+  rouletteDay: {
+    type: Date,
+    default: null,
+  },
 });
 
-prayRoomSchema.index({ state: 1 });
 prayRoomSchema.index({ createdBy: 1 });
 prayRoomSchema.index({ "members.userId": 1 });
-prayRoomSchema.index({ endDate: 1, state: 1 });
+prayRoomSchema.index({ endDate: 1 });
+prayRoomSchema.index({ roomType: 1 });
 
 // Genereaza cod unic de 6 cifre
 prayRoomSchema.statics.generateRoomCode = async function () {
@@ -193,119 +157,92 @@ prayRoomSchema.statics.generateRoomCode = async function () {
   return code;
 };
 
-// Returneaza numarul de membri activi (hasAccepted = true)
-prayRoomSchema.statics.getActiveMembersCount = async function (roomId) {
-  const room = await this.findById(roomId);
-  if (!room) return 0;
-  return room.members.filter((m) => m.hasAccepted).length;
+// Data de stergere definitiva: miezul noptii de dupa ultima zi (ziua crearii = ziua 1)
+prayRoomSchema.statics.computeEndDate = function (durationDays) {
+  const days = parseInt(durationDays, 10);
+  const safe = !days || days < 1 ? 1 : Math.min(days, 3650);
+  const end = new Date();
+  end.setHours(0, 0, 0, 0);
+  end.setDate(end.getDate() + safe);
+  return end;
 };
 
-// Calculeaza scorul pentru o zi specifica
-prayRoomSchema.statics.calculateDailyScore = async function (roomId, date) {
-  const room = await this.findById(roomId);
-  if (!room) return 0;
-
-  const activeMembers = room.members.filter((m) => m.hasAccepted);
-  if (activeMembers.length === 0) return 0;
-
-  const dayStart = new Date(date);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(date);
-  dayEnd.setHours(23, 59, 59, 999);
-
-  const dayProgress = room.dailyProgress.find((dp) => {
-    const dpDate = new Date(dp.date);
-    return dpDate >= dayStart && dpDate <= dayEnd;
-  });
-
-  if (!dayProgress) return 0;
-
-  const uniqueUsers = new Set(dayProgress.completions.map((c) => c.userId.toString()));
-  return Math.round((uniqueUsers.size / activeMembers.length) * 100);
-};
-
-// Calculeaza scorul final - media scorurilor zilnice
-prayRoomSchema.statics.calculateFinalScore = async function (roomId) {
-  const room = await this.findById(roomId);
-  if (!room) return 0;
-
-  const activeMembers = room.members.filter((m) => m.hasAccepted);
-  if (activeMembers.length === 0) return 0;
-
-  const prayerDaysSet = new Set(room.settings.prayerDays);
-  const startDate = new Date(room.startDate);
-  const endDate = new Date(room.endDate);
-  const now = new Date();
-  const effectiveEnd = now < endDate ? now : endDate;
-
-  let totalDays = 0;
-  let totalScore = 0;
-
-  for (let d = new Date(startDate); d <= effectiveEnd; d.setDate(d.getDate() + 1)) {
-    const dayOfWeek = d.getDay();
-    if (prayerDaysSet.has(dayOfWeek)) {
-      totalDays++;
-      const dayScore = await this.calculateDailyScore(roomId, new Date(d));
-      totalScore += dayScore;
-    }
-  }
-
-  if (totalDays === 0) return 0;
-  return Math.round(totalScore / totalDays);
-};
-
-// Returneaza verdictul spiritual bazat pe scor
-prayRoomSchema.statics.getVerdict = function (score) {
-  if (score === 0) return "Rugaciune Absenta";
-  if (score < 25) return "Nivel scazut de rugaciune";
-  if (score < 50) return "Nivel mediu de rugaciune";
-  if (score < 90) return "Nivel ridicat de rugaciune";
-  if (score < 100) return "Nivel foarte ridicat de rugaciune";
-  return "Toti s-au rugat de fiecare data";
-};
-
-// Numara roomurile care ocupa slot (ACTIVE + FINISHED nefinalizate de user)
+// Numara camerele in care userul e membru activ
 prayRoomSchema.statics.countActiveRooms = async function (userId) {
   return this.countDocuments({
-    members: {
-      $elemMatch: {
-        userId,
-        hasAccepted: true,
-        hasFinalized: false,
-      },
-    },
+    members: { $elemMatch: { userId, hasAccepted: true } },
   });
 };
 
-// Verifica daca user-ul poate crea/join un room
+// Poti fi in maxim 5 camere (create sau in care ai fost adaugat)
 prayRoomSchema.statics.canJoinOrCreate = async function (userId) {
   const count = await this.countActiveRooms(userId);
-  return count < 3;
+  return count < 5;
 };
 
-// Derangement: genereaza atribuiri unde nimeni nu primeste pe el insusi
-prayRoomSchema.statics.generateDerangement = function (ids) {
+// Derangement bijectiv: fiecare primeste pe altcineva, nimeni pe el insusi si
+// (cand se poate) nimeni aceeasi persoana ca in ziua precedenta.
+prayRoomSchema.statics.generateDerangement = function (ids, prevMap = null) {
   const n = ids.length;
   if (n < 2) return null;
 
   const strs = ids.map((id) => id.toString());
-  let shuffled;
-  let valid = false;
+  const avoidPrev = prevMap && n > 2;
+  let shuffled = [...strs];
 
-  while (!valid) {
+  for (let attempt = 0; attempt < 300; attempt++) {
     shuffled = [...strs];
     for (let i = n - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
-    valid = shuffled.every((id, idx) => id !== strs[idx]);
+    const noFixedPoint = shuffled.every((id, idx) => id !== strs[idx]);
+    if (!noFixedPoint) continue;
+    if (avoidPrev) {
+      const repeatsPrev = strs.some((uid, idx) => prevMap[uid] && prevMap[uid] === shuffled[idx]);
+      if (repeatsPrev) continue;
+    }
+    return strs.map((userId, idx) => ({ userId, assignedTo: shuffled[idx], revealed: false }));
   }
 
-  return strs.map((userId, idx) => ({
-    userId,
-    assignedTo: shuffled[idx],
-    assignedAt: new Date(),
-  }));
+  return strs.map((userId, idx) => ({ userId, assignedTo: shuffled[idx], revealed: false }));
+};
+
+// Asigura o tragere la sort valida pentru ziua curenta. La o noua zi (00:00) sau la
+// creare regenereaza legaturile si reseteaza "revealed". Intoarce true daca a schimbat
+// ceva (deci trebuie salvat). Necesita minim 3 participanti activi.
+prayRoomSchema.methods.ensureRouletteForToday = function () {
+  if (this.roomType !== "roulette") return false;
+
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+
+  const lastDay = this.rouletteDay ? new Date(this.rouletteDay) : null;
+  if (lastDay) lastDay.setHours(0, 0, 0, 0);
+  const isNewDay = !lastDay || lastDay.getTime() !== todayMidnight.getTime();
+  if (!isNewDay) return false;
+
+  const participantIds = this.members
+    .filter((m) => m.hasAccepted)
+    .map((m) => m.userId.toString());
+
+  if (participantIds.length < 3) {
+    if (this.rouletteAssignments.length > 0) {
+      this.rouletteAssignments = [];
+      return true;
+    }
+    return false;
+  }
+
+  const prevMap = {};
+  (this.rouletteAssignments || []).forEach((a) => {
+    prevMap[a.userId.toString()] = a.assignedTo ? a.assignedTo.toString() : null;
+  });
+
+  const assignments = this.constructor.generateDerangement(participantIds, prevMap);
+  this.rouletteAssignments = assignments || [];
+  this.rouletteDay = todayMidnight;
+  return true;
 };
 
 module.exports = mongoose.model("PrayRoom", prayRoomSchema);
