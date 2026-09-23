@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-22T08:25:04.453Z",
+  "generatedAt": "2026-09-23T04:49:23.312Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -1363,6 +1363,10 @@
         {
           "name": "CONFIG",
           "file": "global/config.js"
+        },
+        {
+          "name": "socketAuthOption",
+          "file": "global/services/socketAuth.js"
         }
       ],
       "styleTokens": [],
@@ -2332,6 +2336,10 @@
         {
           "name": "CONFIG",
           "file": "global/config.js"
+        },
+        {
+          "name": "socketAuthOption",
+          "file": "global/services/socketAuth.js"
         }
       ],
       "styleTokens": [],
@@ -3317,6 +3325,10 @@
       "screens/prayers/pray-room/prayRoomSocket.js",
       "screens/prayers/ProgramPrayersTab.js",
       "screens/profile/SettingsScreen.js"
+    ],
+    "global/services/socketAuth.js": [
+      "screens/games/game_pray-realm/missions/missionsSocket.js",
+      "screens/prayers/pray-room/prayRoomSocket.js"
     ],
     "global/components/DragAndDrop/DragContext.js": [
       "screens/games/game_pray-realm/screens/GamePlayScreen.js"

@@ -1,5 +1,6 @@
 import { io } from "socket.io-client";
 import { CONFIG } from "../config";
+import { socketAuthOption } from "./socketAuth";
 
 let socket = null;
 
@@ -9,6 +10,7 @@ export const connectSocket = () => {
   socket = io(CONFIG.SOCKET_URL, {
     transports: ["websocket"],
     autoConnect: true,
+    ...socketAuthOption,
   });
 
   socket.on("connect", () => {

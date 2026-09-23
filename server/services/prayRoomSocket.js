@@ -8,6 +8,13 @@ const setupPrayRoomSockets = (io) => {
   prayNamespace.on("connection", (socket) => {
     socket.on("join-pray-room", async ({ roomId, userId }) => {
       try {
+        // daca socketul are identitate din token, userId trebuie sa fie al lui
+        const authedId = socket.data.user?.id;
+        if (authedId && userId && authedId !== userId) {
+          socket.emit("error", { message: "Identitate invalida" });
+          return;
+        }
+
         const room = await PrayRoom.findById(roomId);
         if (!room) {
           socket.emit("error", { message: "Camera nu exista" });

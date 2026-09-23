@@ -155,6 +155,29 @@ const userSchema = new mongoose.Schema({
       type: Date,
       default: Date.now,
     },
+    isBanned: {
+      type: Boolean,
+      default: false,
+    },
+    bannedAt: {
+      type: Date,
+      default: null,
+    },
+    bannedReason: {
+      type: String,
+      default: "",
+      maxlength: 300,
+    },
+  },
+  // incrementat la ban/logout-all -> invalideaza instant toate tokenurile vechi
+  tokenVersion: {
+    type: Number,
+    default: 0,
+  },
+  // soft-delete: contul devine invizibil si fara acces, dar recuperabil (anti stergere ireversibila de catre un admin compromis)
+  deletedAt: {
+    type: Date,
+    default: null,
   },
   content: {
     prayers: {
@@ -208,6 +231,7 @@ userSchema.index({ role: 1 });
 userSchema.index({ "status.isActive": 1 });
 userSchema.index({ "personalData.birthDate": 1 });
 userSchema.index({ createdAt: -1 });
+userSchema.index({ deletedAt: 1 });
 userSchema.index({ teamRoles: 1 });
 userSchema.index({ "content.coursesProgress.courseId": 1 });
 

@@ -41,7 +41,7 @@ router.post("/register", authLimiter, async (req, res) => {
     await user.save();
 
     const token = jwt.sign(
-      { id: user._id, role: user.role },
+      { id: user._id, role: user.role, tv: user.tokenVersion },
       process.env.JWT_SECRET,
       { expiresIn: "30d" }
     );
@@ -81,11 +81,18 @@ router.post("/login", authLimiter, async (req, res) => {
       return res.status(400).json({ error: "Credențiale invalide" });
     }
 
+    if (user.deletedAt) {
+      return res.status(400).json({ error: "Credențiale invalide" });
+    }
+    if (user.status?.isBanned) {
+      return res.status(403).json({ error: "Cont blocat" });
+    }
+
     user.status.lastActiveDate = new Date();
     await user.save();
 
     const token = jwt.sign(
-      { id: user._id, role: user.role },
+      { id: user._id, role: user.role, tv: user.tokenVersion },
       process.env.JWT_SECRET,
       { expiresIn: "30d" }
     );

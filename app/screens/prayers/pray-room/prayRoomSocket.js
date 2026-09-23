@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { io } from "socket.io-client";
 import { CONFIG } from "../../../global/config";
+import { socketAuthOption } from "../../../global/services/socketAuth";
 
 export const usePrayRoomSocket = (roomId, userId) => {
   const [socketProgress, setSocketProgress] = useState(null);
@@ -13,6 +14,7 @@ export const usePrayRoomSocket = (roomId, userId) => {
     const socket = io(`${CONFIG.API_URL.replace("/api", "")}/pray-rooms`, {
       transports: ["websocket"],
       autoConnect: true,
+      ...socketAuthOption,
     });
 
     socket.on("connect", () => {

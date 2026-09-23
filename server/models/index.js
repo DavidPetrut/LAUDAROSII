@@ -18,6 +18,7 @@ const Mission = require("./Mission");
 const PrayRoom = require("./PrayRoom");
 const TestBug = require("./TestBug");
 const TestConfig = require("./TestConfig");
+const AuditLog = require("./AuditLog");
 
 module.exports = {
   User,
@@ -40,4 +41,5 @@ module.exports = {
   PrayRoom,
   TestBug,
   TestConfig,
+  AuditLog,
 };

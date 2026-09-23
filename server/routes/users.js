@@ -3,6 +3,7 @@ const sharp = require("sharp");
 const { User } = require("../models");
 const { authMiddleware, isAdmin, isSuperAdmin } = require("../middleware");
 const { cleanupUserData } = require("../services/cleanupService");
+const { writeAudit } = require("../services/auditService");
 
 const router = express.Router();
 
@@ -99,7 +100,7 @@ router.get("/search", authMiddleware, async (req, res) => {
 
 router.get("/", authMiddleware, isAdmin, async (req, res) => {
   try {
-    const users = await User.find()
+    const users = await User.find({ deletedAt: null })
       .select("-passwordHash")
       .sort({ createdAt: -1 });
     res.json(users);
@@ -128,15 +129,24 @@ router.put("/:id/role", authMiddleware, isSuperAdmin, async (req, res) => {
       return res.status(400).json({ error: "Rol invalid" });
     }
 
+    const before = await User.findById(req.params.id).select("role");
+    if (!before) {
+      return res.status(404).json({ error: "Utilizator negasit" });
+    }
+
     const user = await User.findByIdAndUpdate(
       req.params.id,
       { role },
       { new: true }
     ).select("-passwordHash");
 
-    if (!user) {
-      return res.status(404).json({ error: "Utilizator negasit" });
-    }
+    await writeAudit({
+      action: "user.role-change",
+      req,
+      targetType: "user",
+      targetId: req.params.id,
+      meta: { from: before.role, to: role },
+    });
 
     res.json(user);
   } catch (error) {
@@ -177,13 +187,76 @@ router.delete("/:id", authMiddleware, isSuperAdmin, async (req, res) => {
       return res.status(404).json({ error: "Utilizator negasit" });
     }
 
-    await cleanupUserData(req.params.id);
+    // ?purge=true -> stergere DEFINITIVA (ireversibila, curata si datele asociate).
+    // Rara, dar tot auditata. Implicit facem soft-delete recuperabil.
+    if (req.query.purge === "true") {
+      await cleanupUserData(req.params.id);
+      await User.findByIdAndDelete(req.params.id);
+      await writeAudit({
+        action: "user.purge",
+        req,
+        targetType: "user",
+        targetId: req.params.id,
+        meta: { email: user.email },
+      });
+      return res.json({ message: "Utilizator și date asociate șterse definitiv" });
+    }
 
-    await User.findByIdAndDelete(req.params.id);
+    // soft-delete: taie accesul instant (tokenVersion++), ascunde si dezactiveaza
+    // contul, dar il pastreaza recuperabil (anti stergere ireversibila de un admin compromis).
+    user.deletedAt = new Date();
+    user.status.isActive = false;
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    await user.save();
 
-    res.json({ message: "Utilizator și date asociate șterse cu succes" });
+    await writeAudit({
+      action: "user.soft-delete",
+      req,
+      targetType: "user",
+      targetId: req.params.id,
+      meta: { email: user.email },
+    });
+
+    res.json({
+      message:
+        "Utilizator dezactivat (recuperabil). Pentru ștergere definitivă folosește ?purge=true.",
+    });
   } catch (error) {
     res.status(500).json({ error: "Eroare la ștergere" });
+  }
+});
+
+// Blocheaza / deblocheaza instant un cont abuziv (isBanned verificat la fiecare
+// cerere + socket). Ban -> tokenVersion++ deconecteaza sesiunile existente.
+router.patch("/:id/ban", authMiddleware, isSuperAdmin, async (req, res) => {
+  try {
+    if (req.params.id === req.user.id) {
+      return res.status(400).json({ error: "Nu te poți bloca pe tine" });
+    }
+
+    const { banned, reason } = req.body;
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: "Utilizator negasit" });
+    }
+
+    user.status.isBanned = !!banned;
+    user.status.bannedAt = banned ? new Date() : null;
+    user.status.bannedReason = banned ? String(reason || "").slice(0, 300) : "";
+    if (banned) user.tokenVersion = (user.tokenVersion || 0) + 1;
+    await user.save();
+
+    await writeAudit({
+      action: banned ? "user.ban" : "user.unban",
+      req,
+      targetType: "user",
+      targetId: req.params.id,
+      meta: { reason: reason || "" },
+    });
+
+    res.json({ id: user._id, isBanned: user.status.isBanned });
+  } catch (error) {
+    res.status(500).json({ error: "Eroare la blocare" });
   }
 });
 

@@ -12,17 +12,20 @@ const userSockets = new Map();
  */
 const setupMissionSockets = (io) => {
   io.on("connection", (socket) => {
-    // Când un user se conectează și se autentifică
+    // Când un user se conectează și se autentifică.
+    // Daca socketul are identitate din token (socket.data.user), folosim DOAR pe
+    // aceea -> nu te poti abona la notificarile altui user. Fallback pe userId din
+    // payload doar in mod soft / client vechi fara token.
     socket.on("mission:auth", ({ userId }) => {
-      if (userId) {
-        // Asociază socket-ul cu userId
-        socket.userId = userId;
-        userSockets.set(userId, socket.id);
-        
+      const effectiveId = socket.data.user?.id || userId;
+      if (effectiveId) {
+        socket.userId = effectiveId;
+        userSockets.set(effectiveId, socket.id);
+
         // Join la room-ul personal pentru mesaje directe
-        socket.join(`user:${userId}`);
-        
-        console.log(`Mission socket: User ${userId} connected`);
+        socket.join(`user:${effectiveId}`);
+
+        console.log(`Mission socket: User ${effectiveId} connected`);
       }
     });
 
