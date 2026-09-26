@@ -15,6 +15,7 @@ export const PrayerListDetail = ({
   isPublic,
   expired,
   canAdd,
+  canEditItems = true,
   fabColor = "#21c063",
   fabBottom = 28,
   currentUserId,
@@ -24,13 +25,16 @@ export const PrayerListDetail = ({
   onAnswerPrayer,
   onReload,
   onEnd,
+  emptyText,
 }) => {
   return (
     <View style={{ flex: 1 }}>
       <View style={styles.subHeader}>
-        <TouchableOpacity style={styles.subBack} onPress={onBack}>
-          <Ionicons name="chevron-back" size={26} color="#64748b" />
-        </TouchableOpacity>
+        {onBack && (
+          <TouchableOpacity style={styles.subBack} onPress={onBack}>
+            <Ionicons name="chevron-back" size={26} color="#64748b" />
+          </TouchableOpacity>
+        )}
         <Text style={styles.subTitle} numberOfLines={1}>{title}</Text>
       </View>
 
@@ -60,12 +64,12 @@ export const PrayerListDetail = ({
         renderItem={({ item }) => (
           <AnimatedPrayerCard
             prayer={item}
-            isOwner
+            isOwner={canEditItems}
             showPrayedButton={false}
             showPrayedCount={false}
             hideUserInfo
-            onMarkAnswered={() => onAnswerPrayer(item._id)}
-            onDelete={() => onDeletePrayer(item._id)}
+            onMarkAnswered={canEditItems ? () => onAnswerPrayer(item._id) : undefined}
+            onDelete={canEditItems ? () => onDeletePrayer(item._id) : undefined}
             tab="personal"
             currentUserId={currentUserId}
           />
@@ -75,7 +79,7 @@ export const PrayerListDetail = ({
           <View style={styles.empty}>
             <Ionicons name="leaf-outline" size={48} color="#94a3b8" />
             <Text style={styles.emptyText}>
-              {expired ? "Lista este inactivă" : "Niciun motiv încă"}
+              {expired ? "Lista este inactivă" : emptyText || "Niciun motiv încă"}
             </Text>
           </View>
         }

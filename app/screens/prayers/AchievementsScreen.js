@@ -78,50 +78,28 @@ export const AchievementsScreen = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Winstreak Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Record Personal</Text>
+            <Text style={styles.sectionTitle}>Realizările tale</Text>
           </View>
 
           <View style={styles.card}>
             <StatRow
-              emoji="⚡"
-              label="Current Streak"
-              value={stats?.currentWinstreak || 0}
+              emoji="📖"
+              label="Zile de devotional finalizate"
+              value={stats?.devotionalDaysCompleted || 0}
             />
             <View style={styles.divider} />
             <StatRow
-              emoji="👑"
-              label="Best Streak Ever"
-              value={stats?.bestWinstreak || 0}
-            />
-          </View>
-        </View>
-
-        {/* Prayer Stats Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Statistici</Text>
-          </View>
-
-          <View style={styles.card}>
-            <StatRow
-              emoji="📝"
-              label="Rugăciuni adăugate"
-              value={stats?.totalPrayersAdded || 0}
+              emoji="🔥"
+              label="Streak zile de activitate"
+              value={stats?.activityStreak || 0}
             />
             <View style={styles.divider} />
             <StatRow
               emoji="✅"
               label="Rugăciuni împlinite"
               value={stats?.totalPrayersAnswered || 0}
-            />
-            <View style={styles.divider} />
-            <StatRow
-              emoji="💚"
-              label="M-am rugat pentru alții"
-              value={stats?.totalPrayedForOthers || 0}
             />
           </View>
         </View>

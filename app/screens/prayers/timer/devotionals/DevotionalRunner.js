@@ -148,6 +148,9 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
           (p) => p.userId?._id?.toString() === user?._id?.toString() && !p.answered
         );
         setMotives(mine.map((p) => ({ id: p._id, text: p.text })));
+      } else if (pl?.kind === "church") {
+        const list = await api.get("/church-prayers");
+        setMotives((list || []).map((p) => ({ id: p._id, text: p.text })));
       } else if (pl?.kind === "private" && pl.boardId) {
         const res = await prayerBoardsApi.list();
         const board = (res.boards || []).find((b) => String(b._id) === String(pl.boardId));
@@ -242,6 +245,7 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
     await stopMusic();
     if (completed) {
       await clearProgress();
+      api.post("/stats/devotional-completed").catch(() => {});
       onComplete?.();
     } else {
       await saveProgress(devotional._id, indexRef.current, remainingRef.current);
@@ -326,6 +330,12 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
     </Animated.View>
   );
   const titleEl = <Text style={styles.runnerTitle}>{task.title}</Text>;
+  const actionNoteEl =
+    task.action?.required && task.action?.description ? (
+      <Text style={[styles.noteSoft, { textAlign: "center", marginHorizontal: 24 }]}>
+        {task.action.description}
+      </Text>
+    ) : null;
   const timerEl = <Text style={styles.runnerTimer}>{fmt(remaining)}</Text>;
   const controlsEl = (
     <View style={[styles.runnerControlsRow, { marginTop: 32 }]}>
@@ -365,6 +375,7 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
           <Text style={styles.runnerStep}>{index + 1} / {tasks.length}</Text>
           {iconEl}
           {titleEl}
+          {actionNoteEl}
           {timerEl}
           {controlsEl}
           {readyEl}

@@ -184,6 +184,7 @@ export const DevotionalScreen = () => {
         {current.view === "builder" && (
           <BuilderView
             initial={current.params?.initial}
+            devotionals={devotionals}
             canTemplate={canTemplate}
             onSaved={async () => {
               await loadDevotionals();

@@ -2,10 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
-  FlatList,
   TouchableOpacity,
-  RefreshControl,
-  LayoutAnimation,
   Platform,
   UIManager,
   Animated,
@@ -30,11 +27,10 @@ import {
   TiledBackground,
   NotificationBadge,
 } from "../../global/components";
-import { AnimatedPrayerCard } from "./AnimatedPrayerCard";
 import { AnalyzeTab } from "./AnalyzeTab";
 import { personalStyles as styles } from "./personalStyles";
-import { PrayerWinstreak } from "./PrayerWinstreak";
 import { PrayerListsView } from "./lists";
+import { ChurchListView } from "./ChurchListView";
 
 const FILTERS = [
   { key: "mine", label: "RUGACIUNI" },
@@ -139,7 +135,7 @@ const tabStyles = {
 
 export const PersonalPrayersTab = ({ onBack, navigation }) => {
   const { user } = useAuth();
-  const { isDarkMode, theme } = useTheme();
+  const { isDarkMode } = useTheme();
   const { counts, markAsSeen } = useNotifications();
   const { setLayer, clearLayer } = useTesting();
   const insets = useSafeAreaInsets();
@@ -162,12 +158,10 @@ export const PersonalPrayersTab = ({ onBack, navigation }) => {
     });
     return () => clearLayer();
   }, [setLayer, clearLayer]);
+
   const [prayers, setPrayers] = useState([]);
   const [filter, setFilter] = useState("all");
-  const [refreshing, setRefreshing] = useState(false);
-  const [hasInteracted, setHasInteracted] = useState(false);
 
-  // Memorează user ID pentru a detecta schimbări
   const currentUserId = user?._id;
 
   const loadPrayers = useCallback(async () => {
@@ -184,186 +178,27 @@ export const PersonalPrayersTab = ({ onBack, navigation }) => {
     }
   }, [currentUserId]);
 
-  // Reset complet al state-ului și reîncărcare când user-ul se schimbă
+  // Reset + reincarcare la schimbarea userului
   useEffect(() => {
-    // Reset state când user-ul se schimbă
     setPrayers([]);
     setFilter("all");
-    setHasInteracted(false);
-
-    // Încarcă datele pentru noul user
     if (currentUserId) {
       loadPrayers();
     }
   }, [currentUserId, loadPrayers]);
 
-  // Handler pentru schimbarea tab-ului
-  // Când navighezi la un tab NOU, marchează notificările acelui tab ca văzute
+  // La schimbarea tabului, marcheaza notificarile lui ca vazute
   const handleFilterChange = useCallback(
     (newFilter) => {
-      // Marchează notificările noului tab ca văzute (navigare = seen)
       if (newFilter === "mine") {
         markAsSeen("personal");
       } else if (newFilter === "all") {
         markAsSeen("church");
       }
       setFilter(newFilter);
-      setHasInteracted(false); // Reset pentru logica de interacțiune în tab
     },
     [markAsSeen]
   );
-
-  // Handler pentru orice interacțiune (scroll, click) pe tab-ul curent
-  // Folosit când userul stă pe un tab și primește notificări noi
-  const handleUserInteraction = useCallback(() => {
-    if (hasInteracted) return;
-    setHasInteracted(true);
-
-    // Marchează notificările ca văzute pentru tab-ul curent
-    if (filter === "mine") {
-      markAsSeen("personal");
-    } else if (filter === "all") {
-      markAsSeen("church");
-    }
-  }, [filter, hasInteracted, markAsSeen]);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadPrayers();
-    setRefreshing(false);
-  };
-
-  const handleMarkAnswered = async (id) => {
-    try {
-      await api.put(`/prayers/personal/${id}`, { answered: true });
-      loadPrayers();
-    } catch (e) {
-      showError("Eroare");
-    }
-  };
-  const handleDelete = async (id) => {
-    try {
-      await api.delete(`/prayers/personal/${id}`);
-      loadPrayers();
-    } catch (e) {
-      showError("Eroare");
-    }
-  };
-
-  const answeredPrayers = prayers.filter(
-    (p) => p.answered && p.userId?._id === user?._id
-  );
-
-  const [shatteringId, setShatteringId] = useState(null);
-
-  // Winstreak state
-  const [winstreakCount, setWinstreakCount] = useState(0);
-  const [showWinstreak, setShowWinstreak] = useState(false);
-  const winstreakTimerRef = useRef(null);
-  const WINSTREAK_TIMEOUT = 30 * 60 * 1000; // 30 minute
-
-  // Încarcă winstreak-ul din backend la mount
-  useEffect(() => {
-    const loadWinstreak = async () => {
-      try {
-        const stats = await api.get("/stats");
-        if (stats?.currentWinstreak > 0 && stats?.lastWinstreakUpdate) {
-          const lastUpdate = new Date(stats.lastWinstreakUpdate).getTime();
-          const now = Date.now();
-          const timePassed = now - lastUpdate;
-
-          // Dacă nu au trecut 30 minute, restaurăm winstreak-ul
-          if (timePassed < WINSTREAK_TIMEOUT) {
-            setWinstreakCount(stats.currentWinstreak);
-
-            // Setează timer pentru timpul rămas
-            const timeRemaining = WINSTREAK_TIMEOUT - timePassed;
-            winstreakTimerRef.current = setTimeout(() => {
-              setWinstreakCount(0);
-              setShowWinstreak(false);
-              api.post("/stats/reset-winstreak").catch(console.error);
-            }, timeRemaining);
-          } else {
-            // A trecut prea mult timp, resetăm
-            api.post("/stats/reset-winstreak").catch(console.error);
-          }
-        }
-      } catch (error) {
-        console.error("Error loading winstreak:", error);
-      }
-    };
-
-    if (currentUserId) {
-      loadWinstreak();
-    }
-
-    return () => {
-      if (winstreakTimerRef.current) {
-        clearTimeout(winstreakTimerRef.current);
-      }
-    };
-  }, [currentUserId]);
-
-  const handlePrayed = (prayerId) => {
-    setShatteringId(prayerId);
-
-    // Increment winstreak doar în tabul "all" (Biserica)
-    if (filter === "all") {
-      // Reset timer dacă există
-      if (winstreakTimerRef.current) {
-        clearTimeout(winstreakTimerRef.current);
-      }
-
-      const newCount = winstreakCount + 1;
-      setWinstreakCount(newCount);
-      setShowWinstreak(true);
-
-      // Salvează winstreak-ul în backend
-      api.post("/stats/winstreak", { count: newCount }).catch(console.error);
-
-      // Reset winstreak după 30 minute de inactivitate
-      winstreakTimerRef.current = setTimeout(() => {
-        setWinstreakCount(0);
-        setShowWinstreak(false);
-        // Reset și în backend
-        api.post("/stats/reset-winstreak").catch(console.error);
-      }, WINSTREAK_TIMEOUT);
-    }
-  };
-
-  const handleWinstreakHide = () => {
-    // Nu resetăm count-ul aici, doar vizibilitatea
-    // Count-ul se resetează prin timer
-  };
-
-  const handleShatterComplete = (prayerId) => {
-    LayoutAnimation.configureNext({
-      duration: 400,
-      update: { type: LayoutAnimation.Types.easeInEaseOut },
-    });
-    setPrayers((prev) =>
-      prev.map((p) => (p._id === prayerId ? { ...p, isHidden: true } : p))
-    );
-    setShatteringId(null);
-  };
-
-  const userIdString = currentUserId?.toString();
-
-  const filteredPrayers = prayers.filter((p) => {
-    const prayerOwnerId = p.userId?._id?.toString();
-    const isOwner = prayerOwnerId === userIdString;
-
-    switch (filter) {
-      case "mine":
-        return isOwner && !p.answered;
-      case "analyze":
-        return false;
-      case "all":
-        return !p.answered && !isOwner && !p.isHidden;
-      default:
-        return true;
-    }
-  });
 
   const visibleCount = prayers.filter((p) => !p.answered && !p.isHidden).length;
 
@@ -391,7 +226,6 @@ export const PersonalPrayersTab = ({ onBack, navigation }) => {
         ]}
       >
         {FILTERS.map((f) => {
-          // Mapează filtrul la categoria de notificări
           const notifCategory =
             f.key === "mine" ? "personal" : f.key === "all" ? "church" : "more";
           return (
@@ -408,50 +242,12 @@ export const PersonalPrayersTab = ({ onBack, navigation }) => {
       </View>
 
       {filter === "analyze" ? (
-        <AnalyzeTab answeredPrayers={answeredPrayers} navigation={navigation} />
+        <AnalyzeTab navigation={navigation} />
       ) : filter === "mine" ? (
         <PrayerListsView currentUserId={currentUserId} fabBottom={fabBottom} />
       ) : (
-        <FlatList
-          data={filteredPrayers}
-          keyExtractor={(item) => item._id}
-          renderItem={({ item }) => (
-            <AnimatedPrayerCard
-              prayer={item}
-              isOwner={item.userId?._id === user?._id}
-              showPrayedButton={filter === "all"}
-              showPrayedCount={filter === "mine"}
-              hideUserInfo={filter === "mine"}
-              onPrayed={handlePrayed}
-              onMarkAnswered={() => handleMarkAnswered(item._id)}
-              onDelete={() => handleDelete(item._id)}
-              isShatterring={shatteringId === item._id}
-              onShatterComplete={() => handleShatterComplete(item._id)}
-              tab={filter === "mine" ? "personal" : "church"}
-              currentUserId={currentUserId}
-            />
-          )}
-          contentContainerStyle={styles.list}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          onScrollBeginDrag={handleUserInteraction}
-          onTouchStart={handleUserInteraction}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyEmoji}>🙏</Text>
-              <Text style={styles.emptyText}>Nu sunt rugaciuni</Text>
-            </View>
-          }
-        />
+        <ChurchListView currentUserId={currentUserId} fabBottom={fabBottom} />
       )}
-
-      {/* Prayer Winstreak - apare doar în tabul Biserica */}
-      <PrayerWinstreak
-        count={winstreakCount}
-        visible={showWinstreak}
-        onHide={handleWinstreakHide}
-      />
     </TiledBackground>
   );
 };

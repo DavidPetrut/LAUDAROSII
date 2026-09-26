@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { DevotionalCard } from "./DevotionalCard";
@@ -13,6 +14,7 @@ const FULL_DAY = { 1: "Duminica", 2: "Luni", 3: "Marti", 4: "Miercuri", 5: "Joi"
  * stergere si acceptarea devotionalelor primite de la alti useri.
  */
 export const DevotionalsView = ({ onCreate, onChooseTemplate, onEdit, onShare, onChanged }) => {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
   const [shares, setShares] = useState([]);
@@ -90,71 +92,57 @@ export const DevotionalsView = ({ onCreate, onChooseTemplate, onEdit, onShare, o
   }
 
   return (
-    <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
-      {shares.length > 0 && (
-        <>
-          <Text style={styles.stepLabel}>Primite ({shares.length})</Text>
-          {shares.map((s) => (
-            <View key={s._id} style={styles.shareRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.devCardName} numberOfLines={1}>{s.snapshot?.name}</Text>
-                <Text style={styles.devCardMeta}>de la {s.fromUserName} · {s.snapshot?.tasks?.length || 0} momente</Text>
+    <View style={{ flex: 1 }}>
+      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+        {shares.length > 0 && (
+          <>
+            <Text style={styles.stepLabel}>Primite ({shares.length})</Text>
+            {shares.map((s) => (
+              <View key={s._id} style={styles.shareRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.devCardName} numberOfLines={1}>{s.snapshot?.name}</Text>
+                  <Text style={styles.devCardMeta}>de la {s.fromUserName} · {s.snapshot?.tasks?.length || 0} momente</Text>
+                </View>
+                <TouchableOpacity style={styles.shareAccept} onPress={() => acceptShare(s)}>
+                  <Text style={styles.shareAcceptText}>Acceptă</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.shareDecline} onPress={() => declineShare(s)}>
+                  <Ionicons name="close" size={18} color="#94a3b8" />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity style={styles.shareAccept} onPress={() => acceptShare(s)}>
-                <Text style={styles.shareAcceptText}>Acceptă</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.shareDecline} onPress={() => declineShare(s)}>
-                <Ionicons name="close" size={18} color="#94a3b8" />
-              </TouchableOpacity>
-            </View>
-          ))}
-        </>
-      )}
+            ))}
+          </>
+        )}
 
-      <View style={styles.listHeaderRow}>
-        <Text style={styles.stepLabel}>Devotionalele mele</Text>
-        <TouchableOpacity style={styles.newBtn} onPress={() => setNewMenu(true)}>
-          <Ionicons name="add" size={18} color="#fff" />
-          <Text style={styles.newBtnText}>Nou</Text>
-        </TouchableOpacity>
-      </View>
-
-      <Modal visible={newMenu} transparent animationType="fade" onRequestClose={() => setNewMenu(false)}>
-        <Pressable style={styles.menuBackdrop} onPress={() => setNewMenu(false)}>
-          <View style={styles.menuSheet}>
-            <TouchableOpacity style={styles.menuItem} onPress={() => { setNewMenu(false); onCreate(); }}>
-              <Ionicons name="create-outline" size={20} color="#e5e7eb" />
-              <Text style={styles.menuItemText}>Creeaza nou</Text>
-            </TouchableOpacity>
-            <View style={styles.menuDivider} />
-            <TouchableOpacity style={styles.menuItem} onPress={() => { setNewMenu(false); onChooseTemplate(); }}>
-              <Ionicons name="albums-outline" size={20} color="#10b981" />
-              <Text style={styles.menuItemText}>Alege template</Text>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Modal>
-
-      {items.length === 0 ? (
-        <View style={styles.emptyPersonal}>
-          <Text style={styles.introDesc}>
-            Nu ai încă niciun devotional. Creează unul ca să-ți structurezi timpul cu Dumnezeu.
-          </Text>
+        <View style={styles.listHeaderRow}>
+          <Text style={styles.stepLabel}>Devotionalele mele</Text>
+          <TouchableOpacity style={styles.newBtn} onPress={() => setNewMenu(true)}>
+            <Ionicons name="add" size={18} color="#fff" />
+            <Text style={styles.newBtnText}>Nou</Text>
+          </TouchableOpacity>
         </View>
-      ) : (
-        items.map((item) => (
-          <DevotionalCard
-            key={item._id}
-            item={item}
-            onPress={() => onEdit(item)}
-            onLongPress={() => setMenu(item)}
-          />
-        ))
-      )}
+
+        {items.length === 0 ? (
+          <View style={styles.emptyPersonal}>
+            <Text style={styles.introDesc}>
+              Nu ai încă niciun devotional. Creează unul ca să-ți structurezi timpul cu Dumnezeu.
+            </Text>
+          </View>
+        ) : (
+          items.map((item) => (
+            <DevotionalCard
+              key={item._id}
+              item={item}
+              onPress={() => onEdit(item)}
+              onLongPress={() => setMenu(item)}
+            />
+          ))
+        )}
+      </ScrollView>
 
       {items.length > 0 && (
-        <>
-          <Text style={[styles.stepLabel, { marginTop: 20 }]}>Program pe zile (1 devotional / zi)</Text>
+        <View style={[styles.daysDock, { paddingBottom: insets.bottom + 90 }]}>
+          <Text style={[styles.stepLabel, { marginTop: 0 }]}>Program pe zile (1 devotional / zi)</Text>
           <View style={styles.daysProgramRow}>
             {WD_ORDER.map((wd) => {
               const assigned = items.find((d) => (d.schedule?.weekdays || []).includes(wd));
@@ -175,8 +163,24 @@ export const DevotionalsView = ({ onCreate, onChooseTemplate, onEdit, onShare, o
               );
             })}
           </View>
-        </>
+        </View>
       )}
+
+      <Modal visible={newMenu} transparent animationType="fade" onRequestClose={() => setNewMenu(false)}>
+        <Pressable style={styles.menuBackdrop} onPress={() => setNewMenu(false)}>
+          <View style={styles.menuSheet}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setNewMenu(false); onCreate(); }}>
+              <Ionicons name="create-outline" size={20} color="#e5e7eb" />
+              <Text style={styles.menuItemText}>Creeaza nou</Text>
+            </TouchableOpacity>
+            <View style={styles.menuDivider} />
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setNewMenu(false); onChooseTemplate(); }}>
+              <Ionicons name="albums-outline" size={20} color="#10b981" />
+              <Text style={styles.menuItemText}>Alege template</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
 
       <Modal visible={dayPicker !== null} transparent animationType="fade" onRequestClose={() => setDayPicker(null)}>
         <Pressable style={styles.menuBackdrop} onPress={() => setDayPicker(null)}>
@@ -227,7 +231,7 @@ export const DevotionalsView = ({ onCreate, onChooseTemplate, onEdit, onShare, o
           </View>
         </Pressable>
       </Modal>
-    </ScrollView>
+    </View>
   );
 };
 

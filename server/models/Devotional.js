@@ -22,9 +22,14 @@ const taskSchema = new mongoose.Schema(
     // "private" = un PrayerBoard al userului (boardId), "prayroom" = o camera de
     // rugaciune a userului (roomId). Rezolvata la rulare.
     prayerList: {
-      kind: { type: String, enum: ["public", "private", "prayroom", null], default: null },
+      kind: { type: String, enum: ["public", "church", "private", "prayroom", null], default: null },
       boardId: { type: mongoose.Schema.Types.ObjectId, ref: "PrayerBoard", default: null },
       roomId: { type: mongoose.Schema.Types.ObjectId, ref: "PrayRoom", default: null },
+    },
+    // actiune/confirmare ceruta de creatorul unui template pentru acest moment
+    action: {
+      required: { type: Boolean, default: false },
+      description: { type: String, default: "", maxlength: 300 },
     },
   },
   { _id: true }

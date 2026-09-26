@@ -38,6 +38,11 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Semnaleaza serverului ca userul a fost activ azi (streak zilnic). Fire-and-forget.
+  const pingActivity = () => {
+    api.post("/stats/activity").catch(() => {});
+  };
+
   const checkDeepLink = () => {
     if (Platform.OS !== "web") return;
     const path = window.location.pathname;
@@ -68,6 +73,7 @@ export const AuthProvider = ({ children }) => {
         const userData = await api.get("/users/me");
         setUser(normalizeUser(userData));
         await refreshAccess();
+        pingActivity();
       }
     } catch (error) {
       await storage.deleteItem("authToken");
@@ -81,6 +87,7 @@ export const AuthProvider = ({ children }) => {
     await storage.setItem("authToken", response.token);
     setUser(normalizeUser(response.user));
     await refreshAccess();
+    pingActivity();
     return response;
   };
 
@@ -89,6 +96,7 @@ export const AuthProvider = ({ children }) => {
     await storage.setItem("authToken", response.token);
     setUser(normalizeUser(response.user));
     await refreshAccess();
+    pingActivity();
     return response;
   };
 

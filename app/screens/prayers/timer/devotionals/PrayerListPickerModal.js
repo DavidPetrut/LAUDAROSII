@@ -39,6 +39,7 @@ export const PrayerListPickerModal = ({ visible, selected, onSelect, onClose }) 
   }, [visible]);
 
   const isPublicSel = selected?.kind === "public";
+  const isChurchSel = selected?.kind === "church";
   const isBoardSel = (id) => selected?.kind === "private" && String(selected?.boardId) === String(id);
   const isRoomSel = (id) => selected?.kind === "prayroom" && String(selected?.roomId) === String(id);
 
@@ -53,6 +54,20 @@ export const PrayerListPickerModal = ({ visible, selected, onSelect, onClose }) 
             <ActivityIndicator color="#10b981" style={{ marginVertical: 24 }} />
           ) : (
             <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+              <Text style={styles.stepLabel}>Biserica</Text>
+              <TouchableOpacity
+                style={[styles.pickListRow, isChurchSel && styles.pickListRowActive]}
+                onPress={() => onSelect({ kind: "church", boardId: null, roomId: null })}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.pickListThumb, styles.pickListThumbEmpty]}>
+                  <Ionicons name="business" size={18} color="#94a3b8" />
+                </View>
+                <Text style={styles.pickListName} numberOfLines={1}>Rugăciunile bisericii</Text>
+                {isChurchSel && <Ionicons name="checkmark-circle" size={22} color="#10b981" />}
+              </TouchableOpacity>
+
+              <Text style={styles.stepLabel}>Ale mele</Text>
               <TouchableOpacity
                 style={[styles.pickListRow, isPublicSel && styles.pickListRowActive]}
                 onPress={() => onSelect({ kind: "public", boardId: null, roomId: null })}

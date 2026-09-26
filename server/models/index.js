@@ -5,6 +5,7 @@ const Game = require("./Game");
 const Song = require("./Song");
 const PrayerList = require("./PrayerList");
 const PrayerBoard = require("./PrayerBoard");
+const ChurchPrayer = require("./ChurchPrayer");
 const PrayerProgram = require("./PrayerProgram");
 const DevotionalPlan = require("./DevotionalPlan");
 const Devotional = require("./Devotional");
@@ -32,6 +33,7 @@ module.exports = {
   Song,
   PrayerList,
   PrayerBoard,
+  ChurchPrayer,
   PrayerProgram,
   DevotionalPlan,
   Devotional,

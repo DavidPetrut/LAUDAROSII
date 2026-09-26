@@ -19,6 +19,7 @@ const safeColor = (c) => (HEX.test(String(c || "")) ? c : "#10b981");
  */
 const safePrayerList = (pl) => {
   if (pl?.kind === "public") return { kind: "public", boardId: null, roomId: null };
+  if (pl?.kind === "church") return { kind: "church", boardId: null, roomId: null };
   if (pl?.kind === "private" && OBJECT_ID.test(String(pl.boardId || "")))
     return { kind: "private", boardId: pl.boardId, roomId: null };
   if (pl?.kind === "prayroom" && OBJECT_ID.test(String(pl.roomId || "")))
@@ -63,6 +64,10 @@ const sanitizeDevotional = (body) => {
         category: t.music?.category === "lyrics" ? "lyrics" : "instrumental",
       },
       prayerList: safePrayerList(t.prayerList),
+      action: {
+        required: !!t.action?.required,
+        description: safeStr(t.action?.description, 300),
+      },
     })),
     schedule: {
       weekdays: Array.isArray(body.schedule?.weekdays)
@@ -77,6 +82,31 @@ const sanitizeDevotional = (body) => {
       minute: Math.min(59, Math.max(0, parseInt(body.notification?.minute, 10) || 0)),
     },
   };
+};
+
+const DAY_NAME = { 1: "Duminică", 2: "Luni", 3: "Marți", 4: "Miercuri", 5: "Joi", 6: "Vineri", 7: "Sâmbătă" };
+
+/**
+ * Cauta zile deja ocupate de ALTE devotionale ale userului (1 devotional / zi).
+ * Intoarce lista de conflicte { wd, name } pentru zilele cerute.
+ */
+const findDayConflicts = async (ownerId, weekdays, excludeId) => {
+  if (!weekdays.length) return [];
+  const q = { ownerId, "schedule.weekdays": { $in: weekdays } };
+  if (excludeId) q._id = { $ne: excludeId };
+  const others = await Devotional.find(q).select("name schedule.weekdays");
+  const conflicts = [];
+  for (const wd of weekdays) {
+    const other = others.find((o) => (o.schedule?.weekdays || []).includes(wd));
+    if (other) conflicts.push({ wd, name: other.name });
+  }
+  return conflicts;
+};
+
+const conflictMessage = (conflicts) => {
+  const first = conflicts[0];
+  const extra = conflicts.length > 1 ? ` (+${conflicts.length - 1})` : "";
+  return `Ziua ${DAY_NAME[first.wd]} e deja ocupată de „${first.name}"${extra}. Alege altă zi sau eliber-o întâi.`;
 };
 
 const sameDay = (a, b) =>
@@ -134,6 +164,10 @@ router.post("/", authMiddleware, async (req, res) => {
     if (count >= 4) {
       return res.status(400).json({ error: "Poti avea maxim 4 devotionale" });
     }
+    const conflicts = await findDayConflicts(req.user.id, data.schedule.weekdays);
+    if (conflicts.length) {
+      return res.status(409).json({ error: conflictMessage(conflicts), conflicts });
+    }
     const devotional = await Devotional.create({
       ...data,
       ownerId: req.user.id,
@@ -178,6 +212,10 @@ router.put("/day/:wd", authMiddleware, async (req, res) => {
 router.patch("/:id", authMiddleware, async (req, res) => {
   try {
     const data = sanitizeDevotional(req.body);
+    const conflicts = await findDayConflicts(req.user.id, data.schedule.weekdays, req.params.id);
+    if (conflicts.length) {
+      return res.status(409).json({ error: conflictMessage(conflicts), conflicts });
+    }
     const devotional = await Devotional.findOneAndUpdate(
       { _id: req.params.id, ownerId: req.user.id },
       { $set: data },

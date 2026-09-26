@@ -37,10 +37,34 @@ const sanitizeTask = (t) => {
     chooseMusic: !!t.chooseMusic,
     prayerList: chooseList
       ? { kind: null, boardId: null, roomId: null }
-      : { kind: kind === "public" ? "public" : null, boardId: null, roomId: null },
+      : {
+          kind: kind === "public" ? "public" : kind === "church" ? "church" : null,
+          boardId: null,
+          roomId: null,
+        },
     chooseList,
+    action: {
+      required: !!t.action?.required,
+      description: safeStr(t.action?.description, 300),
+    },
   };
 };
+
+// Zilele recomandate + repetare, curatate (1..7, fara duplicate)
+const sanitizeSchedule = (s) => ({
+  weekdays: Array.isArray(s?.weekdays)
+    ? [...new Set(s.weekdays.map(Number).filter((n) => n >= 1 && n <= 7))]
+    : [],
+  repeatWeekly: s?.repeatWeekly !== false,
+});
+
+// Notificarea recomandata de creator, curatata
+const sanitizeNotification = (n) => ({
+  enabled: !!n?.enabled,
+  message: safeStr(n?.message, 160),
+  hour: Math.min(23, Math.max(0, parseInt(n?.hour, 10) || 8)),
+  minute: Math.min(59, Math.max(0, parseInt(n?.minute, 10) || 0)),
+});
 
 const browseFields = (t) => ({
   _id: t._id,
@@ -93,6 +117,8 @@ router.post("/", authMiddleware, requireAccess("templates.manage"), async (req, 
       color: safeColor(b.color),
       image: safeImage(b.image),
       tasks,
+      schedule: sanitizeSchedule(b.schedule),
+      notification: sanitizeNotification(b.notification),
       createdBy: req.user.id,
       createdByName: me?.personalData?.fullName || "",
     });

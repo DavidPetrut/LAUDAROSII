@@ -26,6 +26,7 @@ const CAPABILITIES = [
   { key: "templates.manage", type: "feature", group: "Continut", label: "Template-uri devotional", desc: "Creeaza si sterge template-uri de devotional pentru toti userii" },
 
   { key: "games.manage", type: "feature", group: "Comunitate", label: "Jocuri", desc: "Sterge scoruri / jocuri" },
+  { key: "church_prayers.manage", type: "feature", group: "Comunitate", label: "Motive de rugaciune (biserica)", desc: "Adauga si sterge motive in lista de rugaciune a bisericii" },
 
   { key: "users.view", type: "feature", group: "Utilizatori", label: "Vizualizare utilizatori", desc: "Vede lista de utilizatori si detaliile lor" },
 

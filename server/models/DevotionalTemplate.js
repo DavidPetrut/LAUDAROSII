@@ -20,11 +20,16 @@ const templateTaskSchema = new mongoose.Schema(
     },
     chooseMusic: { type: Boolean, default: false },
     prayerList: {
-      kind: { type: String, enum: ["public", "private", "prayroom", null], default: null },
+      kind: { type: String, enum: ["public", "church", "private", "prayroom", null], default: null },
       boardId: { type: mongoose.Schema.Types.ObjectId, ref: "PrayerBoard", default: null },
       roomId: { type: mongoose.Schema.Types.ObjectId, ref: "PrayRoom", default: null },
     },
     chooseList: { type: Boolean, default: false },
+    // actiune/confirmare pe care creatorul o cere userului la import
+    action: {
+      required: { type: Boolean, default: false },
+      description: { type: String, default: "", maxlength: 300 },
+    },
   },
   { _id: true }
 );
@@ -36,6 +41,18 @@ const devotionalTemplateSchema = new mongoose.Schema({
   color: { type: String, default: "#10b981" },
   image: { type: String, default: "" },
   tasks: { type: [templateTaskSchema], default: [] },
+  // zile recomandate de creator + repetare (importatorul le poate accepta/modifica)
+  schedule: {
+    weekdays: { type: [Number], default: [] },
+    repeatWeekly: { type: Boolean, default: true },
+  },
+  // notificare recomandata de creator (importatorul o poate personaliza/scoate)
+  notification: {
+    enabled: { type: Boolean, default: false },
+    message: { type: String, default: "", maxlength: 160 },
+    hour: { type: Number, default: 8, min: 0, max: 23 },
+    minute: { type: Number, default: 0, min: 0, max: 59 },
+  },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
   createdByName: { type: String, default: "" },
   createdAt: { type: Date, default: Date.now },

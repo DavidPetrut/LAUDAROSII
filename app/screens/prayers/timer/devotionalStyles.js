@@ -113,6 +113,23 @@ export const devotionalStyles = StyleSheet.create({
   sheetTitle: { ...typography.h3, color: TEXT, marginBottom: spacing.sm },
   taskEditRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   taskColorBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: "rgba(255,255,255,0.3)" },
+  taskIconBtn: { width: 40, height: 40, borderRadius: borderRadius.md, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  taskGearBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: SURF, borderWidth: 1, borderColor: BORDER },
+  taskGearBtnActive: { backgroundColor: ACCENT + "22", borderColor: ACCENT },
+  sheetScroll: { maxHeight: "80%" },
+
+  // ---- Dock zile (Program pe zile fixat jos) ----
+  daysDock: { borderTopWidth: 1, borderColor: BORDER, backgroundColor: "rgba(10,12,18,0.9)", paddingHorizontal: spacing.md, paddingTop: spacing.sm },
+
+  // ---- Wizard import (pasi in bara de sus) ----
+  wizardSteps: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, marginTop: spacing.md, marginBottom: spacing.sm, flexWrap: "wrap" },
+  wizardDot: { width: 26, height: 26, borderRadius: 13, backgroundColor: SURF, borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center" },
+  wizardDotActive: { backgroundColor: ACCENT, borderColor: ACCENT },
+  wizardDotDone: { backgroundColor: ACCENT + "55", borderColor: ACCENT },
+  wizardDotText: { ...typography.caption, color: DIM, fontWeight: "700", fontSize: 12 },
+  wizardDotTextActive: { color: "#fff" },
+  wizardConn: { width: 14, height: 2, backgroundColor: BORDER },
+  wizardConnDone: { backgroundColor: ACCENT },
 
   // ---- Icon picker ----
   pickerContainer: { flex: 1, backgroundColor: "#0f0d0d", paddingTop: spacing.xxl },

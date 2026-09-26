@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, Modal, Pressable, ScrollView, Switch } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { DevotionalIcon } from "./DevotionalIcon";
@@ -20,8 +21,9 @@ const SUGGESTIONS = [
 ];
 
 /**
- * Editor pentru un moment: titlu, iconita, culoare proprie si durata. La adaugarea
- * unui moment nou ofera si sugestii gata facute (populeaza campurile la apasare).
+ * Editor pentru un moment: titlu, iconita, culoare proprie si durata. Optiunile
+ * avansate (muzica, optiuni de template) stau sub un buton de setari, ca randul
+ * principal sa ramana mereu vizibil. La adaugare ofera si sugestii gata facute.
  */
 export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", templateMode = false, onSave, onClose }) => {
   const insets = useSafeAreaInsets();
@@ -32,6 +34,9 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", templ
   const [music, setMusic] = useState({ enabled: false, category: "instrumental" });
   const [chooseMusic, setChooseMusic] = useState(false);
   const [chooseList, setChooseList] = useState(false);
+  const [actionRequired, setActionRequired] = useState(false);
+  const [actionDescription, setActionDescription] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [picker, setPicker] = useState(false);
   const [colorPicker, setColorPicker] = useState(false);
   const [durationPrompt, setDurationPrompt] = useState(false);
@@ -45,6 +50,9 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", templ
       setMusic(initial?.music || { enabled: false, category: "instrumental" });
       setChooseMusic(!!initial?.chooseMusic);
       setChooseList(!!initial?.chooseList);
+      setActionRequired(!!initial?.action?.required);
+      setActionDescription(initial?.action?.description || "");
+      setShowAdvanced(false);
     }
   }, [visible, initial, baseColor]);
 
@@ -56,7 +64,17 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", templ
 
   const save = () => {
     if (!title.trim()) return;
-    onSave({ title: title.trim(), icon: icon.name, iconSet: icon.set, color, durationMin, music, chooseMusic, chooseList });
+    onSave({
+      title: title.trim(),
+      icon: icon.name,
+      iconSet: icon.set,
+      color,
+      durationMin,
+      music,
+      chooseMusic,
+      chooseList,
+      action: { required: actionRequired, description: actionDescription.trim() },
+    });
   };
 
   return (
@@ -82,15 +100,21 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", templ
               maxLength={60}
             />
             <TouchableOpacity
+              style={[styles.taskGearBtn, showAdvanced && styles.taskGearBtnActive]}
+              onPress={() => setShowAdvanced((v) => !v)}
+            >
+              <Ionicons name="settings-outline" size={18} color={showAdvanced ? color : "rgba(229,231,235,0.7)"} />
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.taskColorBtn, { backgroundColor: color }]}
               onPress={() => setColorPicker(true)}
             />
           </View>
 
-          {!initial && (
-            <>
-              <Text style={styles.stepLabel}>Momente rapide</Text>
-              <ScrollView style={styles.suggestList} keyboardShouldPersistTaps="handled">
+          <ScrollView style={styles.sheetScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            {!initial && (
+              <>
+                <Text style={styles.stepLabel}>Momente rapide</Text>
                 {SUGGESTIONS.map((s) => (
                   <TouchableOpacity key={s.title} style={styles.suggestRow} onPress={() => applySuggestion(s)} activeOpacity={0.8}>
                     <View style={[styles.suggestIcon, { backgroundColor: baseColor + "22" }]}>
@@ -102,79 +126,101 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", templ
                     </View>
                   </TouchableOpacity>
                 ))}
-              </ScrollView>
-            </>
-          )}
+              </>
+            )}
 
-          <Text style={styles.stepLabel}>Durată</Text>
-          <View style={styles.chipsRow}>
-            {DURATIONS.map((d) => (
+            <Text style={styles.stepLabel}>Durată</Text>
+            <View style={styles.chipsRow}>
+              {DURATIONS.map((d) => (
+                <TouchableOpacity
+                  key={d}
+                  style={[styles.chip, durationMin === d && styles.chipActive]}
+                  onPress={() => setDurationMin(d)}
+                >
+                  <Text style={[styles.chipText, durationMin === d && styles.chipTextActive]}>{d} min</Text>
+                </TouchableOpacity>
+              ))}
               <TouchableOpacity
-                key={d}
-                style={[styles.chip, durationMin === d && styles.chipActive]}
-                onPress={() => setDurationMin(d)}
+                style={[styles.chip, !DURATIONS.includes(durationMin) && styles.chipActive]}
+                onPress={() => setDurationPrompt(true)}
               >
-                <Text style={[styles.chipText, durationMin === d && styles.chipTextActive]}>{d} min</Text>
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity
-              style={[styles.chip, !DURATIONS.includes(durationMin) && styles.chipActive]}
-              onPress={() => setDurationPrompt(true)}
-            >
-              <Text style={[styles.chipText, !DURATIONS.includes(durationMin) && styles.chipTextActive]}>
-                {DURATIONS.includes(durationMin) ? "custom" : `${durationMin} min`}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.repeatRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.repeatTitle}>Adaugă muzică</Text>
-              <Text style={styles.repeatDesc}>Redată în timpul acestui moment</Text>
-            </View>
-            <Switch
-              value={music.enabled}
-              onValueChange={(v) => setMusic((m) => ({ ...m, enabled: v }))}
-              trackColor={{ true: color, false: "rgba(255,255,255,0.2)" }}
-              thumbColor="#fff"
-            />
-          </View>
-          {music.enabled && (
-            <View style={[styles.optRow, { marginTop: 8 }]}>
-              <TouchableOpacity
-                style={[styles.optCard, music.category === "instrumental" && styles.optCardActive]}
-                onPress={() => setMusic((m) => ({ ...m, category: "instrumental" }))}
-              >
-                <Text style={[styles.optCardText, music.category === "instrumental" && styles.optCardTextActive]}>Instrumental</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.optCard, music.category === "lyrics" && styles.optCardActive]}
-                onPress={() => setMusic((m) => ({ ...m, category: "lyrics" }))}
-              >
-                <Text style={[styles.optCardText, music.category === "lyrics" && styles.optCardTextActive]}>Cu versuri</Text>
+                <Text style={[styles.chipText, !DURATIONS.includes(durationMin) && styles.chipTextActive]}>
+                  {DURATIONS.includes(durationMin) ? "custom" : `${durationMin} min`}
+                </Text>
               </TouchableOpacity>
             </View>
-          )}
 
-          {templateMode && (
-            <>
-              <Text style={styles.stepLabel}>Template</Text>
-              <View style={styles.repeatRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.repeatTitle}>Userul alege muzica</Text>
-                  <Text style={styles.repeatDesc}>La import, userul isi alege muzica</Text>
+            {showAdvanced && (
+              <>
+                <View style={styles.repeatRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.repeatTitle}>Adaugă muzică</Text>
+                    <Text style={styles.repeatDesc}>Redată în timpul acestui moment</Text>
+                  </View>
+                  <Switch
+                    value={music.enabled}
+                    onValueChange={(v) => setMusic((m) => ({ ...m, enabled: v }))}
+                    trackColor={{ true: color, false: "rgba(255,255,255,0.2)" }}
+                    thumbColor="#fff"
+                  />
                 </View>
-                <Switch value={chooseMusic} onValueChange={setChooseMusic} trackColor={{ true: color, false: "rgba(255,255,255,0.2)" }} thumbColor="#fff" />
-              </View>
-              <View style={styles.repeatRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.repeatTitle}>Userul alege lista</Text>
-                  <Text style={styles.repeatDesc}>La import, userul isi alege lista de rugaciuni</Text>
-                </View>
-                <Switch value={chooseList} onValueChange={setChooseList} trackColor={{ true: color, false: "rgba(255,255,255,0.2)" }} thumbColor="#fff" />
-              </View>
-            </>
-          )}
+                {music.enabled && (
+                  <View style={[styles.optRow, { marginTop: 8 }]}>
+                    <TouchableOpacity
+                      style={[styles.optCard, music.category === "instrumental" && styles.optCardActive]}
+                      onPress={() => setMusic((m) => ({ ...m, category: "instrumental" }))}
+                    >
+                      <Text style={[styles.optCardText, music.category === "instrumental" && styles.optCardTextActive]}>Instrumental</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.optCard, music.category === "lyrics" && styles.optCardActive]}
+                      onPress={() => setMusic((m) => ({ ...m, category: "lyrics" }))}
+                    >
+                      <Text style={[styles.optCardText, music.category === "lyrics" && styles.optCardTextActive]}>Cu versuri</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {templateMode && (
+                  <>
+                    <Text style={styles.stepLabel}>Template</Text>
+                    <View style={styles.repeatRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.repeatTitle}>Userul alege muzica</Text>
+                        <Text style={styles.repeatDesc}>La import, userul isi alege muzica</Text>
+                      </View>
+                      <Switch value={chooseMusic} onValueChange={setChooseMusic} trackColor={{ true: color, false: "rgba(255,255,255,0.2)" }} thumbColor="#fff" />
+                    </View>
+                    <View style={styles.repeatRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.repeatTitle}>Userul alege lista</Text>
+                        <Text style={styles.repeatDesc}>La import, userul isi alege lista de rugaciuni</Text>
+                      </View>
+                      <Switch value={chooseList} onValueChange={setChooseList} trackColor={{ true: color, false: "rgba(255,255,255,0.2)" }} thumbColor="#fff" />
+                    </View>
+                    <View style={styles.repeatRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.repeatTitle}>Necesită confirmare</Text>
+                        <Text style={styles.repeatDesc}>La import, userul confirmă acest moment (da/nu)</Text>
+                      </View>
+                      <Switch value={actionRequired} onValueChange={setActionRequired} trackColor={{ true: color, false: "rgba(255,255,255,0.2)" }} thumbColor="#fff" />
+                    </View>
+                    {actionRequired && (
+                      <TextInput
+                        style={[styles.inputBox, styles.inputMultiline, { marginTop: 4 }]}
+                        value={actionDescription}
+                        onChangeText={setActionDescription}
+                        placeholder="Descrie de ce e importantă acțiunea acestui moment"
+                        placeholderTextColor="rgba(229,231,235,0.4)"
+                        multiline
+                        maxLength={300}
+                      />
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </ScrollView>
 
           <TouchableOpacity
             style={[styles.startBtn, !title.trim() && styles.startBtnDisabled]}

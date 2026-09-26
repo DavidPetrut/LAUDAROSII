@@ -11,6 +11,7 @@ const {
   usersRoutes,
   prayersRoutes,
   prayerBoardsRoutes,
+  churchPrayersRoutes,
   announcementsRoutes,
   coursesRoutes,
   gamesRoutes,
@@ -72,6 +73,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/prayers", prayersRoutes);
 app.use("/api/prayer-boards", prayerBoardsRoutes);
+app.use("/api/church-prayers", churchPrayersRoutes);
 app.use("/api/announcements", announcementsRoutes);
 app.use("/api/courses", coursesRoutes);
 app.use("/api/games", gamesRoutes);

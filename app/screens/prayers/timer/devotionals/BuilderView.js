@@ -24,7 +24,7 @@ const DAYS = [
  * Ecran de construire/editare devotional: imagine + nume, culoare de accent,
  * momente ca timeline vertical si programul (zile + repetabil) la final.
  */
-export const BuilderView = ({ initial, canTemplate, onSaveTemplate, onSaved, onCancel }) => {
+export const BuilderView = ({ initial, devotionals = [], canTemplate, onSaveTemplate, onSaved, onCancel }) => {
   const [name, setName] = useState(initial?.name || "");
   const [image, setImage] = useState(initial?.image || "");
   const color = initial?.color || "#10b981";
@@ -41,8 +41,23 @@ export const BuilderView = ({ initial, canTemplate, onSaveTemplate, onSaved, onC
   const [error, setError] = useState("");
   const [showMissing, setShowMissing] = useState(false);
 
-  const toggleDay = (wd) =>
+  // Zile ocupate de ALTE devotionale (1 devotional / zi)
+  const occupiedBy = {};
+  devotionals.forEach((d) => {
+    if (initial && String(d._id) === String(initial._id)) return;
+    (d.schedule?.weekdays || []).forEach((wd) => {
+      if (!occupiedBy[wd]) occupiedBy[wd] = d.name;
+    });
+  });
+
+  const toggleDay = (wd) => {
+    if (occupiedBy[wd] && !weekdays.includes(wd)) {
+      setError(`Ziua e deja ocupată de „${occupiedBy[wd]}". Eliber-o întâi din acel devotional.`);
+      return;
+    }
+    setError("");
     setWeekdays((prev) => (prev.includes(wd) ? prev.filter((x) => x !== wd) : [...prev, wd]));
+  };
 
   const removeTask = (i) => setTasks((prev) => prev.filter((_, idx) => idx !== i));
 
@@ -94,6 +109,8 @@ export const BuilderView = ({ initial, canTemplate, onSaveTemplate, onSaved, onC
       icon: initial?.icon || "book-outline",
       iconSet: initial?.iconSet || "ionicons",
       tasks,
+      schedule: { weekdays, repeatWeekly },
+      notification,
     });
   };
 
@@ -137,15 +154,24 @@ export const BuilderView = ({ initial, canTemplate, onSaveTemplate, onSaved, onC
 
       <Text style={styles.stepLabel}>Zile</Text>
       <View style={styles.daysRow}>
-        {DAYS.map((d) => (
-          <TouchableOpacity
-            key={d.wd}
-            style={[styles.dayChip, weekdays.includes(d.wd) && { backgroundColor: color, borderColor: color }]}
-            onPress={() => toggleDay(d.wd)}
-          >
-            <Text style={[styles.chipText, weekdays.includes(d.wd) && styles.chipTextActive]}>{d.label}</Text>
-          </TouchableOpacity>
-        ))}
+        {DAYS.map((d) => {
+          const selected = weekdays.includes(d.wd);
+          const occupied = !!occupiedBy[d.wd] && !selected;
+          return (
+            <TouchableOpacity
+              key={d.wd}
+              style={[
+                styles.dayChip,
+                selected && { backgroundColor: color, borderColor: color },
+                occupied && { opacity: 0.4 },
+              ]}
+              onPress={() => toggleDay(d.wd)}
+            >
+              <Text style={[styles.chipText, selected && styles.chipTextActive]}>{d.label}</Text>
+              {occupied && <Ionicons name="lock-closed" size={10} color="#94a3b8" style={{ marginTop: 2 }} />}
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <View style={styles.repeatRow}>
