@@ -128,6 +128,61 @@ router.post("/login", authLimiter, async (req, res) => {
   }
 });
 
+// Schimba parola din ecranul de login: userul da email + parola actuala + parola noua.
+// Util pentru conturile create cu parola default (Test1234!) care isi pun parola lor.
+// La succes invalideaza sesiunile vechi (tokenVersion++) si face auto-login.
+router.post("/change-password", authLimiter, async (req, res) => {
+  try {
+    const { email, currentPassword, newPassword } = req.body || {};
+    if (!email || !currentPassword || !newPassword) {
+      return res.status(400).json({ error: "Toate câmpurile sunt obligatorii" });
+    }
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ error: "Parola nouă trebuie să aibă minim 6 caractere" });
+    }
+
+    const user = await User.findOne({ email: String(email).toLowerCase() });
+    if (!user || user.deletedAt) {
+      return res.status(400).json({ error: "Credențiale invalide" });
+    }
+    if (user.status?.isBanned) {
+      return res.status(403).json({ error: "Cont blocat" });
+    }
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isMatch) {
+      return res.status(400).json({ error: "Parola actuală e greșită" });
+    }
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ error: "Parola nouă trebuie să fie diferită" });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.passwordHash = await bcrypt.hash(newPassword, salt);
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    user.status.lastActiveDate = new Date();
+    await user.save();
+
+    const token = jwt.sign(
+      { id: user._id, role: user.role, tv: user.tokenVersion },
+      process.env.JWT_SECRET,
+      { expiresIn: "30d" }
+    );
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
+        role: user.role,
+        teamRoles: user.teamRoles,
+        personalData: user.personalData,
+        games: user.games,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Eroare la schimbarea parolei" });
+  }
+});
+
 // Verifica o invitatie si intoarce datele de pre-completare (ecranul de setare parola)
 router.get("/invite/:token", async (req, res) => {
   try {
