@@ -24,7 +24,7 @@ const DAYS = [
  * Ecran de construire/editare devotional: imagine + nume, culoare de accent,
  * momente ca timeline vertical si programul (zile + repetabil) la final.
  */
-export const BuilderView = ({ initial, onSaved, onCancel }) => {
+export const BuilderView = ({ initial, canTemplate, onSaveTemplate, onSaved, onCancel }) => {
   const [name, setName] = useState(initial?.name || "");
   const [image, setImage] = useState(initial?.image || "");
   const color = initial?.color || "#10b981";
@@ -80,6 +80,21 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
       return;
     }
     save();
+  };
+
+  const saveAsTemplate = () => {
+    if (!canSave) {
+      setShowMissing(true);
+      return;
+    }
+    onSaveTemplate?.({
+      name: name.trim(),
+      image,
+      color,
+      icon: initial?.icon || "book-outline",
+      iconSet: initial?.iconSet || "ionicons",
+      tasks,
+    });
   };
 
   const save = async () => {
@@ -187,6 +202,14 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
       >
         {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.startBtnText}>{initial ? "Salvează" : "Creează devotional"}</Text>}
       </TouchableOpacity>
+
+      {canTemplate && (
+        <TouchableOpacity style={[styles.bigBtn, styles.bigBtnGhost, { marginTop: 12 }]} onPress={saveAsTemplate} disabled={saving} activeOpacity={0.9}>
+          <Ionicons name="albums-outline" size={22} color="#10b981" />
+          <Text style={[styles.bigBtnText, { color: "#10b981" }]}>Creează template</Text>
+        </TouchableOpacity>
+      )}
+
       <TouchableOpacity style={styles.skipBtn} onPress={onCancel}>
         <Text style={styles.skipBtnText}>Anulează</Text>
       </TouchableOpacity>
@@ -195,6 +218,7 @@ export const BuilderView = ({ initial, onSaved, onCancel }) => {
         visible={taskEditor.open}
         initial={taskEditor.index !== null ? tasks[taskEditor.index] : null}
         baseColor={color}
+        templateMode={canTemplate}
         onSave={saveTask}
         onClose={() => setTaskEditor({ open: false, index: null })}
       />

@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { DevotionalIcon } from "./DevotionalIcon";
 import { resolveImage } from "./devotionalImages";
+import { daysBadge } from "./weekdays";
 
 /**
  * Card pentru un devotional din lista. Cu imagine: imaginea e fundal full-container
@@ -12,21 +13,24 @@ import { resolveImage } from "./devotionalImages";
  */
 export const DevotionalCard = ({ item, onPress, onLongPress }) => {
   const source = resolveImage(item.image);
+  const days = daysBadge(item.schedule?.weekdays);
+  const highlight = days.length > 0 || item.isDefault;
+  const badgeText = days.length > 0 ? days.join(" ") : item.isDefault ? "Activ" : "";
 
   if (source) {
     return (
       <TouchableOpacity
-        style={[styles.devImageCard, item.isDefault && styles.devCardDefault]}
+        style={[styles.devImageCard, highlight && styles.devCardDefault]}
         onPress={onPress}
         onLongPress={onLongPress}
         delayLongPress={280}
         activeOpacity={0.85}
       >
         <ImageBackground source={source} style={styles.devImageBg} imageStyle={styles.headerImageRadius}>
-          {item.isDefault && (
+          {!!badgeText && (
             <View style={styles.devImageBadge}>
-              <Ionicons name="checkmark-circle" size={14} color="#10b981" />
-              <Text style={styles.defaultBadgeText}>Activ</Text>
+              <Ionicons name="calendar" size={13} color="#10b981" />
+              <Text style={styles.defaultBadgeText}>{badgeText}</Text>
             </View>
           )}
           <View style={styles.devImageBar}>
@@ -42,7 +46,7 @@ export const DevotionalCard = ({ item, onPress, onLongPress }) => {
 
   return (
     <TouchableOpacity
-      style={[styles.devCard, item.isDefault && styles.devCardDefault]}
+      style={[styles.devCard, highlight && styles.devCardDefault]}
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={280}
@@ -57,10 +61,10 @@ export const DevotionalCard = ({ item, onPress, onLongPress }) => {
           {item.tasks?.length || 0} momente{item.dueToday ? " · azi" : ""}
         </Text>
       </View>
-      {item.isDefault && (
+      {!!badgeText && (
         <View style={styles.defaultBadge}>
-          <Ionicons name="checkmark-circle" size={14} color="#10b981" />
-          <Text style={styles.defaultBadgeText}>Activ</Text>
+          <Ionicons name="calendar" size={13} color="#10b981" />
+          <Text style={styles.defaultBadgeText}>{badgeText}</Text>
         </View>
       )}
     </TouchableOpacity>

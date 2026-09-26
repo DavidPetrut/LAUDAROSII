@@ -23,13 +23,15 @@ const SUGGESTIONS = [
  * Editor pentru un moment: titlu, iconita, culoare proprie si durata. La adaugarea
  * unui moment nou ofera si sugestii gata facute (populeaza campurile la apasare).
  */
-export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", onSave, onClose }) => {
+export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", templateMode = false, onSave, onClose }) => {
   const insets = useSafeAreaInsets();
   const [title, setTitle] = useState("");
   const [icon, setIcon] = useState({ set: "ionicons", name: "flower-outline" });
   const [color, setColor] = useState(baseColor);
   const [durationMin, setDurationMin] = useState(10);
   const [music, setMusic] = useState({ enabled: false, category: "instrumental" });
+  const [chooseMusic, setChooseMusic] = useState(false);
+  const [chooseList, setChooseList] = useState(false);
   const [picker, setPicker] = useState(false);
   const [colorPicker, setColorPicker] = useState(false);
   const [durationPrompt, setDurationPrompt] = useState(false);
@@ -41,6 +43,8 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", onSav
       setColor(initial?.color || baseColor);
       setDurationMin(initial?.durationMin || 10);
       setMusic(initial?.music || { enabled: false, category: "instrumental" });
+      setChooseMusic(!!initial?.chooseMusic);
+      setChooseList(!!initial?.chooseList);
     }
   }, [visible, initial, baseColor]);
 
@@ -52,7 +56,7 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", onSav
 
   const save = () => {
     if (!title.trim()) return;
-    onSave({ title: title.trim(), icon: icon.name, iconSet: icon.set, color, durationMin, music });
+    onSave({ title: title.trim(), icon: icon.name, iconSet: icon.set, color, durationMin, music, chooseMusic, chooseList });
   };
 
   return (
@@ -150,6 +154,26 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", onSav
                 <Text style={[styles.optCardText, music.category === "lyrics" && styles.optCardTextActive]}>Cu versuri</Text>
               </TouchableOpacity>
             </View>
+          )}
+
+          {templateMode && (
+            <>
+              <Text style={styles.stepLabel}>Template</Text>
+              <View style={styles.repeatRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.repeatTitle}>Userul alege muzica</Text>
+                  <Text style={styles.repeatDesc}>La import, userul isi alege muzica</Text>
+                </View>
+                <Switch value={chooseMusic} onValueChange={setChooseMusic} trackColor={{ true: color, false: "rgba(255,255,255,0.2)" }} thumbColor="#fff" />
+              </View>
+              <View style={styles.repeatRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.repeatTitle}>Userul alege lista</Text>
+                  <Text style={styles.repeatDesc}>La import, userul isi alege lista de rugaciuni</Text>
+                </View>
+                <Switch value={chooseList} onValueChange={setChooseList} trackColor={{ true: color, false: "rgba(255,255,255,0.2)" }} thumbColor="#fff" />
+              </View>
+            </>
           )}
 
           <TouchableOpacity

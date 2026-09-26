@@ -9,6 +9,7 @@ import { PlayerControls } from "../session/PlayerControls";
 import { DevotionalIcon } from "./DevotionalIcon";
 import { useImmersive, useAuth } from "../../../../global/context";
 import { api } from "../../../../global/functions";
+import { loadFocusConfig, activateFocus, deactivateFocus } from "../../../../global/services";
 import { prayerBoardsApi } from "../../lists/prayerBoardsApi";
 import { useHorizontalSwipe } from "../useHorizontalSwipe";
 import { useExitConfirm } from "../useExitConfirm";
@@ -82,6 +83,7 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
   useEffect(() => {
     setImmersive(true);
     activeRef.current = true;
+    loadFocusConfig().then(activateFocus);
     if (Platform.OS !== "web") ScreenOrientation.unlockAsync().catch(() => {});
 
     Animated.loop(
@@ -105,6 +107,7 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
     return () => {
       setImmersive(false);
       activeRef.current = false;
+      deactivateFocus();
       if (tickRef.current) clearInterval(tickRef.current);
       stopMusic();
       if (Platform.OS !== "web") {

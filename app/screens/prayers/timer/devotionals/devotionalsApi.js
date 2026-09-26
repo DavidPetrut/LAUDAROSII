@@ -9,6 +9,7 @@ export const devotionalsApi = {
   update: (id, data) => api.patch(`/devotionals/${id}`, data),
   remove: (id) => api.delete(`/devotionals/${id}`),
   setDefault: (id) => api.post(`/devotionals/${id}/default`, {}),
+  assignDay: (wd, devotionalId) => api.put(`/devotionals/day/${wd}`, { devotionalId }),
   complete: (id) => api.post(`/devotionals/${id}/complete`, {}),
   share: (id, toUserId) => api.post(`/devotionals/${id}/share`, { toUserId }),
   incomingShares: () => api.get("/devotionals/shares/incoming"),

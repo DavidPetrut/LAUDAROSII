@@ -20,10 +20,12 @@ const TestBug = require("./TestBug");
 const TestConfig = require("./TestConfig");
 const AuditLog = require("./AuditLog");
 const RolePermission = require("./RolePermission");
+const DevotionalTemplate = require("./DevotionalTemplate");
 
 module.exports = {
   User,
   RolePermission,
+  DevotionalTemplate,
   Announcement,
   Course,
   Game,

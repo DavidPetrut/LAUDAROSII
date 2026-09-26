@@ -7,3 +7,6 @@ export { DevotionalIcon } from "./DevotionalIcon";
 export { IconPicker } from "./IconPicker";
 export { ColorSwatches } from "./ColorSwatches";
 export { devotionalsApi } from "./devotionalsApi";
+export { TemplatesView } from "./TemplatesView";
+export { TemplateImportView } from "./TemplateImportView";
+export { templatesApi } from "./templatesApi";

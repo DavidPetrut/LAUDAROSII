@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { colors } from "../../../../public/styles/global";
+import { FocusModeRow } from "./FocusModeRow";
 
 const ITEMS = [
   { key: "devotionals", icon: "book-outline", title: "Devotionalele mele", desc: "Creează, editează, partajează" },
@@ -26,6 +27,7 @@ export const PersonalHubView = ({ onNavigate }) => (
         <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
       </TouchableOpacity>
     ))}
+    <FocusModeRow />
   </ScrollView>
 );
 

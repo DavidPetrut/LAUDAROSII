@@ -20,3 +20,12 @@ export {
 } from "./notifications";
 
 export { navigateFromNotification } from "./notificationRouting";
+
+export {
+  loadFocusConfig,
+  saveFocusConfig,
+  getFocusConfig,
+  activateFocus,
+  deactivateFocus,
+  openSystemDnd,
+} from "./focusMode";

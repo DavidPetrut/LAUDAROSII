@@ -16,6 +16,7 @@ const missionsRoutes = require("./missions");
 const prayRoomsRoutes = require("./prayRooms");
 const testingRoutes = require("./testing");
 const accessRoutes = require("./access");
+const devotionalTemplatesRoutes = require("./devotionalTemplates");
 
 module.exports = {
   authRoutes,
@@ -36,4 +37,5 @@ module.exports = {
   prayRoomsRoutes,
   testingRoutes,
   accessRoutes,
+  devotionalTemplatesRoutes,
 };

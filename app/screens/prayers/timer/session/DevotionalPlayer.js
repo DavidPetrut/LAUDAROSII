@@ -10,6 +10,7 @@ import { useExitConfirm } from "../useExitConfirm";
 import { ExitConfirm } from "../ExitConfirm";
 import { SwipeToast } from "../SwipeToast";
 import { useImmersive } from "../../../../global/context";
+import { loadFocusConfig, activateFocus, deactivateFocus } from "../../../../global/services";
 
 const fmt = (total) => {
   const s = Math.max(0, total);
@@ -54,6 +55,7 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
 
   useEffect(() => {
     setImmersive(true);
+    loadFocusConfig().then(activateFocus);
     if (Platform.OS !== "web") {
       ScreenOrientation.unlockAsync().catch(() => {});
     }
@@ -71,6 +73,7 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
 
     return () => {
       setImmersive(false);
+      deactivateFocus();
       if (tickRef.current) clearInterval(tickRef.current);
       if (Platform.OS !== "web") {
         ScreenOrientation.lockAsync(

@@ -23,6 +23,7 @@ const CAPABILITIES = [
   { key: "courses.manage", type: "feature", group: "Continut", label: "Cursuri", desc: "Adauga, editeaza si sterge cursuri" },
   { key: "songs.manage", type: "feature", group: "Continut", label: "Cantari", desc: "Adauga, editeaza si sterge cantari" },
   { key: "prayer_programs.manage", type: "feature", group: "Continut", label: "Programe de rugaciune", desc: "Liste SIM/Tineret, predicatori, playlist" },
+  { key: "templates.manage", type: "feature", group: "Continut", label: "Template-uri devotional", desc: "Creeaza si sterge template-uri de devotional pentru toti userii" },
 
   { key: "games.manage", type: "feature", group: "Comunitate", label: "Jocuri", desc: "Sterge scoruri / jocuri" },
 

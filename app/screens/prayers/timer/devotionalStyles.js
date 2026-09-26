@@ -74,6 +74,25 @@ export const devotionalStyles = StyleSheet.create({
   bigBtnGhost: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: ACCENT },
   bigBtnDone: { backgroundColor: "rgba(16,185,129,0.12)" },
   bigBtnText: { ...typography.h3, color: "#fff", fontWeight: "800" },
+  instantBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs,
+    backgroundColor: "transparent", borderWidth: 1.5, borderColor: ACCENT,
+    paddingVertical: spacing.md, borderRadius: borderRadius.xl, marginTop: spacing.md,
+  },
+  instantBtnText: { ...typography.body, color: ACCENT, fontWeight: "800", letterSpacing: 0.3 },
+  noDevotionalCard: {
+    backgroundColor: SURF, borderRadius: borderRadius.lg, borderWidth: 1, borderColor: BORDER,
+    padding: spacing.lg, marginTop: spacing.lg,
+  },
+  noDevotionalText: { ...typography.bodySmall, color: DIM, textAlign: "center" },
+
+  // Program pe zile (footer)
+  daysProgramRow: { flexDirection: "row", justifyContent: "space-between", gap: 6, marginTop: spacing.sm },
+  dayProgramChip: { flex: 1, alignItems: "center", paddingVertical: spacing.sm, borderRadius: borderRadius.md, backgroundColor: SURF, borderWidth: 1, borderColor: BORDER, gap: 4 },
+  dayProgramChipActive: { backgroundColor: ACCENT, borderColor: ACCENT },
+  dayProgramLabel: { ...typography.caption, color: TEXT, fontWeight: "800" },
+  dayProgramEmpty: { ...typography.caption, color: FAINT, fontSize: 10 },
+  dayDot: { width: 8, height: 8, borderRadius: 4 },
 
   // ---- Meniu mic ----
   menuBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: spacing.xl },

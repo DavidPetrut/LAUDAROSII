@@ -2,12 +2,12 @@ import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader, TiledBackground } from "../../../global/components";
-import { useToast } from "../../../global/context";
+import { useToast, useAuth } from "../../../global/context";
 import { api } from "../../../global/functions";
 import { devotionalStyles as styles } from "./devotionalStyles";
-import { HomeView, PrayerSetupModal, randomQuote } from "./home";
+import { HomeView, PrayerSetupModal, getDailyQuote } from "./home";
 import { DevotionalPlayer } from "./session";
-import { DevotionalsView, BuilderView, ShareView, DevotionalRunner, devotionalsApi } from "./devotionals";
+import { DevotionalsView, BuilderView, ShareView, DevotionalRunner, devotionalsApi, TemplatesView, TemplateImportView, templatesApi } from "./devotionals";
 import { PersonalHubView, ProgressView } from "./personal";
 import { loadProgress } from "./devotionalProgress";
 import { pickTracks } from "./trackFilter";
@@ -21,6 +21,8 @@ const TITLES = {
   builder: "Devotional",
   share: "Distribuie",
   progress: "Progresul meu",
+  templates: "Template-uri",
+  templateImport: "Import template",
 };
 
 /**
@@ -29,12 +31,18 @@ const TITLES = {
  * Overlay-urile de sesiune (rugaciune / runner devotional) stau peste tot.
  */
 export const DevotionalScreen = () => {
-  const { showSuccess } = useToast();
+  const { showSuccess, showError } = useToast();
+  const { can } = useAuth();
+  const canTemplate = can("templates.manage", "edit");
   const [loading, setLoading] = useState(true);
   const [program, setProgram] = useState(null);
   const [devotionals, setDevotionals] = useState([]);
-  const [quote] = useState(() => randomQuote());
+  const [quote, setQuote] = useState({ text: "", author: "" });
   const [stack, setStack] = useState([{ view: "home" }]);
+
+  useEffect(() => {
+    getDailyQuote().then(setQuote);
+  }, []);
 
   const [prayerSetup, setPrayerSetup] = useState(false);
   const [prayerConfig, setPrayerConfig] = useState(null);
@@ -42,10 +50,12 @@ export const DevotionalScreen = () => {
   const [resume, setResume] = useState(null);
 
   const current = stack[stack.length - 1];
-  const defaultDevotional = devotionals.find((d) => d.isDefault) || devotionals[0] || null;
+  const pickToday = (list) =>
+    list.find((d) => d.dueToday) || list.find((d) => d.isDefault) || list[0] || null;
+  const todaysDevotional = pickToday(devotionals);
 
   const reloadResume = useCallback(async () => {
-    const dev = devotionals.find((d) => d.isDefault) || devotionals[0] || null;
+    const dev = pickToday(devotionals);
     setResume(dev ? await loadProgress(dev._id) : null);
   }, [devotionals]);
 
@@ -92,6 +102,16 @@ export const DevotionalScreen = () => {
     } catch (e) {}
   };
 
+  const saveTemplate = async (payload) => {
+    try {
+      await templatesApi.create(payload);
+      showSuccess("Template creat");
+      setStack([{ view: "home" }]);
+    } catch (e) {
+      showError?.(e.response?.data?.error || e.message || "Eroare la template");
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -123,12 +143,14 @@ export const DevotionalScreen = () => {
         {current.view === "home" && (
           <HomeView
             quote={quote}
-            defaultDevotional={defaultDevotional}
+            defaultDevotional={todaysDevotional}
+            hasAny={devotionals.length > 0}
             hasResume={!!resume}
             onToast={(m) => showSuccess(m)}
             onStartPrayer={() => setPrayerSetup(true)}
             onStartDevotional={(dev) => setRunning({ dev, resume })}
             onCreateDevotional={() => go("builder", { initial: null })}
+            onGoDevotionals={() => go("devotionals")}
           />
         )}
 
@@ -137,19 +159,37 @@ export const DevotionalScreen = () => {
         {current.view === "devotionals" && (
           <DevotionalsView
             onCreate={() => go("builder", { initial: null })}
+            onChooseTemplate={() => go("templates")}
             onEdit={(item) => go("builder", { initial: item })}
             onShare={(item) => go("share", { devotional: item })}
             onChanged={loadDevotionals}
           />
         )}
 
+        {current.view === "templates" && (
+          <TemplatesView onImport={(templateId) => go("templateImport", { templateId })} />
+        )}
+
+        {current.view === "templateImport" && (
+          <TemplateImportView
+            templateId={current.params.templateId}
+            onDone={async () => {
+              await loadDevotionals();
+              setStack([{ view: "home" }]);
+            }}
+            onCancel={back}
+          />
+        )}
+
         {current.view === "builder" && (
           <BuilderView
             initial={current.params?.initial}
+            canTemplate={canTemplate}
             onSaved={async () => {
               await loadDevotionals();
               back();
             }}
+            onSaveTemplate={saveTemplate}
             onCancel={back}
           />
         )}

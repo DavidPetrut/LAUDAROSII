@@ -131,6 +131,9 @@ router.post("/", authMiddleware, async (req, res) => {
   try {
     const data = sanitizeDevotional(req.body);
     const count = await Devotional.countDocuments({ ownerId: req.user.id });
+    if (count >= 4) {
+      return res.status(400).json({ error: "Poti avea maxim 4 devotionale" });
+    }
     const devotional = await Devotional.create({
       ...data,
       ownerId: req.user.id,
@@ -139,6 +142,33 @@ router.post("/", authMiddleware, async (req, res) => {
     res.status(201).json({ devotional: serialize(devotional) });
   } catch (e) {
     res.status(500).json({ error: "Eroare la creare" });
+  }
+});
+
+/**
+ * PUT /devotionals/day/:wd - asigneaza (sau scoate) devotionalul pentru o zi a
+ * saptamanii (1=Duminica..7=Sambata). Maxim 1 devotional per zi: ziua e scoasa
+ * din toate celelalte inainte de a fi pusa pe cel ales.
+ */
+router.put("/day/:wd", authMiddleware, async (req, res) => {
+  try {
+    const wd = parseInt(req.params.wd, 10);
+    if (!(wd >= 1 && wd <= 7)) return res.status(400).json({ error: "Zi invalida" });
+
+    await Devotional.updateMany({ ownerId: req.user.id }, { $pull: { "schedule.weekdays": wd } });
+
+    const devotionalId = req.body.devotionalId;
+    if (devotionalId && OBJECT_ID.test(String(devotionalId))) {
+      await Devotional.updateOne(
+        { _id: devotionalId, ownerId: req.user.id },
+        { $addToSet: { "schedule.weekdays": wd } }
+      );
+    }
+
+    const items = await Devotional.find({ ownerId: req.user.id }).sort({ createdAt: -1 });
+    res.json({ devotionals: items.map(serialize) });
+  } catch (e) {
+    res.status(500).json({ error: "Eroare" });
   }
 });
 
