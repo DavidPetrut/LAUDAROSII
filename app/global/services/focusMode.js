@@ -6,6 +6,29 @@ try {
   Notifications = require("expo-notifications");
 } catch (e) {}
 
+// Modul nativ Android pentru "Nu deranja" de sistem. Absent pe iOS / web / builduri
+// vechi -> ramane null si feature-ul cade elegant pe suprimarea notificarilor proprii.
+let FocusDnd = null;
+try {
+  FocusDnd = require("expo-modules-core").requireNativeModule("FocusDnd");
+} catch (e) {}
+
+export const isSystemDndSupported = () => {
+  try {
+    return Platform.OS === "android" && !!FocusDnd?.isSupported?.();
+  } catch (e) {
+    return false;
+  }
+};
+
+export const isSystemDndGranted = () => {
+  try {
+    return !!FocusDnd?.isGranted?.();
+  } catch (e) {
+    return false;
+  }
+};
+
 const KEY = "focusModeConfig";
 
 // enabled: userul vrea "nu deranja" in timpul rugaciunii/devotionalului
@@ -47,12 +70,18 @@ export const activateFocus = async () => {
   if (!config.enabled || active) return;
   active = true;
   if (config.muteAppNotifs) setHandler(false);
+  try {
+    if (Platform.OS === "android" && FocusDnd?.isGranted?.()) FocusDnd.setDnd(true);
+  } catch (e) {}
 };
 
 export const deactivateFocus = async () => {
   if (!active) return;
   active = false;
   setHandler(true);
+  try {
+    if (Platform.OS === "android" && FocusDnd?.isGranted?.()) FocusDnd.setDnd(false);
+  } catch (e) {}
 };
 
 // Deschide setarea de "Nu deranja" a telefonului (pentru apeluri/SMS/alte apps,
@@ -61,6 +90,10 @@ export const deactivateFocus = async () => {
 export const openSystemDnd = async () => {
   try {
     if (Platform.OS === "android") {
+      if (FocusDnd?.openSettings) {
+        FocusDnd.openSettings();
+        return;
+      }
       await Linking.sendIntent("android.settings.ZEN_MODE_PRIORITY_SETTINGS");
       return;
     }

@@ -28,4 +28,6 @@ export {
   activateFocus,
   deactivateFocus,
   openSystemDnd,
+  isSystemDndSupported,
+  isSystemDndGranted,
 } from "./focusMode";

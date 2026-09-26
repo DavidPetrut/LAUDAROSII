@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-26T15:37:00.079Z",
+  "generatedAt": "2026-09-26T16:02:00.411Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -365,6 +365,14 @@
         "purpose": "let Notifications = null;"
       },
       "openSystemDnd": {
+        "file": "global/services/focusMode.js",
+        "purpose": "let Notifications = null;"
+      },
+      "isSystemDndSupported": {
+        "file": "global/services/focusMode.js",
+        "purpose": "let Notifications = null;"
+      },
+      "isSystemDndGranted": {
         "file": "global/services/focusMode.js",
         "purpose": "let Notifications = null;"
       }

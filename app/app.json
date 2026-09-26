@@ -33,7 +33,8 @@
       },
       "package": "com.laudarosii.vertical",
       "permissions": [
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.ACCESS_NOTIFICATION_POLICY"
       ]
     },
     "web": {
