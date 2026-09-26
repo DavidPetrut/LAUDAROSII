@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-23T08:42:42.831Z",
+  "generatedAt": "2026-09-26T12:24:51.489Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -466,6 +466,180 @@
         "api",
         "toast",
         "auth"
+      ]
+    },
+    "screens/admin/app-control/accessApi.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api"
+      ]
+    },
+    "screens/admin/app-control/AppControlAccess.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        },
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "tema",
+        "toast"
+      ]
+    },
+    "screens/admin/app-control/AppControlAddMember.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        },
+        {
+          "name": "UserAvatar",
+          "file": "global/components/UserAvatar.js"
+        },
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "tema",
+        "toast"
+      ]
+    },
+    "screens/admin/app-control/AppControlHub.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        },
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "tema"
+      ]
+    },
+    "screens/admin/app-control/AppControlMemberDetail.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        },
+        {
+          "name": "UserAvatar",
+          "file": "global/components/UserAvatar.js"
+        },
+        {
+          "name": "useAuth",
+          "file": "global/context/AuthContext.js"
+        },
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "auth",
+        "tema",
+        "toast"
+      ]
+    },
+    "screens/admin/app-control/AppControlMembers.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        },
+        {
+          "name": "UserAvatar",
+          "file": "global/components/UserAvatar.js"
+        },
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "tema"
+      ]
+    },
+    "screens/admin/app-control/appControlStyles.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [
+        "colors",
+        "typography",
+        "spacing",
+        "borderRadius"
+      ],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/admin/app-control/CapabilityEditor.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "tema"
       ]
     },
     "screens/announcements/AnnouncementDetailScreen.js": {
@@ -3227,6 +3401,7 @@
   "reverseGlobals": {
     "global/functions/api.js": [
       "screens/admin/AdminScreen.js",
+      "screens/admin/app-control/accessApi.js",
       "screens/announcements/AnnouncementDetailScreen.js",
       "screens/announcements/AnnouncementsScreen.js",
       "screens/courses/CourseDetailScreen.js",
@@ -3262,6 +3437,9 @@
     ],
     "global/functions/toast.js": [
       "screens/admin/AdminScreen.js",
+      "screens/admin/app-control/AppControlAccess.js",
+      "screens/admin/app-control/AppControlAddMember.js",
+      "screens/admin/app-control/AppControlMemberDetail.js",
       "screens/announcements/AnnouncementDetailScreen.js",
       "screens/announcements/AnnouncementsScreen.js",
       "screens/auth/ForgotPasswordScreen.js",
@@ -3289,6 +3467,7 @@
     ],
     "global/context/AuthContext.js": [
       "screens/admin/AdminScreen.js",
+      "screens/admin/app-control/AppControlMemberDetail.js",
       "screens/announcements/AnnouncementsScreen.js",
       "screens/auth/LoginScreen.js",
       "screens/auth/RegisterScreen.js",
@@ -3306,6 +3485,11 @@
     ],
     "global/components/ScreenHeader.js": [
       "screens/admin/AdminScreen.js",
+      "screens/admin/app-control/AppControlAccess.js",
+      "screens/admin/app-control/AppControlAddMember.js",
+      "screens/admin/app-control/AppControlHub.js",
+      "screens/admin/app-control/AppControlMemberDetail.js",
+      "screens/admin/app-control/AppControlMembers.js",
       "screens/courses/CourseDetailScreen.js",
       "screens/games/LeaderboardScreen.js",
       "screens/games/MultiplayerLobbyScreen.js",
@@ -3321,6 +3505,9 @@
     ],
     "global/components/UserAvatar.js": [
       "screens/admin/AdminScreen.js",
+      "screens/admin/app-control/AppControlAddMember.js",
+      "screens/admin/app-control/AppControlMemberDetail.js",
+      "screens/admin/app-control/AppControlMembers.js",
       "screens/announcements/AnnouncementDetailScreen.js",
       "screens/announcements/AnnouncementsScreen.js",
       "screens/home/HomeScreen.js",
@@ -3331,6 +3518,27 @@
       "screens/prayers/PrayerCard.js",
       "screens/prayers/ProgramPrayersTab.js",
       "screens/prayers/UserPrayersList.js"
+    ],
+    "global/context/ThemeContext.js": [
+      "screens/admin/app-control/AppControlAccess.js",
+      "screens/admin/app-control/AppControlAddMember.js",
+      "screens/admin/app-control/AppControlHub.js",
+      "screens/admin/app-control/AppControlMemberDetail.js",
+      "screens/admin/app-control/AppControlMembers.js",
+      "screens/admin/app-control/CapabilityEditor.js",
+      "screens/prayers/AchievementsScreen.js",
+      "screens/prayers/AnimatedPrayerCard.js",
+      "screens/prayers/PersonalPrayersTab.js",
+      "screens/prayers/pray-room/PrayRoomCard.js",
+      "screens/prayers/pray-room/PrayRoomEntry.js",
+      "screens/prayers/pray-room/PrayRoomList.js",
+      "screens/prayers/pray-room/PrayRoomScreen.js",
+      "screens/prayers/PrayedCounter.js",
+      "screens/prayers/PrayerCard.js",
+      "screens/prayers/ProgramPrayersTab.js",
+      "screens/prayers/UserPrayersList.js",
+      "screens/profile/ProfileScreen.js",
+      "screens/profile/SettingsScreen.js"
     ],
     "global/components/BackArrowIcon.js": [
       "screens/announcements/AnnouncementDetailScreen.js",
@@ -3388,21 +3596,6 @@
       "screens/prayers/pray-room/PrayRoomScreen.js",
       "screens/prayers/ProgramPrayersTab.js",
       "screens/prayers/timer/DevotionalScreen.js"
-    ],
-    "global/context/ThemeContext.js": [
-      "screens/prayers/AchievementsScreen.js",
-      "screens/prayers/AnimatedPrayerCard.js",
-      "screens/prayers/PersonalPrayersTab.js",
-      "screens/prayers/pray-room/PrayRoomCard.js",
-      "screens/prayers/pray-room/PrayRoomEntry.js",
-      "screens/prayers/pray-room/PrayRoomList.js",
-      "screens/prayers/pray-room/PrayRoomScreen.js",
-      "screens/prayers/PrayedCounter.js",
-      "screens/prayers/PrayerCard.js",
-      "screens/prayers/ProgramPrayersTab.js",
-      "screens/prayers/UserPrayersList.js",
-      "screens/profile/ProfileScreen.js",
-      "screens/profile/SettingsScreen.js"
     ],
     "global/components/BulbToggle.js": [
       "screens/prayers/AddPrayerModal.js",

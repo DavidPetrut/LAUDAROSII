@@ -13,15 +13,29 @@ const normalizeUser = (u) => {
   return id ? { ...u, _id: id, id } : u;
 };
 
+const LEVEL_RANK = { none: 0, view: 1, edit: 2 };
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pendingShareCode, setPendingShareCode] = useState(null);
+  const [access, setAccess] = useState({});
 
   useEffect(() => {
     checkDeepLink();
     checkAuth();
   }, []);
+
+  // Incarca accesul efectiv al userului curent (rol + acordari) pentru gating in UI.
+  // Poarta reala e pe server; asta doar ascunde ce nu are voie.
+  const refreshAccess = async () => {
+    try {
+      const data = await api.get("/access/me");
+      setAccess(data?.access || {});
+    } catch (e) {
+      setAccess({});
+    }
+  };
 
   const checkDeepLink = () => {
     if (Platform.OS !== "web") return;
@@ -38,6 +52,7 @@ export const AuthProvider = ({ children }) => {
       if (token) {
         const userData = await api.get("/users/me");
         setUser(normalizeUser(userData));
+        await refreshAccess();
       }
     } catch (error) {
       await storage.deleteItem("authToken");
@@ -50,6 +65,7 @@ export const AuthProvider = ({ children }) => {
     const response = await api.post("/auth/login", { email, password });
     await storage.setItem("authToken", response.token);
     setUser(normalizeUser(response.user));
+    await refreshAccess();
     return response;
   };
 
@@ -57,6 +73,7 @@ export const AuthProvider = ({ children }) => {
     const response = await api.post("/auth/register", data);
     await storage.setItem("authToken", response.token);
     setUser(normalizeUser(response.user));
+    await refreshAccess();
     return response;
   };
 
@@ -84,6 +101,7 @@ export const AuthProvider = ({ children }) => {
     }
     
     setUser(null);
+    setAccess({});
   };
 
   const updateUser = (userData) => {
@@ -96,6 +114,13 @@ export const AuthProvider = ({ children }) => {
     user?.role === "developer";
 
   const isSuperAdmin = user?.role === "superadmin";
+
+  // Verifica accesul efectiv la o capabilitate. Super-adminul are tot.
+  const can = (key, minLevel = "edit") => {
+    if (isSuperAdmin) return true;
+    const lv = access?.[key] || "none";
+    return (LEVEL_RANK[lv] || 0) >= (LEVEL_RANK[minLevel] || 0);
+  };
 
   const clearPendingShareCode = () => setPendingShareCode(null);
 
@@ -110,6 +135,9 @@ export const AuthProvider = ({ children }) => {
         updateUser,
         isAdmin,
         isSuperAdmin,
+        access,
+        can,
+        refreshAccess,
         pendingShareCode,
         clearPendingShareCode,
       }}

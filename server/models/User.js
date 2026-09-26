@@ -97,8 +97,17 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ["user", "admin", "superadmin", "developer"],
+    enum: ["user", "admin", "superadmin", "developer", "editor"],
     default: "user",
+  },
+  // accese EXTRA acordate individual de super-admin, peste ce da rolul.
+  // harta cheie-capabilitate -> nivel ("view"|"edit"). Catalogul e in cod.
+  access: {
+    grants: {
+      type: Map,
+      of: String,
+      default: {},
+    },
   },
   teamRoles: [
     {

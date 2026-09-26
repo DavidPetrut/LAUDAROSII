@@ -54,7 +54,9 @@ export const ProgramPrayersTab = ({
   onBack,
 }) => {
   const insets = useSafeAreaInsets();
-  const { isAdmin } = useAuth();
+  const { can } = useAuth();
+  const canViewPrograms = can("prayer_programs.manage", "view");
+  const canEditPrograms = can("prayer_programs.manage", "edit");
   const { isDarkMode, theme } = useTheme();
   const { setLayer, clearLayer } = useTesting();
 
@@ -132,12 +134,12 @@ export const ProgramPrayersTab = ({
   }, [programType]);
 
   const loadPredicators = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!canViewPrograms) return;
     try {
       const data = await api.get("/prayers/predicators");
       setPredicators(data);
     } catch {}
-  }, [isAdmin]);
+  }, [canViewPrograms]);
 
   useEffect(() => {
     loadList();
@@ -366,7 +368,7 @@ export const ProgramPrayersTab = ({
             {programType === "sim" ? "Duminica" : "Vinerea"} aceasta nu are
             lista
           </Text>
-          {isAdmin && (
+          {canEditPrograms && (
             <TouchableOpacity
               style={styles.createBtn}
               onPress={() => setShowCreateModal(true)}
@@ -419,7 +421,7 @@ export const ProgramPrayersTab = ({
           </Text>
           <Text style={styles.headerSubtitle}>{getSubtitle()}</Text>
         </View>
-        {isAdmin && !selectedUser && (
+        {canEditPrograms && !selectedUser && (
           <TouchableOpacity
             style={styles.shareBtn}
             onPress={() => setShowShareMenu(true)}

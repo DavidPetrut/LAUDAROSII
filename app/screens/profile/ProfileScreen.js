@@ -17,7 +17,7 @@ import { styles } from "./styles";
 
 export const ProfileScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const { user, updateUser, isAdmin } = useAuth();
+  const { user, updateUser, isSuperAdmin, can } = useAuth();
   const { theme } = useTheme();
   const [profile, setProfile] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -90,9 +90,19 @@ export const ProfileScreen = ({ navigation }) => {
             )}
           </View>
 
-          {isAdmin && (
+          {isSuperAdmin && (
             <TouchableOpacity
-              style={styles.adminButton}
+              style={[styles.adminButton, { backgroundColor: "#7c3aed" }]}
+              onPress={() => navigation.navigate("AppControl")}
+            >
+              <Ionicons name="options" size={24} color="#fff" />
+              <Text style={styles.adminButtonText}>App Control</Text>
+            </TouchableOpacity>
+          )}
+
+          {can("screen.admin_panel", "view") && (
+            <TouchableOpacity
+              style={[styles.adminButton, { marginTop: 12 }]}
               onPress={() => navigation.navigate("Admin")}
             >
               <Ionicons name="shield-checkmark" size={24} color="#fff" />
@@ -100,7 +110,7 @@ export const ProfileScreen = ({ navigation }) => {
             </TouchableOpacity>
           )}
 
-          {user?.role === "superadmin" && (
+          {can("broadcasts.manage", "edit") && (
             <TouchableOpacity
               style={[styles.adminButton, { backgroundColor: "#0ea5e9", marginTop: 12 }]}
               onPress={() => navigation.navigate("Broadcast")}

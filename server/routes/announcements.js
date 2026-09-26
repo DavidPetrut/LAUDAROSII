@@ -1,6 +1,6 @@
 const express = require("express");
 const { Announcement, User } = require("../models");
-const { authMiddleware, isAdmin } = require("../middleware");
+const { authMiddleware, requireAccess } = require("../middleware");
 
 const router = express.Router();
 
@@ -52,7 +52,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
   }
 });
 
-router.post("/", authMiddleware, isAdmin, async (req, res) => {
+router.post("/", authMiddleware, requireAccess("announcements.manage"), async (req, res) => {
   try {
     const { title, body, mediaUrl, expiresAt, bgColor, bgImage } = req.body;
 
@@ -85,7 +85,7 @@ router.post("/", authMiddleware, isAdmin, async (req, res) => {
   }
 });
 
-router.put("/:id", authMiddleware, isAdmin, async (req, res) => {
+router.put("/:id", authMiddleware, requireAccess("announcements.manage"), async (req, res) => {
   try {
     const { title, body, mediaUrl } = req.body;
 
@@ -128,7 +128,7 @@ router.put("/:id/read", authMiddleware, async (req, res) => {
   }
 });
 
-router.delete("/:id", authMiddleware, isAdmin, async (req, res) => {
+router.delete("/:id", authMiddleware, requireAccess("announcements.manage"), async (req, res) => {
   try {
     const announcement = await Announcement.findByIdAndDelete(req.params.id);
 

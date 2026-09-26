@@ -67,6 +67,13 @@ import {
   BroadcastScreen,
 } from "./screens/profile";
 import { AdminScreen } from "./screens/admin";
+import {
+  AppControlHub,
+  AppControlAccess,
+  AppControlMembers,
+  AppControlMemberDetail,
+  AppControlAddMember,
+} from "./screens/admin/app-control";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -127,6 +134,11 @@ const AppStack = () => (
     <Stack.Screen name="Admin" component={AdminScreen} />
     <Stack.Screen name="Settings" component={SettingsScreen} />
     <Stack.Screen name="Broadcast" component={BroadcastScreen} />
+    <Stack.Screen name="AppControl" component={AppControlHub} />
+    <Stack.Screen name="AppControlAccess" component={AppControlAccess} />
+    <Stack.Screen name="AppControlMembers" component={AppControlMembers} />
+    <Stack.Screen name="AppControlMemberDetail" component={AppControlMemberDetail} />
+    <Stack.Screen name="AppControlAddMember" component={AppControlAddMember} />
   </Stack.Navigator>
 );
 

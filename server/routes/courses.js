@@ -1,6 +1,6 @@
 const express = require("express");
 const { Course, User } = require("../models");
-const { authMiddleware, isAdmin } = require("../middleware");
+const { authMiddleware, requireAccess } = require("../middleware");
 const { cleanupCourseData } = require("../services/cleanupService");
 
 const router = express.Router();
@@ -37,7 +37,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
   }
 });
 
-router.post("/", authMiddleware, isAdmin, async (req, res) => {
+router.post("/", authMiddleware, requireAccess("courses.manage"), async (req, res) => {
   try {
     const { title, description, videoUrl, thumbnailUrl, category, duration } =
       req.body;
@@ -100,7 +100,7 @@ router.put("/progress/:courseId", authMiddleware, async (req, res) => {
   }
 });
 
-router.put("/:id", authMiddleware, isAdmin, async (req, res) => {
+router.put("/:id", authMiddleware, requireAccess("courses.manage"), async (req, res) => {
   try {
     const { title, description, videoUrl, thumbnailUrl, category, duration } =
       req.body;
@@ -121,7 +121,7 @@ router.put("/:id", authMiddleware, isAdmin, async (req, res) => {
   }
 });
 
-router.delete("/:id", authMiddleware, isAdmin, async (req, res) => {
+router.delete("/:id", authMiddleware, requireAccess("courses.manage"), async (req, res) => {
   try {
     const course = await Course.findById(req.params.id);
 

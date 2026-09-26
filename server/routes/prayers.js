@@ -1,6 +1,6 @@
 const express = require("express");
 const { User, PrayerList, Notification } = require("../models");
-const { authMiddleware, isAdmin } = require("../middleware");
+const { authMiddleware, requireAccess } = require("../middleware");
 const {
   generateShareCode,
   getWeekBounds,
@@ -194,7 +194,7 @@ router.get("/lists/current/:programType", authMiddleware, async (req, res) => {
   }
 });
 
-router.post("/lists", authMiddleware, isAdmin, async (req, res) => {
+router.post("/lists", authMiddleware, requireAccess("prayer_programs.manage"), async (req, res) => {
   try {
     const { programType, predicatorId } = req.body;
     if (!["sim", "tineret"].includes(programType))
@@ -290,7 +290,7 @@ router.post(
   }
 );
 
-router.get("/predicators", authMiddleware, isAdmin, async (req, res) => {
+router.get("/predicators", authMiddleware, requireAccess("prayer_programs.manage", "view"), async (req, res) => {
   try {
     res.json(
       await User.find(
@@ -303,7 +303,7 @@ router.get("/predicators", authMiddleware, isAdmin, async (req, res) => {
   }
 });
 
-router.delete("/lists/:listId", authMiddleware, isAdmin, async (req, res) => {
+router.delete("/lists/:listId", authMiddleware, requireAccess("prayer_programs.manage"), async (req, res) => {
   try {
     const list = await PrayerList.findById(req.params.listId);
     if (!list) return res.status(404).json({ error: "Lista nu a fost găsită" });

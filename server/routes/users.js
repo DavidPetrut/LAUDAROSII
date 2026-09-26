@@ -1,7 +1,7 @@
 const express = require("express");
 const sharp = require("sharp");
 const { User } = require("../models");
-const { authMiddleware, isAdmin, isSuperAdmin } = require("../middleware");
+const { authMiddleware, isSuperAdmin, requireAccess } = require("../middleware");
 const { cleanupUserData } = require("../services/cleanupService");
 const { writeAudit } = require("../services/auditService");
 
@@ -98,7 +98,7 @@ router.get("/search", authMiddleware, async (req, res) => {
   }
 });
 
-router.get("/", authMiddleware, isAdmin, async (req, res) => {
+router.get("/", authMiddleware, requireAccess("users.view", "view"), async (req, res) => {
   try {
     const users = await User.find({ deletedAt: null })
       .select("-passwordHash")
@@ -109,7 +109,7 @@ router.get("/", authMiddleware, isAdmin, async (req, res) => {
   }
 });
 
-router.get("/:id", authMiddleware, isAdmin, async (req, res) => {
+router.get("/:id", authMiddleware, requireAccess("users.view", "view"), async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select("-passwordHash");
     if (!user) {
@@ -125,7 +125,7 @@ router.put("/:id/role", authMiddleware, isSuperAdmin, async (req, res) => {
   try {
     const { role } = req.body;
 
-    if (!["user", "admin", "superadmin", "developer"].includes(role)) {
+    if (!["user", "admin", "superadmin", "developer", "editor"].includes(role)) {
       return res.status(400).json({ error: "Rol invalid" });
     }
 

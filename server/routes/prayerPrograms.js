@@ -1,6 +1,6 @@
 const express = require("express");
 const { PrayerProgram } = require("../models");
-const { authMiddleware, isAdmin } = require("../middleware");
+const { authMiddleware, requireAccess } = require("../middleware");
 
 const router = express.Router();
 
@@ -19,7 +19,7 @@ router.get("/", authMiddleware, async (req, res) => {
 /**
  * POST /prayer-programs/seed - Creeaza programele inițiale (doar admin)
  */
-router.post("/seed", authMiddleware, isAdmin, async (req, res) => {
+router.post("/seed", authMiddleware, requireAccess("prayer_programs.manage"), async (req, res) => {
   try {
     const existing = await PrayerProgram.countDocuments();
     if (existing > 0) {
@@ -96,7 +96,7 @@ router.get("/worship", authMiddleware, async (req, res) => {
  * POST /prayer-programs/seed-devotional - Creeaza/asigura programul worship built-in (admin).
  * Nu sterge piese existente; doar garanteaza structura corecta. Piesele hosted se adauga apoi.
  */
-router.post("/seed-devotional", authMiddleware, isAdmin, async (req, res) => {
+router.post("/seed-devotional", authMiddleware, requireAccess("prayer_programs.manage"), async (req, res) => {
   try {
     const program = await PrayerProgram.findOneAndUpdate(
       { programId: "worship" },
@@ -124,7 +124,7 @@ router.post("/seed-devotional", authMiddleware, isAdmin, async (req, res) => {
 /**
  * POST /prayer-programs/:id/playlist - Adauga melodie în playlist (admin)
  */
-router.post("/:id/playlist", authMiddleware, isAdmin, async (req, res) => {
+router.post("/:id/playlist", authMiddleware, requireAccess("prayer_programs.manage"), async (req, res) => {
   try {
     const { title, url, duration, category } = req.body;
     if (!url) return res.status(400).json({ error: "URL obligatoriu" });
@@ -145,7 +145,7 @@ router.post("/:id/playlist", authMiddleware, isAdmin, async (req, res) => {
 /**
  * PATCH /prayer-programs/:id/playlist/:trackId - Editeaza o piesa (admin)
  */
-router.patch("/:id/playlist/:trackId", authMiddleware, isAdmin, async (req, res) => {
+router.patch("/:id/playlist/:trackId", authMiddleware, requireAccess("prayer_programs.manage"), async (req, res) => {
   try {
     const program = await PrayerProgram.findById(req.params.id);
     if (!program) return res.status(404).json({ error: "Program negasit" });
@@ -168,7 +168,7 @@ router.patch("/:id/playlist/:trackId", authMiddleware, isAdmin, async (req, res)
 /**
  * DELETE /prayer-programs/:id/playlist/:trackId - Sterge o piesa (admin)
  */
-router.delete("/:id/playlist/:trackId", authMiddleware, isAdmin, async (req, res) => {
+router.delete("/:id/playlist/:trackId", authMiddleware, requireAccess("prayer_programs.manage"), async (req, res) => {
   try {
     const program = await PrayerProgram.findById(req.params.id);
     if (!program) return res.status(404).json({ error: "Program negasit" });

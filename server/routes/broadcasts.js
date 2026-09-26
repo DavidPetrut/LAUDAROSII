@@ -5,7 +5,7 @@ const {
   NotificationTag,
   User,
 } = require("../models");
-const { authMiddleware, isSuperAdmin } = require("../middleware");
+const { authMiddleware, requireAccess } = require("../middleware");
 const { countAudience, deliverBroadcast } = require("../services");
 
 const router = express.Router();
@@ -16,7 +16,7 @@ const arrStr = (v, max) =>
   Array.isArray(v) ? v.filter((x) => typeof x === "string").map((x) => x.trim()).filter(Boolean).slice(0, max) : [];
 
 // Toate rutele sunt doar pentru super-admini.
-router.use(authMiddleware, isSuperAdmin);
+router.use(authMiddleware, requireAccess("broadcasts.manage"));
 
 /**
  * GET /admin/broadcasts/tags - catalogul de statusuri/etichete.

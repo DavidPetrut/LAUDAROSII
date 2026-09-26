@@ -58,7 +58,7 @@ const getTimeRemaining = (expiresAt) => {
 
 export const AnnouncementsScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const { isAdmin, user } = useAuth();
+  const { can, user } = useAuth();
   const [announcements, setAnnouncements] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -288,7 +288,7 @@ export const AnnouncementsScreen = ({ navigation }) => {
               >
                 {getTimeAgo(item.date)}
               </Text>
-              {isAdmin && (
+              {can("announcements.manage", "edit") && (
                 <TouchableOpacity
                   style={styles.deleteBtn}
                   onPress={() => handleDelete(item._id)}
@@ -400,7 +400,7 @@ export const AnnouncementsScreen = ({ navigation }) => {
         />
       </View>
 
-      {isAdmin && (
+      {can("announcements.manage", "edit") && (
         <TouchableOpacity
           style={styles.fab}
           onPress={() => setModalVisible(true)}

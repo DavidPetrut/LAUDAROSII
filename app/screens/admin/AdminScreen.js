@@ -24,11 +24,14 @@ export const AdminScreen = ({ navigation }) => {
   const [users, setUsers] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const { isAdmin, isSuperAdmin } = useAuth();
+  const { can } = useAuth();
+  const canViewPanel = can("screen.admin_panel", "view");
+  const canViewUsers = can("users.view", "view");
+  const canSeed = can("prayer_programs.manage", "edit");
 
   useEffect(() => {
-    if (isAdmin) loadUsers();
-  }, [isAdmin]);
+    if (canViewUsers) loadUsers();
+  }, [canViewUsers]);
 
   const loadUsers = async () => {
     try {
@@ -100,7 +103,7 @@ export const AdminScreen = ({ navigation }) => {
     );
   };
 
-  if (!isAdmin) {
+  if (!canViewPanel) {
     return (
       <View style={styles.container}>
         <ScreenHeader title="Admin" />
@@ -132,7 +135,7 @@ export const AdminScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {isSuperAdmin && (
+      {canSeed && (
         <TouchableOpacity style={styles.seedBtn} onPress={seedPrayerPrograms}>
           <Text style={styles.seedBtnText}>🙏 Seed Programe Rugaciune</Text>
         </TouchableOpacity>

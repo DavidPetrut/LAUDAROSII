@@ -19,9 +19,11 @@ const PrayRoom = require("./PrayRoom");
 const TestBug = require("./TestBug");
 const TestConfig = require("./TestConfig");
 const AuditLog = require("./AuditLog");
+const RolePermission = require("./RolePermission");
 
 module.exports = {
   User,
+  RolePermission,
   Announcement,
   Course,
   Game,

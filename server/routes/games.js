@@ -1,6 +1,6 @@
 const express = require("express");
 const { Game, User } = require("../models");
-const { authMiddleware, isAdmin } = require("../middleware");
+const { authMiddleware, requireAccess } = require("../middleware");
 const { cleanupGameData } = require("../services/cleanupService");
 
 const router = express.Router();
@@ -111,7 +111,7 @@ router.post("/:gameKey/score", authMiddleware, async (req, res) => {
   }
 });
 
-router.delete("/:gameKey", authMiddleware, isAdmin, async (req, res) => {
+router.delete("/:gameKey", authMiddleware, requireAccess("games.manage"), async (req, res) => {
   try {
     const { gameKey } = req.params;
 

@@ -1,6 +1,6 @@
 const express = require("express");
 const { Song } = require("../models");
-const { authMiddleware, isAdmin } = require("../middleware");
+const { authMiddleware, requireAccess } = require("../middleware");
 
 const router = express.Router();
 
@@ -39,7 +39,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
   }
 });
 
-router.post("/", authMiddleware, isAdmin, async (req, res) => {
+router.post("/", authMiddleware, requireAccess("songs.manage"), async (req, res) => {
   try {
     const { title, artist, lyrics, key, tempo, videoUrl, audioUrl, category } =
       req.body;
@@ -67,7 +67,7 @@ router.post("/", authMiddleware, isAdmin, async (req, res) => {
   }
 });
 
-router.put("/:id", authMiddleware, isAdmin, async (req, res) => {
+router.put("/:id", authMiddleware, requireAccess("songs.manage"), async (req, res) => {
   try {
     const song = await Song.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
@@ -78,7 +78,7 @@ router.put("/:id", authMiddleware, isAdmin, async (req, res) => {
   }
 });
 
-router.delete("/:id", authMiddleware, isAdmin, async (req, res) => {
+router.delete("/:id", authMiddleware, requireAccess("songs.manage"), async (req, res) => {
   try {
     await Song.findByIdAndDelete(req.params.id);
     res.json({ message: "Melodie ștearsa" });

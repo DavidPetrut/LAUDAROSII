@@ -22,7 +22,7 @@ const REACTIONS_MAP = { thumbsup: "👍", heart: "❤️", pray: "🙏", laugh: 
 
 export const HomeScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const { user, isAdmin } = useAuth();
+  const { user, can } = useAuth();
   const [announcements, setAnnouncements] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
@@ -252,7 +252,7 @@ export const HomeScreen = ({ navigation }) => {
           </View>
         </ScrollView>
 
-        {isAdmin && (
+        {can("announcements.manage", "edit") && (
           <TouchableOpacity
             style={styles.fab}
             onPress={() => navigation.navigate("Announcements")}

@@ -1,6 +1,6 @@
 const express = require("express");
 const { TestBug, TestConfig, User } = require("../models");
-const { authMiddleware, isAdmin, limiter } = require("../middleware");
+const { authMiddleware, requireAccess, limiter } = require("../middleware");
 
 const router = express.Router();
 
@@ -31,7 +31,7 @@ router.get("/config", authMiddleware, async (req, res) => {
  * PUT /api/testing/config  (doar admin)
  * Porneste/opreste modul de testare instant, fara OTA/build.
  */
-router.put("/config", authMiddleware, isAdmin, async (req, res) => {
+router.put("/config", authMiddleware, requireAccess("testing.manage"), async (req, res) => {
   try {
     const enabled = !!req.body.enabled;
     const cfg = await TestConfig.findOneAndUpdate(
