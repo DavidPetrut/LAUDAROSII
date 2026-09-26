@@ -3,7 +3,9 @@ import { View, Text, TouchableOpacity, StyleSheet, Animated } from "react-native
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useTheme, useImmersive } from "../context";
+import { useTheme, useImmersive, useAuth } from "../context";
+import { TutorialTarget } from "../tutorial/TutorialTarget";
+import { showError } from "../functions";
 import { colors } from "../../public/styles/global";
 
 const TABS = [
@@ -24,7 +26,7 @@ const AnimatedMaterialIcons = Animated.createAnimatedComponent(
   MaterialCommunityIcons
 );
 
-const TabButton = ({ route, isFocused, onPress, tab }) => {
+const TabButton = ({ route, isFocused, onPress, tab, disabled }) => {
   const { isDarkMode } = useTheme();
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const bgOpacity = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
@@ -79,9 +81,10 @@ const TabButton = ({ route, isFocused, onPress, tab }) => {
   return (
     <TouchableOpacity
       onPress={onPress}
-      style={styles.tabButton}
+      style={[styles.tabButton, disabled && { opacity: 0.3 }]}
       accessibilityRole="button"
       accessibilityLabel={tab.label}
+      accessibilityState={{ disabled: !!disabled }}
     >
       <View style={styles.tabContent}>
         <Animated.View
@@ -106,7 +109,25 @@ const TabButton = ({ route, isFocused, onPress, tab }) => {
 export const CustomTabBar = ({ state, descriptors, navigation }) => {
   const { isDarkMode, theme } = useTheme();
   const { immersive } = useImmersive();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
+
+  // Taburi permise (gol = toate). Daca lista exclude toate rutele, revenim la toate
+  // (nu lasam userul fara niciun tab).
+  const rawAllowed = user?.allowedTabs || [];
+  const anyAllowed = state.routes.some((r) => rawAllowed.includes(r.name));
+  const isAllowed = (name) => rawAllowed.length === 0 || !anyAllowed || rawAllowed.includes(name);
+
+  // Anti-lockout: daca tabul curent nu e permis, muta pe primul permis.
+  useEffect(() => {
+    const current = state.routes[state.index];
+    if (current && !isAllowed(current.name)) {
+      const firstAllowed = state.routes.find((r) => isAllowed(r.name));
+      if (firstAllowed && firstAllowed.name !== current.name) {
+        navigation.navigate(firstAllowed.name);
+      }
+    }
+  }, [state.index, user?.allowedTabs]);
 
   // In mod imersiv (ex: sesiune Devotional) bara de jos dispare complet.
   if (immersive) return null;
@@ -140,7 +161,13 @@ export const CustomTabBar = ({ state, descriptors, navigation }) => {
         const isFocused = state.index === index;
         const tab = TABS.find((t) => t.name === route.name) || TABS[0];
 
+        const allowed = isAllowed(route.name);
+
         const onPress = () => {
+          if (!allowed) {
+            showError("Acest tab nu îți este disponibil.");
+            return;
+          }
           const event = navigation.emit({
             type: "tabPress",
             target: route.key,
@@ -158,13 +185,9 @@ export const CustomTabBar = ({ state, descriptors, navigation }) => {
         };
 
         return (
-          <TabButton
-            key={route.key}
-            route={route}
-            isFocused={isFocused}
-            onPress={onPress}
-            tab={tab}
-          />
+          <TutorialTarget key={route.key} id={`tab-${route.name}`} label={`Tab ${tab.label}`} style={{ flex: 1 }}>
+            <TabButton route={route} isFocused={isFocused} onPress={onPress} tab={tab} disabled={!allowed} />
+          </TutorialTarget>
         );
       })}
     </LinearGradient>

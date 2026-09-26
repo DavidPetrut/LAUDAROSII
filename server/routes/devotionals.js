@@ -64,10 +64,6 @@ const sanitizeDevotional = (body) => {
         category: t.music?.category === "lyrics" ? "lyrics" : "instrumental",
       },
       prayerList: safePrayerList(t.prayerList),
-      action: {
-        required: !!t.action?.required,
-        description: safeStr(t.action?.description, 300),
-      },
     })),
     schedule: {
       weekdays: Array.isArray(body.schedule?.weekdays)

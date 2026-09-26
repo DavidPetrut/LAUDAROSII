@@ -175,7 +175,7 @@ export const DevotionalScreen = () => {
             templateId={current.params.templateId}
             onDone={async () => {
               await loadDevotionals();
-              setStack([{ view: "home" }]);
+              setStack([{ view: "home" }, { view: "devotionals" }]);
             }}
             onCancel={back}
           />

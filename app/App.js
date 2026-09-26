@@ -27,6 +27,7 @@ import {
   BugReporter,
 } from "./global/components";
 import { TestingProvider, useTesting, getActiveRouteName } from "./global/testing";
+import { TutorialProvider, TutorialLayer } from "./global/tutorial";
 import {
   registerForPushNotifications,
   addNotificationResponseListener,
@@ -285,13 +286,16 @@ export default function App() {
                 <ToastProvider>
                   <TransitionProvider>
                     <TestingProvider>
-                      <StatusBar
-                        barStyle="light-content"
-                        backgroundColor="#6366f1"
-                      />
-                      <Navigation />
-                      <TransitionOverlay />
-                      <BugReporter />
+                      <TutorialProvider>
+                        <StatusBar
+                          barStyle="light-content"
+                          backgroundColor="#6366f1"
+                        />
+                        <Navigation />
+                        <TransitionOverlay />
+                        <BugReporter />
+                        <TutorialLayer />
+                      </TutorialProvider>
                     </TestingProvider>
                   </TransitionProvider>
                 </ToastProvider>

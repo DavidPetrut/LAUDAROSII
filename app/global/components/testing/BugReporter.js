@@ -18,10 +18,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { captureScreen } from "react-native-view-shot";
 import { useTesting } from "../../testing/TestingContext";
+import { useAuth } from "../../context";
 import { BUG_TYPES } from "../../testing/bugTaxonomy";
 import { FEATURE_TYPES } from "../../testing/featureTaxonomy";
 import { showSuccess, showError } from "../../functions";
 import { startWebInspect } from "./webInspector";
+import { RatingReporter } from "./RatingReporter";
 
 // Culoare stridenta pentru marcarea elementului selectat (vizibil clar pe orice fundal)
 const MARKER_COLOR = "#FF00E5";
@@ -46,6 +48,8 @@ const getTaxonomy = (kind) => (kind === "feature" ? FEATURE_TYPES : BUG_TYPES);
 
 export const BugReporter = () => {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const access = user?.testingAccess || "full";
   const { enabled, consentGiven, giveConsent, resolveCurrentScreen, submit, startSignal } =
     useTesting();
 
@@ -250,6 +254,7 @@ export const BugReporter = () => {
   ]);
 
   if (!enabled) return null;
+  if (access === "rating") return <RatingReporter />;
 
   const isFeature = kind === "feature";
   const screenInfo = resolveCurrentScreen();
@@ -317,17 +322,19 @@ export const BugReporter = () => {
                 <Text style={styles.kindHint}>Ceva nu merge / arată prost</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.kindCard, { borderColor: "#22c55e" }]}
-                onPress={() => chooseKind("feature")}
-                activeOpacity={0.85}
-              >
-                <View style={[styles.kindIcon, { backgroundColor: "#22c55e22" }]}>
-                  <Ionicons name="bulb" size={28} color="#22c55e" />
-                </View>
-                <Text style={styles.kindLabel}>FEATURE</Text>
-                <Text style={styles.kindHint}>O idee / îmbunătățire</Text>
-              </TouchableOpacity>
+              {access === "full" && (
+                <TouchableOpacity
+                  style={[styles.kindCard, { borderColor: "#22c55e" }]}
+                  onPress={() => chooseKind("feature")}
+                  activeOpacity={0.85}
+                >
+                  <View style={[styles.kindIcon, { backgroundColor: "#22c55e22" }]}>
+                    <Ionicons name="bulb" size={28} color="#22c55e" />
+                  </View>
+                  <Text style={styles.kindLabel}>FEATURE</Text>
+                  <Text style={styles.kindHint}>O idee / îmbunătățire</Text>
+                </TouchableOpacity>
+              )}
             </View>
             <TouchableOpacity style={[styles.ghostBtn, { marginTop: 18 }]} onPress={resetAll}>
               <Text style={styles.ghostBtnText}>Închide</Text>

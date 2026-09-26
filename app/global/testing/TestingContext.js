@@ -101,8 +101,9 @@ export const TestingProvider = ({ children }) => {
       const screenInfo = resolveCurrentScreen();
       const payload = {
         // natura raportului
-        kind: report.kind === "feature" ? "feature" : "bug",
+        kind: ["feature", "rating"].includes(report.kind) ? report.kind : "bug",
         source: report.source === "local" ? "local" : "mobile",
+        rating: report.rating != null ? report.rating : undefined,
         // ierarhie (nivel 1 tab, nivel 2 ecran)
         tab: screenInfo.tab,
         screen: screenInfo.screen,

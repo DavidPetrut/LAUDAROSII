@@ -330,12 +330,6 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
     </Animated.View>
   );
   const titleEl = <Text style={styles.runnerTitle}>{task.title}</Text>;
-  const actionNoteEl =
-    task.action?.required && task.action?.description ? (
-      <Text style={[styles.noteSoft, { textAlign: "center", marginHorizontal: 24 }]}>
-        {task.action.description}
-      </Text>
-    ) : null;
   const timerEl = <Text style={styles.runnerTimer}>{fmt(remaining)}</Text>;
   const controlsEl = (
     <View style={[styles.runnerControlsRow, { marginTop: 32 }]}>
@@ -375,7 +369,6 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
           <Text style={styles.runnerStep}>{index + 1} / {tasks.length}</Text>
           {iconEl}
           {titleEl}
-          {actionNoteEl}
           {timerEl}
           {controlsEl}
           {readyEl}

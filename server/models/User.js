@@ -183,6 +183,27 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  // tipurile de camera de rugaciune pentru care userul a citit deja regulile
+  // ("common" | "targeted" | "roulette"). Regulile se arata o data per tip.
+  seenRoomRules: {
+    type: [String],
+    default: [],
+  },
+  // acces la butonul global de feedback cand modul testare e pornit:
+  //  "full"   = poate raporta bug-uri SI feature-uri
+  //  "bugs"   = doar bug-uri
+  //  "rating" = doar rating (stele) + feedback scris
+  testingAccess: {
+    type: String,
+    enum: ["full", "bugs", "rating"],
+    default: "full",
+  },
+  // taburile din footer permise (chei: Home/Prayers/Courses/Games/Profile).
+  // gol = toate permise.
+  allowedTabs: {
+    type: [String],
+    default: [],
+  },
   // soft-delete: contul devine invizibil si fara acces, dar recuperabil (anti stergere ireversibila de catre un admin compromis)
   deletedAt: {
     type: Date,

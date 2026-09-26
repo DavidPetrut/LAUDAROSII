@@ -141,7 +141,7 @@ export const DevotionalsView = ({ onCreate, onChooseTemplate, onEdit, onShare, o
       </ScrollView>
 
       {items.length > 0 && (
-        <View style={[styles.daysDock, { paddingBottom: insets.bottom + 90 }]}>
+        <View style={[styles.daysDock, { paddingBottom: insets.bottom + 18 }]}>
           <Text style={[styles.stepLabel, { marginTop: 0 }]}>Program pe zile (1 devotional / zi)</Text>
           <View style={styles.daysProgramRow}>
             {WD_ORDER.map((wd) => {

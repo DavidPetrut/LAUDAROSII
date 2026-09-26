@@ -59,12 +59,23 @@ router.post("/bugs", authMiddleware, limiter(20), async (req, res) => {
   try {
     const b = req.body || {};
 
-    const kind = b.kind === "feature" ? "feature" : "bug";
+    const kind = ["feature", "rating"].includes(b.kind) ? b.kind : "bug";
     const source = b.source === "local" ? "local" : "mobile";
 
-    const allowedTypes = kind === "feature" ? FEATURE_TYPES : BUG_TYPES;
-    if (!allowedTypes.includes(b.bugType)) {
-      return res.status(400).json({ error: "Categorie invalidă pentru acest tip de raport" });
+    let bugType = b.bugType;
+    let rating = null;
+    if (kind === "rating") {
+      bugType = "RATING";
+      const r = Number(b.rating);
+      if (!(r >= 0.5 && r <= 3)) {
+        return res.status(400).json({ error: "Rating invalid" });
+      }
+      rating = Math.round(r * 2) / 2; // pas de 0.5
+    } else {
+      const allowedTypes = kind === "feature" ? FEATURE_TYPES : BUG_TYPES;
+      if (!allowedTypes.includes(b.bugType)) {
+        return res.status(400).json({ error: "Categorie invalidă pentru acest tip de raport" });
+      }
     }
 
     // screenshot: acceptam doar data-URI de imagine, sub limita de marime
@@ -144,10 +155,11 @@ router.post("/bugs", authMiddleware, limiter(20), async (req, res) => {
       folder: clip(b.folder, 200) || null,
       file: clip(b.file, 240) || null,
       element,
-      bugType: b.bugType,
+      bugType,
       bugCode: clip(b.bugCode, 40) || null,
       problem: clip(b.problem, 4000),
       solution: clip(b.solution, 4000),
+      rating,
       screenshot,
       context,
       reporter: {

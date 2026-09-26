@@ -22,6 +22,8 @@ const TestConfig = require("./TestConfig");
 const AuditLog = require("./AuditLog");
 const RolePermission = require("./RolePermission");
 const DevotionalTemplate = require("./DevotionalTemplate");
+const Tutorial = require("./Tutorial");
+const TutorialConfig = require("./TutorialConfig");
 
 module.exports = {
   User,
@@ -48,4 +50,6 @@ module.exports = {
   TestBug,
   TestConfig,
   AuditLog,
+  Tutorial,
+  TutorialConfig,
 };

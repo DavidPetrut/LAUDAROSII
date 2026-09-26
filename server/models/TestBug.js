@@ -55,7 +55,7 @@ const testBugSchema = new mongoose.Schema(
       type: String,
       required: true,
       index: true,
-      enum: ["bug", "feature"],
+      enum: ["bug", "feature", "rating"],
       default: "bug",
     },
     // De unde vine raportul: mobil (native-point) sau local/web (dom-element, mai precis)
@@ -82,11 +82,15 @@ const testBugSchema = new mongoose.Schema(
         "INTERFATA", "ACCES", "STRICAT", "EXPERIENTA", "CONTINUT", "ALTELE",
         // feature
         "FUNCTIE_NOUA", "IMBUNATATIRE", "CONTINUT_NOU", "INTEGRARE", "AUTOMATIZARE", "PERSONALIZARE",
+        // rating
+        "RATING",
       ],
     },
     bugCode: { type: String, default: null, index: true, maxlength: 40 },
     problem: { type: String, default: "", maxlength: 4000 },
     solution: { type: String, default: "", maxlength: 4000 },
+    // rating pe functionalitate (0.5 .. 3, in pasi de 0.5), doar pentru kind="rating"
+    rating: { type: Number, default: null, min: 0, max: 3 },
 
     // ---- media ----
     screenshot: { type: String, default: null }, // data-URI JPEG, optional

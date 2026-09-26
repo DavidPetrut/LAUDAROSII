@@ -118,6 +118,16 @@ export const devotionalStyles = StyleSheet.create({
   taskGearBtnActive: { backgroundColor: ACCENT + "22", borderColor: ACCENT },
   sheetScroll: { maxHeight: "80%" },
 
+  // ---- Durata in casete (toate 4 pe un rand) ----
+  durRow: { flexDirection: "row", gap: spacing.xs },
+  durBox: { flex: 1, paddingVertical: spacing.sm, borderRadius: borderRadius.sm, backgroundColor: SURF, borderWidth: 1, borderColor: BORDER, alignItems: "center" },
+  durBoxActive: { backgroundColor: ACCENT, borderColor: ACCENT },
+  durBoxText: { ...typography.caption, color: DIM, fontWeight: "700" },
+  durBoxTextActive: { color: "#fff" },
+
+  // ---- Lista de sugestii scrollabila (max ~3 vizibile) ----
+  suggestScroll: { maxHeight: 204 },
+
   // ---- Dock zile (Program pe zile fixat jos) ----
   daysDock: { borderTopWidth: 1, borderColor: BORDER, backgroundColor: "rgba(10,12,18,0.9)", paddingHorizontal: spacing.md, paddingTop: spacing.sm },
 

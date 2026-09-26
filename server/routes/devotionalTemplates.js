@@ -43,10 +43,7 @@ const sanitizeTask = (t) => {
           roomId: null,
         },
     chooseList,
-    action: {
-      required: !!t.action?.required,
-      description: safeStr(t.action?.description, 300),
-    },
+    description: safeStr(t.description, 300),
   };
 };
 

@@ -33,7 +33,6 @@ const buildSteps = (tpl) => {
   const steps = [];
   (tpl?.tasks || []).forEach((t, i) => {
     if (t.chooseList || t.chooseMusic) steps.push({ type: "moment", taskIndex: i });
-    if (t.action?.required) steps.push({ type: "action", taskIndex: i });
   });
   if (tpl?.schedule?.weekdays?.length > 0) steps.push({ type: "days" });
   if (tpl?.notification?.enabled) steps.push({ type: "notif" });
@@ -52,7 +51,6 @@ export const TemplateImportView = ({ templateId, onDone, onCancel }) => {
   const [myDevotionals, setMyDevotionals] = useState([]);
   const [step, setStep] = useState(0);
   const [choices, setChoices] = useState({});
-  const [actions, setActions] = useState({});
   const [days, setDays] = useState([]);
   const [notif, setNotif] = useState({ enabled: false, message: "", hour: 8, minute: 0 });
   const [listPicker, setListPicker] = useState(false);
@@ -70,11 +68,6 @@ export const TemplateImportView = ({ templateId, onDone, onCancel }) => {
         setMyDevotionals(list);
         setDays(template?.schedule?.weekdays || []);
         if (template?.notification?.enabled) setNotif(template.notification);
-        const initActions = {};
-        (template?.tasks || []).forEach((t, i) => {
-          if (t.action?.required) initActions[i] = true;
-        });
-        setActions(initActions);
       })
       .catch(() => showError("Nu am putut incarca template-ul"))
       .finally(() => setLoading(false));
@@ -115,9 +108,6 @@ export const TemplateImportView = ({ templateId, onDone, onCancel }) => {
             : { enabled: false, category: "instrumental" }
           : t.music;
         const prayerList = t.chooseList ? c.prayerList || { kind: null } : t.prayerList;
-        const action = t.action?.required
-          ? { required: actions[i] !== false, description: t.action.description || "" }
-          : { required: false, description: "" };
         return {
           title: t.title,
           icon: t.icon,
@@ -126,7 +116,6 @@ export const TemplateImportView = ({ templateId, onDone, onCancel }) => {
           durationMin: t.durationMin,
           music,
           prayerList,
-          action,
         };
       });
       const res = await devotionalsApi.create({
@@ -199,7 +188,9 @@ export const TemplateImportView = ({ templateId, onDone, onCancel }) => {
               <Text style={styles.introTitle}>{t.title}</Text>
             </View>
             <Text style={styles.introDesc}>
-              {t.chooseList ? "Alege o listă de rugăciuni. " : ""}{t.chooseMusic ? "Alege muzica." : ""}
+              {t.description
+                ? t.description
+                : `${t.chooseList ? "Alege o listă de rugăciuni. " : ""}${t.chooseMusic ? "Alege muzica." : ""}`}
             </Text>
           </View>
 
@@ -234,41 +225,6 @@ export const TemplateImportView = ({ templateId, onDone, onCancel }) => {
               </View>
             </>
           )}
-        </>
-      );
-    }
-
-    if (current.type === "action") {
-      const t = tpl.tasks[current.taskIndex];
-      const yes = actions[current.taskIndex] !== false;
-      return (
-        <>
-          <View style={styles.introCard}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
-              <View style={[styles.devCardIcon, { backgroundColor: (t.color || "#10b981") + "22" }]}>
-                <DevotionalIcon set={t.iconSet} name={t.icon} size={24} color={t.color || "#10b981"} />
-              </View>
-              <Text style={styles.introTitle}>{t.title}</Text>
-            </View>
-            <Text style={styles.introDesc}>
-              {t.action?.description || "Creatorul îți cere să confirmi acest moment."}
-            </Text>
-          </View>
-          <Text style={styles.stepLabel}>Incluzi acest moment ca acțiune?</Text>
-          <View style={styles.optRow}>
-            <TouchableOpacity
-              style={[styles.optCard, yes && styles.optCardActive]}
-              onPress={() => setActions((p) => ({ ...p, [current.taskIndex]: true }))}
-            >
-              <Text style={[styles.optCardText, yes && styles.optCardTextActive]}>Da</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.optCard, !yes && styles.optCardActive]}
-              onPress={() => setActions((p) => ({ ...p, [current.taskIndex]: false }))}
-            >
-              <Text style={[styles.optCardText, !yes && styles.optCardTextActive]}>Nu</Text>
-            </TouchableOpacity>
-          </View>
         </>
       );
     }

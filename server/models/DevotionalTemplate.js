@@ -25,11 +25,9 @@ const templateTaskSchema = new mongoose.Schema(
       roomId: { type: mongoose.Schema.Types.ObjectId, ref: "PrayRoom", default: null },
     },
     chooseList: { type: Boolean, default: false },
-    // actiune/confirmare pe care creatorul o cere userului la import
-    action: {
-      required: { type: Boolean, default: false },
-      description: { type: String, default: "", maxlength: 300 },
-    },
+    // descriere lasata de creator pentru un moment cu alegere (muzica/lista);
+    // apare la importator in pasul acelui moment.
+    description: { type: String, default: "", maxlength: 300 },
   },
   { _id: true }
 );

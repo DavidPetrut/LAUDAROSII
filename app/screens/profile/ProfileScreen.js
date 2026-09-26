@@ -10,6 +10,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth, useTheme } from "../../global/context";
+import { TutorialsLauncher } from "../../global/tutorial";
 import { api } from "../../global/functions";
 import { teamRoleLabels } from "../../global/functions/formatters";
 import { headerGradient } from "../../public/styles/global";
@@ -90,9 +91,11 @@ export const ProfileScreen = ({ navigation }) => {
             )}
           </View>
 
+          <TutorialsLauncher style={{ marginTop: 4 }} />
+
           {isSuperAdmin && (
             <TouchableOpacity
-              style={[styles.adminButton, { backgroundColor: "#7c3aed" }]}
+              style={[styles.adminButton, { backgroundColor: "#7c3aed", marginTop: 12 }]}
               onPress={() => navigation.navigate("AppControl")}
             >
               <Ionicons name="options" size={24} color="#fff" />

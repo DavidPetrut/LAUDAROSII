@@ -26,11 +26,6 @@ const taskSchema = new mongoose.Schema(
       boardId: { type: mongoose.Schema.Types.ObjectId, ref: "PrayerBoard", default: null },
       roomId: { type: mongoose.Schema.Types.ObjectId, ref: "PrayRoom", default: null },
     },
-    // actiune/confirmare ceruta de creatorul unui template pentru acest moment
-    action: {
-      required: { type: Boolean, default: false },
-      description: { type: String, default: "", maxlength: 300 },
-    },
   },
   { _id: true }
 );

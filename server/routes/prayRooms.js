@@ -4,6 +4,30 @@ const { authMiddleware } = require("../middleware");
 
 const router = express.Router();
 
+const ROOM_TYPE_KEYS = ["common", "targeted", "roulette"];
+
+// GET /pray-rooms/rules/seen - tipurile de camera pt care userul a citit regulile
+router.get("/rules/seen", authMiddleware, async (req, res) => {
+  try {
+    const u = await User.findById(req.user.id).select("seenRoomRules");
+    res.json({ seen: u?.seenRoomRules || [] });
+  } catch (e) {
+    res.status(500).json({ error: "Eroare" });
+  }
+});
+
+// POST /pray-rooms/rules/seen { roomType } - marcheaza regulile unui tip ca citite
+router.post("/rules/seen", authMiddleware, async (req, res) => {
+  try {
+    const roomType = ROOM_TYPE_KEYS.includes(req.body.roomType) ? req.body.roomType : null;
+    if (!roomType) return res.status(400).json({ error: "Tip invalid" });
+    await User.updateOne({ _id: req.user.id }, { $addToSet: { seenRoomRules: roomType } });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: "Eroare" });
+  }
+});
+
 const MOODS = [
   "tulburat",
   "incredere",

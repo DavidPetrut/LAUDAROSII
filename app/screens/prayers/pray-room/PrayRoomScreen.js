@@ -21,6 +21,7 @@ import { PrayRoulette } from "./PrayRoulette";
 import { AddPrayerMenu } from "./AddPrayerMenu";
 import { ExistingPrayerPicker } from "./ExistingPrayerPicker";
 import { PrayerFormModal } from "../lists/PrayerFormModal";
+import { RoomRulesModal } from "./RoomRulesModal";
 import { prayRoomStyles as styles } from "./styles";
 
 const BG_LIGHT = require("../../../public/images/day-light-mode-background.png");
@@ -50,6 +51,7 @@ export const PrayRoomScreen = ({ navigation, route }) => {
   const [existingModal, setExistingModal] = useState(false);
   const [crudPrayer, setCrudPrayer] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [rulesModal, setRulesModal] = useState({ open: false, firstTime: false });
 
   const [rouletteMode, setRouletteMode] = useState("pray");
   const [showRoulette, setShowRoulette] = useState(false);
@@ -96,6 +98,30 @@ export const PrayRoomScreen = ({ navigation, route }) => {
   }, [roomId]);
 
   useFocusEffect(useCallback(() => { loadRoom(); }, [loadRoom]));
+
+  // La prima intrare intr-un tip de camera, arata regulile (o data per tip, pe cont)
+  useEffect(() => {
+    if (!room?.roomType) return;
+    let active = true;
+    api
+      .get("/pray-rooms/rules/seen")
+      .then((r) => {
+        if (active && !(r.seen || []).includes(room.roomType)) {
+          setRulesModal({ open: true, firstTime: true });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [room?.roomType]);
+
+  const acknowledgeRules = async () => {
+    setRulesModal({ open: false, firstTime: false });
+    try {
+      await api.post("/pray-rooms/rules/seen", { roomType: room?.roomType });
+    } catch {}
+  };
 
   useEffect(() => {
     if (isRoulette) loadAssignment();
@@ -309,6 +335,9 @@ export const PrayRoomScreen = ({ navigation, route }) => {
           onBack={() => navigation.goBack()}
         />
         <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.headerActionBtn} onPress={() => setRulesModal({ open: true, firstTime: false })} accessibilityLabel="Regulile camerei">
+            <Ionicons name="information-circle-outline" size={20} color="#fff" />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.headerActionBtn} onPress={handleCopyCode} accessibilityLabel="Copiaza codul">
             <Ionicons name="copy-outline" size={20} color="#fff" />
           </TouchableOpacity>
@@ -542,6 +571,14 @@ export const PrayRoomScreen = ({ navigation, route }) => {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <RoomRulesModal
+        visible={rulesModal.open}
+        roomType={room?.roomType}
+        firstTime={rulesModal.firstTime}
+        onAcknowledge={acknowledgeRules}
+        onClose={() => setRulesModal({ open: false, firstTime: false })}
+      />
     </TiledBackground>
   );
 };
