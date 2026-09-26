@@ -8,6 +8,7 @@ import {
   Modal,
   Pressable,
   Platform,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -42,6 +43,8 @@ export const PrayRoomScreen = ({ navigation, route }) => {
   const [submitting, setSubmitting] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
+  const [manageOpen, setManageOpen] = useState(false);
+  const [startingRoulette, setStartingRoulette] = useState(false);
   const [addMenu, setAddMenu] = useState(false);
   const [formModal, setFormModal] = useState({ open: false, editing: null });
   const [existingModal, setExistingModal] = useState(false);
@@ -198,6 +201,47 @@ export const PrayRoomScreen = ({ navigation, route }) => {
     setTimeout(() => setShowRoulette(false), 500);
   };
 
+  const startRoulette = async () => {
+    setStartingRoulette(true);
+    try {
+      await api.post(`/pray-rooms/${roomId}/roulette/start`);
+      showSuccess("Tragerea la sort a inceput");
+      await loadRoom();
+      await loadAssignment();
+    } catch (e) {
+      showError(e.response?.data?.error || e.message || "Eroare");
+    } finally {
+      setStartingRoulette(false);
+    }
+  };
+
+  const approveRequest = async (userId) => {
+    try {
+      await api.post(`/pray-rooms/${roomId}/requests/${userId}/approve`);
+      await loadRoom();
+    } catch (e) {
+      showError(e.response?.data?.error || "Eroare");
+    }
+  };
+
+  const rejectRequest = async (userId) => {
+    try {
+      await api.post(`/pray-rooms/${roomId}/requests/${userId}/reject`);
+      await loadRoom();
+    } catch (e) {
+      showError(e.response?.data?.error || "Eroare");
+    }
+  };
+
+  const memberName = (m) => m.userId?.personalData?.fullName || "Cineva";
+  const memberId = (m) => m.userId?._id || m.userId;
+  const rouletteStarted = !!room?.rouletteStarted;
+  const allMembers = room?.members || [];
+  const requests = allMembers.filter((m) => m.status === "requested");
+  const pendingInvites = allMembers.filter((m) => m.status === "invited");
+  const refusals = allMembers.filter((m) => m.status === "refused" || m.status === "rejected");
+  const acceptedCount = allMembers.filter((m) => m.status === "accepted").length;
+
   const myPrayers = (room?.prayers || []).filter((p) => (p.userId?._id || p.userId) === user?._id);
   const maxP = room?.settings?.maxPrayers || 2;
   const canPost = (() => {
@@ -210,13 +254,13 @@ export const PrayRoomScreen = ({ navigation, route }) => {
     ? Math.max(0, Math.ceil((new Date(room.endDate) - new Date()) / 86400000))
     : 0;
 
-  const activeMembers = room?.members?.filter((m) => m.hasAccepted) || [];
+  const activeMembers = room?.members?.filter((m) => m.status === "accepted") || [];
   const rouletteMembers = (() => {
     if (!isRoulette || !assignedMember) return activeMembers;
     const list = [...activeMembers];
     const id = assignedMember._id;
     if (!list.some((m) => (m.userId?._id || m.userId) === id)) {
-      list.push({ userId: assignedMember, hasAccepted: true });
+      list.push({ userId: assignedMember, status: "accepted" });
     }
     return list;
   })();
@@ -297,6 +341,23 @@ export const PrayRoomScreen = ({ navigation, route }) => {
       {isRoulette ? (
         rouletteMode === "mine" ? (
           commonList(myPrayers, "Nu ai adaugat motive. Apasa + ca sa te roage cineva.")
+        ) : !rouletteStarted ? (
+          <View style={styles.rouletteWaitWrap}>
+            <Ionicons name="hourglass-outline" size={40} color="rgba(255,255,255,0.4)" />
+            {isCreator ? (
+              <>
+                <Text style={styles.rouletteWaitText}>
+                  {acceptedCount} confirmati{pendingInvites.length ? ` • ${pendingInvites.length} in asteptare` : ""}.
+                  {"\n"}Ii poti astepta sau incepe acum (cei neconfirmati ies).
+                </Text>
+                <TouchableOpacity style={[styles.rouletteStartBtn, startingRoulette && styles.btnDisabled]} onPress={startRoulette} disabled={startingRoulette}>
+                  <Text style={styles.rouletteStartBtnText}>{startingRoulette ? "Se porneste..." : "Incepe pentru toti"}</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <Text style={styles.rouletteWaitText}>Organizatorul nu a inceput tragerea la sort inca.</Text>
+            )}
+          </View>
         ) : !hasRevealed ? (
           <View style={styles.revealCenterWrap}>
             {assignedMember ? (
@@ -304,7 +365,7 @@ export const PrayRoomScreen = ({ navigation, route }) => {
                 <Text style={styles.revealCenterText}>Vezi cine ti-a picat</Text>
               </TouchableOpacity>
             ) : (
-              <Text style={styles.waitingText}>Se pregateste tragerea la sort (minim 3 persoane)...</Text>
+              <Text style={styles.waitingText}>Se pregateste tragerea la sort...</Text>
             )}
           </View>
         ) : (
@@ -407,6 +468,14 @@ export const PrayRoomScreen = ({ navigation, route }) => {
       <Modal visible={showSettings} transparent animationType="fade">
         <TouchableOpacity style={styles.settingsOverlay} activeOpacity={1} onPress={() => setShowSettings(false)}>
           <View style={styles.settingsCard}>
+            {isCreator && (
+              <TouchableOpacity style={styles.settingsOption} onPress={() => { setShowSettings(false); setManageOpen(true); }}>
+                <Ionicons name="people-outline" size={20} color="#7c3aed" />
+                <Text style={[styles.settingsOptionTextWarn, { color: "#a78bfa" }]}>
+                  Gestioneaza{requests.length ? ` (${requests.length} cereri)` : ""}
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.settingsOption} onPress={handleLeaveRoom}>
               <Ionicons name="exit-outline" size={20} color="#f59e0b" />
               <Text style={styles.settingsOptionTextWarn}>Iesi din camera</Text>
@@ -416,6 +485,62 @@ export const PrayRoomScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      <Modal visible={manageOpen} transparent animationType="slide" onRequestClose={() => setManageOpen(false)}>
+        <Pressable style={styles.crudBackdrop} onPress={() => setManageOpen(false)}>
+          <Pressable style={[styles.crudSheet, { maxHeight: "80%", padding: 16 }]} onPress={() => {}}>
+            <Text style={styles.manageSectionTitle}>Gestioneaza camera</Text>
+            <ScrollView>
+              {requests.length > 0 && (
+                <View style={styles.manageSection}>
+                  <Text style={styles.manageSectionTitle}>Cereri de intrare</Text>
+                  {requests.map((m) => (
+                    <View key={memberId(m)} style={styles.manageRow}>
+                      <Text style={styles.manageName} numberOfLines={1}>{memberName(m)}</Text>
+                      <TouchableOpacity style={[styles.manageBtn, { backgroundColor: "rgba(33,192,99,0.15)" }]} onPress={() => approveRequest(memberId(m))}>
+                        <Text style={[styles.manageBtnText, { color: "#21c063" }]}>Accept</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.manageBtn, { backgroundColor: "rgba(239,68,68,0.15)" }]} onPress={() => rejectRequest(memberId(m))}>
+                        <Text style={[styles.manageBtnText, { color: "#ef4444" }]}>Refuz</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {pendingInvites.length > 0 && (
+                <View style={styles.manageSection}>
+                  <Text style={styles.manageSectionTitle}>Invitatii in asteptare</Text>
+                  {pendingInvites.map((m) => (
+                    <View key={memberId(m)} style={styles.manageRow}>
+                      <Text style={styles.manageName} numberOfLines={1}>{memberName(m)}</Text>
+                      <Text style={[styles.manageStatus, { color: "#f59e0b" }]}>in asteptare</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {refusals.length > 0 && (
+                <View style={styles.manageSection}>
+                  <Text style={styles.manageSectionTitle}>Refuzuri</Text>
+                  {refusals.map((m) => (
+                    <View key={memberId(m)} style={styles.manageRow}>
+                      <Text style={styles.manageName} numberOfLines={1}>{memberName(m)}</Text>
+                      <Text style={[styles.manageStatus, { color: "#ef4444" }]}>
+                        {m.status === "refused" ? "a refuzat" : "respins"}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {requests.length === 0 && pendingInvites.length === 0 && refusals.length === 0 && (
+                <Text style={[styles.manageName, { padding: 12 }]}>Nimic de gestionat momentan.</Text>
+              )}
+            </ScrollView>
+            <TouchableOpacity style={styles.settingsCancel} onPress={() => setManageOpen(false)}>
+              <Text style={styles.settingsCancelText}>Inchide</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
       </Modal>
     </TiledBackground>
   );

@@ -2,6 +2,7 @@ export { PrayRoomEntry } from "./PrayRoomEntry";
 export { PrayRoomSetup } from "./PrayRoomSetup";
 export { PrayRoomList } from "./PrayRoomList";
 export { PrayRoomScreen } from "./PrayRoomScreen";
+export { PrayRoomInvite } from "./PrayRoomInvite";
 export { PrayRoomCard } from "./PrayRoomCard";
 export { PrayRoulette } from "./PrayRoulette";
 export { ParticipantPicker } from "./ParticipantPicker";

@@ -23,6 +23,9 @@ const notificationSchema = new mongoose.Schema({
       "pray_room_joined", // Cineva s-a alăturat camerei tale
       "pray_room_reminder", // Reminder zilnic pentru rugăciune
       "pray_room_finished", // Camera de rugăciune s-a terminat
+      "pray_room_request", // Cineva vrea sa intre cu cod (spre creator)
+      "pray_room_rejected", // Creatorul ti-a refuzat intrarea
+      "pray_room_started", // Tragerea la sort a inceput
       "role_changed", // Rolul tău a fost schimbat de un super-admin
     ],
     required: true,

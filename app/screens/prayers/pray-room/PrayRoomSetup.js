@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, Image } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, Image, Switch } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BackArrowIcon } from "../../../global/components";
 import { api, showError } from "../../../global/functions";
@@ -31,6 +31,7 @@ export const PrayRoomSetup = ({ navigation }) => {
   const [durationChoice, setDurationChoice] = useState(1);
   const [customDays, setCustomDays] = useState("");
   const [selectedParticipants, setSelectedParticipants] = useState([]);
+  const [requireApproval, setRequireApproval] = useState(false);
   const [creating, setCreating] = useState(false);
 
   const isRoulette = roomType === "roulette";
@@ -57,7 +58,7 @@ export const PrayRoomSetup = ({ navigation }) => {
         icon: t.icon,
         roomType,
         selectedParticipants,
-        settings: { durationDays },
+        settings: { durationDays, requireApproval: isRoulette ? false : requireApproval },
       });
       navigation.replace("PrayRoomScreen", { roomId: room._id });
     } catch (e) {
@@ -150,6 +151,20 @@ export const PrayRoomSetup = ({ navigation }) => {
             <Text style={styles.durationHint}>
               Camera se sterge automat la miezul noptii de dupa ultima zi.
             </Text>
+            {!isRoulette && (
+              <View style={styles.approvalRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.approvalLabel}>Aprob cine intra cu cod</Text>
+                  <Text style={styles.approvalDesc}>Cererile cu cod le accepti/refuzi tu din setari</Text>
+                </View>
+                <Switch
+                  value={requireApproval}
+                  onValueChange={setRequireApproval}
+                  trackColor={{ true: "#21c063", false: "rgba(255,255,255,0.2)" }}
+                  thumbColor="#fff"
+                />
+              </View>
+            )}
             <TouchableOpacity style={[styles.createBtn, creating && styles.btnDisabled]}
               onPress={handleCreate} disabled={creating}>
               <Text style={styles.createBtnText}>{creating ? "Se creeaza..." : "Creeaza camera"}</Text>

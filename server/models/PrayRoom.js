@@ -10,6 +10,12 @@ const MOODS = [
   "astept",
 ];
 
+// Stare membru:
+//  invited   = creatorul l-a invitat, asteapta accept/refuz
+//  requested = a intrat cu cod la o camera cu aprobare, asteapta creatorul
+//  accepted  = membru activ
+//  refused   = a refuzat invitatia
+//  rejected  = creatorul i-a respins cererea de intrare cu cod
 const memberSchema = new mongoose.Schema(
   {
     userId: {
@@ -17,13 +23,23 @@ const memberSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    hasAccepted: {
-      type: Boolean,
-      default: false,
+    status: {
+      type: String,
+      enum: ["invited", "requested", "accepted", "refused", "rejected"],
+      default: "invited",
+    },
+    invitedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    invitedAt: {
+      type: Date,
+      default: Date.now,
     },
     joinedAt: {
       type: Date,
-      default: Date.now,
+      default: null,
     },
   },
   { _id: false }
@@ -113,6 +129,11 @@ const prayRoomSchema = new mongoose.Schema({
       min: 1,
       max: 50,
     },
+    // camere comune/grup: daca e true, intrarea cu cod devine cerere de aprobat de creator
+    requireApproval: {
+      type: Boolean,
+      default: false,
+    },
   },
   prayers: [prayerSchema],
   startDate: {
@@ -136,6 +157,15 @@ const prayRoomSchema = new mongoose.Schema({
   ],
   rouletteAssignments: [rouletteAssignmentSchema],
   rouletteDay: {
+    type: Date,
+    default: null,
+  },
+  // tragerea la sort porneste doar cand organizatorul apasa "Incepe pentru toti"
+  rouletteStarted: {
+    type: Boolean,
+    default: false,
+  },
+  rouletteStartedAt: {
     type: Date,
     default: null,
   },
@@ -167,10 +197,10 @@ prayRoomSchema.statics.computeEndDate = function (durationDays) {
   return end;
 };
 
-// Numara camerele in care userul e membru activ
+// Numara camerele in care userul e membru activ (acceptat)
 prayRoomSchema.statics.countActiveRooms = async function (userId) {
   return this.countDocuments({
-    members: { $elemMatch: { userId, hasAccepted: true } },
+    members: { $elemMatch: { userId, status: "accepted" } },
   });
 };
 
@@ -213,6 +243,8 @@ prayRoomSchema.statics.generateDerangement = function (ids, prevMap = null) {
 // ceva (deci trebuie salvat). Necesita minim 3 participanti activi.
 prayRoomSchema.methods.ensureRouletteForToday = function () {
   if (this.roomType !== "roulette") return false;
+  // nu se genereaza nimic pana nu apasa organizatorul "Incepe pentru toti"
+  if (!this.rouletteStarted) return false;
 
   const todayMidnight = new Date();
   todayMidnight.setHours(0, 0, 0, 0);
@@ -223,7 +255,7 @@ prayRoomSchema.methods.ensureRouletteForToday = function () {
   if (!isNewDay) return false;
 
   const participantIds = this.members
-    .filter((m) => m.hasAccepted)
+    .filter((m) => m.status === "accepted")
     .map((m) => m.userId.toString());
 
   if (participantIds.length < 3) {
@@ -243,6 +275,23 @@ prayRoomSchema.methods.ensureRouletteForToday = function () {
   this.rouletteAssignments = assignments || [];
   this.rouletteDay = todayMidnight;
   return true;
+};
+
+// Organizatorul porneste tragerea la sort: elimina cei ramasi in pending (invited/
+// requested/refused), pastreaza doar acceptatii si genereaza primele legaturi.
+prayRoomSchema.methods.startRoulette = function () {
+  this.members = this.members.filter((m) => m.status === "accepted");
+  const ids = this.members.map((m) => m.userId.toString());
+  if (ids.length < 3) {
+    return { ok: false, error: "Ai nevoie de minim 3 persoane confirmate" };
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  this.rouletteAssignments = this.constructor.generateDerangement(ids) || [];
+  this.rouletteDay = today;
+  this.rouletteStarted = true;
+  this.rouletteStartedAt = new Date();
+  return { ok: true, memberIds: ids };
 };
 
 module.exports = mongoose.model("PrayRoom", prayRoomSchema);

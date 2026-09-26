@@ -22,7 +22,7 @@ const setupPrayRoomSockets = (io) => {
         }
 
         const member = room.members.find(
-          (m) => m.userId.toString() === userId && m.hasAccepted
+          (m) => m.userId.toString() === userId && m.status === "accepted"
         );
         if (!member) {
           socket.emit("error", { message: "Nu ai acces la aceasta camera" });
@@ -38,7 +38,7 @@ const setupPrayRoomSockets = (io) => {
         }
         prayRoomConnections.get(roomId).add(userId);
 
-        const activeMembers = room.members.filter((m) => m.hasAccepted).length;
+        const activeMembers = room.members.filter((m) => m.status === "accepted").length;
 
         socket.emit("room-state", {
           roomId,
@@ -101,7 +101,7 @@ const emitRoomFinalized = async (io, roomId, finalScore, verdict) => {
 const emitMemberJoined = async (io, roomId, member) => {
   const prayNamespace = io.of("/pray-rooms");
   const room = await PrayRoom.findById(roomId);
-  const activeMembers = room.members.filter((m) => m.hasAccepted).length;
+  const activeMembers = room.members.filter((m) => m.status === "accepted").length;
 
   prayNamespace.to(roomId).emit("member-joined", {
     roomId,
@@ -113,7 +113,7 @@ const emitMemberJoined = async (io, roomId, member) => {
 const emitMemberLeft = async (io, roomId, userId) => {
   const prayNamespace = io.of("/pray-rooms");
   const room = await PrayRoom.findById(roomId);
-  const activeMembers = room.members.filter((m) => m.hasAccepted).length;
+  const activeMembers = room.members.filter((m) => m.status === "accepted").length;
 
   prayNamespace.to(roomId).emit("member-left", {
     roomId,

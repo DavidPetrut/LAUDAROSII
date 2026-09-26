@@ -92,6 +92,9 @@ export const prayRoomStyles = StyleSheet.create({
   },
   customUnit: { color: "rgba(255,255,255,0.7)", fontSize: 16 },
   durationHint: { color: "rgba(255,255,255,0.55)", fontSize: 12, textAlign: "center", marginBottom: spacing.lg },
+  approvalRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 16, padding: spacing.md, marginBottom: spacing.lg },
+  approvalLabel: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  approvalDesc: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginTop: 2 },
   nextBtn: {
     backgroundColor: "rgba(33,192,99,0.15)", padding: spacing.lg, alignItems: "center",
     borderRadius: 16, borderWidth: 1, borderColor: "rgba(33,192,99,0.4)", marginTop: spacing.md,
@@ -102,7 +105,11 @@ export const prayRoomStyles = StyleSheet.create({
   btnDisabled: { opacity: 0.6 },
 
   // Room List
-  listContent: { padding: spacing.md, paddingBottom: 120 },
+  listContent: { padding: spacing.md, paddingBottom: 140 },
+  sectionTitle: { ...typography.caption, color: "rgba(255,255,255,0.7)", fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: spacing.sm, marginTop: spacing.xs },
+  inviteCard: { borderWidth: 1, borderColor: "rgba(124,58,237,0.5)" },
+  inviteBadge: { backgroundColor: "rgba(124,58,237,0.2)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
+  inviteBadgeText: { color: "#a78bfa", fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
   roomCard: { flexDirection: "row", alignItems: "center", padding: spacing.md, borderRadius: 16, marginBottom: spacing.md },
   roomIcon: { width: 48, height: 48, marginRight: spacing.md },
   roomInfo: { flex: 1 },
@@ -223,6 +230,34 @@ export const prayRoomStyles = StyleSheet.create({
   // Vitraliu 100%
   vitraliu100Wrap: { flex: 1, justifyContent: "center", alignItems: "center" },
   vitraliuImg: { width: "80%", height: "60%", maxWidth: 320, maxHeight: 400 },
+
+  // Invite detail
+  inviteDetailWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  inviteDetailIcon: { width: 72, height: 72, marginBottom: spacing.md },
+  inviteDetailName: { ...typography.h2, color: "#fff", textAlign: "center", marginBottom: 4 },
+  inviteDetailType: { ...typography.body, color: "rgba(255,255,255,0.65)", marginBottom: spacing.xl },
+  inviteInviter: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 16, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, marginBottom: spacing.xl },
+  inviteInviterText: { ...typography.body, color: "#fff" },
+  inviteActions: { flexDirection: "row", gap: spacing.md, width: "100%", maxWidth: 360 },
+  inviteRefuseBtn: { flex: 1, paddingVertical: spacing.lg, borderRadius: 16, alignItems: "center", borderWidth: 1.5, borderColor: "rgba(239,68,68,0.6)" },
+  inviteRefuseText: { color: "#ef4444", fontWeight: "800", fontSize: 16 },
+  inviteAcceptBtn: { flex: 1, paddingVertical: spacing.lg, borderRadius: 16, alignItems: "center", backgroundColor: "#21c063" },
+  inviteAcceptText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+
+  // Roulette start / waiting
+  rouletteWaitWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.md },
+  rouletteWaitText: { ...typography.body, color: "rgba(255,255,255,0.7)", textAlign: "center" },
+  rouletteStartBtn: { backgroundColor: "#7c3aed", borderRadius: 16, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, alignItems: "center", marginTop: spacing.sm },
+  rouletteStartBtnText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+
+  // Manage (creator): requests / invites / refusals
+  manageSection: { marginTop: spacing.md },
+  manageSectionTitle: { ...typography.caption, color: "rgba(255,255,255,0.55)", fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: spacing.sm },
+  manageRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 12, padding: spacing.sm, marginBottom: spacing.xs },
+  manageName: { ...typography.body, color: "#fff", flex: 1 },
+  manageStatus: { ...typography.caption, fontWeight: "700" },
+  manageBtn: { paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: 10 },
+  manageBtnText: { fontWeight: "800", fontSize: 13 },
 
   // Segment ruleta (De rugat / Ale mele)
   segmentRow: {

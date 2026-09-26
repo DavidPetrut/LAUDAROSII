@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-26T12:59:41.970Z",
+  "generatedAt": "2026-09-26T15:00:46.214Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -2453,6 +2453,50 @@
           "file": "global/functions/toast.js"
         },
         {
+          "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "toast",
+        "tema"
+      ]
+    },
+    "screens/prayers/pray-room/PrayRoomInvite.js": {
+      "stylesFile": "screens/prayers/pray-room/styles.js",
+      "globals": [
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        },
+        {
+          "name": "TiledBackground",
+          "file": "global/components/TiledBackground.js"
+        },
+        {
+          "name": "UserAvatar",
+          "file": "global/components/UserAvatar.js"
+        },
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        },
+        {
           "name": "useTheme",
           "file": "global/context/ThemeContext.js"
         }
@@ -3455,6 +3499,7 @@
       "screens/prayers/pray-room/ExistingPrayerPicker.js",
       "screens/prayers/pray-room/ParticipantPicker.js",
       "screens/prayers/pray-room/PrayRoomEntry.js",
+      "screens/prayers/pray-room/PrayRoomInvite.js",
       "screens/prayers/pray-room/PrayRoomList.js",
       "screens/prayers/pray-room/PrayRoomScreen.js",
       "screens/prayers/pray-room/PrayRoomSetup.js",
@@ -3493,6 +3538,7 @@
       "screens/prayers/PersonalPrayersTab.js",
       "screens/prayers/pray-room/ExistingPrayerPicker.js",
       "screens/prayers/pray-room/PrayRoomEntry.js",
+      "screens/prayers/pray-room/PrayRoomInvite.js",
       "screens/prayers/pray-room/PrayRoomScreen.js",
       "screens/prayers/pray-room/PrayRoomSetup.js",
       "screens/prayers/PrayedButton.js",
@@ -3534,6 +3580,7 @@
       "screens/prayers/analyze/AnalysisScreen.js",
       "screens/prayers/PersonalPrayersTab.js",
       "screens/prayers/pray-room/PrayRoomEntry.js",
+      "screens/prayers/pray-room/PrayRoomInvite.js",
       "screens/prayers/pray-room/PrayRoomList.js",
       "screens/prayers/pray-room/PrayRoomScreen.js",
       "screens/prayers/timer/DevotionalScreen.js",
@@ -3550,6 +3597,7 @@
       "screens/prayers/CreateListModal.js",
       "screens/prayers/pray-room/ParticipantPicker.js",
       "screens/prayers/pray-room/PrayRoomCard.js",
+      "screens/prayers/pray-room/PrayRoomInvite.js",
       "screens/prayers/pray-room/PrayRoulette.js",
       "screens/prayers/PrayerCard.js",
       "screens/prayers/ProgramPrayersTab.js",
@@ -3568,6 +3616,7 @@
       "screens/prayers/PersonalPrayersTab.js",
       "screens/prayers/pray-room/PrayRoomCard.js",
       "screens/prayers/pray-room/PrayRoomEntry.js",
+      "screens/prayers/pray-room/PrayRoomInvite.js",
       "screens/prayers/pray-room/PrayRoomList.js",
       "screens/prayers/pray-room/PrayRoomScreen.js",
       "screens/prayers/PrayedCounter.js",
@@ -3629,6 +3678,7 @@
       "screens/prayers/AchievementsScreen.js",
       "screens/prayers/PersonalPrayersTab.js",
       "screens/prayers/pray-room/PrayRoomEntry.js",
+      "screens/prayers/pray-room/PrayRoomInvite.js",
       "screens/prayers/pray-room/PrayRoomList.js",
       "screens/prayers/pray-room/PrayRoomScreen.js",
       "screens/prayers/ProgramPrayersTab.js",

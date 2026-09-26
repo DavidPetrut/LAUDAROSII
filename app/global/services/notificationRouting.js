@@ -8,6 +8,8 @@ const NESTED_TARGETS = {
   PrayerTimer: { tab: "Prayers", stackScreen: "PrayerTimer" },
   PrayerAnalysis: { tab: "Prayers", stackScreen: "PrayerAnalysis" },
   Achievements: { tab: "Prayers", stackScreen: "Achievements" },
+  PrayRoomList: { tab: "Prayers", stackScreen: "PrayRoomList" },
+  PrayRoomScreen: { tab: "Prayers", stackScreen: "PrayRoomScreen" },
 };
 
 export const navigateFromNotification = (navigationRef, data = {}) => {

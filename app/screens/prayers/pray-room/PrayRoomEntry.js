@@ -9,7 +9,7 @@ import {
   Image,
 } from "react-native";
 import { ScreenHeader, TiledBackground, BackArrowIcon } from "../../../global/components";
-import { api, showError } from "../../../global/functions";
+import { api, showError, showSuccess } from "../../../global/functions";
 import { useTheme } from "../../../global/context";
 import { prayRoomStyles as styles } from "./styles";
 
@@ -30,10 +30,15 @@ export const PrayRoomEntry = ({ navigation }) => {
     }
     setJoining(true);
     try {
-      const room = await api.post(`/pray-rooms/join/${joinCode.trim()}`);
-      navigation.replace("PrayRoomScreen", { roomId: room._id });
+      const res = await api.post(`/pray-rooms/join/${joinCode.trim()}`);
+      if (res.pending) {
+        showSuccess("Cererea a fost trimisa. Astepti aprobarea organizatorului.");
+        navigation.goBack();
+      } else {
+        navigation.replace("PrayRoomScreen", { roomId: res.room._id });
+      }
     } catch (e) {
-      showError(e.response?.data?.error || "Eroare la join");
+      showError(e.response?.data?.error || e.message || "Eroare la join");
     } finally {
       setJoining(false);
     }
