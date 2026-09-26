@@ -1,14 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader, UserAvatar } from "../../../global/components";
 import { useAuth, useTheme } from "../../../global/context";
 import { showError, showSuccess } from "../../../global/functions";
 import { accessApi } from "./accessApi";
 import { CapabilityEditor } from "./CapabilityEditor";
-import { ac, ROLE_META } from "./appControlStyles";
-
-const ROLES = ["user", "editor", "developer", "admin", "superadmin"];
+import { RoleDropdown } from "./RoleDropdown";
+import { ac, ACCENT, ROLE_META } from "./appControlStyles";
 
 export const AppControlMemberDetail = ({ navigation, route }) => {
   const { id } = route.params;
@@ -22,6 +21,9 @@ export const AppControlMemberDetail = ({ navigation, route }) => {
   const [saving, setSaving] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [pendingRole, setPendingRole] = useState(null);
+  const [password, setPassword] = useState("");
+  const [changingRole, setChangingRole] = useState(false);
 
   const isSelf = String(id) === String(me?._id);
 
@@ -41,14 +43,23 @@ export const AppControlMemberDetail = ({ navigation, route }) => {
 
   useEffect(() => { load(); }, [id]);
 
-  const changeRole = async (role) => {
-    if (role === member.role) return;
+  const requestRoleChange = (role) => {
+    setPassword("");
+    setPendingRole(role);
+  };
+
+  const confirmRoleChange = async () => {
+    setChangingRole(true);
     try {
-      await accessApi.changeRole(id, role);
-      setMember((prev) => ({ ...prev, role }));
+      await accessApi.changeRole(id, pendingRole, password);
+      setMember((prev) => ({ ...prev, role: pendingRole }));
       showSuccess("Rol schimbat");
+      setPendingRole(null);
+      setPassword("");
     } catch (e) {
       showError(e.response?.data?.error || "Eroare");
+    } finally {
+      setChangingRole(false);
     }
   };
 
@@ -125,22 +136,11 @@ export const AppControlMemberDetail = ({ navigation, route }) => {
         {!isSelf && (
           <>
             <Text style={ac.sectionLabel}>Rol</Text>
-            <View style={ac.rolesRow}>
-              {ROLES.map((r) => {
-                const rm = ROLE_META[r];
-                const active = member.role === r;
-                return (
-                  <TouchableOpacity
-                    key={r}
-                    style={[ac.roleChip, { borderColor: rm.color, backgroundColor: active ? rm.color + "22" : "transparent" }]}
-                    onPress={() => changeRole(r)}
-                  >
-                    <View style={[ac.statDot, { backgroundColor: rm.color }]} />
-                    <Text style={[ac.roleChipText, { color: active ? rm.color : theme.textPrimary }]}>{rm.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {isSuper ? (
+              <Text style={[ac.muted, { textAlign: "left" }]}>Super Admin — nu se modifica de aici.</Text>
+            ) : (
+              <RoleDropdown value={member.role} onSelect={requestRoleChange} />
+            )}
 
             <View style={ac.actionRow}>
               <TouchableOpacity
@@ -199,6 +199,39 @@ export const AppControlMemberDetail = ({ navigation, route }) => {
               </TouchableOpacity>
             </View>
           </View>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={!!pendingRole} transparent animationType="fade" onRequestClose={() => setPendingRole(null)}>
+        <Pressable style={ac.center} onPress={() => setPendingRole(null)}>
+          <Pressable style={{ backgroundColor: theme.surface, borderRadius: 16, padding: 20, width: "100%", maxWidth: 340 }} onPress={() => {}}>
+            <Text style={[ac.detailName, { color: theme.textPrimary, fontSize: 17 }]}>Esti sigur?</Text>
+            <Text style={[ac.muted, { textAlign: "left", marginVertical: 10 }]}>
+              Ii dai lui {member.fullName || member.email} rolul {pendingRole ? ROLE_META[pendingRole].label : ""}. Confirma cu parola contului tau.
+            </Text>
+            <TextInput
+              style={{ borderWidth: 1.5, borderColor: theme.border, borderRadius: 12, padding: 12, color: theme.textPrimary, marginBottom: 12 }}
+              placeholder="Parola ta"
+              placeholderTextColor={theme.textMuted}
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+              autoCapitalize="none"
+              autoFocus
+            />
+            <View style={ac.actionRow}>
+              <TouchableOpacity style={[ac.actionBtn, { borderColor: theme.border }]} onPress={() => setPendingRole(null)}>
+                <Text style={[ac.actionBtnText, { color: theme.textPrimary }]}>Anuleaza</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[ac.actionBtn, { borderColor: ACCENT, backgroundColor: ACCENT + "22" }, (!password || changingRole) && { opacity: 0.5 }]}
+                onPress={confirmRoleChange}
+                disabled={!password || changingRole}
+              >
+                <Text style={[ac.actionBtnText, { color: ACCENT }]}>{changingRole ? "..." : "Confirma"}</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
         </Pressable>
       </Modal>
     </View>

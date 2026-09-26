@@ -36,7 +36,7 @@ import {
 import { initApiUrl } from "./global/config";
 import { colors } from "./public/styles/global";
 
-import { LoginScreen, RegisterScreen, ForgotPasswordScreen } from "./screens/auth";
+import { LoginScreen, RegisterScreen, ForgotPasswordScreen, SetPasswordScreen } from "./screens/auth";
 import { HomeScreen } from "./screens/home";
 import {
   PrayersScreen,
@@ -72,7 +72,7 @@ import {
   AppControlAccess,
   AppControlMembers,
   AppControlMemberDetail,
-  AppControlAddMember,
+  AppControlCreateMember,
 } from "./screens/admin/app-control";
 
 const Stack = createNativeStackNavigator();
@@ -114,11 +114,12 @@ const MainTabs = () => (
   </Tab.Navigator>
 );
 
-const AuthStack = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+const AuthStack = ({ initialRouteName = "Login" }) => (
+  <Stack.Navigator initialRouteName={initialRouteName} screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Login" component={LoginScreen} />
     <Stack.Screen name="Register" component={RegisterScreen} />
     <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+    <Stack.Screen name="SetPassword" component={SetPasswordScreen} />
   </Stack.Navigator>
 );
 
@@ -138,12 +139,12 @@ const AppStack = () => (
     <Stack.Screen name="AppControlAccess" component={AppControlAccess} />
     <Stack.Screen name="AppControlMembers" component={AppControlMembers} />
     <Stack.Screen name="AppControlMemberDetail" component={AppControlMemberDetail} />
-    <Stack.Screen name="AppControlAddMember" component={AppControlAddMember} />
+    <Stack.Screen name="AppControlCreateMember" component={AppControlCreateMember} />
   </Stack.Navigator>
 );
 
 const Navigation = () => {
-  const { user, loading, pendingShareCode } = useAuth();
+  const { user, loading, pendingShareCode, pendingInviteToken } = useAuth();
   const { setCurrentRouteName } = useTesting();
   const navigationRef = useRef(null);
 
@@ -224,7 +225,7 @@ const Navigation = () => {
         } catch (e) {}
       }}
     >
-      {user ? <AppStack /> : <AuthStack />}
+      {user ? <AppStack /> : <AuthStack initialRouteName={pendingInviteToken ? "SetPassword" : "Login"} />}
     </NavigationContainer>
   );
 };

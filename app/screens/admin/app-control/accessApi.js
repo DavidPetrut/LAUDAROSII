@@ -17,7 +17,8 @@ export const accessApi = {
   },
   member: (id) => api.get(`/access/members/${id}`),
   setGrants: (id, grants) => api.put(`/access/members/${id}/grants`, { grants }),
-  changeRole: (id, role) => api.put(`/users/${id}/role`, { role }),
+  invite: (data) => api.post("/access/members/invite", data),
+  changeRole: (id, role, password) => api.put(`/users/${id}/role`, { role, password }),
   ban: (id, isBanned, reason) => api.patch(`/users/${id}/ban`, { isBanned, reason }),
   remove: (id) => api.delete(`/users/${id}`),
 };

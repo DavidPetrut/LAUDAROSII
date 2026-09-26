@@ -188,6 +188,14 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  // invitatie: cont creat de un super-admin, in asteptarea setarii parolei de catre user.
+  // tokenul brut e trimis pe email; in DB pastram doar hash-ul (SHA-256).
+  invite: {
+    tokenHash: { type: String, default: null },
+    expiresAt: { type: Date, default: null },
+    invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    pendingSetup: { type: Boolean, default: false },
+  },
   content: {
     prayers: {
       type: [prayerSchema],

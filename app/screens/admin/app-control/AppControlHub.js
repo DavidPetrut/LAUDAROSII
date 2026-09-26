@@ -9,8 +9,7 @@ import { ac, ACCENT, ROLE_META } from "./appControlStyles";
 
 const CARDS = [
   { key: "AppControlAccess", icon: "key", title: "Accesibilitate", desc: "Acorda accese pe rol (functionalitati + ecrane)" },
-  { key: "AppControlMembers", icon: "people", title: "Membri", desc: "Cauta, schimba rol, accese extra, blocheaza" },
-  { key: "AppControlAddMember", icon: "person-add", title: "Adauga membru", desc: "Promoveaza un membru existent la un rol" },
+  { key: "AppControlMembers", icon: "people", title: "Membri", desc: "Adauga, cauta, schimba rol, accese extra, blocheaza" },
 ];
 
 export const AppControlHub = ({ navigation }) => {

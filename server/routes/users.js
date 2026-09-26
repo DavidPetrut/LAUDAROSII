@@ -1,11 +1,14 @@
 const express = require("express");
+const bcrypt = require("bcryptjs");
 const sharp = require("sharp");
-const { User } = require("../models");
+const { User, Notification } = require("../models");
 const { authMiddleware, isSuperAdmin, requireAccess } = require("../middleware");
 const { cleanupUserData } = require("../services/cleanupService");
 const { writeAudit } = require("../services/auditService");
 
 const router = express.Router();
+
+const ROLE_LABELS = { user: "Membru", admin: "Admin", developer: "Developer", editor: "Editor", superadmin: "Super Admin" };
 
 /**
  * Proceseaza și comprima imaginea de profil la 300x300px, calitate 85%
@@ -123,15 +126,33 @@ router.get("/:id", authMiddleware, requireAccess("users.view", "view"), async (r
 
 router.put("/:id/role", authMiddleware, isSuperAdmin, async (req, res) => {
   try {
-    const { role } = req.body;
+    const { role, password } = req.body;
 
-    if (!["user", "admin", "superadmin", "developer", "editor"].includes(role)) {
-      return res.status(400).json({ error: "Rol invalid" });
+    // Super-adminul NU se acorda din aplicatie (se seteaza doar manual in DB).
+    if (!["user", "admin", "developer", "editor"].includes(role)) {
+      return res.status(400).json({ error: "Rol invalid. Super Admin nu se poate acorda din aplicatie." });
+    }
+
+    // Confirmare cu parola contului care face schimbarea (anti-greseala si anti-sesiune furata).
+    if (!password) {
+      return res.status(400).json({ error: "Confirma cu parola ta" });
+    }
+    const actor = await User.findById(req.user.id).select("passwordHash");
+    const passOk = actor && (await bcrypt.compare(password, actor.passwordHash));
+    if (!passOk) {
+      return res.status(403).json({ error: "Parola incorecta" });
     }
 
     const before = await User.findById(req.params.id).select("role");
     if (!before) {
       return res.status(404).json({ error: "Utilizator negasit" });
+    }
+    // Un super-admin existent nu se retrogradeaza din aplicatie.
+    if (before.role === "superadmin") {
+      return res.status(403).json({ error: "Rolul unui super-admin nu se schimba din aplicatie." });
+    }
+    if (before.role === role) {
+      return res.status(400).json({ error: "Utilizatorul are deja acest rol" });
     }
 
     const user = await User.findByIdAndUpdate(
@@ -139,6 +160,19 @@ router.put("/:id/role", authMiddleware, isSuperAdmin, async (req, res) => {
       { role },
       { new: true }
     ).select("-passwordHash");
+
+    // Notificare pentru cel afectat — DOAR la schimbarea de rol. Nu blocheaza
+    // schimbarea daca notificarea esueaza.
+    try {
+      await Notification.create({
+        userId: req.params.id,
+        type: "role_changed",
+        category: "more",
+        title: "Rolul tau a fost schimbat",
+        body: `Ai acum rolul: ${ROLE_LABELS[role] || role}`,
+        data: { role, from: before.role },
+      });
+    } catch (e) {}
 
     await writeAudit({
       action: "user.role-change",

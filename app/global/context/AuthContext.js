@@ -19,6 +19,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pendingShareCode, setPendingShareCode] = useState(null);
+  const [pendingInviteToken, setPendingInviteToken] = useState(null);
   const [access, setAccess] = useState({});
 
   useEffect(() => {
@@ -44,7 +45,21 @@ export const AuthProvider = ({ children }) => {
     if (match) {
       setPendingShareCode(match[1]);
     }
+    const invite = path.match(/\/invite\/([a-f0-9]+)/i);
+    if (invite) {
+      setPendingInviteToken(invite[1]);
+    }
   };
+
+  // Aplica o sesiune primita (login din invitatie): stocheaza tokenul si userul.
+  const applyAuth = async ({ token, user: u }) => {
+    await storage.setItem("authToken", token);
+    setUser(normalizeUser(u));
+    await refreshAccess();
+    setPendingInviteToken(null);
+  };
+
+  const clearPendingInvite = () => setPendingInviteToken(null);
 
   const checkAuth = async () => {
     try {
@@ -140,6 +155,9 @@ export const AuthProvider = ({ children }) => {
         refreshAccess,
         pendingShareCode,
         clearPendingShareCode,
+        pendingInviteToken,
+        applyAuth,
+        clearPendingInvite,
       }}
     >
       {children}

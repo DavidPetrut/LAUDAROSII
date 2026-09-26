@@ -1,7 +1,10 @@
 const express = require("express");
+const crypto = require("crypto");
+const bcrypt = require("bcryptjs");
 const { User, RolePermission } = require("../models");
 const { authMiddleware, isSuperAdmin } = require("../middleware");
 const { resolveAccess } = require("../services/accessService");
+const { sendInviteEmail, isEmailConfigured } = require("../services/emailService");
 const { writeAudit } = require("../services/auditService");
 const {
   CAPABILITIES,
@@ -14,6 +17,7 @@ const {
 const router = express.Router();
 
 const GRANT_ROLES = ["admin", "developer", "editor", "user"];
+const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Curata o harta {cheie: nivel} pastrand doar chei valide + nivel view/edit
 const sanitizePermMap = (input) => {
@@ -107,6 +111,60 @@ router.put("/roles/:role", async (req, res) => {
     res.json({ role, perms: mapToObj(doc.perms) });
   } catch (e) {
     res.status(500).json({ error: "Eroare la salvare" });
+  }
+});
+
+/**
+ * POST /api/access/members/invite — creeaza un membru nou (cont in asteptare) si
+ * trimite invitatie pe email cu link de setare parola. Cere confirmarea cu parola
+ * super-adminului cand rolul e elevat (diferit de simplu membru).
+ */
+router.post("/members/invite", async (req, res) => {
+  try {
+    const fullName = String(req.body.fullName || "").trim().slice(0, 100);
+    const email = String(req.body.email || "").trim().toLowerCase().slice(0, 100);
+    const phone = String(req.body.phone || "").trim().slice(0, 20);
+    const role = GRANT_ROLES.includes(req.body.role) ? req.body.role : "user";
+
+    if (!EMAIL_RX.test(email)) return res.status(400).json({ error: "Email invalid" });
+
+    if (role !== "user") {
+      if (!req.body.password) return res.status(400).json({ error: "Confirma cu parola ta" });
+      const actor = await User.findById(req.user.id).select("passwordHash");
+      const ok = actor && (await bcrypt.compare(req.body.password, actor.passwordHash));
+      if (!ok) return res.status(403).json({ error: "Parola incorecta" });
+    }
+
+    const existing = await User.findOne({ email });
+    if (existing) return res.status(400).json({ error: "Emailul este deja folosit" });
+
+    const rawToken = crypto.randomBytes(24).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const placeholder = await bcrypt.hash(crypto.randomBytes(16).toString("hex"), 10);
+
+    const user = await User.create({
+      email,
+      passwordHash: placeholder,
+      role,
+      personalData: { fullName, phone },
+      invite: { tokenHash, expiresAt, invitedBy: req.user.id, pendingSetup: true },
+    });
+
+    const base = String(process.env.APP_PUBLIC_URL || "").replace(/\/$/, "");
+    const link = `${base}/invite/${rawToken}`;
+
+    let emailSent = false;
+    if (isEmailConfigured()) {
+      const r = await sendInviteEmail({ to: email, fullName, link });
+      emailSent = r.sent > 0;
+    }
+
+    await writeAudit({ action: "user.invite", req, targetType: "user", targetId: user._id, meta: { email, role } });
+
+    res.status(201).json({ _id: user._id, email, role, fullName, emailSent, link, emailConfigured: isEmailConfigured() });
+  } catch (e) {
+    res.status(500).json({ error: "Eroare la invitare" });
   }
 });
 

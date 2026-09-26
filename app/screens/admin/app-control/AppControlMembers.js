@@ -5,7 +5,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { ScreenHeader, UserAvatar } from "../../../global/components";
 import { useTheme } from "../../../global/context";
 import { accessApi } from "./accessApi";
-import { ac, ROLE_META } from "./appControlStyles";
+import { ac, ACCENT, ROLE_META } from "./appControlStyles";
 
 const FILTER_ROLES = ["superadmin", "admin", "developer", "editor", "user"];
 
@@ -110,6 +110,19 @@ export const AppControlMembers = ({ navigation }) => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListEmptyComponent={<Text style={[ac.muted, { marginTop: 40 }]}>Niciun utilizator gasit.</Text>}
       />
+
+      <TouchableOpacity
+        style={{
+          position: "absolute", right: 20, bottom: 28, width: 58, height: 58, borderRadius: 18,
+          backgroundColor: ACCENT, alignItems: "center", justifyContent: "center",
+          shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
+        }}
+        onPress={() => navigation.navigate("AppControlCreateMember")}
+        activeOpacity={0.85}
+        accessibilityLabel="Adauga membru"
+      >
+        <Ionicons name="person-add" size={24} color="#fff" />
+      </TouchableOpacity>
     </View>
   );
 };
