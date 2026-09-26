@@ -18,28 +18,29 @@ const Block = (props) => <View {...props} onStartShouldSetResponder={() => true}
  */
 export const TutorialOverlay = () => {
   const insets = useSafeAreaInsets();
-  const { mode, currentPlayStep, playTargetId, playTutorial, playIndex, measureTarget, registryVersion, stopPlay } = useTutorial();
+  const { mode, currentPlayStep, playTutorial, playIndex, measureStep, registryVersion, stopPlay } = useTutorial();
   const [rect, setRect] = useState(null);
 
   useEffect(() => {
-    if (mode !== "play" || !playTargetId) {
+    if (mode !== "play" || !currentPlayStep) {
       setRect(null);
       return;
     }
     let active = true;
-    let tries = 0;
+    let ticks = 0;
     const tick = async () => {
-      const r = await measureTarget(playTargetId);
+      const r = await measureStep(currentPlayStep);
       if (!active) return;
       setRect(r);
-      tries += 1;
-      if (!r && tries < 40) setTimeout(tick, 150);
+      ticks += 1;
+      // remasuram periodic (elementul se poate muta la navigare/scroll)
+      if (ticks < 120) setTimeout(tick, r ? 400 : 150);
     };
     tick();
     return () => {
       active = false;
     };
-  }, [mode, playTargetId, playIndex, registryVersion, measureTarget]);
+  }, [mode, playIndex, currentPlayStep, registryVersion, measureStep]);
 
   if (mode !== "play" || !currentPlayStep) return null;
 
@@ -83,7 +84,7 @@ export const TutorialOverlay = () => {
         </Block>
       )}
 
-      <View style={[styles.bar, { paddingBottom: insets.bottom + 16 }]} pointerEvents="box-none">
+      <View style={[styles.bar, { paddingBottom: insets.bottom + 16 }]} pointerEvents="box-none" dataSet={{ tutorialUi: "1" }}>
         <View style={styles.card}>
           <View style={styles.cardTop}>
             <Text style={styles.counter}>Pas {playIndex + 1} din {total}</Text>

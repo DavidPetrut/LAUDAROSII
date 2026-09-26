@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from "react";
+import { Platform } from "react-native";
 import { useAuth } from "../context";
+import { describeElement } from "../components/testing/webInspector";
 import { tutorialApi } from "./tutorialApi";
+
+const IS_WEB = Platform.OS === "web";
+// Elementul interactiv cel mai relevant din jurul tintei unui click.
+const INTERACTIVE_SEL = "button, a, input, textarea, select, [role='button'], [data-testid]";
 
 const TutorialContext = createContext(null);
 
@@ -14,6 +20,8 @@ const SAFE = {
   registerTarget: NOOP,
   unregisterTarget: NOOP,
   measureTarget: async () => null,
+  measureStep: async () => null,
+  captureElement: NOOP,
   recordSteps: [],
   startRecording: NOOP,
   captureTarget: NOOP,
@@ -51,7 +59,8 @@ export const TutorialProvider = ({ children }) => {
 
   const registry = useRef(new Map());
 
-  const canAuthor = authoringEnabled && isAuthorRole;
+  // Autoratul (inregistrarea) se face DOAR pe PC/web (clic pe elemente reale din DOM).
+  const canAuthor = authoringEnabled && isAuthorRole && IS_WEB;
 
   const reloadConfig = useCallback(() => {
     tutorialApi
@@ -91,6 +100,31 @@ export const TutorialProvider = ({ children }) => {
     []
   );
 
+  // Masoara pozitia tintei unui pas: pe web dupa selectorul DOM; altfel din registry.
+  const measureStep = useCallback(
+    (step) =>
+      new Promise((resolve) => {
+        if (!step) return resolve(null);
+        if (IS_WEB && step.selector && typeof document !== "undefined") {
+          try {
+            const node = document.querySelector(step.selector);
+            if (node) {
+              const r = node.getBoundingClientRect();
+              if (r.width || r.height) return resolve({ x: r.left, y: r.top, w: r.width, h: r.height });
+            }
+          } catch (e) {}
+        }
+        if (step.targetId) {
+          const node = registry.current.get(step.targetId)?.ref?.current;
+          if (node?.measureInWindow) {
+            return node.measureInWindow((x, y, w, h) => resolve(w || h ? { x, y, w, h } : null));
+          }
+        }
+        resolve(null);
+      }),
+    []
+  );
+
   // ---- Inregistrare (autor) ----
   const startRecording = useCallback(() => {
     setRecordSteps([]);
@@ -101,6 +135,19 @@ export const TutorialProvider = ({ children }) => {
   const captureTarget = useCallback((id) => {
     const label = registry.current.get(id)?.label || id;
     setRecordSteps((prev) => [...prev, { targetId: id, label, instruction: "" }]);
+  }, []);
+
+  // Inregistreaza un pas dintr-un element DOM (web): orice buton/input/link/etc.
+  const captureElement = useCallback((descriptor) => {
+    const label =
+      (descriptor.componentStack && descriptor.componentStack[descriptor.componentStack.length - 1]) ||
+      descriptor.text ||
+      descriptor.tag ||
+      "element";
+    setRecordSteps((prev) => [
+      ...prev,
+      { selector: descriptor.selector || null, label: String(label).slice(0, 80), text: descriptor.text || "", instruction: "" },
+    ]);
   }, []);
 
   const finishRecording = useCallback(() => {
@@ -148,6 +195,40 @@ export const TutorialProvider = ({ children }) => {
   const currentPlayStep = mode === "play" && playTutorial ? playTutorial.steps[playIndex] : null;
   const playTargetId = currentPlayStep?.targetId || null;
 
+  // INREGISTRARE (web): fiecare clic pe un element real devine un pas. Nu blocam
+  // actiunea (fara preventDefault) ca autorul sa parcurga fluxul normal.
+  useEffect(() => {
+    if (!IS_WEB || mode !== "record" || typeof document === "undefined") return;
+    const onClick = (e) => {
+      const el = e.target;
+      if (!el || (el.closest && el.closest("[data-tutorial-ui]"))) return;
+      const target = (el.closest && el.closest(INTERACTIVE_SEL)) || el;
+      try {
+        captureElement(describeElement(target));
+      } catch (err) {}
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [mode, captureElement]);
+
+  // REDARE (web): avanseaza cand userul apasa pe elementul-tinta al pasului curent.
+  useEffect(() => {
+    if (!IS_WEB || mode !== "play" || typeof document === "undefined") return;
+    const step = currentPlayStep;
+    if (!step?.selector) return;
+    const onClick = (e) => {
+      const el = e.target;
+      if (!el || (el.closest && el.closest("[data-tutorial-ui]"))) return;
+      let node = null;
+      try { node = document.querySelector(step.selector); } catch (err) {}
+      if (node && (node === el || node.contains(el) || (el.contains && el.contains(node)))) {
+        setTimeout(() => advancePlay(), 250);
+      }
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [mode, playIndex, currentPlayStep, advancePlay]);
+
   return (
     <TutorialContext.Provider
       value={{
@@ -159,6 +240,8 @@ export const TutorialProvider = ({ children }) => {
         registerTarget,
         unregisterTarget,
         measureTarget,
+        measureStep,
+        captureElement,
         recordSteps,
         startRecording,
         captureTarget,

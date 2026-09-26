@@ -13,12 +13,13 @@ const sanitizeSteps = (arr) =>
   (Array.isArray(arr) ? arr : [])
     .slice(0, 40)
     .map((s) => ({
+      selector: safeStr(s.selector, 400),
       targetId: safeStr(s.targetId, 80),
       label: safeStr(s.label, 80),
       instruction: safeStr(s.instruction, 240),
       screen: safeStr(s.screen, 80),
     }))
-    .filter((s) => s.targetId);
+    .filter((s) => s.selector || s.targetId);
 
 const serialize = (t) => ({
   _id: t._id,

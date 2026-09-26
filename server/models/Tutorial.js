@@ -4,7 +4,9 @@ const mongoose = require("mongoose");
 // eticheta lui (pentru autor) si instructiunea aratata userului.
 const stepSchema = new mongoose.Schema(
   {
-    targetId: { type: String, required: true },
+    // Tinta pasului: pe web = selector DOM (orice element); pe nativ = id din <TutorialTarget>.
+    selector: { type: String, default: "" },
+    targetId: { type: String, default: "" },
     label: { type: String, default: "" },
     instruction: { type: String, default: "", maxlength: 240 },
     screen: { type: String, default: "" },

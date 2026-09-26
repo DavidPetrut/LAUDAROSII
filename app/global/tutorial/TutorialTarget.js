@@ -1,6 +1,8 @@
 import React, { useRef, useEffect } from "react";
-import { View } from "react-native";
+import { View, Platform } from "react-native";
 import { useTutorial } from "./TutorialContext";
+
+const IS_WEB = Platform.OS === "web";
 
 /**
  * Inveleste un element interactiv ca sa poata fi tinta unui tutorial.
@@ -19,6 +21,8 @@ export const TutorialTarget = ({ id, label, children, style }) => {
     return () => unregisterTarget(id);
   }, [id, label, registerTarget, unregisterTarget]);
 
+  // Pe web, inregistrarea si avansul se fac prin DOM (orice element). Aici tratam
+  // doar nativul (registry): capturam / avansam pe atingerea elementului tinta.
   const onTouchStart = () => {
     if (mode === "record") {
       captureTarget(id);
@@ -32,7 +36,7 @@ export const TutorialTarget = ({ id, label, children, style }) => {
       ref={ref}
       collapsable={false}
       style={style}
-      onTouchStart={mode === "idle" ? undefined : onTouchStart}
+      onTouchStart={!IS_WEB && mode !== "idle" ? onTouchStart : undefined}
     >
       {children}
     </View>

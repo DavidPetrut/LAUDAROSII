@@ -99,6 +99,7 @@ const AuthorUI = ({ t }) => {
           style={[styles.fab, { bottom: insets.bottom + 152, left: 16 }]}
           onPress={() => setMenu(true)}
           activeOpacity={0.85}
+          dataSet={{ tutorialUi: "1" }}
         >
           <Ionicons name="school" size={20} color="#fff" />
           <Text style={styles.fabText}>TUTORIAL</Text>
@@ -107,7 +108,7 @@ const AuthorUI = ({ t }) => {
 
       {/* Bara de inregistrare */}
       {t.mode === "record" && (
-        <View style={[styles.recBar, { top: insets.top + 8 }]}>
+        <View style={[styles.recBar, { top: insets.top + 8 }]} dataSet={{ tutorialUi: "1" }}>
           <View style={styles.recDot} />
           <Text style={styles.recText}>Înregistrez • {t.recordSteps.length} pași</Text>
           <TouchableOpacity style={styles.recBtn} onPress={t.finishRecording}>
