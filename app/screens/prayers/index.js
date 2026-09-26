@@ -13,4 +13,5 @@ export {
   PrayRoomSetup,
   PrayRoomList,
   PrayRoomScreen,
+  PrayRoomInvite,
 } from "./pray-room";
