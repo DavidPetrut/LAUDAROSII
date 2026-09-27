@@ -328,24 +328,24 @@ export const PrayRoomScreen = ({ navigation, route }) => {
 
   return (
     <TiledBackground tileSource={BG_DARK} solidSource={BG_LIGHT} useTiled={isDarkMode} style={styles.container}>
-      <View style={styles.roomHeader}>
-        <ScreenHeader
-          title={room?.name || "Pray Room"}
-          subtitle={`Cod: ${room?.roomCode}`}
-          onBack={() => navigation.goBack()}
-        />
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerActionBtn} onPress={() => setRulesModal({ open: true, firstTime: false })} accessibilityLabel="Regulile camerei">
-            <Ionicons name="information-circle-outline" size={20} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerActionBtn} onPress={handleCopyCode} accessibilityLabel="Copiaza codul">
-            <Ionicons name="copy-outline" size={20} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerActionBtn} onPress={() => setShowSettings(true)} accessibilityLabel="Setari camera">
-            <Ionicons name="settings-outline" size={20} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <ScreenHeader
+        title={room?.name || "Pray Room"}
+        subtitle={`Cod: ${room?.roomCode}`}
+        onBack={() => navigation.goBack()}
+        rightComponent={
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.headerActionBtn} onPress={() => setRulesModal({ open: true, firstTime: false })} accessibilityLabel="Regulile camerei">
+              <Ionicons name="information-circle-outline" size={20} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerActionBtn} onPress={handleCopyCode} accessibilityLabel="Copiaza codul">
+              <Ionicons name="copy-outline" size={20} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerActionBtn} onPress={() => setShowSettings(true)} accessibilityLabel="Setari camera">
+              <Ionicons name="settings-outline" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        }
+      />
 
       <View style={styles.roomInfoBar}>
         <Text style={styles.roomInfoText}>{TYPE_LABELS[room?.roomType]}</Text>

@@ -120,8 +120,7 @@ export const prayRoomStyles = StyleSheet.create({
   // Room Header (title + actiuni)
   roomHeader: { position: "relative" },
   headerActions: {
-    position: "absolute", right: spacing.md, top: Platform.OS === "ios" ? 50 : 30,
-    flexDirection: "row", gap: 8, zIndex: 10,
+    flexDirection: "row", gap: 8, alignItems: "center",
   },
   headerActionBtn: {
     width: 36, height: 36, borderRadius: 18,
