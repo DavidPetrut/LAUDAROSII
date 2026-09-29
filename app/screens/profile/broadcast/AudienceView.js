@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Modal, Pressable } from "react-native";
+import { Keyboard, View, Text, TextInput, TouchableOpacity, ScrollView, Modal, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { broadcastStyles as styles } from "./broadcastStyles";
 import { colors } from "../../../public/styles/global";
@@ -104,7 +104,7 @@ export const AudienceView = () => {
 
       <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}>
         <Pressable style={styles.sheetBackdrop} onPress={() => setSelected(null)}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
+          <Pressable style={styles.sheet} onPress={() => Keyboard.dismiss()}>
             <Text style={styles.sheetTitle}>{selected?.fullName}</Text>
             {catalog.length === 0 && <Text style={styles.emptyText}>Creează întâi un status.</Text>}
             <View style={styles.chipsRow}>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, ActivityIndicator, Modal, Pressable } from "react-native";
+import { Keyboard, View, Text, TextInput, TouchableOpacity, ScrollView, Switch, ActivityIndicator, Modal, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { broadcastStyles as styles } from "./broadcastStyles";
 import { colors } from "../../../public/styles/global";
@@ -158,7 +158,7 @@ export const ComposeView = ({ onSent }) => {
 
       <Modal visible={saveOpen} transparent animationType="fade" onRequestClose={() => setSaveOpen(false)}>
         <Pressable style={styles.sheetBackdrop} onPress={() => setSaveOpen(false)}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
+          <Pressable style={styles.sheet} onPress={() => Keyboard.dismiss()}>
             <Text style={styles.sheetTitle}>Salvează șablonul</Text>
             <TextInput style={styles.input} value={tplTitle} onChangeText={setTplTitle} placeholder="Titlu (ex: pentru botez)" placeholderTextColor={colors.textMuted} maxLength={60} autoFocus />
             <TouchableOpacity style={[styles.primaryBtn, !tplTitle.trim() && styles.disabled]} onPress={saveTemplate} disabled={!tplTitle.trim()}>

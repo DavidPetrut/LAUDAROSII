@@ -9,6 +9,7 @@ export { BackArrowIcon } from "./BackArrowIcon";
 export { CustomTabBar } from "./CustomTabBar";
 export { GlobalToast } from "./GlobalToast";
 export { ConfirmModal } from "./ConfirmModal";
+export { KeyboardDismiss } from "./KeyboardDismiss";
 export { NotificationBadge } from "./NotificationBadge";
 export { BulbToggle } from "./BulbToggle";
 export { ServerSettingsModal } from "./ServerSettingsModal";

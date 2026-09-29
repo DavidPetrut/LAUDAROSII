@@ -55,6 +55,7 @@ const sanitizeDevotional = (body) => {
     image: safeImage(body.image),
     tasks: tasks.slice(0, 20).map((t) => ({
       title: safeStr(t.title, 60) || "Moment",
+      description: safeStr(t.description, 300),
       icon: safeStr(t.icon, 40) || "flower-outline",
       iconSet: safeIconSet(t.iconSet),
       color: safeColor(t.color),
@@ -305,6 +306,7 @@ router.post("/:id/share", authMiddleware, async (req, res) => {
         image: devotional.image,
         tasks: devotional.tasks.map((t) => ({
           title: t.title,
+          description: t.description || "",
           icon: t.icon,
           iconSet: t.iconSet,
           color: t.color,

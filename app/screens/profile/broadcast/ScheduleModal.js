@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, Modal, Pressable } from "react-native";
+import { Keyboard, View, Text, TouchableOpacity, Modal, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { broadcastStyles as styles } from "./broadcastStyles";
 import { colors } from "../../../public/styles/global";
@@ -51,7 +51,7 @@ export const ScheduleModal = ({ visible, onConfirm, onClose }) => {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
+        <Pressable style={styles.sheet} onPress={() => Keyboard.dismiss()}>
           <Text style={styles.sheetTitle}>Programează notificarea</Text>
 
           <View style={styles.monthNav}>

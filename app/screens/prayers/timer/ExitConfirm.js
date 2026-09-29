@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, Modal, Pressable } from "react-native";
+import { Keyboard, View, Text, TouchableOpacity, Modal, Pressable } from "react-native";
 import { devotionalStyles as styles } from "./devotionalStyles";
 
 /**
@@ -9,7 +9,7 @@ import { devotionalStyles as styles } from "./devotionalStyles";
 export const ExitConfirm = ({ visible, onStay, onExit, message = "Sesiunea e pusă pe pauză." }) => (
   <Modal visible={visible} transparent animationType="fade" onRequestClose={onStay}>
     <Pressable style={styles.confirmBackdrop} onPress={onStay}>
-      <Pressable style={styles.confirmSheet} onPress={() => {}}>
+      <Pressable style={styles.confirmSheet} onPress={() => Keyboard.dismiss()}>
         <Text style={styles.confirmTitle}>Sigur vrei să ieși?</Text>
         <Text style={styles.confirmDesc}>{message}</Text>
         <View style={styles.confirmRow}>

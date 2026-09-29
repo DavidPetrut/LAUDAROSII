@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, Modal, Pressable } from "react-native";
+import { Keyboard, View, Text, TextInput, TouchableOpacity, Modal, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { DEFAULT_NOTIF_MESSAGE } from "./devotionalNotify";
@@ -33,7 +33,7 @@ export const NotificationEditModal = ({ visible, value, onSave, onClose }) => {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]} onPress={() => {}}>
+        <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]} onPress={() => Keyboard.dismiss()}>
           <View style={styles.sheetHandle} />
           <Text style={styles.sheetTitle}>Notificarea devotionalului</Text>
 

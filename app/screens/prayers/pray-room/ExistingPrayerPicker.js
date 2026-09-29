@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import {
+import { Keyboard,
   View,
   Text,
   Modal,
@@ -82,7 +82,7 @@ export const ExistingPrayerPicker = ({ visible, currentUserId, submitting, onClo
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={d.sheetBackdrop} onPress={onClose}>
-        <Pressable style={d.sheet} onPress={() => {}}>
+        <Pressable style={d.sheet} onPress={() => Keyboard.dismiss()}>
           <View style={d.sheetHandle} />
 
           {step === "lists" ? (

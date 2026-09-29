@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import {
+import { Keyboard,
   View,
   Text,
   Modal,
@@ -46,7 +46,7 @@ export const PrayerListPickerModal = ({ visible, selected, onSelect, onClose }) 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
+        <Pressable style={styles.sheet} onPress={() => Keyboard.dismiss()}>
           <View style={styles.sheetHandle} />
           <Text style={styles.sheetTitle}>Alege o listă de rugăciuni</Text>
 

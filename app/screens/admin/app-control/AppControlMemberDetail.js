@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput } from "react-native";
+import { Keyboard, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader, UserAvatar } from "../../../global/components";
 import { useAuth, useTheme } from "../../../global/context";
@@ -204,7 +204,7 @@ export const AppControlMemberDetail = ({ navigation, route }) => {
 
       <Modal visible={!!pendingRole} transparent animationType="fade" onRequestClose={() => setPendingRole(null)}>
         <Pressable style={ac.center} onPress={() => setPendingRole(null)}>
-          <Pressable style={{ backgroundColor: theme.surface, borderRadius: 16, padding: 20, width: "100%", maxWidth: 340 }} onPress={() => {}}>
+          <Pressable style={{ backgroundColor: theme.surface, borderRadius: 16, padding: 20, width: "100%", maxWidth: 340 }} onPress={() => Keyboard.dismiss()}>
             <Text style={[ac.detailName, { color: theme.textPrimary, fontSize: 17 }]}>Esti sigur?</Text>
             <Text style={[ac.muted, { textAlign: "left", marginVertical: 10 }]}>
               Ii dai lui {member.fullName || member.email} rolul {pendingRole ? ROLE_META[pendingRole].label : ""}. Confirma cu parola contului tau.

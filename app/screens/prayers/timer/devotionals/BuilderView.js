@@ -24,7 +24,7 @@ const DAYS = [
  * Ecran de construire/editare devotional: imagine + nume, culoare de accent,
  * momente ca timeline vertical si programul (zile + repetabil) la final.
  */
-export const BuilderView = ({ initial, devotionals = [], canTemplate, onSaveTemplate, onSaved, onCancel }) => {
+export const BuilderView = ({ initial, devotionals = [], canTemplate, templateMode = false, onSaveTemplate, onSaved, onCancel }) => {
   const [name, setName] = useState(initial?.name || "");
   const [image, setImage] = useState(initial?.image || "");
   const color = initial?.color || "#10b981";
@@ -41,14 +41,17 @@ export const BuilderView = ({ initial, devotionals = [], canTemplate, onSaveTemp
   const [error, setError] = useState("");
   const [showMissing, setShowMissing] = useState(false);
 
-  // Zile ocupate de ALTE devotionale (1 devotional / zi)
+  // Zile ocupate de ALTE devotionale (1 devotional / zi). La template zilele sunt doar
+  // recomandari, nu exclusive, deci nu blocam nimic.
   const occupiedBy = {};
-  devotionals.forEach((d) => {
-    if (initial && String(d._id) === String(initial._id)) return;
-    (d.schedule?.weekdays || []).forEach((wd) => {
-      if (!occupiedBy[wd]) occupiedBy[wd] = d.name;
+  if (!templateMode) {
+    devotionals.forEach((d) => {
+      if (initial && String(d._id) === String(initial._id)) return;
+      (d.schedule?.weekdays || []).forEach((wd) => {
+        if (!occupiedBy[wd]) occupiedBy[wd] = d.name;
+      });
     });
-  });
+  }
 
   const toggleDay = (wd) => {
     if (occupiedBy[wd] && !weekdays.includes(wd)) {
@@ -84,7 +87,7 @@ export const BuilderView = ({ initial, devotionals = [], canTemplate, onSaveTemp
 
   const canSave = name.trim().length > 0 && tasks.length > 0;
   const missing = [
-    ...(name.trim().length === 0 ? ["Adaugă un nume devotionalului"] : []),
+    ...(name.trim().length === 0 ? [templateMode ? "Adaugă un nume template-ului" : "Adaugă un nume devotionalului"] : []),
     ...(tasks.length === 0 ? ["Adaugă minim un moment"] : []),
   ];
 
@@ -152,7 +155,7 @@ export const BuilderView = ({ initial, devotionals = [], canTemplate, onSaveTemp
         onPickList={(i) => setListPicker({ open: true, index: i })}
       />
 
-      <Text style={styles.stepLabel}>Zile</Text>
+      <Text style={styles.stepLabel}>{templateMode ? "Zile recomandate" : "Zile"}</Text>
       <View style={styles.daysRow}>
         {DAYS.map((d) => {
           const selected = weekdays.includes(d.wd);
@@ -213,7 +216,7 @@ export const BuilderView = ({ initial, devotionals = [], canTemplate, onSaveTemp
 
       {showMissing && !canSave && (
         <View style={styles.missingCard}>
-          <Text style={styles.missingTitle}>Ca să creezi devotionalul, mai ai de făcut:</Text>
+          <Text style={styles.missingTitle}>Ca să {templateMode ? "salvezi template-ul" : "creezi devotionalul"}, mai ai de făcut:</Text>
           {missing.map((m) => (
             <Text key={m} style={styles.missingItem}>• {m}</Text>
           ))}
@@ -222,19 +225,18 @@ export const BuilderView = ({ initial, devotionals = [], canTemplate, onSaveTemp
 
       <TouchableOpacity
         style={[styles.startBtn, !canSave && styles.startBtnDisabled]}
-        onPress={attemptSave}
+        onPress={templateMode ? saveAsTemplate : attemptSave}
         disabled={saving}
         activeOpacity={0.9}
       >
-        {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.startBtnText}>{initial ? "Salvează" : "Creează devotional"}</Text>}
+        {saving ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.startBtnText}>
+            {templateMode ? "Salvează template" : initial ? "Salvează" : "Creează devotional"}
+          </Text>
+        )}
       </TouchableOpacity>
-
-      {canTemplate && (
-        <TouchableOpacity style={[styles.bigBtn, styles.bigBtnGhost, { marginTop: 12 }]} onPress={saveAsTemplate} disabled={saving} activeOpacity={0.9}>
-          <Ionicons name="albums-outline" size={22} color="#10b981" />
-          <Text style={[styles.bigBtnText, { color: "#10b981" }]}>Creează template</Text>
-        </TouchableOpacity>
-      )}
 
       <TouchableOpacity style={styles.skipBtn} onPress={onCancel}>
         <Text style={styles.skipBtnText}>Anulează</Text>
@@ -244,7 +246,7 @@ export const BuilderView = ({ initial, devotionals = [], canTemplate, onSaveTemp
         visible={taskEditor.open}
         initial={taskEditor.index !== null ? tasks[taskEditor.index] : null}
         baseColor={color}
-        templateMode={canTemplate}
+        templateMode={templateMode}
         onSave={saveTask}
         onClose={() => setTaskEditor({ open: false, index: null })}
       />

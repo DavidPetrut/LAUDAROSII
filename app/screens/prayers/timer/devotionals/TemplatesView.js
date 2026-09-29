@@ -12,7 +12,7 @@ import { templatesApi } from "./templatesApi";
  * Rasfoirea template-urilor: bannere mari (ca la filme) cu filtru dupa nume.
  * Tap pe un template -> import. Cei cu grant pot sterge (apasare lunga).
  */
-export const TemplatesView = ({ onImport }) => {
+export const TemplatesView = ({ onImport, onCreate }) => {
   const { can } = useAuth();
   const canManage = can("templates.manage", "edit");
   const [q, setQ] = useState("");
@@ -60,6 +60,13 @@ export const TemplatesView = ({ onImport }) => {
           autoCapitalize="none"
         />
       </View>
+
+      {canManage && (
+        <TouchableOpacity style={[styles.bigBtn, styles.bigBtnGhost, { marginBottom: 14 }]} onPress={() => onCreate?.()} activeOpacity={0.9}>
+          <Ionicons name="add-circle-outline" size={22} color="#10b981" />
+          <Text style={[styles.bigBtnText, { color: "#10b981" }]}>Creează template</Text>
+        </TouchableOpacity>
+      )}
 
       {loading ? (
         <ActivityIndicator color="#10b981" style={{ marginTop: 30 }} />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
+import { Keyboard,
   View,
   Text,
   FlatList,
@@ -518,7 +518,7 @@ export const PrayRoomScreen = ({ navigation, route }) => {
 
       <Modal visible={manageOpen} transparent animationType="slide" onRequestClose={() => setManageOpen(false)}>
         <Pressable style={styles.crudBackdrop} onPress={() => setManageOpen(false)}>
-          <Pressable style={[styles.crudSheet, { maxHeight: "80%", padding: 16 }]} onPress={() => {}}>
+          <Pressable style={[styles.crudSheet, { maxHeight: "80%", padding: 16 }]} onPress={() => Keyboard.dismiss()}>
             <Text style={styles.manageSectionTitle}>Gestioneaza camera</Text>
             <ScrollView>
               {requests.length > 0 && (

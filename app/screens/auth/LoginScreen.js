@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import {
+import { Keyboard,
   View,
   Text,
   TextInput,
@@ -145,7 +145,7 @@ export const LoginScreen = ({ navigation }) => {
 
       <Modal visible={cpOpen} transparent animationType="fade" onRequestClose={() => setCpOpen(false)}>
         <Pressable style={cpStyles.backdrop} onPress={() => setCpOpen(false)}>
-          <Pressable style={cpStyles.card} onPress={() => {}}>
+          <Pressable style={cpStyles.card} onPress={() => Keyboard.dismiss()}>
             <Text style={cpStyles.title}>Schimbă parola</Text>
             <Text style={cpStyles.hint}>
               Intră cu parola primită (implicit „Test1234!") și pune-ți una nouă.

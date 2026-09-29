@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-29T14:33:40.955Z",
+  "generatedAt": "2026-09-29T15:15:00.155Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -137,6 +137,10 @@
       "ConfirmModal": {
         "file": "global/components/ConfirmModal.js",
         "purpose": "TouchableOpacity,"
+      },
+      "KeyboardDismiss": {
+        "file": "global/components/KeyboardDismiss.js",
+        "purpose": "Regula generala pentru scris pe mobil: apasand ORIUNDE in afara unui input sau"
       },
       "NotificationBadge": {
         "file": "global/components/NotificationBadge.js",
@@ -3084,12 +3088,19 @@
     },
     "screens/prayers/timer/devotionals/DevotionalsView.js": {
       "stylesFile": null,
-      "globals": [],
+      "globals": [
+        {
+          "name": "useAuth",
+          "file": "global/context/AuthContext.js"
+        }
+      ],
       "styleTokens": [],
       "crossScreens": [
         "screens/prayers/timer/devotionalStyles.js"
       ],
-      "domainsTouched": []
+      "domainsTouched": [
+        "auth"
+      ]
     },
     "screens/prayers/timer/devotionals/iconCatalog.js": {
       "stylesFile": null,
@@ -3818,6 +3829,7 @@
       "screens/prayers/PrayersScreen.js",
       "screens/prayers/ProgramPrayersTab.js",
       "screens/prayers/timer/devotionals/DevotionalRunner.js",
+      "screens/prayers/timer/devotionals/DevotionalsView.js",
       "screens/prayers/timer/devotionals/TemplatesView.js",
       "screens/prayers/timer/DevotionalScreen.js",
       "screens/profile/EditProfileScreen.js",

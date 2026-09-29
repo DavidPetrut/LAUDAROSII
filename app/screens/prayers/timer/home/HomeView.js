@@ -9,7 +9,7 @@ import { QuoteCard } from "./QuoteCard";
  * (Incepe / Continua / completat / creeaza) si dedesubt butonul de rugaciune
  * instanta, restilat ca sa fie distinct de devotional.
  */
-export const HomeView = ({ quote, defaultDevotional, hasAny, hasResume, onToast, onStartPrayer, onStartDevotional, onCreateDevotional }) => {
+export const HomeView = ({ quote, defaultDevotional, hasAny, hasResume, onToast, onStartPrayer, onStartDevotional, onCreateDevotional, onGoDevotionals }) => {
   const dev = defaultDevotional;
 
   return (
@@ -30,7 +30,17 @@ export const HomeView = ({ quote, defaultDevotional, hasAny, hasResume, onToast,
             <Text style={[styles.bigBtnText, { color: "#10b981" }]}>Creeaza un devotional</Text>
           </TouchableOpacity>
         </>
-      ) : dev && dev.completedToday ? (
+      ) : !dev ? (
+        <>
+          <View style={styles.noDevotionalCard}>
+            <Text style={styles.noDevotionalText}>Niciun devotional programat pentru azi.</Text>
+          </View>
+          <TouchableOpacity style={[styles.bigBtn, styles.bigBtnGhost]} onPress={onGoDevotionals} activeOpacity={0.9}>
+            <Ionicons name="albums-outline" size={24} color="#10b981" />
+            <Text style={[styles.bigBtnText, { color: "#10b981" }]}>Devotionalele mele</Text>
+          </TouchableOpacity>
+        </>
+      ) : dev.completedToday ? (
         <View style={[styles.bigBtn, styles.bigBtnDone]}>
           <Ionicons name="checkmark-done" size={26} color="#10b981" />
           <Text style={[styles.bigBtnText, { color: "#10b981" }]}>Devotional completat</Text>

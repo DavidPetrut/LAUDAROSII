@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "../../../../global/context";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { DevotionalCard } from "./DevotionalCard";
 import { devotionalsApi } from "./devotionalsApi";
@@ -13,8 +14,10 @@ const FULL_DAY = { 1: "Duminica", 2: "Luni", 3: "Marti", 4: "Miercuri", 5: "Joi"
  * Lista devotionalelor userului: creare, activare (default), editare, share,
  * stergere si acceptarea devotionalelor primite de la alti useri.
  */
-export const DevotionalsView = ({ onCreate, onChooseTemplate, onEdit, onShare, onChanged }) => {
+export const DevotionalsView = ({ onCreate, onChooseTemplate, onCreateTemplate, onEdit, onShare, onChanged }) => {
   const insets = useSafeAreaInsets();
+  const { can } = useAuth();
+  const canManage = can("templates.manage", "edit");
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
   const [shares, setShares] = useState([]);
@@ -178,6 +181,15 @@ export const DevotionalsView = ({ onCreate, onChooseTemplate, onEdit, onShare, o
               <Ionicons name="albums-outline" size={20} color="#10b981" />
               <Text style={styles.menuItemText}>Alege template</Text>
             </TouchableOpacity>
+            {canManage && (
+              <>
+                <View style={styles.menuDivider} />
+                <TouchableOpacity style={styles.menuItem} onPress={() => { setNewMenu(false); onCreateTemplate?.(); }}>
+                  <Ionicons name="construct-outline" size={20} color="#a78bfa" />
+                  <Text style={styles.menuItemText}>Creează template nou</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </Pressable>
       </Modal>

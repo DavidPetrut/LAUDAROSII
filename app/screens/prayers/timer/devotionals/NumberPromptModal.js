@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, Modal, Pressable } from "react-native";
+import { Keyboard, View, Text, TextInput, TouchableOpacity, Modal, Pressable } from "react-native";
 import { devotionalStyles as styles } from "../devotionalStyles";
 
 /**
@@ -25,7 +25,7 @@ export const NumberPromptModal = ({ visible, title, unit = "", initial = 0, min 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.menuBackdrop} onPress={onClose}>
-        <Pressable style={styles.colorSheet} onPress={() => {}}>
+        <Pressable style={styles.colorSheet} onPress={() => Keyboard.dismiss()}>
           <Text style={styles.sheetTitle}>{title}</Text>
           <View style={styles.numRow}>
             <TextInput

@@ -25,6 +25,7 @@ import {
   CustomTabBar,
   TransitionOverlay,
   BugReporter,
+  KeyboardDismiss,
 } from "./global/components";
 import { TestingProvider, useTesting, getActiveRouteName } from "./global/testing";
 import { TutorialProvider, TutorialLayer, navigationRef } from "./global/tutorial";
@@ -300,7 +301,9 @@ export default function App() {
                           barStyle="light-content"
                           backgroundColor="#6366f1"
                         />
-                        <Navigation />
+                        <KeyboardDismiss>
+                          <Navigation />
+                        </KeyboardDismiss>
                         <TransitionOverlay />
                         <BugReporter />
                         <TutorialLayer />

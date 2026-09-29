@@ -10,6 +10,8 @@ const mongoose = require("mongoose");
 const taskSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true, maxlength: 60 },
+    // nota creatorului momentului (de ce e acolo) - aratata userului la rulare
+    description: { type: String, default: "", maxlength: 300 },
     icon: { type: String, default: "flower-outline" },
     iconSet: { type: String, default: "ionicons" },
     color: { type: String, default: "#10b981" },

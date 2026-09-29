@@ -19,6 +19,7 @@ const TITLES = {
   personalHub: "Personale",
   devotionals: "Devotionalele mele",
   builder: "Devotional",
+  builderTemplate: "Template nou",
   share: "Distribuie",
   progress: "Progresul meu",
   templates: "Template-uri",
@@ -50,8 +51,13 @@ export const DevotionalScreen = () => {
   const [resume, setResume] = useState(null);
 
   const current = stack[stack.length - 1];
+  // Devotionalul de azi = cel programat pentru ziua curenta; altfel default-ul care
+  // NU are program (valabil oricand). Daca azi nu e programat nimic -> null, ca sa nu
+  // apara buton activ pentru devotionalul altei zile.
   const pickToday = (list) =>
-    list.find((d) => d.dueToday) || list.find((d) => d.isDefault) || list[0] || null;
+    list.find((d) => d.dueToday) ||
+    list.find((d) => d.isDefault && !(d.schedule?.weekdays?.length)) ||
+    null;
   const todaysDevotional = pickToday(devotionals);
 
   const reloadResume = useCallback(async () => {
@@ -106,7 +112,7 @@ export const DevotionalScreen = () => {
     try {
       await templatesApi.create(payload);
       showSuccess("Template creat");
-      setStack([{ view: "home" }]);
+      setStack([{ view: "home" }, { view: "templates" }]);
     } catch (e) {
       showError?.(e.response?.data?.error || e.message || "Eroare la template");
     }
@@ -160,6 +166,7 @@ export const DevotionalScreen = () => {
           <DevotionalsView
             onCreate={() => go("builder", { initial: null })}
             onChooseTemplate={() => go("templates")}
+            onCreateTemplate={() => go("builderTemplate")}
             onEdit={(item) => go("builder", { initial: item })}
             onShare={(item) => go("share", { devotional: item })}
             onChanged={loadDevotionals}
@@ -167,7 +174,20 @@ export const DevotionalScreen = () => {
         )}
 
         {current.view === "templates" && (
-          <TemplatesView onImport={(templateId) => go("templateImport", { templateId })} />
+          <TemplatesView
+            onImport={(templateId) => go("templateImport", { templateId })}
+            onCreate={() => go("builderTemplate")}
+          />
+        )}
+
+        {current.view === "builderTemplate" && (
+          <BuilderView
+            templateMode
+            devotionals={devotionals}
+            canTemplate={canTemplate}
+            onSaveTemplate={saveTemplate}
+            onCancel={back}
+          />
         )}
 
         {current.view === "templateImport" && (

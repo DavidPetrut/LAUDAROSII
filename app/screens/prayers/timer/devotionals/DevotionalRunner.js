@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Animated, Easing, Platform, FlatList, use
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { PlayerControls } from "../session/PlayerControls";
@@ -43,8 +44,16 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
   const { setImmersive } = useImmersive();
   const { user } = useAuth();
   const { width, height } = useWindowDimensions();
+  const navigation = useNavigation();
   const landscape = width > height;
   const tasks = devotional.tasks || [];
+
+  // iOS: dezactivam swipe-back-ul nativ cat ruleaza sesiunea (se batea cu swipe-ul de
+  // schimbare melodie si iesea din ecran). Iesirea ramane pe butonul Stop.
+  useEffect(() => {
+    navigation.setOptions?.({ gestureEnabled: false });
+    return () => navigation.setOptions?.({ gestureEnabled: true });
+  }, [navigation]);
 
   const startIndex =
     resumeProgress && resumeProgress.taskIndex >= 0 && resumeProgress.taskIndex < tasks.length
@@ -330,6 +339,9 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
     </Animated.View>
   );
   const titleEl = <Text style={styles.runnerTitle}>{task.title}</Text>;
+  const descEl = task.description ? (
+    <Text style={styles.runnerDesc} numberOfLines={3}>{task.description}</Text>
+  ) : null;
   const timerEl = <Text style={styles.runnerTimer}>{fmt(remaining)}</Text>;
   const controlsEl = (
     <View style={[styles.runnerControlsRow, { marginTop: 32 }]}>
@@ -357,6 +369,7 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
           <View style={styles.runnerLandCol}>
             {iconEl}
             {titleEl}
+            {descEl}
           </View>
           <View style={styles.runnerLandCol}>
             {timerEl}
@@ -369,6 +382,7 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
           <Text style={styles.runnerStep}>{index + 1} / {tasks.length}</Text>
           {iconEl}
           {titleEl}
+          {descEl}
           {timerEl}
           {controlsEl}
           {readyEl}

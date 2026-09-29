@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, Modal, Pressable } from "react-native";
+import { Keyboard, View, Text, TouchableOpacity, Modal, Pressable } from "react-native";
 import { devotionalStyles as styles } from "../devotionalStyles";
 
 const DURATIONS = [
@@ -29,7 +29,7 @@ export const PrayerSetupModal = ({ visible, program, onStart, onClose }) => {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
+        <Pressable style={styles.sheet} onPress={() => Keyboard.dismiss()}>
           <View style={styles.sheetHandle} />
           <Text style={styles.sheetTitle}>Începe rugăciunea</Text>
 

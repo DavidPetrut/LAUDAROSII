@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, useWindowDimensions, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { PlayerControls } from "./PlayerControls";
@@ -30,7 +31,16 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const { setImmersive } = useImmersive();
+  const navigation = useNavigation();
   const landscape = width > height;
+
+  // Pe iOS, swipe-ul orizontal (schimba melodia) se batea cu swipe-back-ul nativ al
+  // stack-ului si iesea din ecran. Il dezactivam cat timp sesiunea e activa; iesirea
+  // ramane pe butonul Stop. Se reactiveaza la iesire.
+  useEffect(() => {
+    navigation.setOptions?.({ gestureEnabled: false });
+    return () => navigation.setOptions?.({ gestureEnabled: true });
+  }, [navigation]);
 
   const unlimited = durationMin == null;
   const [remaining, setRemaining] = useState(unlimited ? 0 : durationMin * 60);

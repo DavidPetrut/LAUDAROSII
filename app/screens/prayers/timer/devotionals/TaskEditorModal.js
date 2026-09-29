@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, Modal, Pressable, ScrollView, Switch } from "react-native";
+import { Keyboard, View, Text, TextInput, TouchableOpacity, Modal, Pressable, ScrollView, Switch } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { devotionalStyles as styles } from "../devotionalStyles";
@@ -10,6 +10,11 @@ import { NumberPromptModal } from "./NumberPromptModal";
 
 const DURATIONS = [5, 10, 15];
 const DEFAULT_DESC = "Alege ce se potrivește pentru acest moment.";
+const MUSIC_CHOICES = [
+  { key: "none", label: "Fără" },
+  { key: "instrumental", label: "Instrumental" },
+  { key: "lyrics", label: "Cu versuri" },
+];
 
 // momente gata facute, oferite doar cand adaugi un moment nou
 const SUGGESTIONS = [
@@ -78,6 +83,13 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", templ
 
   const hasAdvanced = music.enabled || chooseMusic || chooseList;
 
+  // Cele 3 optiuni de muzica intr-o singura valoare: none | instrumental | lyrics.
+  const musicValue = music.enabled ? music.category : "none";
+  const setMusicChoice = (key) =>
+    key === "none"
+      ? setMusic((m) => ({ ...m, enabled: false }))
+      : setMusic({ enabled: true, category: key });
+
   // La pornirea unui switch de "userul alege", cere o descriere (Adauga/Renunta).
   const onToggleChoose = (target, value) => {
     if (!value) {
@@ -100,7 +112,7 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", templ
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 16, maxHeight: "86%" }]} onPress={() => {}}>
+        <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 16, maxHeight: "86%" }]} onPress={() => Keyboard.dismiss()}>
           <View style={styles.sheetHandle} />
 
           <View style={styles.taskEditRow}>
@@ -219,36 +231,27 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", templ
 
       <Modal visible={settings} transparent animationType="fade" onRequestClose={() => setSettings(false)}>
         <Pressable style={styles.menuBackdrop} onPress={() => setSettings(false)}>
-          <Pressable style={styles.colorSheet} onPress={() => {}}>
+          <Pressable style={styles.colorSheet} onPress={() => Keyboard.dismiss()}>
             <Text style={styles.sheetTitle}>Setări moment</Text>
 
-            <View style={styles.repeatRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.repeatTitle}>Adaugă muzică</Text>
-                <Text style={styles.repeatDesc}>Redată în timpul acestui moment</Text>
-              </View>
-              <Switch
-                value={music.enabled}
-                onValueChange={(v) => setMusic((m) => ({ ...m, enabled: v }))}
-                trackColor={{ true: color, false: "rgba(255,255,255,0.2)" }}
-                thumbColor="#fff"
-              />
+            <Text style={styles.repeatTitle}>Muzică în acest moment</Text>
+            <View style={styles.musicRow}>
+              {MUSIC_CHOICES.map((opt) => {
+                const active = musicValue === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[styles.musicOpt, active && styles.musicOptActive, active && { borderColor: color, backgroundColor: color }]}
+                    onPress={() => setMusicChoice(opt.key)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.musicOptText, active && styles.musicOptTextActive]} numberOfLines={1}>{opt.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-            {music.enabled && (
-              <View style={[styles.optRow, { marginTop: 8 }]}>
-                <TouchableOpacity
-                  style={[styles.optCard, music.category === "instrumental" && styles.optCardActive]}
-                  onPress={() => setMusic((m) => ({ ...m, category: "instrumental" }))}
-                >
-                  <Text style={[styles.optCardText, music.category === "instrumental" && styles.optCardTextActive]}>Instrumental</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.optCard, music.category === "lyrics" && styles.optCardActive]}
-                  onPress={() => setMusic((m) => ({ ...m, category: "lyrics" }))}
-                >
-                  <Text style={[styles.optCardText, music.category === "lyrics" && styles.optCardTextActive]}>Cu versuri</Text>
-                </TouchableOpacity>
-              </View>
+            {templateMode && chooseMusic && (
+              <Text style={styles.repeatDesc}>Opțiunea aleasă e cea default; userul o poate schimba la import.</Text>
             )}
 
             {templateMode && (
@@ -283,7 +286,7 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", templ
 
       <Modal visible={descPrompt.open} transparent animationType="fade" onRequestClose={cancelDesc}>
         <Pressable style={styles.menuBackdrop} onPress={cancelDesc}>
-          <Pressable style={styles.colorSheet} onPress={() => {}}>
+          <Pressable style={styles.colorSheet} onPress={() => Keyboard.dismiss()}>
             <Text style={styles.sheetTitle}>Adaugă o descriere</Text>
             <Text style={styles.repeatDesc}>Apare la user când configurează acest moment la import.</Text>
             <TextInput

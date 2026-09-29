@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, Switch, Modal, Pressable } from "react-native";
+import { Keyboard, View, Text, TouchableOpacity, Switch, Modal, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { devotionalStyles as styles } from "../devotionalStyles";
@@ -48,7 +48,7 @@ export const FocusModeRow = () => {
 
       <Modal visible={edit} transparent animationType="slide" onRequestClose={() => setEdit(false)}>
         <Pressable style={styles.sheetBackdrop} onPress={() => setEdit(false)}>
-          <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]} onPress={() => {}}>
+          <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]} onPress={() => Keyboard.dismiss()}>
             <View style={styles.sheetHandle} />
 
             <View style={dnd.header}>

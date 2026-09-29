@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, Modal, Pressable, StyleSheet } from "react-native";
+import { Keyboard, View, Text, TouchableOpacity, Modal, Pressable, StyleSheet } from "react-native";
 
 const ROOM_RULES = {
   common: {
@@ -43,7 +43,7 @@ export const RoomRulesModal = ({ visible, roomType, firstTime, onAcknowledge, on
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={firstTime ? undefined : onClose}>
       <Pressable style={styles.backdrop} onPress={firstTime ? undefined : onClose}>
-        <Pressable style={styles.card} onPress={() => {}}>
+        <Pressable style={styles.card} onPress={() => Keyboard.dismiss()}>
           <Text style={styles.kicker}>Cum funcționează</Text>
           <Text style={styles.title}>{rules.title}</Text>
 

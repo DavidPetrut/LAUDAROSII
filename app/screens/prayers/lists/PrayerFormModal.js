@@ -7,6 +7,7 @@ import {
   Modal,
   Pressable,
   ActivityIndicator,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { devotionalStyles as d } from "../timer/devotionalStyles";
@@ -43,7 +44,7 @@ export const PrayerFormModal = ({ visible, onClose, onSubmit, submitting, title 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={d.sheetBackdrop} onPress={onClose}>
-        <Pressable style={d.sheet} onPress={(e) => e.stopPropagation?.()}>
+        <Pressable style={d.sheet} onPress={() => Keyboard.dismiss()}>
           <View style={d.sheetHandle} />
           <Text style={d.sheetTitle}>{title}</Text>
 

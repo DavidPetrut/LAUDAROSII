@@ -102,14 +102,16 @@ export const TemplateImportView = ({ templateId, onDone, onCancel }) => {
     try {
       const tasks = (tpl.tasks || []).map((t, i) => {
         const c = choices[i] || {};
+        const chosenMusic = c.music || (t.music?.enabled ? t.music.category : "none");
         const music = t.chooseMusic
-          ? c.music && c.music !== "none"
-            ? { enabled: true, category: c.music }
+          ? chosenMusic !== "none"
+            ? { enabled: true, category: chosenMusic }
             : { enabled: false, category: "instrumental" }
           : t.music;
         const prayerList = t.chooseList ? c.prayerList || { kind: null } : t.prayerList;
         return {
           title: t.title,
+          description: t.description || "",
           icon: t.icon,
           iconSet: t.iconSet,
           color: t.color,
@@ -213,15 +215,18 @@ export const TemplateImportView = ({ templateId, onDone, onCancel }) => {
             <>
               <Text style={styles.stepLabel}>Muzica</Text>
               <View style={styles.chipsRow}>
-                {MUSIC_OPTIONS.map((m) => (
-                  <TouchableOpacity
-                    key={m.key}
-                    style={[styles.chip, (c.music || "none") === m.key && styles.chipActive]}
-                    onPress={() => setChoice(current.taskIndex, { music: m.key })}
-                  >
-                    <Text style={[styles.chipText, (c.music || "none") === m.key && styles.chipTextActive]}>{m.label}</Text>
-                  </TouchableOpacity>
-                ))}
+                {MUSIC_OPTIONS.map((m) => {
+                  const sel = c.music || (t.music?.enabled ? t.music.category : "none");
+                  return (
+                    <TouchableOpacity
+                      key={m.key}
+                      style={[styles.chip, sel === m.key && styles.chipActive]}
+                      onPress={() => setChoice(current.taskIndex, { music: m.key })}
+                    >
+                      <Text style={[styles.chipText, sel === m.key && styles.chipTextActive]}>{m.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </>
           )}
