@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   StatusBar,
   ActivityIndicator,
@@ -27,7 +27,7 @@ import {
   BugReporter,
 } from "./global/components";
 import { TestingProvider, useTesting, getActiveRouteName } from "./global/testing";
-import { TutorialProvider, TutorialLayer } from "./global/tutorial";
+import { TutorialProvider, TutorialLayer, navigationRef } from "./global/tutorial";
 import {
   registerForPushNotifications,
   addNotificationResponseListener,
@@ -149,7 +149,6 @@ const AppStack = () => (
 const Navigation = () => {
   const { user, loading, pendingShareCode, pendingInviteToken } = useAuth();
   const { setCurrentRouteName } = useTesting();
-  const navigationRef = useRef(null);
 
   useEffect(() => {
     if (user && Platform.OS !== "web") {

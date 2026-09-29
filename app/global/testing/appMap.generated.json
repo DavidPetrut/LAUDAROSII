@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-27T06:35:08.749Z",
+  "generatedAt": "2026-09-29T11:37:15.828Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -455,6 +455,10 @@
       "tutorialApi": {
         "file": "global/tutorial/tutorialApi.js",
         "purpose": "Wrappere peste API-ul de tutoriale (config autor + CRUD)."
+      },
+      "navigationRef": {
+        "file": "global/tutorial/navigation.js",
+        "purpose": "Ref global la containerul de navigare (atasat in App.js), folosit de tutorial"
       }
     },
     "utils": {

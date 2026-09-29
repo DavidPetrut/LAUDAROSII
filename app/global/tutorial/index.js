@@ -3,3 +3,4 @@ export { TutorialTarget } from "./TutorialTarget";
 export { TutorialLayer } from "./TutorialLayer";
 export { TutorialsLauncher } from "./TutorialsLauncher";
 export { tutorialApi } from "./tutorialApi";
+export { navigationRef } from "./navigation";

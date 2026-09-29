@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import { useAuth } from "../context";
 import { describeElement } from "../components/testing/webInspector";
 import { tutorialApi } from "./tutorialApi";
+import { getCurrentTutorialScreen, navigateToTutorialScreen } from "./navigation";
 
 const IS_WEB = Platform.OS === "web";
 // Elementul interactiv cel mai relevant din jurul tintei unui click.
@@ -134,7 +135,7 @@ export const TutorialProvider = ({ children }) => {
 
   const captureTarget = useCallback((id) => {
     const label = registry.current.get(id)?.label || id;
-    setRecordSteps((prev) => [...prev, { targetId: id, label, instruction: "" }]);
+    setRecordSteps((prev) => [...prev, { targetId: id, label, instruction: "", screen: getCurrentTutorialScreen() }]);
   }, []);
 
   // Inregistreaza un pas dintr-un element DOM (web): orice buton/input/link/etc.
@@ -146,7 +147,13 @@ export const TutorialProvider = ({ children }) => {
       "element";
     setRecordSteps((prev) => [
       ...prev,
-      { selector: descriptor.selector || null, label: String(label).slice(0, 80), text: descriptor.text || "", instruction: "" },
+      {
+        selector: descriptor.selector || null,
+        label: String(label).slice(0, 80),
+        text: descriptor.text || "",
+        instruction: "",
+        screen: getCurrentTutorialScreen(),
+      },
     ]);
   }, []);
 
@@ -169,6 +176,8 @@ export const TutorialProvider = ({ children }) => {
   // ---- Redare (user) ----
   const startPlay = useCallback((tutorial) => {
     if (!tutorial?.steps?.length) return;
+    // "Doar la start": ducem userul pe ecranul unde incepe tutorialul.
+    navigateToTutorialScreen(tutorial.steps[0]?.screen);
     setPlayTutorial(tutorial);
     setPlayIndex(0);
     setMode("play");

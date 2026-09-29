@@ -32,6 +32,7 @@ const AuthorUI = ({ t }) => {
   const [loadingList, setLoadingList] = useState(false);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [stepsOpen, setStepsOpen] = useState(true);
 
   const openList = useCallback(async () => {
     setMenu(false);
@@ -106,18 +107,56 @@ const AuthorUI = ({ t }) => {
         </TouchableOpacity>
       )}
 
-      {/* Bara de inregistrare */}
+      {/* Bara de inregistrare + panou live cu pasii (narezi fiecare pas pe loc) */}
       {t.mode === "record" && (
-        <View style={[styles.recBar, { top: insets.top + 8 }]} dataSet={{ tutorialUi: "1" }}>
-          <View style={styles.recDot} />
-          <Text style={styles.recText}>Înregistrez • {t.recordSteps.length} pași</Text>
-          <TouchableOpacity style={styles.recBtn} onPress={t.finishRecording}>
-            <Text style={styles.recBtnText}>Termină</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.recCancel} onPress={t.cancelRecording}>
-            <Ionicons name="close" size={18} color="#fff" />
-          </TouchableOpacity>
-        </View>
+        <>
+          <View style={[styles.recBar, { top: insets.top + 8 }]} dataSet={{ tutorialUi: "1" }}>
+            <View style={styles.recDot} />
+            <Text style={styles.recText}>Înregistrez • {t.recordSteps.length} pași</Text>
+            <TouchableOpacity style={styles.recIcon} onPress={() => setStepsOpen((v) => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name={stepsOpen ? "chevron-up" : "chevron-down"} size={18} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.recBtn} onPress={t.finishRecording}>
+              <Text style={styles.recBtnText}>Termină</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.recCancel} onPress={t.cancelRecording}>
+              <Ionicons name="close" size={18} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          {stepsOpen && (
+            <View style={[styles.recPanel, { top: insets.top + 60 }]} dataSet={{ tutorialUi: "1" }}>
+              <Text style={styles.recPanelHint}>
+                Dă click pe elementul din app → devine pasul următor. Scrie ce faci la fiecare pas.
+              </Text>
+              <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                {t.recordSteps.map((s, i) => (
+                  <View key={i} style={styles.recStep}>
+                    <View style={styles.stepNum}><Text style={styles.stepNumText}>{i + 1}</Text></View>
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.recStepHead}>
+                        <Text style={styles.stepLabel} numberOfLines={1}>{s.label}</Text>
+                        {!!s.screen && <Text style={styles.screenTag}>{s.screen}</Text>}
+                      </View>
+                      <TextInput
+                        style={styles.stepInput}
+                        value={s.instruction}
+                        onChangeText={(txt) => setStepInstruction(i, txt)}
+                        placeholder="Ce faci la pasul ăsta (next step)"
+                        placeholderTextColor="rgba(229,231,235,0.4)"
+                        maxLength={240}
+                      />
+                    </View>
+                    <TouchableOpacity onPress={() => removeStep(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {t.recordSteps.length === 0 && <Text style={styles.empty}>Niciun pas încă.</Text>}
+              </ScrollView>
+            </View>
+          )}
+        </>
       )}
 
       {/* Meniu autor */}
@@ -252,9 +291,26 @@ const styles = StyleSheet.create({
   },
   recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#ef4444" },
   recText: { flex: 1, color: "#f3f4f6", fontWeight: "700" },
+  recIcon: { padding: 6 },
   recBtn: { backgroundColor: ACCENT, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
   recBtnText: { color: "#fff", fontWeight: "700" },
   recCancel: { padding: 6 },
+  recPanel: {
+    position: "absolute",
+    zIndex: 99999992,
+    right: 12,
+    width: 340,
+    maxWidth: "92%",
+    backgroundColor: "#161a24",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(124,58,237,0.4)",
+    padding: 12,
+  },
+  recPanelHint: { color: "rgba(229,231,235,0.6)", fontSize: 12, lineHeight: 17, marginBottom: 10 },
+  recStep: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderTopWidth: 1, borderColor: "rgba(255,255,255,0.06)" },
+  recStepHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  screenTag: { color: "#a78bfa", fontSize: 11, fontWeight: "700", backgroundColor: "rgba(124,58,237,0.18)", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, overflow: "hidden" },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
   sheet: { backgroundColor: "#1a1f2b", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20 },
   sheetTitle: { color: "#f3f4f6", fontSize: 18, fontWeight: "700", marginBottom: 14 },
