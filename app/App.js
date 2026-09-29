@@ -193,25 +193,22 @@ const Navigation = () => {
           justifyContent: "center",
           alignItems: "center",
           backgroundColor: "#6366f1",
+          paddingHorizontal: 36,
           minHeight: Platform.OS === "web" ? "100vh" : "100%",
         }}
       >
-        <Text style={{ fontSize: 60, marginBottom: 20 }}>🎵</Text>
+        <ActivityIndicator size="large" color="white" />
         <Text
           style={{
             color: "white",
-            fontSize: 24,
-            fontFamily: "PilotCommand",
-            marginBottom: 10,
-            textTransform: "uppercase",
-            letterSpacing: 2,
+            fontSize: 18,
+            fontWeight: "600",
+            textAlign: "center",
+            lineHeight: 26,
+            marginTop: 22,
           }}
         >
-          LAUDAROSII VERTICAL
-        </Text>
-        <ActivityIndicator size="large" color="white" />
-        <Text style={{ color: "rgba(255,255,255,0.8)", marginTop: 10 }}>
-          Se încarca...
+          Se conectează, va dura în jur de 1 min, vă rugăm așteptați
         </Text>
       </View>
     );
@@ -264,10 +261,23 @@ export default function App() {
           justifyContent: "center",
           alignItems: "center",
           backgroundColor: "#6366f1",
+          paddingHorizontal: 36,
           minHeight: Platform.OS === "web" ? "100vh" : "100%",
         }}
       >
         <ActivityIndicator size="large" color="white" />
+        <Text
+          style={{
+            color: "white",
+            fontSize: 18,
+            fontWeight: "600",
+            textAlign: "center",
+            lineHeight: 26,
+            marginTop: 22,
+          }}
+        >
+          Se conectează, va dura în jur de 1 min, vă rugăm așteptați
+        </Text>
       </View>
     );
   }

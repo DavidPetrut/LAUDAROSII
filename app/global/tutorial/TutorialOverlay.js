@@ -130,7 +130,15 @@ export const TutorialOverlay = () => {
 
       {hole && tip && (
         <View
-          style={[styles.tip, { width: TIP_W, top: tip.top, left: tip.left, opacity: tipH ? 1 : 0 }]}
+          style={[
+            styles.tip,
+            // Cat timp masuram inaltimea (tipH=0) tinem tooltip-ul OFF-SCREEN, ca sa
+            // nu acopere elementul evidentiat si sa nu-i blocheze apasarea.
+            tipH
+              ? { width: TIP_W, top: tip.top, left: tip.left, opacity: 1 }
+              : { width: TIP_W, top: -1000, left: 12, opacity: 0 },
+          ]}
+          pointerEvents={tipH ? "box-none" : "none"}
           dataSet={{ tutorialUi: "1" }}
           onLayout={(e) => setTipH(e.nativeEvent.layout.height)}
         >
