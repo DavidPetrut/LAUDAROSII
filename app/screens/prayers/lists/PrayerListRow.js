@@ -7,9 +7,10 @@ import { listsStyles as styles } from "./listsStyles";
  * Un row din grila de liste: imagine de fundal + bara cu titlu si numar de motive.
  * Lista publica primeste border special si un badge; listele expirate arata un pill.
  */
-export const PrayerListRow = ({ title, image, isPublic, expired, count, onPress, onLongPress }) => {
+export const PrayerListRow = ({ title, image, isPublic, expired, count, onPress, onLongPress, testID }) => {
   return (
     <TouchableOpacity
+      testID={testID}
       style={[styles.row, isPublic && styles.rowPublic]}
       onPress={onPress}
       onLongPress={onLongPress}

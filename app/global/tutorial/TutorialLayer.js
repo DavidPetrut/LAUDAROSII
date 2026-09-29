@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, Modal, Pressable, ScrollView, StyleSheet, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,8 +31,15 @@ const AuthorUI = ({ t }) => {
   const [tutorials, setTutorials] = useState([]);
   const [loadingList, setLoadingList] = useState(false);
   const [name, setName] = useState("");
+  const [desc, setDesc] = useState("");
   const [saving, setSaving] = useState(false);
   const [stepsOpen, setStepsOpen] = useState(true);
+  const [err, setErr] = useState("");
+
+  // La (re)deschiderea sheet-ului de salvare, curatam orice eroare veche.
+  useEffect(() => {
+    if (t.reviewOpen) setErr("");
+  }, [t.reviewOpen]);
 
   const openList = useCallback(async () => {
     setMenu(false);
@@ -54,16 +61,24 @@ const AuthorUI = ({ t }) => {
   const removeStep = (idx) => t.setRecordSteps((prev) => prev.filter((_, i) => i !== idx));
 
   const saveTutorial = async () => {
-    if (!name.trim()) return showError("Dă un nume tutorialului");
-    if (!t.recordSteps.length) return showError("Tutorialul nu are pași");
+    if (!name.trim()) return setErr("Dă un nume tutorialului ca să poți salva.");
+    if (!t.recordSteps.length) return setErr("Tutorialul nu are niciun pas.");
+    setErr("");
     setSaving(true);
     try {
-      await tutorialApi.create({ name: name.trim(), steps: t.recordSteps });
-      showSuccess("Tutorial salvat");
+      // Salvam o SCHEMA (draft): materie prima pe care o construiesc din dashboard.
+      await tutorialApi.create({
+        name: name.trim(),
+        description: desc.trim(),
+        status: "draft",
+        steps: t.recordSteps,
+      });
+      showSuccess("Schemă salvată — o construiesc din dashboard");
       setName("");
+      setDesc("");
       t.closeReview();
     } catch (e) {
-      showError(e.message || "Eroare la salvare");
+      setErr(e.message || "Eroare la salvare. Verifică serverul.");
     } finally {
       setSaving(false);
     }
@@ -134,10 +149,11 @@ const AuthorUI = ({ t }) => {
                   <View key={i} style={styles.recStep}>
                     <View style={styles.stepNum}><Text style={styles.stepNumText}>{i + 1}</Text></View>
                     <View style={{ flex: 1 }}>
-                      <View style={styles.recStepHead}>
-                        <Text style={styles.stepLabel} numberOfLines={1}>{s.label}</Text>
-                        {!!s.screen && <Text style={styles.screenTag}>{s.screen}</Text>}
-                      </View>
+                      {!!s.screen && (
+                        <View style={styles.recStepHead}>
+                          <Text style={styles.screenTag}>{s.screen}</Text>
+                        </View>
+                      )}
                       <TextInput
                         style={styles.stepInput}
                         value={s.instruction}
@@ -181,29 +197,42 @@ const AuthorUI = ({ t }) => {
       <Modal visible={t.reviewOpen} transparent animationType="slide" onRequestClose={t.closeReview}>
         <Pressable style={styles.backdrop} onPress={t.closeReview}>
           <Pressable style={[styles.sheet, { maxHeight: "86%" }]} onPress={() => {}}>
-            <Text style={styles.sheetTitle}>Salvează tutorialul</Text>
+            <Text style={styles.sheetTitle}>Salvează schema tutorialului</Text>
+            <Text style={styles.helpNote}>
+              Se salvează ca schemă (draft) cu capturi pe fiecare pas. O construiesc eu din dashboard (tab Tutorial → Copy prompt). Nu apare userilor până n-o public eu.
+            </Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, err && !name.trim() ? styles.inputError : null]}
               value={name}
-              onChangeText={setName}
+              onChangeText={(v) => { setName(v); if (err) setErr(""); }}
               placeholder="Nume (ex: Cum adaugi un motiv)"
               placeholderTextColor="rgba(229,231,235,0.4)"
               maxLength={80}
             />
-            <Text style={styles.label}>Pași ({t.recordSteps.length}) — scrie instrucțiunea fiecăruia</Text>
+            {err ? <Text style={styles.errText}>{err}</Text> : null}
+            <TextInput
+              style={[styles.input, { minHeight: 44 }]}
+              value={desc}
+              onChangeText={setDesc}
+              placeholder="Descriere pt AI (ce tutorial e, contextul general) — opțional"
+              placeholderTextColor="rgba(229,231,235,0.4)"
+              multiline
+              maxLength={2000}
+            />
+            <Text style={styles.label}>Pași ({t.recordSteps.length}) — descrie pt AI ce faci la fiecare</Text>
             <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
               {t.recordSteps.map((s, i) => (
                 <View key={i} style={styles.stepRow}>
                   <View style={styles.stepNum}><Text style={styles.stepNumText}>{i + 1}</Text></View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.stepLabel} numberOfLines={1}>{s.label}</Text>
+                    {!!s.screen && <Text style={styles.screenTag}>{s.screen}</Text>}
                     <TextInput
                       style={styles.stepInput}
                       value={s.instruction}
                       onChangeText={(txt) => setStepInstruction(i, txt)}
-                      placeholder="Instrucțiune pt. user"
+                      placeholder="Descrie pt AI: ce apeși / ce se întâmplă aici"
                       placeholderTextColor="rgba(229,231,235,0.4)"
-                      maxLength={240}
+                      maxLength={1000}
                     />
                   </View>
                   <TouchableOpacity onPress={() => removeStep(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -214,7 +243,7 @@ const AuthorUI = ({ t }) => {
               {t.recordSteps.length === 0 && <Text style={styles.empty}>Niciun pas înregistrat.</Text>}
             </ScrollView>
             <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={saveTutorial} disabled={saving} activeOpacity={0.9}>
-              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Salvează</Text>}
+              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Salvează schema</Text>}
             </TouchableOpacity>
             <TouchableOpacity style={styles.cancelBtn} onPress={t.closeReview}>
               <Text style={styles.cancelText}>Renunță</Text>
@@ -318,6 +347,9 @@ const styles = StyleSheet.create({
   menuText: { color: "#e5e7eb", fontSize: 15, fontWeight: "600" },
   divider: { height: 1, backgroundColor: "rgba(255,255,255,0.08)" },
   input: { color: "#f3f4f6", fontSize: 15, borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.2)", paddingVertical: 10, marginBottom: 16 },
+  inputError: { borderColor: "#ef4444" },
+  errText: { color: "#ef4444", fontSize: 13, fontWeight: "600", marginTop: -8, marginBottom: 12 },
+  helpNote: { color: "rgba(229,231,235,0.6)", fontSize: 12.5, lineHeight: 17, marginBottom: 14 },
   label: { color: "rgba(229,231,235,0.6)", fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
   stepRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 },
   stepNum: { width: 26, height: 26, borderRadius: 13, backgroundColor: "rgba(124,58,237,0.2)", alignItems: "center", justifyContent: "center" },

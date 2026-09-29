@@ -26,7 +26,7 @@ const AnimatedMaterialIcons = Animated.createAnimatedComponent(
   MaterialCommunityIcons
 );
 
-const TabButton = ({ route, isFocused, onPress, tab, disabled }) => {
+const TabButton = ({ route, isFocused, onPress, tab, disabled, testID }) => {
   const { isDarkMode } = useTheme();
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const bgOpacity = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
@@ -81,6 +81,7 @@ const TabButton = ({ route, isFocused, onPress, tab, disabled }) => {
   return (
     <TouchableOpacity
       onPress={onPress}
+      testID={testID}
       style={[styles.tabButton, disabled && { opacity: 0.3 }]}
       accessibilityRole="button"
       accessibilityLabel={tab.label}
@@ -186,7 +187,7 @@ export const CustomTabBar = ({ state, descriptors, navigation }) => {
 
         return (
           <TutorialTarget key={route.key} id={`tab-${route.name}`} label={`Tab ${tab.label}`} style={{ flex: 1 }}>
-            <TabButton route={route} isFocused={isFocused} onPress={onPress} tab={tab} disabled={!allowed} />
+            <TabButton route={route} isFocused={isFocused} onPress={onPress} tab={tab} disabled={!allowed} testID={`tab-${route.name}`} />
           </TutorialTarget>
         );
       })}

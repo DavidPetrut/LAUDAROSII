@@ -124,10 +124,10 @@ export const GlobalToast = ({
         )}
         <View style={styles.textWrap}>
           <Text style={styles.title}>{title}</Text>
-          {message && <Text style={styles.message}>{message}</Text>}
-          {onPress && (
+          {message ? <Text style={styles.message}>{message}</Text> : null}
+          {onPress ? (
             <Text style={styles.tapHint}>Apasă pentru a vedea</Text>
-          )}
+          ) : null}
         </View>
       </Container>
     </Animated.View>

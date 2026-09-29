@@ -59,9 +59,31 @@ export const TutorialProvider = ({ children }) => {
   const [registryVersion, setRegistryVersion] = useState(0);
 
   const registry = useRef(new Map());
+  const html2canvasRef = useRef(null);
 
   // Autoratul (inregistrarea) se face DOAR pe PC/web (clic pe elemente reale din DOM).
   const canAuthor = authoringEnabled && isAuthorRole && IS_WEB;
+
+  // Captura ecranului (web) la momentul pasului. html2canvas cloneaza DOM-ul SINCRON
+  // la apel, deci prinde starea de dinainte de click/navigare. Modulul e preincarcat
+  // la startul inregistrarii ca sa putem clona sincron in handler-ul de click.
+  const captureShotWeb = () => {
+    const h2c = html2canvasRef.current;
+    if (!IS_WEB || !h2c || typeof document === "undefined") return Promise.resolve(null);
+    let p;
+    try {
+      p = h2c(document.body, {
+        backgroundColor: "#0b0f17",
+        scale: 0.4,
+        logging: false,
+        useCORS: true,
+        ignoreElements: (el) => !!(el && el.closest && el.closest("[data-tutorial-ui]")),
+      });
+    } catch (e) {
+      return Promise.resolve(null);
+    }
+    return p.then((canvas) => canvas.toDataURL("image/jpeg", 0.5)).catch(() => null);
+  };
 
   const reloadConfig = useCallback(() => {
     tutorialApi
@@ -131,6 +153,14 @@ export const TutorialProvider = ({ children }) => {
     setRecordSteps([]);
     setReviewOpen(false);
     setMode("record");
+    // Preincarcam html2canvas ca sa putem captura sincron la fiecare click.
+    if (IS_WEB && !html2canvasRef.current) {
+      import("html2canvas")
+        .then((m) => {
+          html2canvasRef.current = m.default || m;
+        })
+        .catch(() => {});
+    }
   }, []);
 
   const captureTarget = useCallback((id) => {
@@ -139,22 +169,34 @@ export const TutorialProvider = ({ children }) => {
   }, []);
 
   // Inregistreaza un pas dintr-un element DOM (web): orice buton/input/link/etc.
-  const captureElement = useCallback((descriptor) => {
+  const captureElement = useCallback((descriptor, localId) => {
     const label =
       (descriptor.componentStack && descriptor.componentStack[descriptor.componentStack.length - 1]) ||
       descriptor.text ||
       descriptor.tag ||
       "element";
+    // Ancora preferata = testID (stabil, precis). Fallback pe selectorul CSS scurt.
+    const selector = descriptor.testId
+      ? `[data-testid="${descriptor.testId}"]`
+      : descriptor.selector || null;
     setRecordSteps((prev) => [
       ...prev,
       {
-        selector: descriptor.selector || null,
+        _localId: localId || null,
+        selector,
         label: String(label).slice(0, 80),
         text: descriptor.text || "",
         instruction: "",
         screen: getCurrentTutorialScreen(),
+        screenshot: null,
       },
     ]);
+  }, []);
+
+  // Ataseaza screenshot-ul (capturat asincron) pasului corect, dupa localId.
+  const attachShot = useCallback((localId, screenshot) => {
+    if (!localId || !screenshot) return;
+    setRecordSteps((prev) => prev.map((s) => (s._localId === localId ? { ...s, screenshot } : s)));
   }, []);
 
   const finishRecording = useCallback(() => {
@@ -212,13 +254,16 @@ export const TutorialProvider = ({ children }) => {
       const el = e.target;
       if (!el || (el.closest && el.closest("[data-tutorial-ui]"))) return;
       const target = (el.closest && el.closest(INTERACTIVE_SEL)) || el;
+      const localId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       try {
-        captureElement(describeElement(target));
+        captureElement(describeElement(target), localId);
       } catch (err) {}
+      // Capturam ecranul ACUM (clona e sincrona) = starea de dinainte de navigare.
+      captureShotWeb().then((shot) => attachShot(localId, shot));
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
-  }, [mode, captureElement]);
+  }, [mode, captureElement, attachShot]);
 
   // REDARE (web): avanseaza cand userul apasa pe elementul-tinta al pasului curent.
   useEffect(() => {

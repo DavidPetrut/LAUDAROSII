@@ -87,6 +87,7 @@ export const PrayerListDetail = ({
 
       {canAdd && !expired && (
         <TouchableOpacity
+          testID="prayer-add-fab"
           style={[styles.fab, { backgroundColor: fabColor, bottom: fabBottom }]}
           onPress={onAddPress}
           activeOpacity={0.85}

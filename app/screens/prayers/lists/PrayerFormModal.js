@@ -53,6 +53,7 @@ export const PrayerFormModal = ({ visible, onClose, onSubmit, submitting, title 
               <Text style={d.charCount}>{text.length}/500</Text>
             </View>
             <TextInput
+              testID="prayer-form-input"
               style={[d.inputBox, d.inputMultiline]}
               placeholder="Scrie aici…"
               placeholderTextColor="rgba(229,231,235,0.4)"
@@ -97,6 +98,7 @@ export const PrayerFormModal = ({ visible, onClose, onSubmit, submitting, title 
           </View>
 
           <TouchableOpacity
+            testID="prayer-form-submit"
             style={[d.startBtn, !canSave && d.startBtnDisabled]}
             onPress={() => canSave && onSubmit(text.trim(), isUrgent, mood)}
             disabled={!canSave}

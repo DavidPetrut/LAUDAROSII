@@ -254,6 +254,7 @@ export const PrayerListsView = ({ currentUserId, fabBottom = 28 }) => {
   return (
     <View style={styles.grid}>
       <PrayerListRow
+        testID="prayer-list-public"
         title={PUBLIC_TITLE}
         image={PUBLIC_LIST_IMAGE}
         isPublic
@@ -265,6 +266,7 @@ export const PrayerListsView = ({ currentUserId, fabBottom = 28 }) => {
       {boards.map((b) => (
         <PrayerListRow
           key={b._id}
+          testID={`prayer-list-${b._id}`}
           title={b.title}
           image={resolveListImage(b.image)}
           isPublic={false}
@@ -277,6 +279,7 @@ export const PrayerListsView = ({ currentUserId, fabBottom = 28 }) => {
 
       {showAddRow && (
         <TouchableOpacity
+          testID="prayer-list-new"
           style={styles.addRow}
           onPress={() => setView({ name: "create", board: null })}
           activeOpacity={0.85}

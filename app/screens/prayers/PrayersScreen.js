@@ -76,6 +76,7 @@ export const PrayersScreen = ({ navigation }) => {
         {TABS.map((tab, index) => (
           <TouchableOpacity
             key={tab.key}
+            testID={`prayers-entry-${tab.key}`}
             style={[
               styles.tabCard,
               index < TABS.length - 1 && styles.tabBorder,

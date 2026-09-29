@@ -45,6 +45,7 @@ const TabButton = ({
   onPress,
   isDarkMode,
   notificationCount,
+  testID,
 }) => {
   const underlineAnim = useRef(new Animated.Value(isActive ? 1 : 0)).current;
   const scaleAnim = useRef(new Animated.Value(isActive ? 1 : 0.95)).current;
@@ -80,6 +81,7 @@ const TabButton = ({
   return (
     <TouchableOpacity
       onPress={onPress}
+      testID={testID}
       style={tabStyles.tabButton}
       activeOpacity={0.7}
     >
@@ -236,6 +238,7 @@ export const PersonalPrayersTab = ({ onBack, navigation }) => {
               onPress={() => handleFilterChange(f.key)}
               isDarkMode={isDarkMode}
               notificationCount={counts[notifCategory]}
+              testID={`prayers-subtab-${f.key}`}
             />
           );
         })}
