@@ -55,7 +55,7 @@ const testBugSchema = new mongoose.Schema(
       type: String,
       required: true,
       index: true,
-      enum: ["bug", "feature", "rating"],
+      enum: ["bug", "feature", "rating", "ui_design", "ux", "uiux_dev"],
       default: "bug",
     },
     // De unde vine raportul: mobil (native-point) sau local/web (dom-element, mai precis)
@@ -84,13 +84,34 @@ const testBugSchema = new mongoose.Schema(
         "FUNCTIE_NOUA", "IMBUNATATIRE", "CONTINUT_NOU", "INTEGRARE", "AUTOMATIZARE", "PERSONALIZARE",
         // rating
         "RATING",
+        // ui_design
+        "ALINIERE", "CULORI", "TIPOGRAFIE",
+        // ux
+        "INTELEGERE", "PASI", "INCREDERE",
+        // uiux_dev (nu are taxonomie; placeholder)
+        "UIUX_DEV",
       ],
     },
     bugCode: { type: String, default: null, index: true, maxlength: 40 },
-    problem: { type: String, default: "", maxlength: 4000 },
-    solution: { type: String, default: "", maxlength: 4000 },
+    problem: { type: String, default: "", maxlength: 8000 },
+    solution: { type: String, default: "", maxlength: 8000 },
     // rating pe functionalitate (0.5 .. 3, in pasi de 0.5), doar pentru kind="rating"
     rating: { type: Number, default: null, min: 0, max: 3 },
+
+    // ---- campuri pentru UX (kind="ux") ----
+    // ce incerca userul sa faca
+    whatTrying: { type: String, default: "", maxlength: 1000 },
+    // a reusit userul sa finalizeze ce si-a propus (da/nu)
+    didFinish: { type: Boolean, default: null },
+    // nivelul de stres provocat de actiune, 1..5 (mic = poate parere prea personala)
+    stress: { type: Number, default: null, min: 1, max: 5 },
+
+    // ---- campuri pentru UI/UX-dev (kind="uiux_dev"): design din Figma ----
+    figmaLink: { type: String, default: "", maxlength: 500 },
+    figmaElement: { type: String, default: "", maxlength: 120 },
+    animation: { type: String, default: "", maxlength: 300 },
+    // poze atasate din Figma (data-URI JPEG/PNG). NU se returneaza in listari.
+    images: { type: [String], default: undefined },
 
     // ---- media ----
     screenshot: { type: String, default: null }, // data-URI JPEG, optional

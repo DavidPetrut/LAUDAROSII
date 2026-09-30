@@ -35,22 +35,25 @@ const Star = ({ index, value, onPick }) => {
  * 0.5) + status + feedback scris. In spate se pastreaza ecranul/path/persoana
  * (prin submit-ul din TestingContext).
  */
-export const RatingReporter = () => {
+export const RatingReporter = ({ controlled = false, open: openProp = false, onClose }) => {
   const insets = useSafeAreaInsets();
   const { enabled, resolveCurrentScreen, submit } = useTesting();
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState("");
   const [sending, setSending] = useState(false);
 
   if (!enabled) return null;
 
+  // Controlat din meniul TEST (BugReporter) sau standalone (cu FAB propriu).
+  const open = controlled ? openProp : openState;
   const screenInfo = resolveCurrentScreen();
 
   const reset = () => {
-    setOpen(false);
     setRating(0);
     setFeedback("");
+    if (controlled) onClose?.();
+    else setOpenState(false);
   };
 
   const send = async () => {
@@ -75,10 +78,10 @@ export const RatingReporter = () => {
 
   return (
     <>
-      {!open && (
+      {!controlled && !open && (
         <TouchableOpacity
           style={[styles.fab, { bottom: insets.bottom + 92, left: 16 }]}
-          onPress={() => setOpen(true)}
+          onPress={() => setOpenState(true)}
           activeOpacity={0.85}
           accessibilityLabel="Dă un rating"
         >

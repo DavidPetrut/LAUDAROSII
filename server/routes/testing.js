@@ -7,7 +7,11 @@ const router = express.Router();
 // Categorii valide per natura raportului (trebuie sa oglindeasca bug/featureTaxonomy din app)
 const BUG_TYPES = ["INTERFATA", "ACCES", "STRICAT", "EXPERIENTA", "CONTINUT", "ALTELE"];
 const FEATURE_TYPES = ["FUNCTIE_NOUA", "IMBUNATATIRE", "CONTINUT_NOU", "INTEGRARE", "AUTOMATIZARE", "PERSONALIZARE", "ALTELE"];
+const DESIGN_TYPES = ["ALINIERE", "CULORI", "TIPOGRAFIE"];
+const UX_TYPES = ["INTELEGERE", "PASI", "INCREDERE"];
+const ALLOWED_KINDS = ["bug", "feature", "rating", "ui_design", "ux", "uiux_dev"];
 const MAX_SHOT_CHARS = 4 * 1024 * 1024; // ~4MB data-URI (sub limita de 10mb a body-ului)
+const MAX_IMAGES = 6;
 
 const clip = (v, n) => (typeof v === "string" ? v.slice(0, n) : "");
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
@@ -59,7 +63,7 @@ router.post("/bugs", authMiddleware, limiter(20), async (req, res) => {
   try {
     const b = req.body || {};
 
-    const kind = ["feature", "rating"].includes(b.kind) ? b.kind : "bug";
+    const kind = ALLOWED_KINDS.includes(b.kind) ? b.kind : "bug";
     const source = b.source === "local" ? "local" : "mobile";
 
     let bugType = b.bugType;
@@ -71,11 +75,32 @@ router.post("/bugs", authMiddleware, limiter(20), async (req, res) => {
         return res.status(400).json({ error: "Rating invalid" });
       }
       rating = Math.round(r * 2) / 2; // pas de 0.5
+    } else if (kind === "uiux_dev") {
+      bugType = "UIUX_DEV";
     } else {
-      const allowedTypes = kind === "feature" ? FEATURE_TYPES : BUG_TYPES;
+      const allowedTypes =
+        kind === "feature" ? FEATURE_TYPES : kind === "ui_design" ? DESIGN_TYPES : kind === "ux" ? UX_TYPES : BUG_TYPES;
       if (!allowedTypes.includes(b.bugType)) {
         return res.status(400).json({ error: "Categorie invalidă pentru acest tip de raport" });
       }
+    }
+
+    // UX: campuri obligatorii (ce incerca, a reusit da/nu, stres 1..5)
+    const whatTrying = clip(b.whatTrying, 1000);
+    const didFinish = typeof b.didFinish === "boolean" ? b.didFinish : null;
+    const stressNum = Number(b.stress);
+    const stress = stressNum >= 1 && stressNum <= 5 ? Math.round(stressNum) : null;
+
+    // UI/UX-dev: link Figma + poze atasate
+    const figmaLink = clip(b.figmaLink, 500);
+    const figmaElement = clip(b.figmaElement, 120);
+    const animation = clip(b.animation, 300);
+    let images;
+    if (Array.isArray(b.images)) {
+      images = b.images
+        .filter((s) => typeof s === "string" && s.startsWith("data:image/") && s.length <= MAX_SHOT_CHARS)
+        .slice(0, MAX_IMAGES);
+      if (images.length === 0) images = undefined;
     }
 
     // screenshot: acceptam doar data-URI de imagine, sub limita de marime
@@ -157,9 +182,16 @@ router.post("/bugs", authMiddleware, limiter(20), async (req, res) => {
       element,
       bugType,
       bugCode: clip(b.bugCode, 40) || null,
-      problem: clip(b.problem, 4000),
-      solution: clip(b.solution, 4000),
+      problem: clip(b.problem, 8000),
+      solution: clip(b.solution, 8000),
       rating,
+      whatTrying,
+      didFinish,
+      stress,
+      figmaLink,
+      figmaElement,
+      animation,
+      images,
       screenshot,
       context,
       reporter: {

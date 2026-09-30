@@ -17,13 +17,26 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { captureScreen } from "react-native-view-shot";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import { useTesting } from "../../testing/TestingContext";
 import { useAuth } from "../../context";
 import { BUG_TYPES } from "../../testing/bugTaxonomy";
 import { FEATURE_TYPES } from "../../testing/featureTaxonomy";
+import { DESIGN_TYPES, UX_TYPES, ANIMATION_EXAMPLES } from "../../testing/uiuxTaxonomy";
 import { showSuccess, showError } from "../../functions";
 import { startWebInspect } from "./webInspector";
 import { RatingReporter } from "./RatingReporter";
+
+// Meniul butonului TEST: capabilitate -> intrare (label/icon/culoare/hint).
+const CAP_MENU = {
+  bug: { label: "Bug", icon: "bug", color: "#7c3aed", hint: "Ceva nu merge / arată prost" },
+  uiux: { label: "UI / UX", icon: "color-wand", color: "#ec4899", hint: "Design sau experiență" },
+  features: { label: "Feature", icon: "bulb", color: "#22c55e", hint: "O idee / îmbunătățire" },
+  uiuxdev: { label: "UI/UX-dev", icon: "brush", color: "#0ea5e9", hint: "Design din Figma (dev)" },
+  rating: { label: "Rating", icon: "star", color: "#f59e0b", hint: "Dă o notă" },
+};
+const CAP_ORDER = ["bug", "uiux", "features", "uiuxdev", "rating"];
 
 // Culoare stridenta pentru marcarea elementului selectat (vizibil clar pe orice fundal)
 const MARKER_COLOR = "#FF00E5";
@@ -34,22 +47,30 @@ const IS_WEB = Platform.OS === "web";
 const PHASES = {
   IDLE: "idle",
   CONSENT: "consent",
-  CHOOSE: "choose", // BUG sau FEATURE (prima alegere, nimic altceva)
-  SCOPE: "scope", // (doar feature) element anume vs tot ecranul
+  CHOOSE: "choose", // meniul cu capabilitatile alocate
+  UIUX_CHOICE: "uiux_choice", // Design vs Experienta (UX)
+  SCOPE: "scope", // (feature) element / tot ecranul / ecran nou
+  DEV_SCOPE: "dev_scope", // (uiux-dev) element vs tot ecranul
   CAPTURING: "capturing",
   PICK: "pick", // nativ: alege punctul pe screenshot
   INSPECT: "inspect", // web: alege elementul real din DOM
   TYPE: "type",
   DETAILS: "details",
+  UX_FORM: "ux_form", // formularul obligatoriu de experienta
+  DEV_FORM: "dev_form", // formularul Figma (uiux-dev)
   SAVING: "saving",
 };
 
-const getTaxonomy = (kind) => (kind === "feature" ? FEATURE_TYPES : BUG_TYPES);
+const getTaxonomy = (kind) =>
+  kind === "feature" ? FEATURE_TYPES : kind === "ui_design" ? DESIGN_TYPES : kind === "ux" ? UX_TYPES : BUG_TYPES;
 
 export const BugReporter = () => {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const access = user?.testingAccess || "full";
+  // Capabilitatile alocate userului (default doar "bug"). Ordonate pentru meniu.
+  const caps = CAP_ORDER.filter((c) =>
+    (Array.isArray(user?.testCaps) && user.testCaps.length ? user.testCaps : ["bug"]).includes(c)
+  );
   const { enabled, consentGiven, giveConsent, resolveCurrentScreen, submit, startSignal } =
     useTesting();
 
@@ -64,8 +85,24 @@ export const BugReporter = () => {
   const [selectedCode, setSelectedCode] = useState(null);
   const [problem, setProblem] = useState("");
   const [solution, setSolution] = useState("");
+  // UX
+  const [whatTrying, setWhatTrying] = useState("");
+  const [didFinish, setDidFinish] = useState(null); // true | false | null
+  const [stress, setStress] = useState(0); // 1..5
+  // UI/UX-dev (Figma)
+  const [figmaLink, setFigmaLink] = useState("");
+  const [figmaElement, setFigmaElement] = useState("");
+  const [animation, setAnimation] = useState("");
+  const [images, setImages] = useState([]);
+  // Rating (controlat din meniu)
+  const [ratingOpen, setRatingOpen] = useState(false);
 
   const inspectStopRef = useRef(null);
+  const kindRef = useRef(kind);
+  kindRef.current = kind;
+
+  // Faza dupa selectarea elementului depinde de categorie.
+  const afterPickPhase = () => (kindRef.current === "uiux_dev" ? PHASES.DEV_FORM : PHASES.TYPE);
 
   const stopInspect = useCallback(() => {
     if (inspectStopRef.current) {
@@ -88,6 +125,14 @@ export const BugReporter = () => {
     setSelectedCode(null);
     setProblem("");
     setSolution("");
+    setWhatTrying("");
+    setDidFinish(null);
+    setStress(0);
+    setFigmaLink("");
+    setFigmaElement("");
+    setAnimation("");
+    setImages([]);
+    setRatingOpen(false);
   }, [stopInspect]);
 
   // La demontare, opreste inspectorul DOM daca era pornit.
@@ -126,7 +171,7 @@ export const BugReporter = () => {
         (_el, descriptor) => {
           inspectStopRef.current = null;
           setWebElement(descriptor);
-          setPhase(PHASES.TYPE);
+          setPhase(afterPickPhase());
         },
         () => {
           inspectStopRef.current = null;
@@ -172,6 +217,101 @@ export const BugReporter = () => {
     setPhase(PHASES.TYPE);
   }, []);
 
+  // Feature: un ecran nou care ar trebui sa porneasca de aici.
+  const chooseScopeNew = useCallback(() => {
+    setSource(IS_WEB ? "local" : "mobile");
+    setWebElement(null);
+    setMarker(null);
+    setShotUri(null);
+    setSelectedType("FUNCTIE_NOUA");
+    setSelectedCode("ECRAN_NOU");
+    setPhase(PHASES.DETAILS);
+  }, []);
+
+  // Din meniul TEST: rutam pe capabilitatea aleasa.
+  const chooseCap = useCallback(
+    (cap) => {
+      setSelectedType(null);
+      setSelectedCode(null);
+      if (cap === "rating") {
+        setPhase(PHASES.IDLE);
+        setRatingOpen(true);
+      } else if (cap === "bug") {
+        setKind("bug");
+        beginPick();
+      } else if (cap === "features") {
+        setKind("feature");
+        setPhase(PHASES.SCOPE);
+      } else if (cap === "uiux") {
+        setPhase(PHASES.UIUX_CHOICE);
+      } else if (cap === "uiuxdev") {
+        setKind("uiux_dev");
+        setPhase(PHASES.DEV_SCOPE);
+      }
+    },
+    [beginPick]
+  );
+
+  // UI/UX: Design (vizual) sau Experienta (UX).
+  const chooseUiux = useCallback(
+    (sub) => {
+      setSelectedType(null);
+      setSelectedCode(null);
+      if (sub === "design") {
+        setKind("ui_design");
+        beginPick();
+      } else {
+        setKind("ux");
+        setPhase(PHASES.SCOPE);
+      }
+    },
+    [beginPick]
+  );
+
+  // UI/UX-dev: element anume vs tot ecranul -> formularul Figma.
+  const chooseDevScope = useCallback(
+    (whole) => {
+      if (whole) {
+        setSource(IS_WEB ? "local" : "mobile");
+        setWebElement(null);
+        setMarker(null);
+        setShotUri(null);
+        setFigmaElement("");
+        setPhase(PHASES.DEV_FORM);
+      } else {
+        beginPick();
+      }
+    },
+    [beginPick]
+  );
+
+  // Alege poze din galerie (Figma), le redimensioneaza si le tine ca data-URI.
+  const pickImages = useCallback(async () => {
+    try {
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        selectionLimit: 6,
+        quality: 0.7,
+      });
+      if (res.canceled) return;
+      const out = [];
+      for (const a of (res.assets || []).slice(0, 6)) {
+        try {
+          const m = await ImageManipulator.manipulateAsync(
+            a.uri,
+            [{ resize: { width: 1000 } }],
+            { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+          );
+          if (m.base64) out.push(`data:image/jpeg;base64,${m.base64}`);
+        } catch (e) {}
+      }
+      setImages((prev) => [...prev, ...out].slice(0, 6));
+    } catch (e) {
+      showError("Nu am putut alege pozele.");
+    }
+  }, []);
+
   const onFabPress = useCallback(() => {
     if (consentGiven) setPhase(PHASES.CHOOSE);
     else setPhase(PHASES.CONSENT);
@@ -194,12 +334,12 @@ export const BugReporter = () => {
     setMarker({ x: locationX, y: locationY });
   }, []);
 
-  const confirmMarker = useCallback(() => setPhase(PHASES.TYPE), []);
+  const confirmMarker = useCallback(() => setPhase(afterPickPhase()), []);
 
   const onSelectType = useCallback((typeKey) => {
     setSelectedType(typeKey);
     setSelectedCode(null);
-    setPhase(PHASES.DETAILS);
+    setPhase(kindRef.current === "ux" ? PHASES.UX_FORM : PHASES.DETAILS);
   }, []);
 
   // Elementul nativ (punct pe screenshot).
@@ -253,13 +393,66 @@ export const BugReporter = () => {
     resetAll,
   ]);
 
+  // UX: formular obligatoriu (ce incerca / a reusit / descriere / stres).
+  const uxValid = whatTrying.trim() && didFinish !== null && problem.trim() && stress >= 1;
+  const onSaveUX = useCallback(async () => {
+    if (!uxValid) return;
+    setPhase(PHASES.SAVING);
+    try {
+      await submit({
+        kind: "ux",
+        source,
+        element: source === "local" ? webElement : buildNativeElement(),
+        bugType: selectedType,
+        whatTrying: whatTrying.trim(),
+        didFinish,
+        problem: problem.trim(),
+        solution: solution.trim(),
+        stress,
+        screenshot: source === "local" ? null : shotUri,
+      });
+      showSuccess("Mulțumim pentru feedback! 🙏");
+      resetAll();
+    } catch (e) {
+      showError(e?.message || "Nu am putut trimite.");
+      setPhase(PHASES.UX_FORM);
+    }
+  }, [uxValid, source, webElement, selectedType, whatTrying, didFinish, problem, solution, stress, shotUri, submit, buildNativeElement, resetAll]);
+
+  // UI/UX-dev: formular Figma (link obligatoriu + poze).
+  const onSaveDev = useCallback(async () => {
+    if (!figmaLink.trim()) return;
+    setPhase(PHASES.SAVING);
+    try {
+      await submit({
+        kind: "uiux_dev",
+        source,
+        element: source === "local" ? webElement : buildNativeElement(),
+        bugType: "UIUX_DEV",
+        figmaLink: figmaLink.trim(),
+        figmaElement: figmaElement.trim(),
+        animation: animation.trim(),
+        problem: problem.trim(),
+        images,
+        screenshot: source === "local" ? null : shotUri,
+      });
+      showSuccess("Mulțumim! Design-ul a fost trimis. 🎨");
+      resetAll();
+    } catch (e) {
+      showError(e?.message || "Nu am putut trimite.");
+      setPhase(PHASES.DEV_FORM);
+    }
+  }, [figmaLink, figmaElement, animation, problem, images, source, webElement, shotUri, submit, buildNativeElement, resetAll]);
+
   if (!enabled) return null;
-  if (access === "rating") return <RatingReporter />;
+  // Fara nicio capabilitate vizibila -> nu afisam nimic.
+  if (caps.length === 0) return null;
 
   const isFeature = kind === "feature";
   const screenInfo = resolveCurrentScreen();
   const activeType = getTaxonomy(kind).find((t) => t.key === selectedType);
-  const accent = isFeature ? "#22c55e" : "#7c3aed";
+  const KIND_ACCENT = { bug: "#7c3aed", feature: "#22c55e", ui_design: "#ec4899", ux: "#f59e0b", uiux_dev: "#0ea5e9" };
+  const accent = KIND_ACCENT[kind] || "#7c3aed";
 
   return (
     <>
@@ -272,10 +465,13 @@ export const BugReporter = () => {
           accessibilityLabel="Raportează un bug sau propune un feature"
           accessibilityRole="button"
         >
-          <Ionicons name="bug" size={22} color="#fff" />
+          <Ionicons name="flask" size={22} color="#fff" />
           <Text style={styles.fabText}>TEST</Text>
         </TouchableOpacity>
       )}
+
+      {/* ---- RATING (deschis din meniu) ---- */}
+      <RatingReporter controlled open={ratingOpen} onClose={() => setRatingOpen(false)} />
 
       {/* ---- CONSIMTAMANT ---- */}
       <Modal visible={phase === PHASES.CONSENT} transparent animationType="fade">
@@ -301,55 +497,91 @@ export const BugReporter = () => {
         </View>
       </Modal>
 
-      {/* ---- CHOOSE: BUG sau FEATURE (prima alegere, nimic altceva) ---- */}
+      {/* ---- CHOOSE: meniul cu capabilitatile alocate ---- */}
       <Modal visible={phase === PHASES.CHOOSE} transparent animationType="fade">
         <View style={styles.centerOverlay}>
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Ce vrei să ne spui?</Text>
-            <Text style={[styles.cardBody, { textAlign: "center", marginBottom: 20 }]}>
+            <Text style={[styles.cardBody, { textAlign: "center", marginBottom: 16 }]}>
               {screenInfo.tab} · {screenInfo.screen}
             </Text>
-            <View style={styles.kindRow}>
-              <TouchableOpacity
-                style={[styles.kindCard, { borderColor: "#7c3aed" }]}
-                onPress={() => chooseKind("bug")}
-                activeOpacity={0.85}
-              >
-                <View style={[styles.kindIcon, { backgroundColor: "#7c3aed22" }]}>
-                  <Ionicons name="bug" size={28} color="#7c3aed" />
-                </View>
-                <Text style={styles.kindLabel}>BUG</Text>
-                <Text style={styles.kindHint}>Ceva nu merge / arată prost</Text>
-              </TouchableOpacity>
-
-              {access === "full" && (
-                <TouchableOpacity
-                  style={[styles.kindCard, { borderColor: "#22c55e" }]}
-                  onPress={() => chooseKind("feature")}
-                  activeOpacity={0.85}
-                >
-                  <View style={[styles.kindIcon, { backgroundColor: "#22c55e22" }]}>
-                    <Ionicons name="bulb" size={28} color="#22c55e" />
+            {caps.map((cap) => {
+              const m = CAP_MENU[cap];
+              return (
+                <TouchableOpacity key={cap} style={[styles.capRow, { borderColor: m.color }]} onPress={() => chooseCap(cap)} activeOpacity={0.85}>
+                  <View style={[styles.capIcon, { backgroundColor: m.color + "22" }]}>
+                    <Ionicons name={m.icon} size={22} color={m.color} />
                   </View>
-                  <Text style={styles.kindLabel}>FEATURE</Text>
-                  <Text style={styles.kindHint}>O idee / îmbunătățire</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.capLabel}>{m.label}</Text>
+                    <Text style={styles.capHint}>{m.hint}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#64748b" />
                 </TouchableOpacity>
-              )}
-            </View>
-            <TouchableOpacity style={[styles.ghostBtn, { marginTop: 18 }]} onPress={resetAll}>
+              );
+            })}
+            <TouchableOpacity style={[styles.ghostBtn, { marginTop: 14 }]} onPress={resetAll}>
               <Text style={styles.ghostBtnText}>Închide</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* ---- SCOPE (feature): element anume vs tot ecranul ---- */}
+      {/* ---- UIUX_CHOICE: Design vs Experienta ---- */}
+      <Modal visible={phase === PHASES.UIUX_CHOICE} transparent animationType="fade">
+        <View style={styles.centerOverlay}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Despre ce e vorba?</Text>
+            <View style={styles.kindRow}>
+              <TouchableOpacity style={[styles.kindCard, { borderColor: "#ec4899" }]} onPress={() => chooseUiux("design")} activeOpacity={0.85}>
+                <View style={[styles.kindIcon, { backgroundColor: "#ec489922" }]}>
+                  <Ionicons name="color-palette" size={28} color="#ec4899" />
+                </View>
+                <Text style={styles.kindLabel}>DESIGN</Text>
+                <Text style={styles.kindHint}>Cum arată (vizual)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.kindCard, { borderColor: "#f59e0b" }]} onPress={() => chooseUiux("ux")} activeOpacity={0.85}>
+                <View style={[styles.kindIcon, { backgroundColor: "#f59e0b22" }]}>
+                  <Ionicons name="walk" size={28} color="#f59e0b" />
+                </View>
+                <Text style={styles.kindLabel}>EXPERIENȚĂ</Text>
+                <Text style={styles.kindHint}>Cum te simți folosind</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity style={[styles.ghostBtn, { marginTop: 16 }]} onPress={() => setPhase(PHASES.CHOOSE)}>
+              <Text style={styles.ghostBtnText}>Înapoi</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ---- DEV_SCOPE (uiux-dev): element vs tot ecranul ---- */}
+      <Modal visible={phase === PHASES.DEV_SCOPE} transparent animationType="fade">
+        <View style={styles.centerOverlay}>
+          <View style={styles.card}>
+            <Ionicons name="brush-outline" size={38} color="#0ea5e9" style={{ alignSelf: "center" }} />
+            <Text style={styles.cardTitle}>Design din Figma pentru…</Text>
+            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: "#0ea5e9" }]} onPress={() => chooseDevScope(false)}>
+              <Ionicons name="locate-outline" size={18} color="#fff" />
+              <Text style={styles.primaryBtnText}>{IS_WEB ? "  Un element anume (îl aleg)" : "  Un element anume (îl arăt)"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.ghostBtn, { marginTop: 10 }]} onPress={() => chooseDevScope(true)}>
+              <Text style={styles.ghostBtnText}>Tot ecranul</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.ghostBtn, { marginTop: 8 }]} onPress={() => setPhase(PHASES.CHOOSE)}>
+              <Text style={styles.ghostBtnText}>Înapoi</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ---- SCOPE (feature / ux): element / tot ecranul / ecran nou ---- */}
       <Modal visible={phase === PHASES.SCOPE} transparent animationType="fade">
         <View style={styles.centerOverlay}>
           <View style={styles.card}>
-            <Ionicons name="bulb-outline" size={38} color="#22c55e" style={{ alignSelf: "center" }} />
-            <Text style={styles.cardTitle}>La ce se referă ideea?</Text>
-            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: "#22c55e" }]} onPress={beginPick}>
+            <Ionicons name={kind === "ux" ? "walk-outline" : "bulb-outline"} size={38} color={accent} style={{ alignSelf: "center" }} />
+            <Text style={styles.cardTitle}>{kind === "ux" ? "La ce se referă experiența?" : "La ce se referă ideea?"}</Text>
+            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: accent }]} onPress={beginPick}>
               <Ionicons name="locate-outline" size={18} color="#fff" />
               <Text style={styles.primaryBtnText}>
                 {IS_WEB ? "  Un element anume (îl aleg)" : "  Un element anume (îl arăt)"}
@@ -358,7 +590,12 @@ export const BugReporter = () => {
             <TouchableOpacity style={[styles.ghostBtn, { marginTop: 10 }]} onPress={chooseScopeWhole}>
               <Text style={styles.ghostBtnText}>E despre tot ecranul</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.ghostBtn, { marginTop: 8 }]} onPress={() => setPhase(PHASES.CHOOSE)}>
+            {isFeature && (
+              <TouchableOpacity style={[styles.ghostBtn, { marginTop: 8 }]} onPress={chooseScopeNew}>
+                <Text style={styles.ghostBtnText}>Un ecran nou care ar trebui să pornească de aici</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={[styles.ghostBtn, { marginTop: 8 }]} onPress={() => setPhase(kind === "ux" ? PHASES.UIUX_CHOICE : PHASES.CHOOSE)}>
               <Text style={styles.ghostBtnText}>Înapoi</Text>
             </TouchableOpacity>
           </View>
@@ -532,7 +769,7 @@ export const BugReporter = () => {
                 value={problem}
                 onChangeText={setProblem}
                 multiline
-                maxLength={isFeature ? 4000 : 1000}
+                maxLength={isFeature ? 8000 : 1000}
               />
 
               <Text style={styles.fieldLabel}>
@@ -545,7 +782,7 @@ export const BugReporter = () => {
                 value={solution}
                 onChangeText={setSolution}
                 multiline
-                maxLength={isFeature ? 4000 : 1000}
+                maxLength={isFeature ? 8000 : 1000}
               />
 
               <View style={styles.saveRow}>
@@ -560,6 +797,119 @@ export const BugReporter = () => {
                   onPress={onSave}
                   disabled={!(problem.trim() || selectedCode)}
                 >
+                  <Text style={styles.primaryBtnText}>Trimite</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ height: 20 }} />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ---- UX_FORM: experienta (obligatoriu + stres) ---- */}
+      <Modal visible={phase === PHASES.UX_FORM} transparent animationType="slide">
+        <KeyboardAvoidingView style={styles.sheetRoot} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <View style={[styles.sheet, { maxHeight: "92%" }]}>
+            <View style={styles.sheetHeader}>
+              <TouchableOpacity onPress={() => setPhase(PHASES.TYPE)} style={{ flexDirection: "row", alignItems: "center" }}>
+                <Ionicons name="chevron-back" size={22} color="#94a3b8" />
+                <Text style={[styles.sheetTitle, { color: "#f59e0b" }]}>{activeType?.label || "Experiență"}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={resetAll}><Ionicons name="close" size={24} color="#94a3b8" /></TouchableOpacity>
+            </View>
+            <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentContainerStyle={{ paddingBottom: 40 }}>
+              <Text style={styles.fieldLabel}>Ce încercai să faci? *</Text>
+              <TextInput style={styles.textArea} placeholder="Ex: voiam să adaug un motiv de rugăciune…" placeholderTextColor="#64748b" value={whatTrying} onChangeText={setWhatTrying} multiline maxLength={1000} />
+
+              <Text style={styles.fieldLabel}>Ai reușit să finalizezi? *</Text>
+              <View style={styles.yesNoRow}>
+                <TouchableOpacity style={[styles.yesNoBtn, didFinish === true && styles.yesOn]} onPress={() => setDidFinish(true)}>
+                  <Ionicons name="checkmark" size={18} color={didFinish === true ? "#fff" : "#22c55e"} />
+                  <Text style={[styles.yesNoText, didFinish === true && { color: "#fff" }]}>Da</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.yesNoBtn, didFinish === false && styles.noOn]} onPress={() => setDidFinish(false)}>
+                  <Ionicons name="close" size={18} color={didFinish === false ? "#fff" : "#ef4444"} />
+                  <Text style={[styles.yesNoText, didFinish === false && { color: "#fff" }]}>Nu</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.fieldLabel}>Descrie experiența *</Text>
+              <TextInput style={styles.textArea} placeholder="Cum a fost, ce te-a încurcat / ajutat…" placeholderTextColor="#64748b" value={problem} onChangeText={setProblem} multiline maxLength={2000} />
+
+              <Text style={styles.fieldLabel}>Soluția la care te-ai gândit (opțional)</Text>
+              <TextInput style={styles.textArea} placeholder="Cum ar fi fost mai bine?" placeholderTextColor="#64748b" value={solution} onChangeText={setSolution} multiline maxLength={2000} />
+
+              <Text style={styles.fieldLabel}>Nivel de stres (1 = deloc, 5 = foarte stresant) *</Text>
+              <View style={styles.stressRow}>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <TouchableOpacity key={n} style={[styles.stressBtn, stress === n && styles.stressOn]} onPress={() => setStress(n)}>
+                    <Text style={[styles.stressText, stress === n && { color: "#fff" }]}>{n}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.saveRow}>
+                <TouchableOpacity style={styles.ghostBtn} onPress={resetAll}><Text style={styles.ghostBtnText}>Închide</Text></TouchableOpacity>
+                <TouchableOpacity style={[styles.primaryBtn, { flex: 1, marginLeft: 12, backgroundColor: "#f59e0b", opacity: uxValid ? 1 : 0.5 }]} onPress={onSaveUX} disabled={!uxValid}>
+                  <Text style={styles.primaryBtnText}>Trimite</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ height: 20 }} />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ---- DEV_FORM: design Figma (uiux-dev) ---- */}
+      <Modal visible={phase === PHASES.DEV_FORM} transparent animationType="slide">
+        <KeyboardAvoidingView style={styles.sheetRoot} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <View style={[styles.sheet, { maxHeight: "92%" }]}>
+            <View style={styles.sheetHeader}>
+              <TouchableOpacity onPress={() => setPhase(PHASES.DEV_SCOPE)} style={{ flexDirection: "row", alignItems: "center" }}>
+                <Ionicons name="chevron-back" size={22} color="#94a3b8" />
+                <Text style={[styles.sheetTitle, { color: "#0ea5e9" }]}>Design Figma</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={resetAll}><Ionicons name="close" size={24} color="#94a3b8" /></TouchableOpacity>
+            </View>
+            <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentContainerStyle={{ paddingBottom: 40 }}>
+              <Text style={styles.fieldLabel}>Link Figma *</Text>
+              <TextInput style={styles.inputLine} placeholder="https://figma.com/…" placeholderTextColor="#64748b" value={figmaLink} onChangeText={setFigmaLink} autoCapitalize="none" autoCorrect={false} />
+
+              {webElement || marker ? (
+                <>
+                  <Text style={styles.fieldLabel}>Denumire element (ex: buton-active, notification-success)</Text>
+                  <TextInput style={styles.inputLine} placeholder="nume element Figma" placeholderTextColor="#64748b" value={figmaElement} onChangeText={setFigmaElement} />
+                  <Text style={styles.fieldLabel}>Animație (opțional)</Text>
+                  <TextInput style={styles.inputLine} placeholder={"ex: " + ANIMATION_EXAMPLES.slice(0, 3).join(", ")} placeholderTextColor="#64748b" value={animation} onChangeText={setAnimation} />
+                  <Text style={styles.hintSmall}>Exemple: {ANIMATION_EXAMPLES.join(" · ")}</Text>
+                </>
+              ) : (
+                <Text style={styles.hintSmall}>Tot ecranul — descrie mai jos elementele.</Text>
+              )}
+
+              <Text style={styles.fieldLabel}>{webElement || marker ? "Alte mențiuni / descriere" : "Descrie elementele"}</Text>
+              <TextInput style={styles.textArea} placeholder="Detalii utile pentru construcție…" placeholderTextColor="#64748b" value={problem} onChangeText={setProblem} multiline maxLength={4000} />
+
+              <Text style={styles.fieldLabel}>Poze din Figma ({images.length}/6)</Text>
+              <View style={styles.imgRow}>
+                {images.map((uri, i) => (
+                  <View key={i} style={styles.imgThumbWrap}>
+                    <Image source={{ uri }} style={styles.imgThumb} />
+                    <TouchableOpacity style={styles.imgRemove} onPress={() => setImages((p) => p.filter((_, idx) => idx !== i))}>
+                      <Ionicons name="close" size={12} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {images.length < 6 && (
+                  <TouchableOpacity style={styles.imgAdd} onPress={pickImages}>
+                    <Ionicons name="add" size={26} color="#0ea5e9" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <View style={styles.saveRow}>
+                <TouchableOpacity style={styles.ghostBtn} onPress={resetAll}><Text style={styles.ghostBtnText}>Închide</Text></TouchableOpacity>
+                <TouchableOpacity style={[styles.primaryBtn, { flex: 1, marginLeft: 12, backgroundColor: "#0ea5e9", opacity: figmaLink.trim() ? 1 : 0.5 }]} onPress={onSaveDev} disabled={!figmaLink.trim()}>
                   <Text style={styles.primaryBtnText}>Trimite</Text>
                 </TouchableOpacity>
               </View>
@@ -632,6 +982,36 @@ const styles = StyleSheet.create({
   kindIcon: { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: 10 },
   kindLabel: { color: "#fff", fontSize: 16, fontWeight: "900", letterSpacing: 1 },
   kindHint: { color: "#94a3b8", fontSize: 11, textAlign: "center", marginTop: 4 },
+
+  // ---- meniul de capabilitati (TEST) ----
+  capRow: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#161a22", borderWidth: 1.5, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 10 },
+  capIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  capLabel: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  capHint: { color: "#94a3b8", fontSize: 12, marginTop: 2 },
+
+  // ---- da/nu (UX) ----
+  yesNoRow: { flexDirection: "row", gap: 10, marginTop: 4 },
+  yesNoBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1.5, borderColor: "#334155", borderRadius: 12, paddingVertical: 12, backgroundColor: "#161a22" },
+  yesOn: { backgroundColor: "#16a34a", borderColor: "#16a34a" },
+  noOn: { backgroundColor: "#dc2626", borderColor: "#dc2626" },
+  yesNoText: { color: "#cbd5e1", fontWeight: "800", fontSize: 15 },
+
+  // ---- scala de stres (UX) ----
+  stressRow: { flexDirection: "row", gap: 8, marginTop: 4 },
+  stressBtn: { flex: 1, borderWidth: 1.5, borderColor: "#334155", borderRadius: 12, paddingVertical: 14, alignItems: "center", backgroundColor: "#161a22" },
+  stressOn: { backgroundColor: "#f59e0b", borderColor: "#f59e0b" },
+  stressText: { color: "#cbd5e1", fontWeight: "800", fontSize: 16 },
+
+  // ---- input pe o linie (dev) ----
+  inputLine: { backgroundColor: "#161a22", borderWidth: 1, borderColor: "#334155", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, color: "#fff", fontSize: 14 },
+  hintSmall: { color: "#64748b", fontSize: 12, marginTop: 6, lineHeight: 17 },
+
+  // ---- poze atasate (dev) ----
+  imgRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 4 },
+  imgThumbWrap: { position: "relative" },
+  imgThumb: { width: 70, height: 100, borderRadius: 10, backgroundColor: "#161a22" },
+  imgRemove: { position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: "#dc2626", alignItems: "center", justifyContent: "center" },
+  imgAdd: { width: 70, height: 100, borderRadius: 10, borderWidth: 1.5, borderColor: "#0ea5e9", borderStyle: "dashed", alignItems: "center", justifyContent: "center", backgroundColor: "#0ea5e911" },
 
   // ---- INSPECT hint (web) ----
   inspectHint: {
