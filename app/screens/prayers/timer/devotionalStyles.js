@@ -199,6 +199,8 @@ export const devotionalStyles = StyleSheet.create({
   repeatRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: SURF, borderRadius: borderRadius.lg, padding: spacing.md, marginTop: spacing.md, borderWidth: 1, borderColor: BORDER },
   repeatTitle: { ...typography.body, color: TEXT, fontWeight: "700" },
   repeatDesc: { ...typography.caption, color: DIM, marginTop: 2 },
+  bibleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.sm, paddingVertical: spacing.md, paddingHorizontal: spacing.md, borderRadius: borderRadius.lg, backgroundColor: SURF, borderWidth: 1.5, borderColor: BORDER },
+  bibleRowText: { ...typography.bodySmall, color: TEXT, fontWeight: "600", flex: 1 },
   notifEditBtn: { paddingHorizontal: spacing.sm, marginRight: spacing.xs },
 
   // ---- "Ce lipseste" (validare buton) ----
@@ -331,6 +333,17 @@ export const devotionalStyles = StyleSheet.create({
   listMotiveRow: { paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.07)" },
   listMotiveText: { fontSize: 21, lineHeight: 28, color: "rgba(229,231,235,0.92)", fontFamily: "IMFellEnglish-Italic" },
   listMotivesEmpty: { color: "rgba(212,212,216,0.4)", ...typography.body, textAlign: "center", marginTop: spacing.xxl },
+
+  // ---- Pasaj biblic in runner ----
+  bibleRunnerRef: { fontSize: 15, color: "#10b981", fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: spacing.md },
+  bibleRunnerVerse: { fontSize: 21, lineHeight: 30, color: "rgba(229,231,235,0.92)", fontFamily: "IMFellEnglish-Italic", marginBottom: spacing.sm },
+  bibleRunnerNum: { fontSize: 12, color: "rgba(229,231,235,0.45)", fontFamily: "System", fontWeight: "700" },
+
+  // ---- Popover "more" (lista + biblie) ----
+  morePopover: { position: "absolute", bottom: "100%", right: 0, marginBottom: spacing.sm, backgroundColor: "rgba(20,20,22,0.98)", borderRadius: borderRadius.lg, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", paddingVertical: spacing.xs, minWidth: 190, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.5, shadowRadius: 12, elevation: 12 },
+  morePopItem: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  morePopText: { color: "#e5e7eb", fontSize: 15, fontWeight: "600" },
+  morePopDivider: { height: 1, backgroundColor: "rgba(255,255,255,0.08)", marginHorizontal: spacing.md },
 
   // ---- Bara compacta (portrait: jos, landscape: dreapta) ----
   compactBarPortrait: { position: "absolute", left: spacing.md, right: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(0,0,0,0.45)", borderRadius: borderRadius.xl, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", paddingHorizontal: spacing.lg, paddingVertical: spacing.md },

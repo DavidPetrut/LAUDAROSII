@@ -8,6 +8,7 @@ export { AddPrayerModal } from "./AddPrayerModal";
 export { AnalysisScreen } from "./analyze";
 export { DevotionalScreen } from "./timer";
 export { AchievementsScreen } from "./AchievementsScreen";
+export { BibleReaderScreen } from "./bible";
 export {
   PrayRoomEntry,
   PrayRoomSetup,

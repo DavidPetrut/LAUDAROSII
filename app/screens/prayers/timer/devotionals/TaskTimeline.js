@@ -19,7 +19,8 @@ export const TaskTimeline = ({ tasks, accent = "#10b981", onEdit, onRemove, onAd
         const color = t.color || accent;
         const hasMusic = !!t.music?.enabled;
         const hasList = !!t.prayerList?.kind;
-        const hasAny = hasMusic || hasList;
+        const hasBible = !!t.bible?.enabled;
+        const hasAny = hasMusic || hasList || hasBible;
         return (
           <View key={`${t.title}-${i}`} style={styles.tlRow}>
             <Text style={styles.tlTime}>{t.durationMin}m</Text>
@@ -44,6 +45,11 @@ export const TaskTimeline = ({ tasks, accent = "#10b981", onEdit, onRemove, onAd
               {hasList && (
                 <TouchableOpacity style={styles.tlActionBtn} onPress={() => onPickList(i)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
                   <Ionicons name="list" size={16} color="#10b981" />
+                </TouchableOpacity>
+              )}
+              {hasBible && (
+                <TouchableOpacity style={styles.tlActionBtn} onPress={() => onEdit(i)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                  <Ionicons name="book" size={16} color={color} />
                 </TouchableOpacity>
               )}
               <TouchableOpacity style={styles.tlActionBtn} onPress={() => setMenu(i)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>

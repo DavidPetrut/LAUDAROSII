@@ -19,6 +19,7 @@ const testingRoutes = require("./testing");
 const accessRoutes = require("./access");
 const devotionalTemplatesRoutes = require("./devotionalTemplates");
 const tutorialsRoutes = require("./tutorials");
+const bibleRoutes = require("./bible");
 
 module.exports = {
   authRoutes,
@@ -42,4 +43,5 @@ module.exports = {
   accessRoutes,
   devotionalTemplatesRoutes,
   tutorialsRoutes,
+  bibleRoutes,
 };

@@ -28,6 +28,17 @@ const taskSchema = new mongoose.Schema(
       boardId: { type: mongoose.Schema.Types.ObjectId, ref: "PrayerBoard", default: null },
       roomId: { type: mongoose.Schema.Types.ObjectId, ref: "PrayRoom", default: null },
     },
+    // pasaj biblic atasat momentului (carte/capitol + interval optional de versete),
+    // in traducerea aleasa de creator. Rezolvat la rulare din API-ul Biblie.
+    bible: {
+      enabled: { type: Boolean, default: false },
+      translation: { type: String, default: "VDCL", maxlength: 12 },
+      book: { type: Number, default: null, min: 1, max: 100 },
+      bookName: { type: String, default: "", maxlength: 40 },
+      chapter: { type: Number, default: null, min: 1, max: 200 },
+      verseStart: { type: Number, default: null, min: 1, max: 300 },
+      verseEnd: { type: Number, default: null, min: 1, max: 300 },
+    },
   },
   { _id: true }
 );

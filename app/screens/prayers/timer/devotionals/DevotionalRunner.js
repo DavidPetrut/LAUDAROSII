@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, Animated, Easing, Platform, FlatList, useWindowDimensions } from "react-native";
+import { View, Text, TouchableOpacity, Animated, Easing, Platform, FlatList, ActivityIndicator, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,6 +18,8 @@ import { ExitConfirm } from "../ExitConfirm";
 import { SwipeToast } from "../SwipeToast";
 import { saveProgress, clearProgress } from "../devotionalProgress";
 import { pickTracks } from "../trackFilter";
+import { fetchChapter, stripHtml } from "../../bible/bibleApi";
+import { formatPassage } from "./BiblePassagePicker";
 
 const fmt = (total) => {
   const s = Math.max(0, total);
@@ -68,6 +70,10 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
   const [paused, setPaused] = useState(false);
   const [listMode, setListMode] = useState(false);
   const [motives, setMotives] = useState([]);
+  const [bibleMode, setBibleMode] = useState(false);
+  const [bibleVerses, setBibleVerses] = useState([]);
+  const [bibleLoading, setBibleLoading] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
   const pausedRef = useRef(false);
@@ -141,6 +147,9 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
     setReady(false);
     setListMode(false);
     setMotives([]);
+    setBibleMode(false);
+    setBibleVerses([]);
+    setMoreOpen(false);
     playTaskMusic(tasks[index]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
@@ -148,6 +157,7 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
   // Incarca motivele listei atasate momentului curent (publica = ale userului,
   // privata = dintr-un board propriu) si deschide modul lista.
   const openList = async () => {
+    setMoreOpen(false);
     setListMode(true);
     const pl = tasks[index]?.prayerList;
     try {
@@ -171,6 +181,27 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
       }
     } catch (e) {
       setMotives([]);
+    }
+  };
+
+  // Incarca pasajul biblic al momentului (capitol + interval optional) si deschide modul biblie.
+  const openBible = async () => {
+    setMoreOpen(false);
+    setBibleMode(true);
+    setBibleLoading(true);
+    const b = tasks[index]?.bible;
+    try {
+      const res = await fetchChapter(b?.translation || "VDCL", b?.book, b?.chapter);
+      let vs = res.verses || [];
+      if (b?.verseStart) {
+        const end = b.verseEnd || b.verseStart;
+        vs = vs.filter((v) => v.verse >= b.verseStart && v.verse <= end);
+      }
+      setBibleVerses(vs);
+    } catch (e) {
+      setBibleVerses([]);
+    } finally {
+      setBibleLoading(false);
     }
   };
 
@@ -276,6 +307,8 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
   const isLast = index >= tasks.length - 1;
   const nextTask = tasks[index + 1];
   const hasList = !!task.prayerList?.kind;
+  const hasBible = !!task.bible?.enabled;
+  const passageLabel = hasBible ? `${task.bible.translation} · ${formatPassage(task.bible)}` : "";
 
   const hasMusic = !!task.music?.enabled;
 
@@ -294,7 +327,7 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
   // Controalele compacte din modul lista: iconita momentului, timp, pauza si
   // butonul activ de lista (care inchide modul). Aceleasi elemente in portrait
   // (rand jos) si in landscape (coloana dreapta).
-  const compactControls = (
+  const renderCompact = (mode) => (
     <>
       <View style={[styles.compactIcon, { backgroundColor: accent + "22" }]}>
         <DevotionalIcon set={task.iconSet} name={task.icon} size={22} color={accent} />
@@ -305,10 +338,10 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.compactBtn, styles.compactBtnActive]}
-        onPress={() => setListMode(false)}
+        onPress={() => { setListMode(false); setBibleMode(false); }}
         activeOpacity={0.85}
       >
-        <Ionicons name="list" size={22} color="#10b981" />
+        <Ionicons name={mode === "bible" ? "book" : "list"} size={22} color="#10b981" />
       </TouchableOpacity>
     </>
   );
@@ -333,6 +366,75 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
     />
   );
 
+  const bibleContent = (
+    <FlatList
+      data={bibleVerses}
+      keyExtractor={(item) => String(item.verse)}
+      style={styles.listMotives}
+      contentContainerStyle={[
+        styles.listMotivesContent,
+        !landscape && { paddingBottom: 130 },
+        landscape && { paddingLeft: insets.left + 28, paddingRight: 132 },
+      ]}
+      showsVerticalScrollIndicator={false}
+      ListHeaderComponent={<Text style={styles.bibleRunnerRef}>{passageLabel}</Text>}
+      renderItem={({ item }) => (
+        <Text style={styles.bibleRunnerVerse}>
+          <Text style={styles.bibleRunnerNum}>{item.verse} </Text>
+          {stripHtml(item.text)}
+        </Text>
+      )}
+      ListEmptyComponent={
+        bibleLoading ? (
+          <ActivityIndicator color={accent} style={{ marginTop: 24 }} />
+        ) : (
+          <Text style={styles.listMotivesEmpty}>Pasaj indisponibil.</Text>
+        )
+      }
+    />
+  );
+
+  // Butonul suplimentar de langa controale: "more" (lista+biblie), lista, sau biblie.
+  const extraControl = () => {
+    if (hasList && hasBible) {
+      return (
+        <View style={{ position: "relative" }}>
+          <TouchableOpacity style={styles.runnerListBtn} onPress={() => setMoreOpen((o) => !o)} activeOpacity={0.85}>
+            <Ionicons name="ellipsis-horizontal" size={30} color="#d4d4d8" />
+          </TouchableOpacity>
+          {moreOpen && (
+            <View style={styles.morePopover}>
+              <TouchableOpacity style={styles.morePopItem} onPress={openList} activeOpacity={0.85}>
+                <Ionicons name="list" size={18} color="#10b981" />
+                <Text style={styles.morePopText}>Listă rugăciuni</Text>
+              </TouchableOpacity>
+              <View style={styles.morePopDivider} />
+              <TouchableOpacity style={styles.morePopItem} onPress={openBible} activeOpacity={0.85}>
+                <Ionicons name="book" size={18} color={accent} />
+                <Text style={styles.morePopText}>Biblie</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      );
+    }
+    if (hasList) {
+      return (
+        <TouchableOpacity style={styles.runnerListBtn} onPress={openList} activeOpacity={0.85}>
+          <Ionicons name="list" size={30} color="#d4d4d8" />
+        </TouchableOpacity>
+      );
+    }
+    if (hasBible) {
+      return (
+        <TouchableOpacity style={styles.runnerListBtn} onPress={openBible} activeOpacity={0.85}>
+          <Ionicons name="book" size={30} color="#d4d4d8" />
+        </TouchableOpacity>
+      );
+    }
+    return null;
+  };
+
   const iconEl = (
     <Animated.View style={[styles.runnerIcon, { backgroundColor: accent + "22", transform: [{ scale: pulse }] }]}>
       <DevotionalIcon set={task.iconSet} name={task.icon} size={64} color={accent} />
@@ -346,11 +448,7 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
   const controlsEl = (
     <View style={[styles.runnerControlsRow, { marginTop: 32 }]}>
       <PlayerControls paused={paused} onPause={pause} onResume={resume} onStop={() => leave(false)} />
-      {hasList && (
-        <TouchableOpacity style={styles.runnerListBtn} onPress={openList} activeOpacity={0.85}>
-          <Ionicons name="list" size={30} color="#d4d4d8" />
-        </TouchableOpacity>
-      )}
+      {extraControl()}
     </View>
   );
   const readyEl = ready ? (
@@ -364,7 +462,7 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
 
   return (
     <View style={styles.overlay} {...swipe}>
-      {landscape && !listMode ? (
+      {landscape && !listMode && !bibleMode ? (
         <View style={styles.runnerLandscape}>
           <View style={styles.runnerLandCol}>
             {iconEl}
@@ -398,13 +496,31 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
           {landscape ? (
             <View style={styles.listModeRow}>
               {motivesList}
-              <View style={styles.compactBarLandscape}>{compactControls}</View>
+              <View style={styles.compactBarLandscape}>{renderCompact("list")}</View>
             </View>
           ) : (
             <>
               {motivesList}
               <View style={[styles.compactBarPortrait, { bottom: insets.bottom + 20 }]}>
-                {compactControls}
+                {renderCompact("list")}
+              </View>
+            </>
+          )}
+        </View>
+      )}
+
+      {bibleMode && (
+        <View style={styles.listMode}>
+          {landscape ? (
+            <View style={styles.listModeRow}>
+              {bibleContent}
+              <View style={styles.compactBarLandscape}>{renderCompact("bible")}</View>
+            </View>
+          ) : (
+            <>
+              {bibleContent}
+              <View style={[styles.compactBarPortrait, { bottom: insets.bottom + 20 }]}>
+                {renderCompact("bible")}
               </View>
             </>
           )}

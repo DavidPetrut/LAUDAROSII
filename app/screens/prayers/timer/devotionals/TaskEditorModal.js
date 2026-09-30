@@ -7,6 +7,7 @@ import { DevotionalIcon } from "./DevotionalIcon";
 import { IconPicker } from "./IconPicker";
 import { ColorSwatches } from "./ColorSwatches";
 import { NumberPromptModal } from "./NumberPromptModal";
+import { BiblePassagePicker, formatPassage } from "./BiblePassagePicker";
 
 const DURATIONS = [5, 10, 15];
 const DEFAULT_DESC = "Alege ce se potrivește pentru acest moment.";
@@ -39,6 +40,8 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", templ
   const [music, setMusic] = useState({ enabled: false, category: "instrumental" });
   const [chooseMusic, setChooseMusic] = useState(false);
   const [chooseList, setChooseList] = useState(false);
+  const [bible, setBible] = useState(null);
+  const [passagePicker, setPassagePicker] = useState(false);
   const [description, setDescription] = useState("");
   const [picker, setPicker] = useState(false);
   const [colorPicker, setColorPicker] = useState(false);
@@ -55,6 +58,7 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", templ
       setMusic(initial?.music || { enabled: false, category: "instrumental" });
       setChooseMusic(!!initial?.chooseMusic);
       setChooseList(!!initial?.chooseList);
+      setBible(initial?.bible?.enabled ? initial.bible : null);
       setDescription(initial?.description || "");
       setSettings(false);
     }
@@ -77,11 +81,12 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", templ
       music,
       chooseMusic,
       chooseList,
+      bible: bible || { enabled: false },
       description: description.trim(),
     });
   };
 
-  const hasAdvanced = music.enabled || chooseMusic || chooseList;
+  const hasAdvanced = music.enabled || chooseMusic || chooseList || !!bible?.enabled;
 
   // Cele 3 optiuni de muzica intr-o singura valoare: none | instrumental | lyrics.
   const musicValue = music.enabled ? music.category : "none";
@@ -254,6 +259,21 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", templ
               <Text style={styles.repeatDesc}>Opțiunea aleasă e cea default; userul o poate schimba la import.</Text>
             )}
 
+            <Text style={styles.repeatTitle}>Pasaj biblic</Text>
+            <TouchableOpacity style={styles.bibleRow} onPress={() => setPassagePicker(true)} activeOpacity={0.85}>
+              <Ionicons name="book" size={18} color={bible?.enabled ? color : "rgba(229,231,235,0.6)"} />
+              <Text style={styles.bibleRowText} numberOfLines={1}>
+                {bible?.enabled ? `${bible.translation} · ${formatPassage(bible)}` : "Fără — atinge pentru a alege"}
+              </Text>
+              {bible?.enabled ? (
+                <TouchableOpacity onPress={() => setBible(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close-circle" size={20} color="rgba(255,255,255,0.4)" />
+                </TouchableOpacity>
+              ) : (
+                <Ionicons name="chevron-forward" size={18} color="rgba(229,231,235,0.5)" />
+              )}
+            </TouchableOpacity>
+
             {templateMode && (
               <>
                 <Text style={styles.stepLabel}>Template</Text>
@@ -283,6 +303,13 @@ export const TaskEditorModal = ({ visible, initial, baseColor = "#10b981", templ
           </Pressable>
         </Pressable>
       </Modal>
+
+      <BiblePassagePicker
+        visible={passagePicker}
+        initial={bible}
+        onSave={(b) => { setBible(b); setPassagePicker(false); }}
+        onClose={() => setPassagePicker(false)}
+      />
 
       <Modal visible={descPrompt.open} transparent animationType="fade" onRequestClose={cancelDesc}>
         <Pressable style={styles.menuBackdrop} onPress={cancelDesc}>

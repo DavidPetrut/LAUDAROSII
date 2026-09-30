@@ -33,3 +33,6 @@ npm-debug.log*
 
 # Sass folder (doar referinta locala, nu face parte din proiect)
 sass/
+
+# Audio TTS generat (cache)
+server/cache/

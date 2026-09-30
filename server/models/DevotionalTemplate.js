@@ -25,6 +25,16 @@ const templateTaskSchema = new mongoose.Schema(
       roomId: { type: mongoose.Schema.Types.ObjectId, ref: "PrayRoom", default: null },
     },
     chooseList: { type: Boolean, default: false },
+    // pasaj biblic atasat momentului (carte/capitol + interval optional de versete).
+    bible: {
+      enabled: { type: Boolean, default: false },
+      translation: { type: String, default: "VDCL", maxlength: 12 },
+      book: { type: Number, default: null, min: 1, max: 100 },
+      bookName: { type: String, default: "", maxlength: 40 },
+      chapter: { type: Number, default: null, min: 1, max: 200 },
+      verseStart: { type: Number, default: null, min: 1, max: 300 },
+      verseEnd: { type: Number, default: null, min: 1, max: 300 },
+    },
     // descriere lasata de creator pentru un moment cu alegere (muzica/lista);
     // apare la importator in pasul acelui moment.
     description: { type: String, default: "", maxlength: 300 },

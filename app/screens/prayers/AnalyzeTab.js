@@ -37,6 +37,17 @@ export const AnalyzeTab = ({ navigation }) => {
 
         <TouchableOpacity
           style={styles.achievementsBtn}
+          onPress={() => navigation.navigate("Bible")}
+        >
+          <Text style={styles.btnEmoji}>📖</Text>
+          <View style={styles.btnTextWrap}>
+            <Text style={styles.btnTitle}>Bible</Text>
+            <Text style={styles.btnSubtitle}>Citește Biblia</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.achievementsBtn}
           onPress={() => navigation.navigate("Achievements")}
         >
           <Text style={styles.btnEmoji}>🏆</Text>

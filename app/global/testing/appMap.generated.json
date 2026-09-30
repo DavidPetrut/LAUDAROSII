@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-30T17:00:32.712Z",
+  "generatedAt": "2026-09-30T19:56:35.171Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -2244,6 +2244,141 @@
         "tema"
       ]
     },
+    "screens/prayers/bible/bibleApi.js": {
+      "stylesFile": "screens/prayers/bible/styles.js",
+      "globals": [
+        {
+          "name": "api",
+          "file": "global/functions/api.js"
+        },
+        {
+          "name": "storage",
+          "file": "global/utils/storage.js"
+        },
+        {
+          "name": "CONFIG",
+          "file": "global/config.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "api",
+        "storage"
+      ]
+    },
+    "screens/prayers/bible/BibleReaderScreen.js": {
+      "stylesFile": "screens/prayers/bible/styles.js",
+      "globals": [
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        },
+        {
+          "name": "useImmersive",
+          "file": "global/context/ImmersiveContext.js"
+        },
+        {
+          "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        }
+      ],
+      "styleTokens": [
+        "spacing"
+      ],
+      "crossScreens": [
+        "screens/prayers/bible/components/index.js"
+      ],
+      "domainsTouched": [
+        "tema",
+        "toast"
+      ]
+    },
+    "screens/prayers/bible/components/BibleIcons.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/bible/components/BookPickerSheet.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/bible/bibleApi.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/prayers/bible/components/DisplaySheet.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/bible/constants.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/prayers/bible/components/SheetModal.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/bible/components/StrongsVerseSheet.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/bible/constants.js",
+        "screens/prayers/bible/bibleApi.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/prayers/bible/components/VerseActionSheet.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/bible/components/VerseNotesSheet.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/bible/bibleApi.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/prayers/bible/components/VersionPickerSheet.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/bible/constants.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/prayers/bible/constants.js": {
+      "stylesFile": "screens/prayers/bible/styles.js",
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
+    "screens/prayers/bible/useBibleAudio.js": {
+      "stylesFile": "screens/prayers/bible/styles.js",
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
     "screens/prayers/ChurchListView.js": {
       "stylesFile": "screens/prayers/styles.js",
       "globals": [
@@ -2954,6 +3089,17 @@
       "crossScreens": [],
       "domainsTouched": []
     },
+    "screens/prayers/timer/devotionals/BiblePassagePicker.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [
+        "screens/prayers/timer/devotionalStyles.js",
+        "screens/prayers/bible/bibleApi.js",
+        "screens/prayers/bible/constants.js"
+      ],
+      "domainsTouched": []
+    },
     "screens/prayers/timer/devotionals/BuilderView.js": {
       "stylesFile": null,
       "globals": [],
@@ -3065,7 +3211,8 @@
         "screens/prayers/timer/ExitConfirm.js",
         "screens/prayers/timer/SwipeToast.js",
         "screens/prayers/timer/devotionalProgress.js",
-        "screens/prayers/timer/trackFilter.js"
+        "screens/prayers/timer/trackFilter.js",
+        "screens/prayers/bible/bibleApi.js"
       ],
       "domainsTouched": [
         "auth",
@@ -3754,6 +3901,7 @@
       "screens/home/HomeScreen.js",
       "screens/prayers/AchievementsScreen.js",
       "screens/prayers/analyze/AnalysisScreen.js",
+      "screens/prayers/bible/bibleApi.js",
       "screens/prayers/churchPrayersApi.js",
       "screens/prayers/lists/prayerBoardsApi.js",
       "screens/prayers/lists/PrayerListsView.js",
@@ -3797,6 +3945,7 @@
       "screens/games/MemoryGameScreen.js",
       "screens/games/QuizGameScreen.js",
       "screens/prayers/analyze/AnalysisScreen.js",
+      "screens/prayers/bible/BibleReaderScreen.js",
       "screens/prayers/ChurchListView.js",
       "screens/prayers/lists/PrayerListsView.js",
       "screens/prayers/PersonalPrayersTab.js",
@@ -3883,6 +4032,7 @@
       "screens/admin/app-control/RoleDropdown.js",
       "screens/prayers/AchievementsScreen.js",
       "screens/prayers/AnimatedPrayerCard.js",
+      "screens/prayers/bible/BibleReaderScreen.js",
       "screens/prayers/PersonalPrayersTab.js",
       "screens/prayers/pray-room/PrayRoomCard.js",
       "screens/prayers/pray-room/PrayRoomEntry.js",
@@ -3925,6 +4075,7 @@
     ],
     "global/config.js": [
       "screens/games/game_pray-realm/missions/missionsSocket.js",
+      "screens/prayers/bible/bibleApi.js",
       "screens/prayers/pray-room/prayRoomSocket.js",
       "screens/prayers/ProgramPrayersTab.js",
       "screens/profile/SettingsScreen.js"
@@ -3961,6 +4112,17 @@
     "global/components/testing/TestReportButton.js": [
       "screens/prayers/AddPrayerModal.js"
     ],
+    "global/utils/storage.js": [
+      "screens/prayers/bible/bibleApi.js",
+      "screens/prayers/ProgramPrayersTab.js",
+      "screens/prayers/timer/devotionals/devotionalNotify.js",
+      "screens/prayers/timer/home/quotes.js"
+    ],
+    "global/context/ImmersiveContext.js": [
+      "screens/prayers/bible/BibleReaderScreen.js",
+      "screens/prayers/timer/devotionals/DevotionalRunner.js",
+      "screens/prayers/timer/session/DevotionalPlayer.js"
+    ],
     "global/context/NotificationContext.js": [
       "screens/prayers/PersonalPrayersTab.js"
     ],
@@ -3976,17 +4138,8 @@
     "global/context/TransitionContext.js": [
       "screens/prayers/PrayersScreen.js"
     ],
-    "global/utils/storage.js": [
-      "screens/prayers/ProgramPrayersTab.js",
-      "screens/prayers/timer/devotionals/devotionalNotify.js",
-      "screens/prayers/timer/home/quotes.js"
-    ],
     "global/services/notifications.js": [
       "screens/prayers/timer/devotionals/devotionalNotify.js"
-    ],
-    "global/context/ImmersiveContext.js": [
-      "screens/prayers/timer/devotionals/DevotionalRunner.js",
-      "screens/prayers/timer/session/DevotionalPlayer.js"
     ],
     "global/services/focusMode.js": [
       "screens/prayers/timer/devotionals/DevotionalRunner.js",
