@@ -198,6 +198,14 @@ const userSchema = new mongoose.Schema({
     enum: ["full", "bugs", "rating"],
     default: "full",
   },
+  // Capabilitatile din butonul TEST alocate userului (multi-select din dashboard).
+  // Valori: bug, uiux (design+experienta), features, uiuxdev (Figma, doar designeri),
+  // rating. Default doar "bug" (adminul aloca restul). Inlocuieste `testingAccess`.
+  testCaps: {
+    type: [String],
+    enum: ["bug", "uiux", "features", "uiuxdev", "rating"],
+    default: ["bug"],
+  },
   // taburile din footer permise (chei: Home/Prayers/Courses/Games/Profile).
   // gol = toate permise.
   allowedTabs: {
