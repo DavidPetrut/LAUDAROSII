@@ -5,6 +5,8 @@ import { devotionalStyles as styles } from "../devotionalStyles";
 import { TaskEditorModal } from "./TaskEditorModal";
 import { TaskTimeline } from "./TaskTimeline";
 import { PrayerListPickerModal } from "./PrayerListPickerModal";
+import { MusicChooserModal } from "./MusicChooserModal";
+import { BiblePassagePicker } from "./BiblePassagePicker";
 import { DevotionalHeaderImage } from "./DevotionalHeaderImage";
 import { NotificationEditModal } from "./NotificationEditModal";
 import { devotionalsApi } from "./devotionalsApi";
@@ -36,6 +38,8 @@ export const BuilderView = ({ initial, devotionals = [], canTemplate, templateMo
   );
   const [taskEditor, setTaskEditor] = useState({ open: false, index: null });
   const [listPicker, setListPicker] = useState({ open: false, index: null });
+  const [musicPicker, setMusicPicker] = useState({ open: false, index: null });
+  const [biblePicker, setBiblePicker] = useState({ open: false, index: null });
   const [notifEditor, setNotifEditor] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -84,6 +88,28 @@ export const BuilderView = ({ initial, devotionals = [], canTemplate, templateMo
       return copy;
     });
     setListPicker({ open: false, index: null });
+  };
+
+  const setTaskMusic = (music) => {
+    setTasks((prev) => {
+      const copy = [...prev];
+      const idx = musicPicker.index;
+      if (idx === null || !copy[idx]) return prev;
+      copy[idx] = { ...copy[idx], music };
+      return copy;
+    });
+    setMusicPicker({ open: false, index: null });
+  };
+
+  const setTaskBible = (bible) => {
+    setTasks((prev) => {
+      const copy = [...prev];
+      const idx = biblePicker.index;
+      if (idx === null || !copy[idx]) return prev;
+      copy[idx] = { ...copy[idx], bible };
+      return copy;
+    });
+    setBiblePicker({ open: false, index: null });
   };
 
   const canSave = name.trim().length > 0 && tasks.length > 0;
@@ -156,6 +182,8 @@ export const BuilderView = ({ initial, devotionals = [], canTemplate, templateMo
         onPickList={(i) => setListPicker({ open: true, index: i })}
         onReorder={setTasks}
         onDragActive={setDragging}
+        onPickMusic={(i) => setMusicPicker({ open: true, index: i })}
+        onPickBible={(i) => setBiblePicker({ open: true, index: i })}
       />
 
       <Text style={styles.stepLabel}>{templateMode ? "Zile recomandate" : "Zile"}</Text>
@@ -259,6 +287,21 @@ export const BuilderView = ({ initial, devotionals = [], canTemplate, templateMo
         selected={listPicker.index !== null ? tasks[listPicker.index]?.prayerList : null}
         onSelect={setTaskList}
         onClose={() => setListPicker({ open: false, index: null })}
+      />
+
+      <MusicChooserModal
+        visible={musicPicker.open}
+        value={musicPicker.index !== null ? tasks[musicPicker.index]?.music : null}
+        accent={color}
+        onSave={setTaskMusic}
+        onClose={() => setMusicPicker({ open: false, index: null })}
+      />
+
+      <BiblePassagePicker
+        visible={biblePicker.open}
+        initial={biblePicker.index !== null ? tasks[biblePicker.index]?.bible : null}
+        onSave={setTaskBible}
+        onClose={() => setBiblePicker({ open: false, index: null })}
       />
 
       <NotificationEditModal

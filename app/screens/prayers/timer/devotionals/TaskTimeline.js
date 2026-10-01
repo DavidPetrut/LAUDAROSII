@@ -4,20 +4,31 @@ import { Ionicons } from "@expo/vector-icons";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { DevotionalIcon } from "./DevotionalIcon";
 
-const LONG_PRESS_MS = 1500;
+const LONG_PRESS_MS = 450;
 const DEFAULT_ROW_H = 68;
 
-// Popover cu iconurile functiilor atasate unui moment (se deschide cand are >1).
-const ActionsPopover = ({ actions, onPick }) => {
+// Popover cu iconurile functiilor atasate unui moment. Se "umfla" ca un balon din
+// dreptul butonului (origine jos) la deschidere si e "absorbit" la inchidere.
+const ActionsPopover = ({ open, actions, onPick, onClosed }) => {
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.spring(anim, { toValue: 1, useNativeDriver: true, friction: 8, tension: 90 }).start();
-  }, []);
+    if (open) {
+      Animated.spring(anim, { toValue: 1, useNativeDriver: true, friction: 7, tension: 120 }).start();
+    } else {
+      Animated.timing(anim, { toValue: 0, duration: 140, useNativeDriver: true }).start(
+        ({ finished }) => finished && onClosed?.()
+      );
+    }
+  }, [open]);
   return (
     <Animated.View
       style={[
         styles.momentPopover,
-        { opacity: anim, transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }] },
+        {
+          opacity: anim,
+          transformOrigin: "bottom center",
+          transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }],
+        },
       ]}
     >
       {actions.map((a) => (
@@ -33,10 +44,20 @@ const ActionsPopover = ({ actions, onPick }) => {
  * Lista de momente ca timeline vertical, cu reordonare prin drag (long-press) si
  * un popover de actiuni pe moment cand are mai multe functii atasate.
  */
-export const TaskTimeline = ({ tasks, accent = "#10b981", onEdit, onRemove, onAdd, onPickList, onReorder, onDragActive }) => {
+export const TaskTimeline = ({ tasks, accent = "#10b981", onEdit, onRemove, onAdd, onPickList, onPickMusic, onPickBible, onReorder, onDragActive }) => {
   const [menu, setMenu] = useState(null);
   const [popover, setPopover] = useState(null);
+  const [popoverOpen, setPopoverOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState(null);
+
+  // Deschide/inchide (toggle) popover-ul de actiuni al unui moment, cu animatie de iesire.
+  const togglePopover = (i) => {
+    if (popover === i && popoverOpen) setPopoverOpen(false);
+    else {
+      setPopover(i);
+      setPopoverOpen(true);
+    }
+  };
 
   const dragIndexRef = useRef(null);
   const fromRef = useRef(0);
@@ -87,6 +108,7 @@ export const TaskTimeline = ({ tasks, accent = "#10b981", onEdit, onRemove, onAd
 
   const beginDrag = (index) => {
     setPopover(null);
+    setPopoverOpen(false);
     setMenu(null);
     fromRef.current = index;
     curRef.current = index;
@@ -122,9 +144,9 @@ export const TaskTimeline = ({ tasks, accent = "#10b981", onEdit, onRemove, onAd
   const buildActions = (t, i) => {
     const color = t.color || accent;
     const arr = [];
-    if (t.music?.enabled) arr.push({ key: "music", icon: "musical-notes", color, onPress: () => onEdit(i) });
+    if (t.music?.enabled) arr.push({ key: "music", icon: "musical-notes", color, onPress: () => onPickMusic(i) });
     if (t.prayerList?.kind) arr.push({ key: "list", icon: "list", color: "#10b981", onPress: () => onPickList(i) });
-    if (t.bible?.enabled) arr.push({ key: "bible", icon: "book", color, onPress: () => onEdit(i) });
+    if (t.bible?.enabled) arr.push({ key: "bible", icon: "book", color, onPress: () => onPickBible(i) });
     return arr;
   };
 
@@ -168,20 +190,24 @@ export const TaskTimeline = ({ tasks, accent = "#10b981", onEdit, onRemove, onAd
 
             <View style={styles.tlActions}>
               {actions.length >= 2 ? (
-                <View style={{ position: "relative" }}>
+                <View style={styles.popoverAnchor}>
                   <TouchableOpacity
                     style={styles.tlActionsChip}
-                    onPress={() => setPopover(popover === i ? null : i)}
+                    onPress={() => togglePopover(i)}
                     hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                   >
                     <Ionicons name={actions[0].icon} size={13} color={actions[0].color} />
                     <Text style={styles.tlActionsCount}>{actions.length}</Text>
                   </TouchableOpacity>
                   {popover === i && (
-                    <ActionsPopover
-                      actions={actions}
-                      onPick={(a) => { setPopover(null); a.onPress(); }}
-                    />
+                    <View style={styles.popoverCenter} pointerEvents="box-none">
+                      <ActionsPopover
+                        open={popoverOpen}
+                        actions={actions}
+                        onPick={(a) => { setPopoverOpen(false); a.onPress(); }}
+                        onClosed={() => setPopover(null)}
+                      />
+                    </View>
                   )}
                 </View>
               ) : actions.length === 1 ? (

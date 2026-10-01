@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-01T09:35:05.334Z",
+  "generatedAt": "2026-10-01T10:13:50.191Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -3269,6 +3269,15 @@
       "styleTokens": [
         "colors"
       ],
+      "crossScreens": [
+        "screens/prayers/timer/devotionalStyles.js"
+      ],
+      "domainsTouched": []
+    },
+    "screens/prayers/timer/devotionals/MusicChooserModal.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
       "crossScreens": [
         "screens/prayers/timer/devotionalStyles.js"
       ],
