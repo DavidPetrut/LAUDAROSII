@@ -334,6 +334,7 @@ export const devotionalStyles = StyleSheet.create({
 
   // ---- Mod Lista (overlay negru cu motivele) ----
   listMode: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: PLAYER_BG, zIndex: 200 },
+  bibleLayer: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 300 },
   listModeRow: { flex: 1, flexDirection: "row" },
   listMotives: { flex: 1 },
   listMotivesContent: { paddingHorizontal: spacing.xl, paddingVertical: spacing.xl },

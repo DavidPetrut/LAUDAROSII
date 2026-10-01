@@ -1,1 +1,1 @@
-export { BibleReaderScreen } from "./BibleReaderScreen";
+export { BibleReaderScreen, BibleReader } from "./BibleReaderScreen";

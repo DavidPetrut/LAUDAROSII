@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-01T07:43:25.433Z",
+  "generatedAt": "2026-10-01T09:35:05.334Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -3173,6 +3173,13 @@
         "notificari"
       ]
     },
+    "screens/prayers/timer/devotionals/DevotionalReturnChip.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
     "screens/prayers/timer/devotionals/DevotionalRunner.js": {
       "stylesFile": null,
       "globals": [
@@ -3212,7 +3219,7 @@
         "screens/prayers/timer/SwipeToast.js",
         "screens/prayers/timer/devotionalProgress.js",
         "screens/prayers/timer/trackFilter.js",
-        "screens/prayers/bible/bibleApi.js"
+        "screens/prayers/bible/index.js"
       ],
       "domainsTouched": [
         "auth",

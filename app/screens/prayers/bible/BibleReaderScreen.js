@@ -51,7 +51,11 @@ const clampFont = (v) => Math.min(FONT_MAX, Math.max(FONT_MIN, v));
 const SUP = { 0: "⁰", 1: "¹", 2: "²", 3: "³", 4: "⁴", 5: "⁵", 6: "⁶", 7: "⁷", 8: "⁸", 9: "⁹" };
 const toSup = (n) => String(n).split("").map((d) => SUP[d] || d).join("");
 
-export const BibleReaderScreen = ({ navigation }) => {
+// Cititorul Biblie reutilizabil. Ca ecran standalone sau ca layer (embedded) peste
+// alt ecran: onBack = ce face sageata, initial = pasaj de start, headerExtra = nod
+// in bara de sus (ex: buton retur la devotional), manageImmersive = controleaza
+// crome-ul global (fals cand e layer, ca sa nu strice ecranul parinte).
+export const BibleReader = ({ onBack, initial, headerExtra, manageImmersive = true }) => {
   const { isDarkMode } = useTheme();
   const { setImmersive } = useImmersive();
   const insets = useSafeAreaInsets();
@@ -122,7 +126,7 @@ export const BibleReaderScreen = ({ navigation }) => {
   // La iesirea din ecran, readu crome-ul aplicatiei si bara telefonului.
   useEffect(
     () => () => {
-      setImmersive(false);
+      if (manageImmersive) setImmersive(false);
       StatusBar.setHidden(false, "fade");
       if (highlightTimer.current) clearTimeout(highlightTimer.current);
     },
@@ -138,7 +142,7 @@ export const BibleReaderScreen = ({ navigation }) => {
       duration: 200,
       useNativeDriver: true,
     }).start();
-    setImmersive(hide);
+    if (manageImmersive) setImmersive(hide);
     StatusBar.setHidden(hide, "fade");
   };
 
@@ -188,18 +192,24 @@ export const BibleReaderScreen = ({ navigation }) => {
   useEffect(() => {
     (async () => {
       const s = await loadSettings();
-      setPrimary(s.primary);
+      // La deschiderea ca layer (initial), pornim de la pasajul primit; altfel de la ultima pozitie.
+      const startPrimary = initial?.translation || s.primary;
+      const startPos = initial?.book
+        ? { book: initial.book, chapter: initial.chapter || 1 }
+        : s.position;
+      if (initial?.verse) pendingVerseRef.current = initial.verse;
+      setPrimary(startPrimary);
       setCompare(s.compare);
       setFontScale(s.fontScale);
-      setPosition(s.position);
+      setPosition(startPos);
       try {
         const r = await fetchTranslations();
         setTranslations(r.translations?.length ? r.translations : FALLBACK_TRANSLATIONS);
       } catch (e) {
         setTranslations(FALLBACK_TRANSLATIONS);
       }
-      await loadBooksFor(s.primary);
-      await loadChapter(s.primary, s.position.book, s.position.chapter);
+      await loadBooksFor(startPrimary);
+      await loadChapter(startPrimary, startPos.book, startPos.chapter);
     })();
   }, []);
 
@@ -406,13 +416,15 @@ export const BibleReaderScreen = ({ navigation }) => {
       >
         <TouchableOpacity
           style={st.iconBtn}
-          onPress={() => navigation.goBack()}
+          onPress={() => onBack?.()}
           accessibilityLabel="Înapoi"
         >
           <Icon name="back" size={24} color={iconColor} />
         </TouchableOpacity>
 
         <View style={st.topSpacer} />
+
+        {headerExtra}
 
         <TouchableOpacity
           style={st.iconBtn}
@@ -598,3 +610,8 @@ export const BibleReaderScreen = ({ navigation }) => {
     </View>
   );
 };
+
+// Wrapper pentru navigatia standalone (tab-ul Prayers): back = inapoi in stack.
+export const BibleReaderScreen = ({ navigation }) => (
+  <BibleReader onBack={() => navigation.goBack()} />
+);

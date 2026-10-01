@@ -18,8 +18,8 @@ import { ExitConfirm } from "../ExitConfirm";
 import { SwipeToast } from "../SwipeToast";
 import { saveProgress, clearProgress } from "../devotionalProgress";
 import { pickTracks } from "../trackFilter";
-import { fetchChapter, stripHtml } from "../../bible/bibleApi";
-import { formatPassage } from "./BiblePassagePicker";
+import { BibleReader } from "../../bible";
+import { DevotionalReturnChip } from "./DevotionalReturnChip";
 
 const fmt = (total) => {
   const s = Math.max(0, total);
@@ -71,8 +71,6 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
   const [listMode, setListMode] = useState(false);
   const [motives, setMotives] = useState([]);
   const [bibleMode, setBibleMode] = useState(false);
-  const [bibleVerses, setBibleVerses] = useState([]);
-  const [bibleLoading, setBibleLoading] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -148,7 +146,6 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
     setListMode(false);
     setMotives([]);
     setBibleMode(false);
-    setBibleVerses([]);
     setMoreOpen(false);
     playTaskMusic(tasks[index]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -184,25 +181,10 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
     }
   };
 
-  // Incarca pasajul biblic al momentului (capitol + interval optional) si deschide modul biblie.
-  const openBible = async () => {
+  // Deschide Biblia completa ca layer peste player, la pasajul momentului.
+  const openBible = () => {
     setMoreOpen(false);
     setBibleMode(true);
-    setBibleLoading(true);
-    const b = tasks[index]?.bible;
-    try {
-      const res = await fetchChapter(b?.translation || "VDCL", b?.book, b?.chapter);
-      let vs = res.verses || [];
-      if (b?.verseStart) {
-        const end = b.verseEnd || b.verseStart;
-        vs = vs.filter((v) => v.verse >= b.verseStart && v.verse <= end);
-      }
-      setBibleVerses(vs);
-    } catch (e) {
-      setBibleVerses([]);
-    } finally {
-      setBibleLoading(false);
-    }
   };
 
   const stopMusic = () => {
@@ -308,7 +290,6 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
   const nextTask = tasks[index + 1];
   const hasList = !!task.prayerList?.kind;
   const hasBible = !!task.bible?.enabled;
-  const passageLabel = hasBible ? `${task.bible.translation} · ${formatPassage(task.bible)}` : "";
 
   const hasMusic = !!task.music?.enabled;
 
@@ -363,34 +344,6 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
         </View>
       )}
       ListEmptyComponent={<Text style={styles.listMotivesEmpty}>Nicio rugăciune în această listă.</Text>}
-    />
-  );
-
-  const bibleContent = (
-    <FlatList
-      data={bibleVerses}
-      keyExtractor={(item) => String(item.verse)}
-      style={styles.listMotives}
-      contentContainerStyle={[
-        styles.listMotivesContent,
-        !landscape && { paddingBottom: 130 },
-        landscape && { paddingLeft: insets.left + 28, paddingRight: 132 },
-      ]}
-      showsVerticalScrollIndicator={false}
-      ListHeaderComponent={<Text style={styles.bibleRunnerRef}>{passageLabel}</Text>}
-      renderItem={({ item }) => (
-        <Text style={styles.bibleRunnerVerse}>
-          <Text style={styles.bibleRunnerNum}>{item.verse} </Text>
-          {stripHtml(item.text)}
-        </Text>
-      )}
-      ListEmptyComponent={
-        bibleLoading ? (
-          <ActivityIndicator color={accent} style={{ marginTop: 24 }} />
-        ) : (
-          <Text style={styles.listMotivesEmpty}>Pasaj indisponibil.</Text>
-        )
-      }
     />
   );
 
@@ -512,20 +465,26 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
       )}
 
       {bibleMode && (
-        <View style={styles.listMode}>
-          {landscape ? (
-            <View style={styles.listModeRow}>
-              {bibleContent}
-              <View style={styles.compactBarLandscape}>{renderCompact("bible")}</View>
-            </View>
-          ) : (
-            <>
-              {bibleContent}
-              <View style={[styles.compactBarPortrait, { bottom: insets.bottom + 20 }]}>
-                {renderCompact("bible")}
-              </View>
-            </>
-          )}
+        <View style={styles.bibleLayer}>
+          <BibleReader
+            manageImmersive={false}
+            initial={{
+              translation: task.bible?.translation,
+              book: task.bible?.book,
+              chapter: task.bible?.chapter,
+              verse: task.bible?.verseStart,
+            }}
+            headerExtra={
+              <DevotionalReturnChip
+                iconSet={task.iconSet}
+                icon={task.icon}
+                timeLabel={fmt(remaining)}
+                done={ready}
+                onReturn={() => setBibleMode(false)}
+              />
+            }
+            onBack={() => setBibleMode(false)}
+          />
         </View>
       )}
 
