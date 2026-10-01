@@ -10,10 +10,15 @@ export const useHorizontalSwipe = ({ onSwipeLeft, onSwipeRight, enabled = true, 
   const cb = useRef({ onSwipeLeft, onSwipeRight, enabled });
   cb.current = { onSwipeLeft, onSwipeRight, enabled };
 
+  const isHorizontal = (g) =>
+    cb.current.enabled && Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 1.6;
+
   const responder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_e, g) =>
-        cb.current.enabled && Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 1.6,
+      onMoveShouldSetPanResponder: (_e, g) => isHorizontal(g),
+      // Capteaza swipe-ul orizontal inaintea copiilor (butoane/controale), ca sa
+      // ramana fiabil oriunde atingi; miscarile verticale (scroll) nu sunt captate.
+      onMoveShouldSetPanResponderCapture: (_e, g) => isHorizontal(g),
       onPanResponderRelease: (_e, g) => {
         if (!cb.current.enabled) return;
         if (g.dx >= threshold) cb.current.onSwipeRight?.();

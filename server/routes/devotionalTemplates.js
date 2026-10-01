@@ -19,6 +19,33 @@ const safeImage = (v) => {
   return "";
 };
 
+const BIBLE_TRANSLATIONS = new Set(["VDCL", "NTR", "KJV", "ASV", "YLT", "TR", "SBLGNT", "WLC", "LXX"]);
+const numOrNull = (v, max) => {
+  const n = parseInt(v, 10);
+  return Number.isInteger(n) && n >= 1 && n <= max ? n : null;
+};
+
+// Pasajul biblic al unui moment de template (carte+capitol + interval optional).
+const safeBible = (b) => {
+  const book = numOrNull(b?.book, 100);
+  const chapter = numOrNull(b?.chapter, 200);
+  if (!b?.enabled || !book || !chapter) {
+    return { enabled: false, translation: "VDCL", book: null, bookName: "", chapter: null, verseStart: null, verseEnd: null };
+  }
+  const vStart = numOrNull(b.verseStart, 300);
+  let vEnd = numOrNull(b.verseEnd, 300);
+  if (vStart && vEnd && vEnd < vStart) vEnd = vStart;
+  return {
+    enabled: true,
+    translation: BIBLE_TRANSLATIONS.has(b.translation) ? b.translation : "VDCL",
+    book,
+    bookName: safeStr(b.bookName, 40),
+    chapter,
+    verseStart: vStart,
+    verseEnd: vStart ? vEnd : null,
+  };
+};
+
 // Un moment de template: listele/muzica fixe private nu se pot transfera intre
 // useri, deci private/prayroom devin automat "userul alege".
 const sanitizeTask = (t) => {
@@ -43,6 +70,7 @@ const sanitizeTask = (t) => {
           roomId: null,
         },
     chooseList,
+    bible: safeBible(t.bible),
     description: safeStr(t.description, 300),
   };
 };

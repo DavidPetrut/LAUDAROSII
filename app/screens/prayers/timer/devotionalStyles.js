@@ -284,6 +284,12 @@ export const devotionalStyles = StyleSheet.create({
   // ---- Iconite actiuni pe momentul din timeline (muzica / lista / more) ----
   tlActions: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginRight: spacing.xs },
   tlActionBtn: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: SURF },
+  tlDragZone: { flex: 1, flexDirection: "row", alignItems: "center" },
+  tlRowDragging: { zIndex: 20, elevation: 8, backgroundColor: "rgba(16,185,129,0.07)", borderRadius: borderRadius.lg },
+  tlActionsChip: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: spacing.sm, height: 30, borderRadius: 15, backgroundColor: SURF, borderWidth: 1, borderColor: BORDER },
+  tlActionsCount: { color: TEXT, fontSize: 11, fontWeight: "700" },
+  momentPopover: { position: "absolute", bottom: "100%", right: 0, marginBottom: spacing.xs, flexDirection: "row", gap: spacing.xs, backgroundColor: "rgba(20,20,22,0.98)", borderRadius: borderRadius.lg, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, zIndex: 30, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.5, shadowRadius: 12, elevation: 14 },
+  momentPopItem: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.06)" },
 
   // ---- Picker liste de rugaciuni (pentru un moment) ----
   pickListRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: SURF, borderRadius: borderRadius.lg, padding: spacing.sm, marginTop: spacing.sm, borderWidth: 2, borderColor: "transparent" },

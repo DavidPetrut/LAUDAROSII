@@ -1,66 +1,203 @@
-import React, { useState } from "react";
-import { View, Text, TouchableOpacity, Modal, Pressable } from "react-native";
+import React, { useState, useRef, useMemo, useEffect } from "react";
+import { View, Text, TouchableOpacity, Modal, Pressable, Animated, PanResponder } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { DevotionalIcon } from "./DevotionalIcon";
 
+const LONG_PRESS_MS = 1500;
+const DEFAULT_ROW_H = 68;
+
+// Popover cu iconurile functiilor atasate unui moment (se deschide cand are >1).
+const ActionsPopover = ({ actions, onPick }) => {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.spring(anim, { toValue: 1, useNativeDriver: true, friction: 8, tension: 90 }).start();
+  }, []);
+  return (
+    <Animated.View
+      style={[
+        styles.momentPopover,
+        { opacity: anim, transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }] },
+      ]}
+    >
+      {actions.map((a) => (
+        <TouchableOpacity key={a.key} style={styles.momentPopItem} onPress={() => onPick(a)} activeOpacity={0.8}>
+          <Ionicons name={a.icon} size={20} color={a.color} />
+        </TouchableOpacity>
+      ))}
+    </Animated.View>
+  );
+};
+
 /**
- * Lista de momente ca timeline vertical. Fiecare moment are un cluster de iconite
- * (muzica / lista de rugaciuni / "mai multe") in stanga butonului de stergere.
- * Cand momentul are functii atasate, butonul "mai multe" devine 3 puncte; altfel
- * e un creion discret. Meniul ofera editarea momentului si alegerea unei liste.
+ * Lista de momente ca timeline vertical, cu reordonare prin drag (long-press) si
+ * un popover de actiuni pe moment cand are mai multe functii atasate.
  */
-export const TaskTimeline = ({ tasks, accent = "#10b981", onEdit, onRemove, onAdd, onPickList }) => {
+export const TaskTimeline = ({ tasks, accent = "#10b981", onEdit, onRemove, onAdd, onPickList, onReorder, onDragActive }) => {
   const [menu, setMenu] = useState(null);
+  const [popover, setPopover] = useState(null);
+  const [dragIndex, setDragIndex] = useState(null);
+
+  const dragIndexRef = useRef(null);
+  const fromRef = useRef(0);
+  const curRef = useRef(0);
+  const rowHRef = useRef(DEFAULT_ROW_H);
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
+  const onReorderRef = useRef(onReorder);
+  onReorderRef.current = onReorder;
+  const onDragActiveRef = useRef(onDragActive);
+  onDragActiveRef.current = onDragActive;
+
+  const dragY = useRef(new Animated.Value(0)).current;
+  const offsets = useMemo(() => tasks.map(() => new Animated.Value(0)), [tasks.length]);
+
+  // Aplica deplasarea (gap) celorlalte randuri in functie de slotul tinta curent.
+  const applyOffsets = (target) => {
+    const from = fromRef.current;
+    const h = rowHRef.current;
+    offsets.forEach((o, j) => {
+      let to = 0;
+      if (j !== from) {
+        if (target > from && j > from && j <= target) to = -h;
+        else if (target < from && j >= target && j < from) to = h;
+      }
+      Animated.spring(o, { toValue: to, useNativeDriver: true, friction: 10, tension: 80 }).start();
+    });
+  };
+
+  const endDrag = () => {
+    const from = fromRef.current;
+    const to = curRef.current;
+    const h = rowHRef.current;
+    Animated.spring(dragY, { toValue: (to - from) * h, useNativeDriver: true, friction: 11, tension: 90 }).start(() => {
+      dragIndexRef.current = null;
+      setDragIndex(null);
+      dragY.setValue(0);
+      offsets.forEach((o) => o.setValue(0));
+      if (to !== from) {
+        const arr = [...tasksRef.current];
+        const [moved] = arr.splice(from, 1);
+        arr.splice(to, 0, moved);
+        onReorderRef.current?.(arr);
+      }
+      onDragActiveRef.current?.(false);
+    });
+  };
+
+  const beginDrag = (index) => {
+    setPopover(null);
+    setMenu(null);
+    fromRef.current = index;
+    curRef.current = index;
+    dragIndexRef.current = index;
+    dragY.setValue(0);
+    offsets.forEach((o) => o.setValue(0));
+    setDragIndex(index);
+    onDragActiveRef.current?.(true);
+  };
+
+  const responders = useMemo(
+    () =>
+      tasks.map((_, index) =>
+        PanResponder.create({
+          onStartShouldSetPanResponder: () => false,
+          onMoveShouldSetPanResponder: () => dragIndexRef.current === index,
+          onPanResponderMove: (e, g) => {
+            dragY.setValue(g.dy);
+            const steps = Math.round(g.dy / rowHRef.current);
+            const target = Math.max(0, Math.min(tasksRef.current.length - 1, fromRef.current + steps));
+            if (target !== curRef.current) {
+              curRef.current = target;
+              applyOffsets(target);
+            }
+          },
+          onPanResponderRelease: endDrag,
+          onPanResponderTerminate: endDrag,
+        })
+      ),
+    [tasks.length]
+  );
+
+  const buildActions = (t, i) => {
+    const color = t.color || accent;
+    const arr = [];
+    if (t.music?.enabled) arr.push({ key: "music", icon: "musical-notes", color, onPress: () => onEdit(i) });
+    if (t.prayerList?.kind) arr.push({ key: "list", icon: "list", color: "#10b981", onPress: () => onPickList(i) });
+    if (t.bible?.enabled) arr.push({ key: "bible", icon: "book", color, onPress: () => onEdit(i) });
+    return arr;
+  };
 
   return (
     <View>
       {tasks.map((t, i) => {
         const color = t.color || accent;
-        const hasMusic = !!t.music?.enabled;
-        const hasList = !!t.prayerList?.kind;
-        const hasBible = !!t.bible?.enabled;
-        const hasAny = hasMusic || hasList || hasBible;
+        const actions = buildActions(t, i);
+        const isDragging = dragIndex === i;
+        const translateY = isDragging ? dragY : offsets[i];
         return (
-          <View key={`${t.title}-${i}`} style={styles.tlRow}>
-            <Text style={styles.tlTime}>{t.durationMin}m</Text>
-            <View style={styles.tlNodeCol}>
-              {i > 0 && <View style={styles.tlLineTop} />}
-              <View style={styles.tlLineBottom} />
-              <View style={[styles.tlNode, { backgroundColor: color }]}>
-                <DevotionalIcon set={t.iconSet} name={t.icon} size={20} color="#fff" />
+          <Animated.View
+            key={`${t.title}-${i}`}
+            onLayout={(e) => { rowHRef.current = e.nativeEvent.layout.height || DEFAULT_ROW_H; }}
+            style={[
+              styles.tlRow,
+              { transform: [{ translateY }] },
+              isDragging && styles.tlRowDragging,
+            ]}
+            {...responders[i].panHandlers}
+          >
+            <Pressable
+              style={styles.tlDragZone}
+              onPress={() => onEdit(i)}
+              onLongPress={() => beginDrag(i)}
+              delayLongPress={LONG_PRESS_MS}
+            >
+              <Text style={styles.tlTime}>{t.durationMin}m</Text>
+              <View style={styles.tlNodeCol}>
+                {i > 0 && <View style={styles.tlLineTop} />}
+                <View style={styles.tlLineBottom} />
+                <View style={[styles.tlNode, { backgroundColor: color }]}>
+                  <DevotionalIcon set={t.iconSet} name={t.icon} size={20} color="#fff" />
+                </View>
               </View>
-            </View>
-            <TouchableOpacity style={styles.tlContent} onPress={() => onEdit(i)} activeOpacity={0.8}>
-              <Text style={styles.tlTitle} numberOfLines={1}>{t.title}</Text>
-              <Text style={styles.tlMeta}>{t.durationMin} minute</Text>
-            </TouchableOpacity>
+              <View style={styles.tlContent}>
+                <Text style={styles.tlTitle} numberOfLines={1}>{t.title}</Text>
+                <Text style={styles.tlMeta}>{t.durationMin} minute</Text>
+              </View>
+            </Pressable>
 
             <View style={styles.tlActions}>
-              {hasMusic && (
-                <TouchableOpacity style={styles.tlActionBtn} onPress={() => onEdit(i)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                  <Ionicons name="musical-notes" size={16} color={color} />
+              {actions.length >= 2 ? (
+                <View style={{ position: "relative" }}>
+                  <TouchableOpacity
+                    style={styles.tlActionsChip}
+                    onPress={() => setPopover(popover === i ? null : i)}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Ionicons name={actions[0].icon} size={13} color={actions[0].color} />
+                    <Text style={styles.tlActionsCount}>{actions.length}</Text>
+                  </TouchableOpacity>
+                  {popover === i && (
+                    <ActionsPopover
+                      actions={actions}
+                      onPick={(a) => { setPopover(null); a.onPress(); }}
+                    />
+                  )}
+                </View>
+              ) : actions.length === 1 ? (
+                <TouchableOpacity style={styles.tlActionBtn} onPress={actions[0].onPress} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                  <Ionicons name={actions[0].icon} size={16} color={actions[0].color} />
                 </TouchableOpacity>
-              )}
-              {hasList && (
-                <TouchableOpacity style={styles.tlActionBtn} onPress={() => onPickList(i)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                  <Ionicons name="list" size={16} color="#10b981" />
-                </TouchableOpacity>
-              )}
-              {hasBible && (
-                <TouchableOpacity style={styles.tlActionBtn} onPress={() => onEdit(i)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                  <Ionicons name="book" size={16} color={color} />
-                </TouchableOpacity>
-              )}
+              ) : null}
               <TouchableOpacity style={styles.tlActionBtn} onPress={() => setMenu(i)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                <Ionicons name={hasAny ? "ellipsis-horizontal" : "create-outline"} size={16} color="rgba(229,231,235,0.7)" />
+                <Ionicons name="create-outline" size={16} color="rgba(229,231,235,0.7)" />
               </TouchableOpacity>
             </View>
 
             <TouchableOpacity onPress={() => onRemove(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="close-circle" size={22} color="rgba(255,255,255,0.35)" />
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         );
       })}
 

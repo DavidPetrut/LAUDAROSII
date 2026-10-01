@@ -40,6 +40,7 @@ export const BuilderView = ({ initial, devotionals = [], canTemplate, templateMo
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showMissing, setShowMissing] = useState(false);
+  const [dragging, setDragging] = useState(false);
 
   // Zile ocupate de ALTE devotionale (1 devotional / zi). La template zilele sunt doar
   // recomandari, nu exclusive, deci nu blocam nimic.
@@ -142,7 +143,7 @@ export const BuilderView = ({ initial, devotionals = [], canTemplate, templateMo
   };
 
   return (
-    <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false} scrollEnabled={!dragging}>
       <DevotionalHeaderImage image={image} name={name} onChangeName={setName} onPickImage={setImage} />
 
       <Text style={styles.stepLabel}>Momente</Text>
@@ -153,6 +154,8 @@ export const BuilderView = ({ initial, devotionals = [], canTemplate, templateMo
         onRemove={removeTask}
         onAdd={() => setTaskEditor({ open: true, index: null })}
         onPickList={(i) => setListPicker({ open: true, index: i })}
+        onReorder={setTasks}
+        onDragActive={setDragging}
       />
 
       <Text style={styles.stepLabel}>{templateMode ? "Zile recomandate" : "Zile"}</Text>

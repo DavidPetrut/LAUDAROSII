@@ -74,8 +74,8 @@ export const HomeScreen = ({ navigation }) => {
       params: { screen: "PrayRoomList" },
       bg: "#e6f4ff",
     },
-    { emoji: "🎓", title: "Resurse", screen: "Courses", bg: "#e6fff0" },
-    { emoji: "🎮", title: "Jocuri", screen: "Games", bg: "#fff4e6" },
+    { emoji: "📖", title: "Biblia", screen: "Prayers", params: { screen: "Bible" }, bg: "#e6fff0" },
+    { emoji: "🏆", title: "Achievements", screen: "Prayers", params: { screen: "Achievements" }, bg: "#fff4e6" },
   ];
 
   return (
@@ -225,7 +225,6 @@ export const HomeScreen = ({ navigation }) => {
               );
             })()}
 
-          <Text style={styles.sectionTitle}>Actiuni rapide</Text>
           <View style={styles.quickActions}>
             {quickActions.map((action, idx) => (
               <TouchableOpacity

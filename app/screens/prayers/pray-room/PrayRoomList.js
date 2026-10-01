@@ -120,9 +120,8 @@ export const PrayRoomList = ({ navigation }) => {
         ListEmptyComponent={
           !loading && invites.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyEmoji}>🙏</Text>
-              <Text style={styles.emptyTitle}>Nu ai camere active</Text>
-              <Text style={styles.emptySubtitle}>Creeaza una sau alatura-te cu un cod</Text>
+              <Text style={styles.emptyTitle}>Nu ai camere de rugăciune</Text>
+              <Text style={styles.emptySubtitle}>Creează una sau alătură-te cu un cod.</Text>
             </View>
           ) : null
         }

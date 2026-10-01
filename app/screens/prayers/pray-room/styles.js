@@ -155,10 +155,9 @@ export const prayRoomStyles = StyleSheet.create({
   milestoneProgress: { height: "100%", borderRadius: 6 },
 
   // Empty State
-  emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: spacing.xl * 2 },
-  emptyEmoji: { fontSize: 64, marginBottom: spacing.md },
-  emptyTitle: { ...typography.h3, color: "#fff", marginBottom: spacing.sm, textAlign: "center" },
-  emptySubtitle: { ...typography.body, color: "rgba(255,255,255,0.6)" },
+  emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: spacing.xl, paddingVertical: spacing.xl * 2 },
+  emptyTitle: { ...typography.body, fontWeight: "600", color: "#fff", marginBottom: spacing.xs, textAlign: "center" },
+  emptySubtitle: { ...typography.bodySmall, color: "rgba(255,255,255,0.55)", textAlign: "center" },
 
   // FAB
   fab: {
