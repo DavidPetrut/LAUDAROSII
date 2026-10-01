@@ -266,6 +266,7 @@ export const devotionalStyles = StyleSheet.create({
 
   // ---- Player overlay (negru, text gri) ----
   overlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: PLAYER_BG, alignItems: "center", justifyContent: "center", zIndex: 100 },
+  swipeArea: { flex: 1, width: "100%", alignItems: "center", justifyContent: "center" },
   overlayTimer: { fontSize: 92, fontFamily: "Raleway", color: PLAYER_TEXT, fontWeight: "500", letterSpacing: 3 },
   overlayTrack: { ...typography.body, color: "rgba(212,212,216,0.55)", marginTop: spacing.md, textAlign: "center", paddingHorizontal: spacing.xl },
   controlsWrap: { alignItems: "center" },

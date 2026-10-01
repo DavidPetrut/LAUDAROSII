@@ -461,7 +461,8 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
   ) : null;
 
   return (
-    <View style={styles.overlay} {...swipe}>
+    <View style={styles.overlay}>
+      <View style={styles.swipeArea} {...swipe}>
       {landscape && !listMode && !bibleMode ? (
         <View style={styles.runnerLandscape}>
           <View style={styles.runnerLandCol}>
@@ -490,6 +491,7 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
       <Text style={[styles.overlayHint, { bottom: insets.bottom + 24 }]}>
         {ready ? "Poți sta cât ai nevoie — apasă când ești gata." : "Următorul moment îl pornești tu."}
       </Text>
+      </View>
 
       {listMode && (
         <View style={styles.listMode}>

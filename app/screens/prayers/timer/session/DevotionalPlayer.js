@@ -113,7 +113,8 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
   });
 
   return (
-    <View style={styles.overlay} {...swipe}>
+    <View style={styles.overlay}>
+      <View style={styles.swipeArea} {...swipe}>
       <Text style={[styles.overlayTimer, { fontSize, lineHeight: fontSize * 1.06 }]}>
         {timeStr}
       </Text>
@@ -129,6 +130,7 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
       <Text style={[styles.overlayHint, { bottom: insets.bottom + 24 }]}>
         Rugăciunea continuă și cu ecranul închis, până la finalul timerului.
       </Text>
+      </View>
 
       <SwipeToast toast={toast} />
 
