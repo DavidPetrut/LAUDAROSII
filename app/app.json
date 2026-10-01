@@ -2,7 +2,7 @@
   "expo": {
     "name": "Laudarosii Vertical",
     "slug": "laudarosii-vertical",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "runtimeVersion": {
@@ -25,7 +25,7 @@
         "NSPhotoLibraryUsageDescription": "Aplicația folosește pozele tale pentru a alege o imagine pentru devotional.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "4"
+      "buildNumber": "5"
     },
     "android": {
       "adaptiveIcon": {

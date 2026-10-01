@@ -203,7 +203,8 @@ const elevenTts = async (text) => {
     throw err;
   }
   const model = process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2";
-  const res = await fetch(`${ELEVEN_BASE}/${voice}`, {
+  // 192 kbps (perk de plan) - calitate buna, acelasi cost (creditele sunt pe caractere, nu pe bitrate).
+  const res = await fetch(`${ELEVEN_BASE}/${voice}?output_format=mp3_44100_192`, {
     method: "POST",
     headers: {
       "xi-api-key": key,
@@ -243,8 +244,11 @@ router.get("/tts/:translation/:book/:chapter", tokenFromQuery, authMiddleware, a
     return res.status(400).json({ error: "Parametri invalizi" });
   }
 
+  // Cache GLOBAL pe disc: o data generat un capitol (per versiune+voce+model), e servit
+  // tuturor userilor - nu se mai consuma credite la urmatoarele ascultari.
   const voice = process.env.ELEVENLABS_VOICE_ID || "default";
-  const file = path.join(TTS_DIR, `${translation}-${book}-${chapter}-${voice}.mp3`);
+  const model = process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2";
+  const file = path.join(TTS_DIR, `${translation}-${book}-${chapter}-${voice}-${model}.mp3`);
 
   try {
     if (fs.existsSync(file)) {
