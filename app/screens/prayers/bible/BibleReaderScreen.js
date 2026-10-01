@@ -55,7 +55,7 @@ const toSup = (n) => String(n).split("").map((d) => SUP[d] || d).join("");
 // alt ecran: onBack = ce face sageata, initial = pasaj de start, headerExtra = nod
 // in bara de sus (ex: buton retur la devotional), manageImmersive = controleaza
 // crome-ul global (fals cand e layer, ca sa nu strice ecranul parinte).
-export const BibleReader = ({ onBack, initial, headerExtra, manageImmersive = true }) => {
+export const BibleReader = ({ onBack, initial, headerExtra, manageImmersive = true, embedded = false }) => {
   const { isDarkMode } = useTheme();
   const { setImmersive } = useImmersive();
   const insets = useSafeAreaInsets();
@@ -115,8 +115,10 @@ export const BibleReader = ({ onBack, initial, headerExtra, manageImmersive = tr
   // Inaltimea barei de taburi a aplicatiei (oglindeste formula din CustomTabBar),
   // ca sa ancoram containerul de navigare exact deasupra ei.
   const tabBarH = 64 + (insets.bottom > 0 ? insets.bottom : 8);
-  // Pe nativ ecranul sta DEASUPRA barei de taburi (offset mic); pe web e SUB ea (adaugam inaltimea).
-  const barBottom = Platform.OS === "web" ? tabBarH + 6 : 6;
+  // Standalone pe nativ: ecranul sta DEASUPRA barei de taburi (offset mic). Ca layer (embedded)
+  // nu exista tab bar, deci ridicam bara peste nav-bar-ul telefonului (insets.bottom; devine 0
+  // daca nav-bar-ul e ascuns). Pe web e SUB tab bar (adaugam inaltimea).
+  const barBottom = Platform.OS === "web" ? tabBarH + 6 : embedded ? insets.bottom + 6 : 6;
 
   // Feedback cand audio nu poate porni (neconfigurat pe server sau eroare).
   useEffect(() => {
@@ -531,7 +533,7 @@ export const BibleReader = ({ onBack, initial, headerExtra, manageImmersive = tr
           >
             <Icon name="chevron-left" size={22} color={iconColor} />
           </TouchableOpacity>
-          <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowBooks(true)}>
+          <TouchableOpacity style={{ flex: 1, height: 46, justifyContent: "center" }} onPress={() => setShowBooks(true)}>
             <Text style={st.switcherTitle} numberOfLines={1}>
               {bookName ? `${bookName} ${position.chapter}` : "…"}
             </Text>

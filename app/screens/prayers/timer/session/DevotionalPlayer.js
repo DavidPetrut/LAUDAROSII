@@ -3,6 +3,7 @@ import { View, Text, useWindowDimensions, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import * as ScreenOrientation from "expo-screen-orientation";
+import * as NavigationBar from "expo-navigation-bar";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { PlayerControls } from "./PlayerControls";
 import { useDevotionalAudio } from "./useDevotionalAudio";
@@ -69,6 +70,10 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
     if (Platform.OS !== "web") {
       ScreenOrientation.unlockAsync().catch(() => {});
     }
+    if (Platform.OS === "android") {
+      NavigationBar.setVisibilityAsync("hidden").catch(() => {});
+      NavigationBar.setBehaviorAsync("overlay-swipe").catch(() => {});
+    }
     tickRef.current = setInterval(() => {
       if (audioRef.current.paused) return;
       setRemaining((prev) => {
@@ -85,6 +90,7 @@ export const DevotionalPlayer = ({ durationMin, tracks, withMusic, onExit, onCom
       setImmersive(false);
       deactivateFocus();
       if (tickRef.current) clearInterval(tickRef.current);
+      if (Platform.OS === "android") NavigationBar.setVisibilityAsync("visible").catch(() => {});
       if (Platform.OS !== "web") {
         ScreenOrientation.lockAsync(
           ScreenOrientation.OrientationLock.PORTRAIT_UP

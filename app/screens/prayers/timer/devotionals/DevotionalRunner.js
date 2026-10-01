@@ -5,6 +5,7 @@ import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as ScreenOrientation from "expo-screen-orientation";
+import * as NavigationBar from "expo-navigation-bar";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { PlayerControls } from "../session/PlayerControls";
 import { DevotionalIcon } from "./DevotionalIcon";
@@ -98,6 +99,11 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
     activeRef.current = true;
     loadFocusConfig().then(activateFocus);
     if (Platform.OS !== "web") ScreenOrientation.unlockAsync().catch(() => {});
+    // Android: ascunde bara de navigatie a telefonului cat ruleaza sesiunea (revine la iesire).
+    if (Platform.OS === "android") {
+      NavigationBar.setVisibilityAsync("hidden").catch(() => {});
+      NavigationBar.setBehaviorAsync("overlay-swipe").catch(() => {});
+    }
 
     Animated.loop(
       Animated.sequence([
@@ -123,6 +129,7 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
       deactivateFocus();
       if (tickRef.current) clearInterval(tickRef.current);
       stopMusic();
+      if (Platform.OS === "android") NavigationBar.setVisibilityAsync("visible").catch(() => {});
       if (Platform.OS !== "web") {
         ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
       }
@@ -468,6 +475,7 @@ export const DevotionalRunner = ({ devotional, program, resumeProgress, onComple
         <View style={styles.bibleLayer}>
           <BibleReader
             manageImmersive={false}
+            embedded
             initial={{
               translation: task.bible?.translation,
               book: task.bible?.book,

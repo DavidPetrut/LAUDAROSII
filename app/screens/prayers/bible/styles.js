@@ -137,6 +137,9 @@ export const makeStyles = (isDark, fontScale = 1) => {
     switcherTitle: {
       flex: 1,
       textAlign: "center",
+      textAlignVertical: "center",
+      includeFontPadding: false,
+      lineHeight: 20,
       fontFamily: fonts.body,
       fontWeight: "700",
       fontSize: 15,
