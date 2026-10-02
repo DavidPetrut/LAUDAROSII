@@ -94,7 +94,13 @@ export const PrayersScreen = ({ navigation }) => {
               <View style={styles.content}>
                 <View style={styles.labelContainer}>
                   {tab.label.split("\n").map((line, i) => (
-                    <Text key={i} style={styles.tabLabel}>
+                    <Text
+                      key={i}
+                      style={styles.tabLabel}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.6}
+                    >
                       {line}
                     </Text>
                   ))}

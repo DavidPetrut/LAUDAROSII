@@ -23,7 +23,7 @@ export const ChurchListView = ({ currentUserId, fabBottom = 28 }) => {
   const load = useCallback(async () => {
     try {
       const data = await churchPrayersApi.list();
-      setPrayers(data || []);
+      setPrayers((data || []).filter((p) => !p.answered));
     } catch (e) {
       showError("Eroare la încărcare");
     } finally {

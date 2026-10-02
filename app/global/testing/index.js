@@ -12,3 +12,9 @@ export {
   TAB_LABELS,
 } from "./screenRegistry";
 export { setLastApiBreadcrumb } from "./collectContext";
+export {
+  fetchMyBugs,
+  reopenMyBug,
+  closeMyBug,
+  closeAllMyBugs,
+} from "./testingApi";

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-01T13:23:51.535Z",
+  "generatedAt": "2026-10-02T07:10:28.690Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -433,6 +433,22 @@
       "setLastApiBreadcrumb": {
         "file": "global/testing/collectContext.js",
         "purpose": "Colecteaza context tehnic SIGUR pentru un raport de bug."
+      },
+      "fetchMyBugs": {
+        "file": "global/testing/testingApi.js",
+        "purpose": "Apeluri catre backend pentru modul de TESTARE."
+      },
+      "reopenMyBug": {
+        "file": "global/testing/testingApi.js",
+        "purpose": "Apeluri catre backend pentru modul de TESTARE."
+      },
+      "closeMyBug": {
+        "file": "global/testing/testingApi.js",
+        "purpose": "Apeluri catre backend pentru modul de TESTARE."
+      },
+      "closeAllMyBugs": {
+        "file": "global/testing/testingApi.js",
+        "purpose": "Apeluri catre backend pentru modul de TESTARE."
       }
     },
     "tutorial": {
@@ -3792,6 +3808,51 @@
         "toast"
       ]
     },
+    "screens/profile/mybugs/MyBugsScreen.js": {
+      "stylesFile": null,
+      "globals": [
+        {
+          "name": "ScreenHeader",
+          "file": "global/components/ScreenHeader.js"
+        },
+        {
+          "name": "useToast",
+          "file": "global/context/ToastContext.js"
+        },
+        {
+          "name": "fetchMyBugs",
+          "file": "global/testing/testingApi.js"
+        },
+        {
+          "name": "reopenMyBug",
+          "file": "global/testing/testingApi.js"
+        },
+        {
+          "name": "closeMyBug",
+          "file": "global/testing/testingApi.js"
+        },
+        {
+          "name": "closeAllMyBugs",
+          "file": "global/testing/testingApi.js"
+        }
+      ],
+      "styleTokens": [],
+      "crossScreens": [],
+      "domainsTouched": [
+        "toast"
+      ]
+    },
+    "screens/profile/mybugs/myBugsStyles.js": {
+      "stylesFile": null,
+      "globals": [],
+      "styleTokens": [
+        "spacing",
+        "borderRadius",
+        "typography"
+      ],
+      "crossScreens": [],
+      "domainsTouched": []
+    },
     "screens/profile/ProfileScreen.js": {
       "route": "Profile",
       "tab": "Profile",
@@ -3805,6 +3866,10 @@
         {
           "name": "useTheme",
           "file": "global/context/ThemeContext.js"
+        },
+        {
+          "name": "useToast",
+          "file": "global/context/ToastContext.js"
         },
         {
           "name": "TutorialsLauncher",
@@ -3826,6 +3891,7 @@
       "domainsTouched": [
         "auth",
         "tema",
+        "toast",
         "api"
       ]
     },
@@ -4020,7 +4086,8 @@
       "screens/prayers/pray-room/PrayRoomScreen.js",
       "screens/prayers/timer/DevotionalScreen.js",
       "screens/profile/broadcast/BroadcastScreen.js",
-      "screens/profile/EditProfileScreen.js"
+      "screens/profile/EditProfileScreen.js",
+      "screens/profile/mybugs/MyBugsScreen.js"
     ],
     "global/components/UserAvatar.js": [
       "screens/admin/AdminScreen.js",
@@ -4164,7 +4231,12 @@
     ],
     "global/context/ToastContext.js": [
       "screens/prayers/timer/DevotionalScreen.js",
-      "screens/profile/broadcast/ComposeView.js"
+      "screens/profile/broadcast/ComposeView.js",
+      "screens/profile/mybugs/MyBugsScreen.js",
+      "screens/profile/ProfileScreen.js"
+    ],
+    "global/testing/testingApi.js": [
+      "screens/profile/mybugs/MyBugsScreen.js"
     ],
     "global/tutorial/TutorialsLauncher.js": [
       "screens/profile/ProfileScreen.js"

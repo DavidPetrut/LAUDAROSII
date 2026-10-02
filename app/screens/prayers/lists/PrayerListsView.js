@@ -104,7 +104,13 @@ export const PrayerListsView = ({ currentUserId, fabBottom = 28 }) => {
   const answerBoardPrayer = async (boardId, id) => {
     try {
       const res = await prayerBoardsApi.updatePrayer(boardId, id, { answered: true });
-      setBoards((prev) => prev.map((b) => (b._id === boardId ? res.board : b)));
+      setBoards((prev) =>
+        prev.map((b) => {
+          if (b._id !== boardId) return b;
+          const base = res.board || b;
+          return { ...base, prayers: (base.prayers || []).filter((p) => !p.answered) };
+        })
+      );
     } catch (e) {
       showError("Eroare");
     }

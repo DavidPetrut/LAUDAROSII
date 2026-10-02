@@ -69,6 +69,7 @@ import {
   EditProfileScreen,
   SettingsScreen,
   BroadcastScreen,
+  MyBugsScreen,
 } from "./screens/profile";
 import { AdminScreen } from "./screens/admin";
 import {
@@ -140,6 +141,7 @@ const AppStack = () => (
     <Stack.Screen name="EditProfile" component={EditProfileScreen} />
     <Stack.Screen name="Admin" component={AdminScreen} />
     <Stack.Screen name="Settings" component={SettingsScreen} />
+    <Stack.Screen name="MyBugs" component={MyBugsScreen} />
     <Stack.Screen name="Broadcast" component={BroadcastScreen} />
     <Stack.Screen name="AppControl" component={AppControlHub} />
     <Stack.Screen name="AppControlAccess" component={AppControlAccess} />

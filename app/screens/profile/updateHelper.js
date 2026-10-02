@@ -35,3 +35,30 @@ export const applyUpdate = async () => {
     showError("Eroare la instalarea update-ului");
   }
 };
+
+/**
+ * Refresh instant intr-un singur pas: verifica, descarca si reporneste cu noul
+ * bundle OTA (asa userul nu mai trebuie sa iasa/intre de mai multe ori).
+ * Arunca eroare la probleme de retea (prinse de apelant). Daca nu exista update,
+ * intoarce { reloaded:false, message } fara sa reporneasca.
+ */
+export const refreshNow = async () => {
+  if (Platform.OS === "web") {
+    if (typeof window !== "undefined") window.location.reload();
+    return { reloaded: true };
+  }
+
+  const Updates = require("expo-updates");
+  if (!Updates.isEnabled) {
+    return { reloaded: false, message: "Refresh disponibil doar în aplicația publicată" };
+  }
+
+  const check = await Updates.checkForUpdateAsync();
+  if (!check.isAvailable) {
+    return { reloaded: false, message: "Ești deja la zi" };
+  }
+
+  await Updates.fetchUpdateAsync();
+  await Updates.reloadAsync();
+  return { reloaded: true };
+};

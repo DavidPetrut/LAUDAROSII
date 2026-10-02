@@ -20,3 +20,23 @@ export const fetchTestingConfig = async () => {
 export const submitBugReport = async (payload) => {
   return api.post("/testing/bugs", payload);
 };
+
+// Bugurile proprii marcate "Rezolvat" de dev, pentru confirmare finala.
+export const fetchMyBugs = async () => {
+  return api.get("/testing/bugs/mine");
+};
+
+// Redeschide un bug propriu rezolvat (il trimite inapoi dev-ului ca "Esuat").
+export const reopenMyBug = async (id, note) => {
+  return api.patch(`/testing/bugs/${id}/reopen`, { note });
+};
+
+// Inchide definitiv (sterge) un bug propriu rezolvat.
+export const closeMyBug = async (id) => {
+  return api.delete(`/testing/bugs/${id}`);
+};
+
+// Inchide definitiv toate bugurile proprii rezolvate.
+export const closeAllMyBugs = async () => {
+  return api.delete("/testing/bugs/mine/closed");
+};

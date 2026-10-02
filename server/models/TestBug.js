@@ -152,6 +152,8 @@ const testBugSchema = new mongoose.Schema(
     },
     // Note lasate de Claude cand schimba statusul (ce a facut / de ce a esuat)
     resolutionNote: { type: String, default: "", maxlength: 2000 },
+    // true daca userul care l-a raportat a redeschis bugul (a respins confirmarea finala)
+    reopenedByUser: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

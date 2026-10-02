@@ -1,8 +1,14 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const { TestBug, TestConfig, User } = require("../models");
 const { authMiddleware, requireAccess, limiter } = require("../middleware");
 
 const router = express.Router();
+
+// Statusul la care un bug devine vizibil pentru userul care l-a raportat, pentru
+// confirmarea finala (dev-ul l-a marcat "Rezolvat" in dashboard). Userul vede DOAR
+// bugurile proprii cu acest status si poate actiona DOAR asupra lor.
+const USER_CONFIRM_STATUS = "fixed";
 
 // Categorii valide per natura raportului (trebuie sa oglindeasca bug/featureTaxonomy din app)
 const BUG_TYPES = ["INTERFATA", "ACCES", "STRICAT", "EXPERIENTA", "CONTINUT", "ALTELE"];
@@ -208,6 +214,96 @@ router.post("/bugs", authMiddleware, limiter(20), async (req, res) => {
       return res.status(400).json({ error: "Date invalide pentru raport" });
     }
     res.status(500).json({ error: "Eroare la salvarea raportului" });
+  }
+});
+
+/**
+ * GET /api/testing/bugs/mine
+ * Bugurile raportate de userul curent care au fost marcate "Rezolvat" de dev, pentru
+ * confirmare finala. NU returneaza bugurile altor useri, cele nerezolvate sau cele sterse.
+ */
+router.get("/bugs/mine", authMiddleware, async (req, res) => {
+  try {
+    const bugs = await TestBug.find({
+      "reporter.userId": req.user.id,
+      status: USER_CONFIRM_STATUS,
+    })
+      .select("-screenshot -images")
+      .sort({ updatedAt: -1 })
+      .lean();
+    res.json(bugs);
+  } catch (error) {
+    res.status(500).json({ error: "Eroare la încarcarea bugurilor" });
+  }
+});
+
+/**
+ * PATCH /api/testing/bugs/:id/reopen
+ * Userul respinge un bug propriu "Rezolvat": trece pe "failed" si lasa o nota vizibila
+ * dev-ului. Dubla conditie (owner + status) face imposibila atingerea altor buguri.
+ */
+router.patch("/bugs/:id/reopen", authMiddleware, limiter(30), async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(404).json({ error: "Bug inexistent" });
+  }
+  try {
+    const note = clip(req.body?.note, 2000);
+    const bug = await TestBug.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        "reporter.userId": req.user.id,
+        status: USER_CONFIRM_STATUS,
+      },
+      {
+        status: "failed",
+        reopenedByUser: true,
+        resolutionNote: `⚠️ REDESCHIS DE USER${note ? ": " + note : " (fara detalii)"}`,
+      },
+      { new: true }
+    ).select("_id");
+    if (!bug) return res.status(404).json({ error: "Bug inexistent" });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Eroare la redeschidere" });
+  }
+});
+
+/**
+ * DELETE /api/testing/bugs/:id
+ * Userul inchide definitiv un bug propriu "Rezolvat" (hard delete). Dubla conditie
+ * (owner + status) garanteaza ca sterge DOAR acel bug al lui, nimic altceva.
+ */
+router.delete("/bugs/:id", authMiddleware, limiter(30), async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(404).json({ error: "Bug inexistent" });
+  }
+  try {
+    const bug = await TestBug.findOneAndDelete({
+      _id: req.params.id,
+      "reporter.userId": req.user.id,
+      status: USER_CONFIRM_STATUS,
+    });
+    if (!bug) return res.status(404).json({ error: "Bug inexistent" });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Eroare la închidere" });
+  }
+});
+
+/**
+ * DELETE /api/testing/bugs/mine/closed
+ * "Inchide toate": sterge definitiv toate bugurile proprii "Rezolvat" ale userului.
+ * Scope strict la owner + status, deci nu atinge bugurile active sau ale altora.
+ */
+router.delete("/bugs/mine/closed", authMiddleware, limiter(10), async (req, res) => {
+  try {
+    const r = await TestBug.deleteMany({
+      "reporter.userId": req.user.id,
+      status: USER_CONFIRM_STATUS,
+    });
+    res.json({ success: true, deleted: r.deletedCount || 0 });
+  } catch (error) {
+    res.status(500).json({ error: "Eroare la închiderea tuturor" });
   }
 });
 

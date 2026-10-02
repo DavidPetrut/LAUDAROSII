@@ -5,23 +5,27 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useAuth, useTheme } from "../../global/context";
+import { useAuth, useTheme, useToast } from "../../global/context";
 import { TutorialsLauncher } from "../../global/tutorial";
 import { api } from "../../global/functions";
 import { teamRoleLabels } from "../../global/functions/formatters";
 import { headerGradient } from "../../public/styles/global";
+import { refreshNow } from "./updateHelper";
 import { styles } from "./styles";
 
 export const ProfileScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { user, updateUser, isSuperAdmin, can } = useAuth();
   const { theme } = useTheme();
+  const { showSuccess, showError } = useToast();
   const [profile, setProfile] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [otaBusy, setOtaBusy] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -41,6 +45,22 @@ export const ProfileScreen = ({ navigation }) => {
     setRefreshing(false);
   };
 
+  // Refresh OTA intr-un pas: daca exista update, reporneste singur cu noul bundle.
+  const handleOtaRefresh = async () => {
+    if (otaBusy) return;
+    setOtaBusy(true);
+    try {
+      const res = await refreshNow();
+      if (!res.reloaded) {
+        showSuccess(res.message || "Ești deja la zi");
+        setOtaBusy(false);
+      }
+    } catch (e) {
+      showError("Nu s-a putut face refresh. Încearcă din nou.");
+      setOtaBusy(false);
+    }
+  };
+
   const userData = profile || user;
 
   return (
@@ -53,13 +73,23 @@ export const ProfileScreen = ({ navigation }) => {
           style={[styles.gradientHeader, { paddingTop: insets.top + 12 }]}
         >
           <Text style={styles.headerTitle}>PROFILE</Text>
-          <TouchableOpacity
-            style={styles.settingsBtn}
-            onPress={() => navigation.navigate("Settings")}
-            accessibilityLabel="Setări"
-          >
-            <Ionicons name="settings-outline" size={24} color="#fff" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.settingsBtn}
+              onPress={handleOtaRefresh}
+              disabled={otaBusy}
+              accessibilityLabel="Refresh aplicație"
+            >
+              <Ionicons name="refresh" size={24} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.settingsBtn}
+              onPress={() => navigation.navigate("Settings")}
+              accessibilityLabel="Setări"
+            >
+              <Ionicons name="settings-outline" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </LinearGradient>
 
         <ScrollView
@@ -69,6 +99,16 @@ export const ProfileScreen = ({ navigation }) => {
           }
           contentContainerStyle={styles.scrollContainer}
         >
+          <TouchableOpacity
+            style={styles.myBugsButton}
+            onPress={() => navigation.navigate("MyBugs")}
+            activeOpacity={0.9}
+          >
+            <Ionicons name="bug" size={22} color="#fff" />
+            <Text style={styles.myBugsButtonText}>Bug-urile mele</Text>
+            <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.9)" />
+          </TouchableOpacity>
+
           <View style={[styles.section, { backgroundColor: theme.surface }]}>
             <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>
               Roluri în echipă
@@ -124,6 +164,16 @@ export const ProfileScreen = ({ navigation }) => {
           )}
         </ScrollView>
       </View>
+
+      {otaBusy && (
+        <View style={styles.otaOverlay}>
+          <ActivityIndicator size="large" color="#fff" />
+          <Text style={styles.otaText}>Se face refresh…</Text>
+          <Text style={styles.otaSubtext}>
+            Aducem ultimele schimbări. Durează câteva secunde.
+          </Text>
+        </View>
+      )}
     </View>
   );
 };
