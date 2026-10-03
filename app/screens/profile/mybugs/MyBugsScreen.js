@@ -154,7 +154,7 @@ export const MyBugsScreen = () => {
             <TextInput
               style={styles.input}
               placeholder="Fii cât mai specific: de ce nu merge încă?"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor="rgba(229,231,235,0.4)"
               value={reopenText}
               onChangeText={setReopenText}
               multiline

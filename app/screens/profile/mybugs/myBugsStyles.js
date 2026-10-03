@@ -1,13 +1,22 @@
 import { StyleSheet } from "react-native";
 import { spacing, borderRadius, typography } from "../../../public/styles/global";
 
+// Paleta dark locala a ecranului MyBugs (singurul design, fara switch light/dark).
+// Oglindeste tokenii dark folositi in Devotional pentru consecventa.
+const BG = "#0f0d0d";
+const SURF = "rgba(255,255,255,0.06)";
+const BORDER = "rgba(255,255,255,0.12)";
+const TEXT = "#e5e7eb";
+const DIM = "rgba(229,231,235,0.6)";
+const FAINT = "rgba(229,231,235,0.4)";
+
 export const myBugsStyles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#f0f0f0" },
+  screen: { flex: 1, backgroundColor: BG },
   center: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: spacing.xxl, gap: spacing.sm },
-  emptyText: { ...typography.body, color: "#6b7280", textAlign: "center" },
+  emptyText: { ...typography.body, color: DIM, textAlign: "center" },
 
   list: { padding: spacing.lg, paddingBottom: 120 },
-  intro: { ...typography.bodySmall, color: "#6b7280", marginBottom: spacing.md },
+  intro: { ...typography.bodySmall, color: DIM, marginBottom: spacing.md },
 
   closeAll: {
     flexDirection: "row",
@@ -15,53 +24,50 @@ export const myBugsStyles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
     borderWidth: 1.5,
-    borderColor: "#dc2626",
+    borderColor: "#ef4444",
     borderRadius: borderRadius.lg,
     paddingVertical: spacing.sm,
     marginBottom: spacing.md,
-    backgroundColor: "rgba(220,38,38,0.06)",
+    backgroundColor: "rgba(239,68,68,0.12)",
   },
-  closeAllText: { ...typography.bodySmall, color: "#dc2626", fontWeight: "700" },
+  closeAllText: { ...typography.bodySmall, color: "#f87171", fontWeight: "700" },
 
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: SURF,
     borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: BORDER,
     padding: spacing.lg,
     marginBottom: spacing.md,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
   },
   cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
-  badge: { backgroundColor: "rgba(16,185,129,0.15)", borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 3 },
-  badgeText: { fontSize: 11, color: "#059669", fontWeight: "700" },
-  meta: { fontSize: 11, color: "#9ca3af", flexShrink: 1, textAlign: "right", marginLeft: spacing.sm },
-  problem: { ...typography.body, color: "#1f2937", lineHeight: 21 },
-  note: { ...typography.caption, color: "#9ca3af", marginTop: spacing.xs, fontStyle: "italic" },
+  badge: { backgroundColor: "rgba(16,185,129,0.18)", borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 3 },
+  badgeText: { fontSize: 11, color: "#34d399", fontWeight: "700" },
+  meta: { fontSize: 11, color: FAINT, flexShrink: 1, textAlign: "right", marginLeft: spacing.sm },
+  problem: { ...typography.body, color: TEXT, lineHeight: 21 },
+  note: { ...typography.caption, color: FAINT, marginTop: spacing.xs, fontStyle: "italic" },
 
   actions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
   btn: { flex: 1, height: 42, borderRadius: borderRadius.lg, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  btnReopen: { borderWidth: 1.5, borderColor: "#f59e0b", backgroundColor: "rgba(245,158,11,0.08)" },
-  btnReopenText: { color: "#b45309", fontWeight: "700", fontSize: 14 },
+  btnReopen: { borderWidth: 1.5, borderColor: "#f59e0b", backgroundColor: "rgba(245,158,11,0.12)" },
+  btnReopenText: { color: "#fbbf24", fontWeight: "700", fontSize: 14 },
   btnClose: { backgroundColor: "#10b981" },
   btnCloseText: { color: "#fff", fontWeight: "700", fontSize: 14 },
 
   reopenBox: { marginTop: spacing.md },
   input: {
-    backgroundColor: "#f9fafb",
+    backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: "rgba(255,255,255,0.15)",
     borderRadius: borderRadius.lg,
     padding: spacing.md,
     minHeight: 90,
     textAlignVertical: "top",
     ...typography.body,
-    color: "#1f2937",
+    color: TEXT,
   },
-  btnGhost: { borderWidth: 1.5, borderColor: "#d1d5db", backgroundColor: "#fff" },
-  btnGhostText: { color: "#6b7280", fontWeight: "700", fontSize: 14 },
+  btnGhost: { borderWidth: 1.5, borderColor: "rgba(255,255,255,0.2)", backgroundColor: "transparent" },
+  btnGhostText: { color: DIM, fontWeight: "700", fontSize: 14 },
   btnSend: { backgroundColor: "#6366f1" },
   btnSendText: { color: "#fff", fontWeight: "700", fontSize: 14 },
 });
