@@ -9,6 +9,7 @@ import React, {
 import { storage } from "../utils/storage";
 import { resolveScreen } from "./screenRegistry";
 import { collectContext } from "./collectContext";
+import { getBestScreenSource, getScreenSources } from "./screenSource";
 import { fetchTestingConfig, submitBugReport } from "./testingApi";
 
 const TestingContext = createContext(null);
@@ -71,19 +72,21 @@ export const TestingProvider = ({ children }) => {
     } catch (e) {}
   }, []);
 
-  // Ecranul curent = ruta din registru, suprascris de layer (daca exista).
+  // Ecranul curent = ruta din registru, suprascris de layer (manual) si de fisierul
+  // real al componentei montate+focusate (registry automat, cea mai de incredere sursa).
   const resolveCurrentScreen = useCallback(() => {
     const base = resolveScreen(routeNameRef.current || routeName);
-    if (layer) {
-      return {
-        ...base,
-        screen: layer.screen || base.screen,
-        folder: layer.folder || base.folder,
-        file: layer.file || base.file,
-        layer: layer.screen || null,
-      };
-    }
-    return { ...base, layer: null };
+    const regFile = getBestScreenSource();
+    const regFolder = regFile ? regFile.split("/").slice(0, -1).join("/") : null;
+    const file = (layer && layer.file) || regFile || base.file;
+    const folder = (layer && layer.folder) || regFolder || base.folder;
+    return {
+      ...base,
+      screen: (layer && layer.screen) || base.screen,
+      folder,
+      file,
+      layer: (layer && layer.screen) || null,
+    };
   }, [routeName, layer]);
 
   const openFlow = useCallback(() => setFlowOpen(true), []);
@@ -120,8 +123,8 @@ export const TestingProvider = ({ children }) => {
         solution: (report.solution || "").trim(),
         // media
         screenshot: report.screenshot || null,
-        // context tehnic sigur
-        context: collectContext(),
+        // context tehnic sigur + candidatii de fisier din registry (ajuta atribuirea)
+        context: { ...collectContext(), screenStack: getScreenSources() },
       };
       return submitBugReport(payload);
     },
