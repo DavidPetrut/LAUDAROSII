@@ -9,6 +9,8 @@ export const makeStyles = (isDark, fontScale = 1) => {
   const surface = isDark ? "#1c1c1e" : "#ffffff";
   const sheetBg = isDark ? "#1c1c1e" : "#ffffff";
   const textMain = isDark ? "#e6e7e9" : "#1e293b";
+  // Textul de citit: putin mai deschis in dark ca sa iasa mai bine pe fundal negru.
+  const readingText = isDark ? "#f4f4f6" : "#1e293b";
   const textSoft = isDark ? "rgba(255,255,255,0.55)" : "#64748b";
   const textFaint = isDark ? "rgba(255,255,255,0.4)" : "#94a3b8";
   const divider = isDark ? "rgba(255,255,255,0.08)" : "#e2e8f0";
@@ -62,7 +64,7 @@ export const makeStyles = (isDark, fontScale = 1) => {
     },
     paragraph: { color: textMain },
     dropCap: {
-      fontFamily: fonts.heading,
+      fontFamily: fonts.reading,
       fontSize: 44 * fontScale,
       lineHeight: 40 * fontScale,
       color: textSoft,
@@ -73,10 +75,10 @@ export const makeStyles = (isDark, fontScale = 1) => {
       color: textFaint,
     },
     verseText: {
-      fontFamily: fonts.body,
+      fontFamily: fonts.reading,
       fontSize: 18 * fontScale,
       lineHeight: 32 * fontScale,
-      color: textMain,
+      color: readingText,
     },
     verseActive: {
       backgroundColor: isDark ? "rgba(33,192,99,0.18)" : "rgba(33,192,99,0.12)",

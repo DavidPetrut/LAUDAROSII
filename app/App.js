@@ -247,6 +247,8 @@ export default function App() {
         Seagoe: require("./public/fonts/seagoe-regular.ttf"),
         Raleway: require("./public/fonts/Raleway-VariableFont_wght-regular.ttf"),
         "IMFellEnglish-Italic": require("./public/fonts/IMFellEnglish-Italic.ttf"),
+        Gelasio: require("./public/fonts/Gelasio-Regular.ttf"),
+        "Gelasio-Italic": require("./public/fonts/Gelasio-Italic.ttf"),
       });
       setReady(true);
     } catch (e) {

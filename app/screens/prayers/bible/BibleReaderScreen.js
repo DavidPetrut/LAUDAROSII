@@ -51,6 +51,11 @@ const clampFont = (v) => Math.min(FONT_MAX, Math.max(FONT_MIN, v));
 const SUP = { 0: "⁰", 1: "¹", 2: "²", 3: "³", 4: "⁴", 5: "⁵", 6: "⁶", 7: "⁷", 8: "⁸", 9: "⁹" };
 const toSup = (n) => String(n).split("").map((d) => SUP[d] || d).join("");
 
+// Curata textul si pune replicile de dialog ("—") pe rand nou, pastrand restul ca
+// paragraf curgator. Traducerile fara em-dash (ex. Cornilescu) raman neatinse.
+const formatVerse = (raw) =>
+  stripHtml(raw).replace(/\s*—\s*/g, "\n— ").replace(/^\n/, "");
+
 // Cititorul Biblie reutilizabil. Ca ecran standalone sau ca layer (embedded) peste
 // alt ecran: onBack = ce face sageata, initial = pasaj de start, headerExtra = nod
 // in bara de sus (ex: buton retur la devotional), manageImmersive = controleaza
@@ -491,7 +496,7 @@ export const BibleReader = ({ onBack, initial, headerExtra, manageImmersive = tr
                 }
               >
                 <Text style={st.verseNum}>{toSup(v.verse)}</Text>
-                <Text style={st.verseText}>{" " + stripHtml(v.text) + "  "}</Text>
+                <Text style={st.verseText}>{" " + formatVerse(v.text) + "  "}</Text>
               </Text>
             ))}
           </Text>

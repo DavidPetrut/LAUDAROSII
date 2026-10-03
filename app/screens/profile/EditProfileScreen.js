@@ -94,7 +94,7 @@ export const EditProfileScreen = ({ navigation }) => {
               style={styles.input}
               value={form.age}
               onChangeText={(v) => updateForm("age", v)}
-              placeholder="25"
+              placeholder="ex: 25"
               keyboardType="numeric"
             />
           </View>
@@ -105,7 +105,7 @@ export const EditProfileScreen = ({ navigation }) => {
               style={styles.input}
               value={form.phone}
               onChangeText={(v) => updateForm("phone", v)}
-              placeholder="0712345678"
+              placeholder="ex: 0712345678"
               keyboardType="phone-pad"
             />
           </View>

@@ -2,6 +2,7 @@ export const fonts = {
   heading: "Seagoe",
   prayersHeading: "PilotCommand",
   body: "Raleway",
+  reading: "Gelasio",
 };
 
 export const typography = {

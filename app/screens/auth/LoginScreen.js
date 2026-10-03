@@ -25,6 +25,7 @@ export const LoginScreen = ({ navigation }) => {
   const { login, applyAuth } = useAuth();
 
   const handleLogin = async () => {
+    Keyboard.dismiss();
     if (!email || !password) {
       showError("Completeaza toate câmpurile");
       return;
@@ -41,6 +42,7 @@ export const LoginScreen = ({ navigation }) => {
   };
 
   const handleChangePassword = async () => {
+    Keyboard.dismiss();
     if (!email || !cpCurrent || !cpNew) {
       showError("Completeaza toate câmpurile");
       return;
