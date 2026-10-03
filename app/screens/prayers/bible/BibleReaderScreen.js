@@ -51,10 +51,34 @@ const clampFont = (v) => Math.min(FONT_MAX, Math.max(FONT_MIN, v));
 const SUP = { 0: "⁰", 1: "¹", 2: "²", 3: "³", 4: "⁴", 5: "⁵", 6: "⁶", 7: "⁷", 8: "⁸", 9: "⁹" };
 const toSup = (n) => String(n).split("").map((d) => SUP[d] || d).join("");
 
-// Curata textul si pune replicile de dialog ("—") pe rand nou, pastrand restul ca
-// paragraf curgator. Traducerile fara em-dash (ex. Cornilescu) raman neatinse.
-const formatVerse = (raw) =>
-  stripHtml(raw).replace(/\s*—\s*/g, "\n— ").replace(/^\n/, "");
+// Transforma versetele in blocuri de randare: naratiunea (cu numar) si fiecare
+// replica de dialog ("—") ca bloc separat, ca sa putem pune spatiu intre ele.
+// Versetul 1 nu primeste numar (il tine drop-cap-ul capitolului). bolls nu
+// marcheaza sfarsitul replicii, deci naratiunea de dupa o replica ramane in acel bloc.
+const buildBlocks = (verses) => {
+  const blocks = [];
+  verses.forEach((v) => {
+    const parts = stripHtml(v.text).split(/\s*—\s*/);
+    const lead = parts[0].trim();
+    const speeches = parts.slice(1).map((s) => s.trim()).filter(Boolean);
+    const num = v.verse === 1 ? null : v.verse;
+    let placed = false;
+    if (lead || speeches.length === 0) {
+      blocks.push({ key: `v${v.verse}`, verse: v.verse, kind: "verse", num, text: lead });
+      placed = true;
+    }
+    speeches.forEach((s, i) => {
+      blocks.push({
+        key: `v${v.verse}d${i}`,
+        verse: v.verse,
+        kind: "dialog",
+        num: !placed && i === 0 ? num : null,
+        text: "— " + s,
+      });
+    });
+  });
+  return blocks;
+};
 
 // Cititorul Biblie reutilizabil. Ca ecran standalone sau ca layer (embedded) peste
 // alt ecran: onBack = ce face sageata, initial = pasaj de start, headerExtra = nod
@@ -483,23 +507,22 @@ export const BibleReader = ({ onBack, initial, headerExtra, manageImmersive = tr
           style={{ flex: 1, backgroundColor: bgColor }}
           contentContainerStyle={[st.readerContent, { paddingTop: topBarH + spacing.sm }]}
         >
-          <Text style={st.paragraph}>
-            <Text style={st.dropCap}>{position.chapter + "  "}</Text>
-            {verses.map((v) => (
+          <View>
+            {buildBlocks(verses).map((b, idx) => (
               <Text
-                key={v.verse}
-                onPress={() => onVersePress(v)}
-                style={
-                  activeVerse?.num === v.verse || highlightVerse === v.verse
-                    ? st.verseActive
-                    : null
-                }
+                key={b.key}
+                onPress={() => onVersePress(verses.find((x) => x.verse === b.verse))}
+                style={[
+                  b.kind === "dialog" ? st.dialogBlock : st.verseBlock,
+                  (activeVerse?.num === b.verse || highlightVerse === b.verse) && st.verseActive,
+                ]}
               >
-                <Text style={st.verseNum}>{toSup(v.verse)}</Text>
-                <Text style={st.verseText}>{" " + formatVerse(v.text) + "  "}</Text>
+                {idx === 0 && <Text style={st.dropCap}>{position.chapter + " "}</Text>}
+                {b.num != null && <Text style={st.verseNum}>{toSup(b.num) + " "}</Text>}
+                <Text style={st.verseText}>{b.text}</Text>
               </Text>
             ))}
-          </Text>
+          </View>
         </ScrollView>
       )}
 

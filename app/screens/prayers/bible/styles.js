@@ -63,6 +63,10 @@ export const makeStyles = (isDark, fontScale = 1) => {
       paddingBottom: 200,
     },
     paragraph: { color: textMain },
+    // Bloc de verset (naratiune) - gap mic intre versete.
+    verseBlock: { marginBottom: spacing.sm },
+    // Bloc de replica de dialog - padding mic deasupra/dedesubt, ca sa fie mai lizibil.
+    dialogBlock: { marginTop: spacing.xs, marginBottom: spacing.sm + spacing.xs },
     dropCap: {
       fontFamily: fonts.reading,
       fontSize: 44 * fontScale,
