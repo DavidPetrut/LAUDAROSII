@@ -94,6 +94,10 @@ app.use("/api/devotional-templates", devotionalTemplatesRoutes);
 app.use("/api/tutorials", tutorialsRoutes);
 app.use("/api/bible", bibleRoutes);
 
+// Planning Center (modul „Planificare") — TOT codul în server/planning-center/.
+// Aceasta e SINGURA atingere din afara folderului (cerință user: un folder părinte).
+app.use("/api/pc", require("./planning-center"));
+
 app.get("/api/health", (req, res) => {
   res.json({ status: "OK", message: "Laudarosii API funcționeaza" });
 });

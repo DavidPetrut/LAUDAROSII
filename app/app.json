@@ -30,7 +30,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./public/images/app-icon.png",
+        "foregroundImage": "./public/images/app-icon-foreground.png",
         "backgroundColor": "#141414"
       },
       "package": "com.laudarosii.vertical",

@@ -1,0 +1,4 @@
+remote_id,first_name,last_name,middle_name,name_prefix,name_suffix,nickname,gender,birthdate,marital_status,email,mobile_phone,home_phone,address_street,address_city,address_county,address_zip,address_country,household_name,household_primary_contact,membership_type,campus,status,inactive_reason,notes
+1001,Andrei,Popescu,,,,Andi,M,1990-05-14,married,andrei.popescu@example.com,+40721000001,,Str. Libertatii 10,Bucuresti,Bucuresti,010101,Romania,Familia Popescu,yes,member,Bucuresti,active,,
+1002,Maria,Popescu,,,,,F,1992-09-02,married,maria.popescu@example.com,+40721000002,,Str. Libertatii 10,Bucuresti,Bucuresti,010101,Romania,Familia Popescu,no,member,Bucuresti,active,,
+1003,David,Ionescu,Stefan,,,Davy,M,2010-03-21,single,,,,Str. Florilor 5,Cluj-Napoca,Cluj,400001,Romania,Familia Ionescu,no,attender,Cluj,active,,Copil - fara cont de login

@@ -11,7 +11,7 @@ import { colors } from "../../public/styles/global";
 const TABS = [
   { name: "Home", icon: "home", lib: "ionicons", label: "Home" },
   { name: "Prayers", icon: "hands-pray", lib: "material", label: "Pray" },
-  { name: "Courses", icon: "book", lib: "ionicons", label: "Resources" },
+  { name: "Planificare", icon: "calendar", lib: "ionicons", label: "Planificare" },
   { name: "Games", icon: "game-controller", lib: "ionicons", label: "Games" },
   { name: "Profile", icon: "person", lib: "ionicons", label: "Profile" },
 ];

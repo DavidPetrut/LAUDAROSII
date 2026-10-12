@@ -57,6 +57,8 @@ import {
   AnnouncementDetailScreen,
 } from "./screens/announcements";
 import { CoursesScreen, CourseDetailScreen } from "./screens/courses";
+// Planning Center — TOT modulul în app/planning-center/ (tab „Planificare", app-in-app).
+import PlanningCenterRoot from "./planning-center";
 import {
   GamesScreen,
   QuizGameScreen,
@@ -115,7 +117,7 @@ const MainTabs = () => (
   >
     <Tab.Screen name="Home" component={HomeStackScreen} />
     <Tab.Screen name="Prayers" component={PrayersStackScreen} />
-    <Tab.Screen name="Courses" component={CoursesScreen} />
+    <Tab.Screen name="Planificare" component={PlanningCenterRoot} />
     <Tab.Screen name="Games" component={GamesScreen} />
     <Tab.Screen name="Profile" component={ProfileScreen} />
   </Tab.Navigator>
