@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-03T10:40:55.921Z",
+  "generatedAt": "2026-10-12T13:10:27.724Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -2869,7 +2869,9 @@
           "file": "global/functions/toast.js"
         }
       ],
-      "styleTokens": [],
+      "styleTokens": [
+        "spacing"
+      ],
       "crossScreens": [],
       "domainsTouched": [
         "api",
@@ -3337,14 +3339,25 @@
     },
     "screens/prayers/timer/devotionals/ShareView.js": {
       "stylesFile": null,
-      "globals": [],
+      "globals": [
+        {
+          "name": "showSuccess",
+          "file": "global/functions/toast.js"
+        },
+        {
+          "name": "showError",
+          "file": "global/functions/toast.js"
+        }
+      ],
       "styleTokens": [
         "colors"
       ],
       "crossScreens": [
         "screens/prayers/timer/devotionalStyles.js"
       ],
-      "domainsTouched": []
+      "domainsTouched": [
+        "toast"
+      ]
     },
     "screens/prayers/timer/devotionals/TaskEditorModal.js": {
       "stylesFile": null,
@@ -4039,6 +4052,7 @@
       "screens/prayers/PrayedButton.js",
       "screens/prayers/ProgramPrayersTab.js",
       "screens/prayers/ShareMenuModal.js",
+      "screens/prayers/timer/devotionals/ShareView.js",
       "screens/prayers/timer/devotionals/TemplateImportView.js",
       "screens/prayers/timer/devotionals/TemplatesView.js",
       "screens/profile/EditProfileScreen.js",

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, Share, Modal, Pressable } from "react-native";
+import { View, Text, TouchableOpacity, Share, Modal, Pressable, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { devotionalStyles as styles } from "../devotionalStyles";
@@ -22,11 +22,13 @@ export const QuoteCard = ({ quote, onToast }) => {
     } catch (e) {}
   };
 
-  const share = async () => {
+  const share = () => {
     setMenu(false);
-    try {
-      await Share.share({ message: asText(quote) });
-    } catch (e) {}
+    setTimeout(async () => {
+      try {
+        await Share.share({ message: asText(quote) });
+      } catch (e) {}
+    }, Platform.OS === "ios" ? 300 : 0);
   };
 
   return (

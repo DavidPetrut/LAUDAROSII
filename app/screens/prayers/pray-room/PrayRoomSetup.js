@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, TextInput, Image, Switch } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BackArrowIcon } from "../../../global/components";
 import { api, showError } from "../../../global/functions";
+import { spacing } from "../../../public/styles/global";
 import { ParticipantPicker } from "./ParticipantPicker";
 import { prayRoomStyles as styles } from "./styles";
 
@@ -25,6 +27,8 @@ const DURATIONS = [
 ];
 
 export const PrayRoomSetup = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
+  const stepContainerStyle = [styles.stepContainer, { paddingTop: insets.top + spacing.xl }];
   const [step, setStep] = useState(0);
   const [roomType, setRoomType] = useState(null);
   const [name, setName] = useState("");
@@ -95,7 +99,7 @@ export const PrayRoomSetup = ({ navigation }) => {
         );
       case "name":
         return (
-          <View style={styles.stepContainer}>
+          <View style={stepContainerStyle}>
             <Text style={styles.stepTitle}>Numele camerei</Text>
             <TextInput style={styles.setupInput} value={name} onChangeText={setName}
               placeholder="Pray Room" placeholderTextColor="#666" maxLength={50} />
@@ -106,7 +110,7 @@ export const PrayRoomSetup = ({ navigation }) => {
         );
       case "participants":
         return (
-          <View style={styles.stepContainer}>
+          <View style={stepContainerStyle}>
             <Text style={styles.stepTitle}>{isRoulette ? "Cine participa? (minim 3)" : "Cine participa?"}</Text>
             <ParticipantPicker
               selectedIds={selectedParticipants}
@@ -123,7 +127,7 @@ export const PrayRoomSetup = ({ navigation }) => {
         );
       case "duration":
         return (
-          <View style={styles.stepContainer}>
+          <View style={stepContainerStyle}>
             <Text style={styles.stepTitle}>Timp de expirare</Text>
             <View style={styles.optionsColumn}>
               {DURATIONS.map((dOpt) => (

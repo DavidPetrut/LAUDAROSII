@@ -12,6 +12,7 @@ import { Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader, TiledBackground } from "../../../global/components";
 import { api, showError, showSuccess } from "../../../global/functions";
 import { useAuth, useTheme } from "../../../global/context";
@@ -37,6 +38,14 @@ export const PrayRoomScreen = ({ navigation, route }) => {
   const { roomId } = route.params;
   const { user } = useAuth();
   const { isDarkMode, theme } = useTheme();
+  const insets = useSafeAreaInsets();
+
+  // Aliniaza FAB-ul "+" cu butonul flotant TEST (aceeasi distanta fata de baza
+  // reala a ecranului), ca in restul tabului Pray. Pe web ecranul se intinde sub
+  // bara de taburi, pe nativ deasupra ei.
+  const tabBarHeight = 64 + (insets.bottom > 0 ? insets.bottom : 8);
+  const fabBottom =
+    Platform.OS === "web" ? insets.bottom + 92 : insets.bottom + 92 - tabBarHeight;
 
   const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -418,7 +427,7 @@ export const PrayRoomScreen = ({ navigation, route }) => {
       )}
 
       {canPost && (!isRoulette || rouletteMode === "mine") && (
-        <TouchableOpacity style={styles.fab} onPress={() => setAddMenu(true)}>
+        <TouchableOpacity style={[styles.fab, { bottom: fabBottom }]} onPress={() => setAddMenu(true)}>
           <Text style={styles.fabText}>+</Text>
         </TouchableOpacity>
       )}

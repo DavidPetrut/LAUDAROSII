@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator 
 import { Ionicons } from "@expo/vector-icons";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { colors } from "../../../../public/styles/global";
+import { showSuccess, showError } from "../../../../global/functions";
 import { devotionalsApi } from "./devotionalsApi";
 
 /**
@@ -13,7 +14,6 @@ export const ShareView = ({ devotional, onDone, onCancel }) => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
-  const [sentTo, setSentTo] = useState(null);
   const timer = useRef(null);
 
   const onChange = (text) => {
@@ -39,22 +39,13 @@ export const ShareView = ({ devotional, onDone, onCancel }) => {
   const send = async (user) => {
     try {
       await devotionalsApi.share(devotional._id, user._id);
-      setSentTo(user.fullName);
-    } catch (e) {}
+      showSuccess(`Trimis către ${user.fullName}`);
+      setQuery("");
+      setResults([]);
+    } catch (e) {
+      showError("Nu s-a putut trimite. Încearcă din nou.");
+    }
   };
-
-  if (sentTo) {
-    return (
-      <View style={styles.emptyPersonal}>
-        <Ionicons name="checkmark-circle" size={48} color="#10b981" />
-        <Text style={styles.emptyTitle}>Trimis către {sentTo}</Text>
-        <Text style={styles.introDesc}>Va primi devotionalul și îl poate accepta în lista sa.</Text>
-        <TouchableOpacity style={styles.startBtn} onPress={onDone} activeOpacity={0.9}>
-          <Text style={styles.startBtnText}>Gata</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
 
   return (
     <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">

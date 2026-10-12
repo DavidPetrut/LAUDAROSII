@@ -5,6 +5,7 @@
     "version": "1.0.4",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "icon": "./public/images/app-icon.png",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -29,7 +30,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#6366f1"
+        "foregroundImage": "./public/images/app-icon.png",
+        "backgroundColor": "#141414"
       },
       "package": "com.laudarosii.vertical",
       "permissions": [
