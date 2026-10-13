@@ -64,9 +64,15 @@ export function PlanScreen({ route, navigation }) {
         </Pressable>
         <Text style={styles.headerTitle}>Plan</Text>
         <View style={styles.headerIcons}>
-          <PcIconButton icon="chatbox-outline" onPress={() => {}} style={{ marginLeft: 16 }} />
-          <PcIconButton icon="notifications-outline" dot onPress={() => {}} style={{ marginLeft: 16 }} />
-          <PcAvatar uri={me?.person?.avatar} initials={me?.person?.initials || ""} size={32} />
+          <PcIconButton icon="chatbox-outline" onPress={() => {}} style={{ marginLeft: 14 }} />
+          <PcIconButton icon="notifications-outline" dot onPress={() => {}} style={{ marginLeft: 14 }} />
+          <Pressable
+            onPress={() => me?.person?.id && navigation.navigate("PcProfile", { personId: me.person.id })}
+            hitSlop={8}
+            style={{ marginLeft: 14 }}
+          >
+            <PcAvatar uri={me?.person?.avatar} initials={me?.person?.initials || ""} size={32} />
+          </Pressable>
         </View>
       </View>
 

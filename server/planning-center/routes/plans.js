@@ -714,6 +714,7 @@ router.get("/:id/files", requireCan("people.view"), async (req, res) => {
     const id = OID(req.params.id);
     if (!id) return res.status(400).json({ error: "ID invalid" });
     const plan = await PcPlan.findOne(scoped(req, { _id: id })).select("serviceTypeId").lean();
+    // 1) Fișiere la nivel de plan / service type (PcPlanFile)
     const files = await PcPlanFile.find(
       scoped(req, { $or: [{ planId: id }, { serviceTypeId: plan?.serviceTypeId || null, scope: "serviceType" }] })
     ).sort({ sortOrder: 1 }).lean();
@@ -721,7 +722,20 @@ router.get("/:id/files", requireCan("people.view"), async (req, res) => {
     const groups = {};
     files.forEach((f) => {
       const label = f.groupLabel || (f.scope === "serviceType" ? "SERVICE TYPE" : f.scope === "plan" ? "PLAN" : "FILES");
-      (groups[label] = groups[label] || []).push({ id: f._id, name: f.name, kind: f.kind });
+      (groups[label] = groups[label] || []).push({ id: f._id, name: f.name, kind: f.kind, url: f.url || null });
+    });
+    // 2) Fișiere atașate CÂNTECELOR din plan (PcSongFile) → apar și la FILES, grupate pe cântec,
+    //    nu doar la tab-ul SONG. Doar cele cu url (deschidebile); charturile generate rămân la Song.
+    const items = await PcPlanItem.find(scoped(req, { planId: id, type: "song" })).sort({ sortOrder: 1 }).lean();
+    const arrIds = [...new Set(items.map((i) => String(i.arrangementId)).filter((x) => x && x !== "null"))].map(OID).filter(Boolean);
+    const songFiles = arrIds.length
+      ? await PcSongFile.find(scoped(req, { arrangementId: { $in: arrIds }, url: { $nin: [null, ""] } })).lean()
+      : [];
+    items.forEach((it) => {
+      const af = songFiles.filter((f) => String(f.arrangementId) === String(it.arrangementId));
+      if (!af.length) return;
+      const label = (it.title || "CÂNTEC").toUpperCase();
+      af.forEach((f) => (groups[label] = groups[label] || []).push({ id: f._id, name: f.name, kind: f.kind, url: f.url || null }));
     });
     res.json({ groups: Object.entries(groups).map(([label, items]) => ({ label, files: items })) });
   } catch (err) {
