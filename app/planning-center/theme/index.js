@@ -38,6 +38,16 @@ export const pcColors = {
   white: "#FFFFFF",
 };
 
+/** hex → rgba (pt. tenta translucidă a item row colors pe dark). */
+export function hexToRgba(hex, alpha = 1) {
+  if (!hex || typeof hex !== "string") return "transparent";
+  let h = hex.replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  if (h.length !== 6) return "transparent";
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export const pcSpacing = { xs: 4, sm: 8, md: 12, base: 16, lg: 20, xl: 24, xxl: 32 };
 
 export const pcRadius = { sm: 6, md: 10, lg: 14, xl: 18, pill: 999 };

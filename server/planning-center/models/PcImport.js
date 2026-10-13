@@ -13,10 +13,12 @@ const schema = pcSchema({
     default: "preview",
   },
   mapping: { type: Object, default: {} }, // coloană CSV → câmp pc_people
+  header: { type: [String], default: [] },
+  preparedRows: { type: [Object], default: [] }, // rânduri normalizate + action/match/errors (preview→commit)
   rowCount: { type: Number, default: 0 },
   createdCount: { type: Number, default: 0 },
   updatedCount: { type: Number, default: 0 },
-  errors: { type: [Object], default: [] }, // [{ row, message }]
+  importErrors: { type: [Object], default: [] }, // [{ row, message }] (nume ne-rezervat)
   createdPersonIds: { type: [mongoose.Schema.Types.ObjectId], ref: "PcPerson", default: [] }, // pt. undo
   undoableUntil: { type: Date, default: null },
   importedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },

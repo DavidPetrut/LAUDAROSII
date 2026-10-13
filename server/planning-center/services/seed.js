@@ -50,7 +50,29 @@ async function ensureBootstrap() {
   }
 
   await seedPeopleTags(org._id);
+  await ensureDefaultServiceTypes(org._id);
   return org;
+}
+
+/** Tipurile de serviciu standard (cerință user). Idempotent — creează doar ce lipsește (după nume). */
+const DEFAULT_SERVICE_TYPES = [
+  "1. Serviciu Cu Impact Maxim", "2. Tineret", "3. Seara De Partasie", "4. Inchinare Copii Mici",
+  "5. Evenimente Speciale", "6. Media", "7. Curatenie Biserica", "8. Rugaciune", "9. Media Tineret",
+];
+async function ensureDefaultServiceTypes(orgId) {
+  const { PcServiceType } = require("../models");
+  const { DEFAULT_ITEM_ROW_COLORS } = require("../lib/orderColors");
+  let created = 0;
+  for (let i = 0; i < DEFAULT_SERVICE_TYPES.length; i++) {
+    const name = DEFAULT_SERVICE_TYPES[i];
+    const existing = await PcServiceType.findOne({ orgId, name, deletedAt: null }).select("_id").lean();
+    if (!existing) {
+      await PcServiceType.create({ orgId, name, frequency: "weekly", itemRowColors: DEFAULT_ITEM_ROW_COLORS, sortOrder: i });
+      created++;
+    }
+  }
+  if (created) console.log(`[pc] seed: ${created} service types standard create`);
+  return created;
 }
 
 /** Tag-uri People pt. filtrul din screenshot (Instruments Played / Vocal Part). Idempotent. */
@@ -137,4 +159,81 @@ async function migratePeople() {
   return { total: users.length, created };
 }
 
-module.exports = { ensureBootstrap, seedPeopleTags, migratePeople, splitName };
+/**
+ * Seed demo pt. PREVIEW Plan page (opt-in, idempotent). Creează 1 service type + 1 plan
+ * cu order/times/notes/echipă, ca să vezi Plan page populat înainte de „Create a service".
+ * `viewerUserId` = userul curent → îl asignăm pe plan ca să apară chip-urile verzi de sus.
+ */
+async function seedDemoPlan(orgId, viewerUserId) {
+  const {
+    PcServiceType, PcPlan, PcPlanTime, PcPlanItem, PcPlanNote,
+    PcTeam, PcPosition, PcTeamMember, PcAssignment, PcNeededPosition, PcPerson,
+  } = require("../models");
+
+  // service type
+  let st = await PcServiceType.findOne({ orgId, name: "1. Serviciu Cu Impact Maxim", deletedAt: null });
+  if (!st) st = await PcServiceType.create({ orgId, name: "1. Serviciu Cu Impact Maxim", sortOrder: 0 });
+
+  // idempotent: dacă există deja un plan în acest service type, nu dubla
+  const existing = await PcPlan.findOne({ orgId, serviceTypeId: st._id, deletedAt: null }).select("_id");
+  if (existing) return { planId: existing._id, created: false };
+
+  const base = new Date(); base.setHours(9, 0, 0, 0);
+  const plan = await PcPlan.create({ orgId, serviceTypeId: st._id, title: "", sortDate: base });
+
+  // times
+  const svc = await PcPlanTime.create({ orgId, planId: plan._id, type: "service", name: "", startsAt: new Date(base), endsAt: new Date(base.getTime() + 60 * 60 * 1000) });
+  await PcPlanTime.create({ orgId, planId: plan._id, type: "rehearsal", name: "Band Practice", startsAt: new Date(base.getTime() - 2 * 24 * 3600 * 1000) });
+  await PcPlanTime.create({ orgId, planId: plan._id, type: "other", name: "Pre-Service Prayer", startsAt: new Date(base.getTime() - 30 * 60 * 1000), endsAt: new Date(base) });
+
+  // order (secțiuni + itemi)
+  const items = [
+    { type: "header", title: "ÎNAINTE DE ÎNCEPEREA SERVICIULUI" },
+    { type: "item", title: "Verificări", description: "Versuri - afișaj în față și în spate\nSunet filmuleț prezentare serie\nMicrofon vorbitor, microfon host\nStativ potrivit pentru predică" },
+    { type: "item", title: "Muzică de fundal - 20 min înainte", description: "Playlist pe Spotify: Înainte și după SIM" },
+    { type: "item", title: "Countdown - 5 minute (VERSURI)", description: "La 2 minute maxim, echipa în față, acorduri/pad la pian" },
+    { type: "header", title: "ÎNCHINARE PRIN CÂNTARE" },
+    { type: "item", title: "Welcome & Chemare la închinare", description: "text biblie pentru motivare la închinare" },
+    { type: "song", title: "Cântare #1", keyName: "C" },
+  ];
+  for (let i = 0; i < items.length; i++) {
+    await PcPlanItem.create({ orgId, planId: plan._id, sortOrder: i, duringAll: true, ...items[i] });
+  }
+
+  // notes
+  await PcPlanNote.create({ orgId, planId: plan._id, categoryName: "MUSIC", content: "Welcome & intro la pian. Trecere lină în prima cântare.", sortOrder: 0 });
+  await PcPlanNote.create({ orgId, planId: plan._id, categoryName: "PASSAGES TO USE", content: "Psalm 100\nIoan 4:23-24", sortOrder: 1 });
+
+  // echipă + poziții + asignarea viewerului (chip-urile verzi)
+  let team = await PcTeam.findOne({ orgId, name: "Lauda si Inchinare", deletedAt: null });
+  if (!team) team = await PcTeam.create({ orgId, name: "Lauda si Inchinare", serviceTypeId: st._id, flags: { rehearsal: true } });
+  const mkPos = async (name, order) => {
+    let p = await PcPosition.findOne({ orgId, teamId: team._id, name, deletedAt: null });
+    if (!p) p = await PcPosition.create({ orgId, teamId: team._id, name, sortOrder: order });
+    return p;
+  };
+  const posGuitar = await mkPos("Chitara acustica", 0);
+  const posVocals = await mkPos("Vocalisti", 1);
+
+  const viewer = viewerUserId ? await PcPerson.findOne({ orgId, userId: viewerUserId, deletedAt: null }).select("_id") : null;
+  if (viewer) {
+    await PcTeamMember.updateOne(
+      { orgId, teamId: team._id, personId: viewer._id },
+      { $setOnInsert: { orgId, teamId: team._id, personId: viewer._id, isLeader: true } },
+      { upsert: true }
+    );
+    for (const pos of [posGuitar, posVocals]) {
+      await PcAssignment.updateOne(
+        { orgId, planId: plan._id, positionId: pos._id, personId: viewer._id },
+        { $setOnInsert: { orgId, planId: plan._id, teamId: team._id, positionId: pos._id, personId: viewer._id, timeIds: [svc._id], status: "confirmed" } },
+        { upsert: true }
+      );
+    }
+  }
+  // un gol „Needed"
+  await PcNeededPosition.create({ orgId, planId: plan._id, teamId: team._id, positionId: posVocals._id, count: 1 });
+
+  return { planId: plan._id, created: true };
+}
+
+module.exports = { ensureBootstrap, seedPeopleTags, migratePeople, splitName, seedDemoPlan, ensureDefaultServiceTypes };

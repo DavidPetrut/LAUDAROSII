@@ -2,7 +2,7 @@
 import React from "react";
 import { View, Text, Pressable, StyleSheet, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { PcBottomSheet, PcAvatar } from "../../components";
+import { PcBottomSheet, PcAvatar, PcButton } from "../../components";
 import { pcColors } from "../../theme";
 
 export function PersonQuickActions({ person, visible, onClose, onViewProfile }) {
@@ -31,9 +31,7 @@ export function PersonQuickActions({ person, visible, onClose, onViewProfile }) 
           {act("chatbubble", true, () => {})}
           {act("call", !!phone, () => phone && Linking.openURL(`tel:${phone}`))}
         </View>
-        <Pressable style={styles.profileBtn} onPress={onViewProfile}>
-          <Text style={styles.profileTxt}>Vezi profilul</Text>
-        </Pressable>
+        <PcButton variant="outline" title="Vezi profilul" onPress={onViewProfile} style={{ marginTop: 22, paddingHorizontal: 40 }} />
       </View>
     </PcBottomSheet>
   );

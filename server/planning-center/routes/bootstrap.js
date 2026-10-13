@@ -6,7 +6,7 @@ const express = require("express");
 const { isAdmin } = require("../../middleware");
 const { PcOrg, PcCampus, PcPerson } = require("../models");
 const { scoped, clearOrgCache } = require("../core/orgScope");
-const { ensureBootstrap, migratePeople } = require("../services/seed");
+const { ensureBootstrap, migratePeople, seedDemoPlan, ensureDefaultServiceTypes } = require("../services/seed");
 
 const router = express.Router();
 
@@ -39,6 +39,28 @@ router.post("/seed", isAdmin, async (req, res) => {
   } catch (err) {
     console.error("[pc] POST /admin/seed:", err.message);
     res.status(500).json({ error: "Eroare la seed/migrare: " + err.message });
+  }
+});
+
+/** Adaugă tipurile de serviciu standard (cele 9). Idempotent — user-initiated. */
+router.post("/seed-service-types", isAdmin, async (req, res) => {
+  try {
+    const created = await ensureDefaultServiceTypes(req.pcOrgId);
+    res.json({ ok: true, created });
+  } catch (err) {
+    console.error("[pc] POST /admin/seed-service-types:", err.message);
+    res.status(500).json({ error: "Eroare la crearea tipurilor standard: " + err.message });
+  }
+});
+
+/** Seed demo pt. preview Plan page (opt-in). */
+router.post("/seed-demo-plan", isAdmin, async (req, res) => {
+  try {
+    const result = await seedDemoPlan(req.pcOrgId, req.user.id);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error("[pc] POST /admin/seed-demo-plan:", err.message);
+    res.status(500).json({ error: "Eroare la seed demo plan: " + err.message });
   }
 });
 

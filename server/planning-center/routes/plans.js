@@ -1,0 +1,768 @@
+/**
+ * Rute Services — Plan page (felia Services core, read). /api/pc/v1/plans.
+ * Header + Order + Teams + Times + Notes + Files + Item detail. Org-scoped + authz.
+ * UI = app/planning-center/screens/plans/* (identic cu screenshot-urile).
+ */
+const express = require("express");
+const mongoose = require("mongoose");
+const {
+  PcPlan, PcPlanTime, PcPlanItem, PcAssignment, PcNeededPosition, PcPlanNote, PcPlanFile,
+  PcServiceType, PcTeam, PcPosition, PcTeamMember, PcPerson, PcOrg, PcCampus, PcSong,
+  PcArrangement, PcKey, PcSongFile,
+} = require("../models");
+const { scoped, stamp } = require("../core/orgScope");
+const { requireCan } = require("../core/permissions");
+const { wallToUtc } = require("../lib/time");
+const { DEFAULT_ITEM_ROW_COLORS, rowColorFor } = require("../lib/orderColors");
+
+const router = express.Router();
+const OID = (v) => (mongoose.Types.ObjectId.isValid(v) ? new mongoose.Types.ObjectId(v) : null);
+
+/* ---------- helpers tz / format ---------- */
+async function campusTz(req) {
+  if (req._pcTz) return req._pcTz;
+  const org = await PcOrg.findById(req.pcOrgId).select("defaultCampusId").lean();
+  let tz = "Europe/Bucharest";
+  if (org?.defaultCampusId) {
+    const c = await PcCampus.findById(org.defaultCampusId).select("timezone").lean();
+    if (c?.timezone) tz = c.timezone;
+  }
+  req._pcTz = tz;
+  return tz;
+}
+const fmtDate = (d, tz) => (d ? new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(d)) : "");
+const fmtWeekday = (d, tz) => (d ? new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(new Date(d)).toUpperCase() : "");
+const fmtFullDate = (d, tz) => (d ? new Intl.DateTimeFormat("en-GB", { timeZone: tz, day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(d)) : "");
+const fmtTime = (d, tz) => (d ? new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(d)) : "");
+const fmtLen = (sec) => { const s = Math.max(0, Math.floor(sec || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+const personMini = (p) => (p ? { id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "), avatar: p.avatar || "", initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase() } : null);
+
+async function viewerPersonId(req) {
+  if (req._pcViewerId !== undefined) return req._pcViewerId;
+  const p = await PcPerson.findOne(scoped(req, { userId: req.user.id })).select("_id").lean();
+  req._pcViewerId = p?._id || null;
+  return req._pcViewerId;
+}
+
+/* ───────── GET / — planuri grupate pe service type (tab Plans) ───────── */
+router.get("/", requireCan("people.view"), async (req, res) => {
+  try {
+    const tz = await campusTz(req);
+    const [serviceTypes, plans] = await Promise.all([
+      PcServiceType.find(scoped(req, { archived: false })).select("name sortOrder").sort({ sortOrder: 1, name: 1 }).lean(),
+      PcPlan.find(scoped(req)).select("serviceTypeId title sortDate").sort({ sortDate: 1 }).lean(),
+    ]);
+    const byType = {};
+    plans.forEach((p) => {
+      const k = String(p.serviceTypeId);
+      (byType[k] = byType[k] || []).push({ id: p._id, title: p.title || "", dateLabel: fmtDate(p.sortDate, tz), sortDate: p.sortDate });
+    });
+    res.json({
+      serviceTypes: serviceTypes.map((st) => ({
+        id: st._id, name: st.name, plans: byType[String(st._id)] || [],
+      })),
+    });
+  } catch (err) {
+    console.error("[pc] GET /plans:", err.message);
+    res.status(500).json({ error: "Eroare la încărcarea planurilor." });
+  }
+});
+
+/* ───────── POST / — creează un plan nou într-un service type (butonul „+") ───────── */
+router.post("/", requireCan("services.addPlan"), async (req, res) => {
+  try {
+    const stId = OID(req.body?.serviceTypeId);
+    if (!stId) return res.status(400).json({ error: "serviceTypeId invalid." });
+    if (!req.body?.date) return res.status(400).json({ error: "Alege o dată." });
+    const st = await PcServiceType.findOne(scoped(req, { _id: stId })).lean();
+    if (!st) return res.status(404).json({ error: "Service type inexistent." });
+    const tz = await campusTz(req);
+    const template = (st.serviceTimeTemplate && st.serviceTimeTemplate.length) ? st.serviceTimeTemplate : [{ start: "09:00", end: "10:00" }];
+
+    const sortDate = wallToUtc(req.body.date, template[0].start, tz) || new Date(req.body.date);
+    const plan = await PcPlan.create(stamp(req, { serviceTypeId: stId, sortDate }));
+    for (const t of template) {
+      await PcPlanTime.create(stamp(req, {
+        planId: plan._id, type: "service", name: "",
+        startsAt: wallToUtc(req.body.date, t.start, tz) || sortDate,
+        endsAt: t.end ? wallToUtc(req.body.date, t.end, tz) : null,
+      }));
+    }
+    res.status(201).json({ planId: plan._id });
+  } catch (err) {
+    console.error("[pc] POST /plans:", err.message);
+    res.status(500).json({ error: "Eroare la crearea planului: " + err.message });
+  }
+});
+
+/* ───────── GET /:id — header plan (titlu, dată, prev/next, asignările mele) ───────── */
+router.get("/:id", requireCan("people.view"), async (req, res) => {
+  try {
+    const id = OID(req.params.id);
+    if (!id) return res.status(400).json({ error: "ID invalid" });
+    const plan = await PcPlan.findOne(scoped(req, { _id: id })).lean();
+    if (!plan) return res.status(404).json({ error: "Planul nu există" });
+    const tz = await campusTz(req);
+    const st = await PcServiceType.findOne(scoped(req, { _id: plan.serviceTypeId })).select("name").lean();
+
+    // prev/next în același service type după dată
+    const [prev, next] = await Promise.all([
+      PcPlan.findOne(scoped(req, { serviceTypeId: plan.serviceTypeId, sortDate: { $lt: plan.sortDate } })).sort({ sortDate: -1 }).select("_id").lean(),
+      PcPlan.findOne(scoped(req, { serviceTypeId: plan.serviceTypeId, sortDate: { $gt: plan.sortDate } })).sort({ sortDate: 1 }).select("_id").lean(),
+    ]);
+
+    // asignările mele pe acest plan (chip-urile verzi de sus)
+    const vpid = await viewerPersonId(req);
+    let myAssignments = [];
+    if (vpid) {
+      const mine = await PcAssignment.find(scoped(req, { planId: id, personId: vpid })).lean();
+      const posIds = mine.map((a) => a.positionId).filter(Boolean);
+      const teamIds = mine.map((a) => a.teamId);
+      const [positions, teams] = await Promise.all([
+        PcPosition.find(scoped(req, { _id: { $in: posIds } })).select("name").lean(),
+        PcTeam.find(scoped(req, { _id: { $in: teamIds } })).select("name").lean(),
+      ]);
+      const posName = Object.fromEntries(positions.map((p) => [String(p._id), p.name]));
+      const teamName = Object.fromEntries(teams.map((t) => [String(t._id), t.name]));
+      myAssignments = mine.map((a) => ({
+        label: posName[String(a.positionId)] || "Poziție",
+        team: teamName[String(a.teamId)] || "",
+        confirmed: a.status === "confirmed",
+        declined: a.status === "declined",
+      }));
+    }
+
+    res.json({
+      id: plan._id,
+      title: plan.title || st?.name || "Plan",
+      serviceTypeName: st?.name || "",
+      dateLabel: fmtDate(plan.sortDate, tz),
+      prevId: prev?._id || null,
+      nextId: next?._id || null,
+      myAssignments,
+    });
+  } catch (err) {
+    console.error("[pc] GET /plans/:id:", err.message);
+    res.status(500).json({ error: "Eroare la încărcarea planului." });
+  }
+});
+
+/** Rezolvă liderii (persoană SAU poziție→persoana programată) pt. o listă de itemi. */
+async function resolveItemLeaders(req, planId, items) {
+  const personIds = [], positionIds = [];
+  for (const it of items) {
+    if (it.leaderId) personIds.push(it.leaderId);
+    for (const l of it.leaders || []) { if (l.personId) personIds.push(l.personId); if (l.positionId) positionIds.push(l.positionId); }
+  }
+  const [persons, positions, assigns] = await Promise.all([
+    PcPerson.find(scoped(req, { _id: { $in: personIds } })).select("firstName lastName avatar").lean(),
+    PcPosition.find(scoped(req, { _id: { $in: positionIds } })).select("name").lean(),
+    positionIds.length ? PcAssignment.find(scoped(req, { planId, positionId: { $in: positionIds } })).lean() : [],
+  ]);
+  const personById = Object.fromEntries(persons.map((p) => [String(p._id), p]));
+  const posById = Object.fromEntries(positions.map((p) => [String(p._id), p]));
+  const assignByPos = {};
+  for (const a of assigns) if (!assignByPos[String(a.positionId)]) assignByPos[String(a.positionId)] = a.personId;
+  const extra = Object.values(assignByPos).filter((id) => !personById[String(id)]);
+  if (extra.length) {
+    (await PcPerson.find(scoped(req, { _id: { $in: extra } })).select("firstName lastName avatar").lean())
+      .forEach((p) => (personById[String(p._id)] = p));
+  }
+  const map = {};
+  for (const it of items) {
+    const list = [], seen = new Set();
+    const pushP = (pid) => { const p = personById[String(pid)]; if (p && !seen.has(String(pid))) { seen.add(String(pid)); list.push(personMini(p)); } };
+    if (it.leaderId) pushP(it.leaderId);
+    for (const l of it.leaders || []) {
+      if (l.personId) pushP(l.personId);
+      else if (l.positionId) {
+        const pid = assignByPos[String(l.positionId)];
+        if (pid) pushP(pid);
+        else list.push({ positionName: posById[String(l.positionId)]?.name || "Poziție", needed: true, positionId: l.positionId });
+      }
+    }
+    map[String(it._id)] = list;
+  }
+  return map;
+}
+
+/* ───────── GET /:id/order — ordinea serviciului (secțiuni + itemi) ───────── */
+router.get("/:id/order", requireCan("people.view"), async (req, res) => {
+  try {
+    const id = OID(req.params.id);
+    if (!id) return res.status(400).json({ error: "ID invalid" });
+    const items = await PcPlanItem.find(scoped(req, { planId: id })).sort({ sortOrder: 1 }).lean();
+    const leadersMap = await resolveItemLeaders(req, id, items);
+    // reguli de culoare din service type
+    const plan = await PcPlan.findOne(scoped(req, { _id: id })).select("serviceTypeId").lean();
+    const st = plan ? await PcServiceType.findOne(scoped(req, { _id: plan.serviceTypeId })).select("itemRowColors useCustomRowColors").lean() : null;
+    const rules = st && st.useCustomRowColors === false ? [] : (st && st.itemRowColors && st.itemRowColors.length ? st.itemRowColors : DEFAULT_ITEM_ROW_COLORS);
+    res.json({
+      items: items.map((it) => ({
+        id: it._id,
+        type: it.type,
+        title: it.title,
+        description: it.description || "",
+        lengthLabel: fmtLen(it.lengthSec),
+        keyName: it.keyName || "",
+        rowColor: rowColorFor(it, rules),
+        leaders: leadersMap[String(it._id)] || [],
+        leader: (leadersMap[String(it._id)] || [])[0] || null,
+      })),
+    });
+  } catch (err) {
+    console.error("[pc] GET /plans/:id/order:", err.message);
+    res.status(500).json({ error: "Eroare la încărcarea ordinii." });
+  }
+});
+
+/* ───────── GET /:id/items/:itemId — detaliu item (ecranul Item) ───────── */
+router.get("/:id/items/:itemId", requireCan("people.view"), async (req, res) => {
+  try {
+    const itemId = OID(req.params.itemId);
+    if (!itemId) return res.status(400).json({ error: "ID invalid" });
+    const it = await PcPlanItem.findOne(scoped(req, { _id: itemId })).lean();
+    if (!it) return res.status(404).json({ error: "Item inexistent" });
+    const planId = OID(req.params.id);
+    const leadersMap = await resolveItemLeaders(req, planId, [it]);
+    const files = await PcPlanFile.find(scoped(req, { itemId })).sort({ sortOrder: 1 }).lean();
+    // ore de serviciu (pt. checkbox-urile During/Before/After per oră)
+    const serviceTimes = await PcPlanTime.find(scoped(req, { planId, type: "service" })).sort({ startsAt: 1 }).lean();
+    const tz = await campusTz(req);
+    res.json({
+      id: it._id,
+      type: it.type,
+      title: it.title,
+      description: it.description || "",
+      lengthSec: it.lengthSec || 0,
+      lengthLabel: fmtLen(it.lengthSec),
+      placement: it.placement || "during",
+      duringAll: it.duringAll !== false,
+      timeIds: (it.timeIds || []).map(String),
+      keyName: it.keyName || "",
+      // Linkaj song (pt. tab-ul SONG / Edit a song from a plan + Sequence):
+      songId: it.songId ? String(it.songId) : null,
+      arrangementId: it.arrangementId ? String(it.arrangementId) : null,
+      keyId: it.keyId ? String(it.keyId) : null,
+      sequence: Array.isArray(it.sequence) ? it.sequence : [],
+      duringLabel: (it.placement && it.placement !== "during") ? `${it.placement[0].toUpperCase()}${it.placement.slice(1)} All` : (it.duringAll !== false ? "During All" : `${(it.timeIds || []).length} time(s)`),
+      leaders: leadersMap[String(it._id)] || [],
+      serviceTimes: serviceTimes.map((t) => ({ id: t._id, label: fmtTime(t.startsAt, tz) })),
+      files: files.map((f) => ({ id: f._id, name: f.name, kind: f.kind })),
+    });
+  } catch (err) {
+    console.error("[pc] GET /plans/:id/items/:itemId:", err.message);
+    res.status(500).json({ error: "Eroare la încărcarea itemului." });
+  }
+});
+
+/* ───────── POST /:id/items — adaugă item (Item/Header/Song/Media) ───────── */
+router.post("/:id/items", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id);
+    if (!planId) return res.status(400).json({ error: "ID invalid" });
+    const b = req.body || {};
+    const type = ["item", "header", "song", "media"].includes(b.type) ? b.type : "item";
+
+    const doc = {
+      planId, type,
+      title: String(b.title || (type === "header" ? "Header" : type === "song" ? "New Song" : type === "media" ? "New Media" : "New Item")).trim(),
+      description: b.description || "",
+      lengthSec: Number(b.lengthSec) || 0,
+      placement: ["before", "during", "after"].includes(b.placement) ? b.placement : "during",
+      duringAll: b.duringAll !== false,
+      timeIds: Array.isArray(b.timeIds) ? b.timeIds.map(OID).filter(Boolean) : [],
+      keyName: b.keyName || "",
+    };
+    // Song din bibliotecă
+    if (type === "song" && b.songId) {
+      const song = await PcSong.findOne(scoped(req, { _id: OID(b.songId) })).lean();
+      if (song) { doc.songId = song._id; doc.title = song.title; doc.keyName = b.keyName || song.defaultKey || ""; if (!doc.lengthSec) doc.lengthSec = song.lengthSec || 0; }
+    }
+
+    // poziție în ordine: după afterItemId, altfel la final
+    if (b.afterItemId) {
+      const after = await PcPlanItem.findOne(scoped(req, { _id: OID(b.afterItemId) })).select("sortOrder").lean();
+      const at = after ? after.sortOrder : 0;
+      await PcPlanItem.updateMany(scoped(req, { planId, sortOrder: { $gt: at } }), { $inc: { sortOrder: 1 } });
+      doc.sortOrder = at + 1;
+    } else {
+      const last = await PcPlanItem.findOne(scoped(req, { planId })).sort({ sortOrder: -1 }).select("sortOrder").lean();
+      doc.sortOrder = last ? last.sortOrder + 1 : 0;
+    }
+    const item = await PcPlanItem.create(stamp(req, doc));
+    res.status(201).json({ id: item._id });
+  } catch (err) {
+    console.error("[pc] POST /plans/:id/items:", err.message);
+    res.status(500).json({ error: "Eroare la adăugarea itemului: " + err.message });
+  }
+});
+
+/* ───────── PATCH /:id/items/:itemId — editează item ───────── */
+router.patch("/:id/items/:itemId", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const itemId = OID(req.params.itemId);
+    if (!itemId) return res.status(400).json({ error: "ID invalid" });
+    const b = req.body || {};
+    const set = {};
+    if (b.title !== undefined) set.title = String(b.title);
+    if (b.description !== undefined) set.description = String(b.description);
+    if (b.lengthSec !== undefined) set.lengthSec = Number(b.lengthSec) || 0;
+    if (b.placement !== undefined && ["before", "during", "after"].includes(b.placement)) set.placement = b.placement;
+    if (b.duringAll !== undefined) set.duringAll = !!b.duringAll;
+    if (Array.isArray(b.timeIds)) set.timeIds = b.timeIds.map(OID).filter(Boolean);
+    if (b.keyName !== undefined) set.keyName = String(b.keyName);
+    // Secvență one-time pt. acest plan (Edit Sequence from a plan).
+    if (Array.isArray(b.sequence)) set.sequence = b.sequence.map((s) => String(s)).filter(Boolean);
+    // Edit a song from a plan: schimbă aranjamentul / cheia linkate (keyName se auto-rezolvă).
+    if (b.arrangementId !== undefined) {
+      const aid = OID(b.arrangementId);
+      set.arrangementId = aid;
+      if (aid) {
+        const arr = await PcArrangement.findOne(scoped(req, { _id: aid })).select("_id").lean();
+        if (!arr) return res.status(400).json({ error: "Aranjament inexistent." });
+      }
+    }
+    if (b.keyId !== undefined) {
+      const kid = OID(b.keyId);
+      set.keyId = kid;
+      if (kid) {
+        const key = await PcKey.findOne(scoped(req, { _id: kid })).select("startKey").lean();
+        if (!key) return res.status(400).json({ error: "Cheie inexistentă." });
+        set.keyName = key.startKey || "";
+      } else if (b.keyName === undefined) {
+        set.keyName = ""; // cheie scoasă → curăță badge-ul
+      }
+    }
+    const p = await PcPlanItem.findOneAndUpdate(scoped(req, { _id: itemId }), { $set: set }, { new: true }).select("_id arrangementId sequence").lean();
+    if (!p) return res.status(404).json({ error: "Item inexistent" });
+    // „Update Arrangement Sequence" — salvează secvența și pe aranjament (permanent).
+    if (b.updateArrangementSequence && Array.isArray(b.sequence) && p.arrangementId) {
+      await PcArrangement.updateOne(scoped(req, { _id: p.arrangementId }), { $set: { sequence: set.sequence } });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[pc] PATCH /plans/:id/items/:itemId:", err.message);
+    res.status(500).json({ error: "Eroare la salvarea itemului." });
+  }
+});
+
+/* ───────── DELETE /:id/items/:itemId ───────── */
+router.delete("/:id/items/:itemId", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const itemId = OID(req.params.itemId);
+    const p = await PcPlanItem.findOneAndUpdate(scoped(req, { _id: itemId }), { $set: { deletedAt: new Date() } }).select("_id").lean();
+    if (!p) return res.status(404).json({ error: "Item inexistent" });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[pc] DELETE /plans/:id/items/:itemId:", err.message);
+    res.status(500).json({ error: "Eroare la ștergere." });
+  }
+});
+
+/* ───────── POST /:id/items/reorder — reordonează (listă de id-uri) ───────── */
+router.post("/:id/items/reorder", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.itemIds) ? req.body.itemIds : [];
+    for (let i = 0; i < ids.length; i++) {
+      const oid = OID(ids[i]);
+      if (oid) await PcPlanItem.updateOne(scoped(req, { _id: oid }), { $set: { sortOrder: i } });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[pc] POST /plans/:id/items/reorder:", err.message);
+    res.status(500).json({ error: "Eroare la reordonare." });
+  }
+});
+
+/* ───────── POST /:id/items/:itemId/leaders — adaugă lider (persoană SAU poziție) ───────── */
+router.post("/:id/items/:itemId/leaders", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const itemId = OID(req.params.itemId);
+    const personId = OID(req.body?.personId);
+    const positionId = OID(req.body?.positionId);
+    if (!personId && !positionId) return res.status(400).json({ error: "Trimite personId sau positionId." });
+    const entry = {};
+    if (personId) entry.personId = personId;
+    if (positionId) entry.positionId = positionId;
+    const p = await PcPlanItem.findOneAndUpdate(
+      scoped(req, { _id: itemId }),
+      { $addToSet: { leaders: entry } },
+      { new: true }
+    ).select("_id").lean();
+    if (!p) return res.status(404).json({ error: "Item inexistent" });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[pc] POST /plans/:id/items/:itemId/leaders:", err.message);
+    res.status(500).json({ error: "Eroare la adăugarea liderului." });
+  }
+});
+
+/* ───────── DELETE /:id/items/:itemId/leaders — scoate lider ───────── */
+router.delete("/:id/items/:itemId/leaders", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const itemId = OID(req.params.itemId);
+    const personId = OID(req.query.personId);
+    const positionId = OID(req.query.positionId);
+    const pull = {};
+    if (personId) pull.personId = personId;
+    if (positionId) pull.positionId = positionId;
+    await PcPlanItem.updateOne(scoped(req, { _id: itemId }), { $pull: { leaders: pull } });
+    // curăță și leaderId legacy dacă e aceeași persoană
+    if (personId) await PcPlanItem.updateOne(scoped(req, { _id: itemId, leaderId: personId }), { $set: { leaderId: null } });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[pc] DELETE /plans/:id/items/:itemId/leaders:", err.message);
+    res.status(500).json({ error: "Eroare la scoaterea liderului." });
+  }
+});
+
+/* ───────── GET /:id/leader-search — caută persoane + poziții pt. „Add leader" ───────── */
+router.get("/:id/leader-search", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id);
+    const q = String(req.query.q || "").trim();
+    const rx = q ? new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") : null;
+    const plan = await PcPlan.findOne(scoped(req, { _id: planId })).select("serviceTypeId").lean();
+    // poziții din echipele service-type-ului
+    const teams = await PcTeam.find(scoped(req, { serviceTypeId: plan?.serviceTypeId })).select("_id name").lean();
+    const teamName = Object.fromEntries(teams.map((t) => [String(t._id), t.name]));
+    let positions = await PcPosition.find(scoped(req, { teamId: { $in: teams.map((t) => t._id) } })).select("name teamId").lean();
+    if (rx) positions = positions.filter((p) => rx.test(p.name));
+    let people = [];
+    if (q) {
+      people = await PcPerson.find(scoped(req, { status: "active", $or: [{ firstName: rx }, { lastName: rx }] }))
+        .collation({ locale: "ro", strength: 1 }).limit(15).select("firstName lastName avatar").lean();
+    }
+    res.json({
+      positions: positions.slice(0, 15).map((p) => ({ id: p._id, name: p.name, team: teamName[String(p.teamId)] || "" })),
+      people: people.map((p) => personMini(p)),
+    });
+  } catch (err) {
+    console.error("[pc] GET /plans/:id/leader-search:", err.message);
+    res.status(500).json({ error: "Eroare la căutare." });
+  }
+});
+
+/* ───────── GET /:id/teams — echipe grupate (My/Other) cu poziții + oameni + status ───────── */
+router.get("/:id/teams", requireCan("people.view"), async (req, res) => {
+  try {
+    const id = OID(req.params.id);
+    if (!id) return res.status(400).json({ error: "ID invalid" });
+    const [assignments, needed] = await Promise.all([
+      PcAssignment.find(scoped(req, { planId: id })).lean(),
+      PcNeededPosition.find(scoped(req, { planId: id })).lean(),
+    ]);
+    const teamIds = [...new Set([...assignments.map((a) => String(a.teamId)), ...needed.map((n) => String(n.teamId))])].map(OID).filter(Boolean);
+    const [teams, positions, people] = await Promise.all([
+      PcTeam.find(scoped(req, { _id: { $in: teamIds } })).lean(),
+      PcPosition.find(scoped(req, { teamId: { $in: teamIds } })).lean(),
+      PcPerson.find(scoped(req, { _id: { $in: assignments.map((a) => a.personId) } })).select("firstName lastName avatar").lean(),
+    ]);
+    const posName = Object.fromEntries(positions.map((p) => [String(p._id), p.name]));
+    const personById = Object.fromEntries(people.map((p) => [String(p._id), p]));
+
+    // echipele pe care le conduce viewerul
+    const vpid = await viewerPersonId(req);
+    const myLedTeamIds = new Set(
+      (await PcTeamMember.find(scoped(req, { personId: vpid || null, isLeader: true })).select("teamId").lean()).map((m) => String(m.teamId))
+    );
+    const myAssignedTeamIds = new Set(assignments.filter((a) => vpid && String(a.personId) === String(vpid)).map((a) => String(a.teamId)));
+
+    const buildTeam = (team) => {
+      const tAssigns = assignments.filter((a) => String(a.teamId) === String(team._id));
+      const tNeeded = needed.filter((n) => String(n.teamId) === String(team._id));
+      // grupare pe poziție
+      const groups = {};
+      tAssigns.forEach((a) => {
+        const key = a.positionId ? String(a.positionId) : "__none";
+        (groups[key] = groups[key] || { positionId: a.positionId, positionName: posName[String(a.positionId)] || "", people: [] }).people.push({
+          ...personMini(personById[String(a.personId)]),
+          status: a.status,
+        });
+      });
+      tNeeded.forEach((n) => {
+        const key = n.positionId ? String(n.positionId) : "__none";
+        const g = (groups[key] = groups[key] || { positionId: n.positionId, positionName: posName[String(n.positionId)] || "", people: [] });
+        for (let i = 0; i < (n.count || 0); i++) g.people.push({ needed: true });
+      });
+      return {
+        teamId: team._id,
+        name: team.name,
+        counts: {
+          confirmed: tAssigns.filter((a) => a.status === "confirmed").length,
+          declined: tAssigns.filter((a) => a.status === "declined").length,
+          unconfirmed: tAssigns.filter((a) => a.status === "unconfirmed").length,
+        },
+        unsentEmails: tAssigns.filter((a) => !a.notificationSentAt && a.status !== "declined").length,
+        groups: Object.values(groups),
+      };
+    };
+
+    const myTeams = [], otherTeams = [];
+    teams.forEach((t) => {
+      const data = buildTeam(t);
+      (myLedTeamIds.has(String(t._id)) || myAssignedTeamIds.has(String(t._id)) ? myTeams : otherTeams).push(data);
+    });
+    res.json({ myTeams, otherTeams });
+  } catch (err) {
+    console.error("[pc] GET /plans/:id/teams:", err.message);
+    res.status(500).json({ error: "Eroare la încărcarea echipelor." });
+  }
+});
+
+/* ───────── GET /:id/schedulable — echipe+poziții+oameni pt. „Add People" ───────── */
+router.get("/:id/schedulable", requireCan("services.schedule"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id);
+    const plan = await PcPlan.findOne(scoped(req, { _id: planId })).select("serviceTypeId").lean();
+    const teams = await PcTeam.find(scoped(req, { serviceTypeId: plan?.serviceTypeId, archived: false })).select("name").sort({ sortOrder: 1 }).lean();
+    const positions = await PcPosition.find(scoped(req, { teamId: { $in: teams.map((t) => t._id) } })).select("name teamId").sort({ sortOrder: 1 }).lean();
+    const tz = await campusTz(req);
+    const sTimes = await PcPlanTime.find(scoped(req, { planId, type: "service" })).sort({ startsAt: 1 }).lean();
+    const q = String(req.query.q || "").trim();
+    let people = [];
+    const rx = q ? new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") : null;
+    const filter = scoped(req, { status: "active" });
+    if (rx) filter.$or = [{ firstName: rx }, { lastName: rx }];
+    people = await PcPerson.find(filter).collation({ locale: "ro", strength: 1 }).sort({ firstName: 1 }).limit(q ? 25 : 40).select("firstName lastName avatar").lean();
+    res.json({
+      teams: teams.map((t) => ({
+        id: t._id, name: t.name,
+        positions: positions.filter((p) => String(p.teamId) === String(t._id)).map((p) => ({ id: p._id, name: p.name })),
+      })),
+      people: people.map((p) => personMini(p)),
+      serviceTimes: sTimes.map((t) => ({ id: t._id, label: `${fmtTime(t.startsAt, tz)} (${fmtDate(t.startsAt, tz)})` })),
+    });
+  } catch (err) {
+    console.error("[pc] GET /plans/:id/schedulable:", err.message);
+    res.status(500).json({ error: "Eroare la lista de programare." });
+  }
+});
+
+/* ───────── POST /:id/assignments — programează o persoană pe o poziție ───────── */
+router.post("/:id/assignments", requireCan("services.schedule"), async (req, res) => {
+  try {
+    const crypto = require("crypto");
+    const planId = OID(req.params.id);
+    const b = req.body || {};
+    const personId = OID(b.personId), teamId = OID(b.teamId), positionId = OID(b.positionId);
+    if (!personId || !teamId) return res.status(400).json({ error: "personId și teamId sunt necesare." });
+    const status = ["confirmed", "unconfirmed", "declined"].includes(b.status) ? b.status : "unconfirmed";
+    const doc = {
+      planId, personId, teamId, positionId: positionId || null,
+      timeIds: Array.isArray(b.timeIds) ? b.timeIds.map(OID).filter(Boolean) : [],
+      status, source: b.source || "manual",
+      prepared: !!b.prepared,
+      repliesToPersonId: OID(b.repliesToPersonId) || null,
+      notes: b.notes || "",
+      isGuest: !!b.isGuest,
+      isTemporaryPosition: !!b.isTemporaryPosition,
+      tempPositionName: b.tempPositionName || "",
+      responseToken: crypto.randomBytes(18).toString("hex"),
+    };
+    // upsert pe (plan, position, person) ca să nu dublăm
+    const existing = positionId
+      ? await PcAssignment.findOne(scoped(req, { planId, positionId, personId })).select("_id").lean()
+      : null;
+    let assignment;
+    if (existing) {
+      assignment = await PcAssignment.findOneAndUpdate(scoped(req, { _id: existing._id }), { $set: doc }, { new: true }).lean();
+    } else {
+      assignment = (await PcAssignment.create(stamp(req, doc))).toObject();
+    }
+    // scade un „Needed" dacă există pe poziția asta
+    if (positionId) {
+      const np = await PcNeededPosition.findOne(scoped(req, { planId, teamId, positionId, count: { $gt: 0 } }));
+      if (np) { np.count -= 1; await np.save(); }
+    }
+    res.status(201).json({ id: assignment._id });
+  } catch (err) {
+    console.error("[pc] POST /plans/:id/assignments:", err.message);
+    res.status(500).json({ error: "Eroare la programare: " + err.message });
+  }
+});
+
+/* ───────── DELETE /:id/assignments/:aid ───────── */
+router.delete("/:id/assignments/:aid", requireCan("services.schedule"), async (req, res) => {
+  try {
+    const a = await PcAssignment.findOneAndUpdate(scoped(req, { _id: OID(req.params.aid) }), { $set: { deletedAt: new Date() } }).select("_id").lean();
+    if (!a) return res.status(404).json({ error: "Programare inexistentă." });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[pc] DELETE /plans/:id/assignments/:aid:", err.message);
+    res.status(500).json({ error: "Eroare la ștergere." });
+  }
+});
+
+/* ───────── POST /:id/send-schedule-emails — trimite emailurile de programare (PRIORITAR) ───────── */
+router.post("/:id/send-schedule-emails", requireCan("services.schedule"), async (req, res) => {
+  try {
+    const { sendScheduleEmail } = require("../services/scheduleEmail");
+    const planId = OID(req.params.id);
+    const teamId = OID(req.body?.teamId); // opțional: doar o echipă
+    const tz = await campusTz(req);
+
+    const plan = await PcPlan.findOne(scoped(req, { _id: planId })).lean();
+    if (!plan) return res.status(404).json({ error: "Plan inexistent." });
+    const st = await PcServiceType.findOne(scoped(req, { _id: plan.serviceTypeId })).select("name").lean();
+    const org = await PcOrg.findById(req.pcOrgId).select("name").lean();
+    const dateLabel = fmtDate(plan.sortDate, tz);
+
+    // assignments ne-trimise, ne-declinate
+    const filter = scoped(req, { planId, notificationSentAt: null, status: { $ne: "declined" } });
+    if (teamId) filter.teamId = teamId;
+    const assigns = await PcAssignment.find(filter).lean();
+    if (assigns.length === 0) return res.json({ ok: true, sent: 0 });
+
+    const [people, positions, times] = await Promise.all([
+      PcPerson.find(scoped(req, { _id: { $in: assigns.map((a) => a.personId) } })).select("firstName lastName emails").lean(),
+      PcPosition.find(scoped(req, { _id: { $in: assigns.map((a) => a.positionId).filter(Boolean) } })).select("name").lean(),
+      PcPlanTime.find(scoped(req, { planId })).lean(),
+    ]);
+    const personById = Object.fromEntries(people.map((p) => [String(p._id), p]));
+    const posName = Object.fromEntries(positions.map((p) => [String(p._id), p.name]));
+    const timeById = Object.fromEntries(times.map((t) => [String(t._id), t]));
+
+    // grupează pe persoană
+    const byPerson = {};
+    assigns.forEach((a) => (byPerson[String(a.personId)] = byPerson[String(a.personId)] || []).push(a));
+
+    let sent = 0;
+    for (const [pid, list] of Object.entries(byPerson)) {
+      const person = personById[pid];
+      const email = person?.emails?.find((e) => e.primary)?.address || person?.emails?.[0]?.address;
+      if (!email) continue;
+      const assignments = list.map((a) => {
+        const tLabels = (a.timeIds && a.timeIds.length ? a.timeIds : times.filter((t) => t.type === "service").map((t) => t._id))
+          .map((tid) => timeById[String(tid)])
+          .filter(Boolean)
+          .map((t) => ({ label: `${t.type === "service" ? "Service" : t.name || t.type}: ${fmtDate(t.startsAt, tz)} ${fmtTime(t.startsAt, tz)}`, sub: "" }));
+        return {
+          positionName: a.isTemporaryPosition ? a.tempPositionName : (posName[String(a.positionId)] || "Poziție"),
+          teamName: "",
+          dateLabel,
+          serviceTypeName: st?.name || "",
+          timeLabels: tLabels,
+          responseToken: a.responseToken,
+        };
+      });
+      const result = await sendScheduleEmail({
+        to: email,
+        personName: [person.firstName, person.lastName].filter(Boolean).join(" "),
+        assignments,
+        repliesToName: org?.name,
+        churchName: org?.name,
+      });
+      if (result && result.sent) {
+        sent++;
+        await PcAssignment.updateMany(scoped(req, { _id: { $in: list.map((a) => a._id) } }), { $set: { notificationSentAt: new Date(), prepared: false } });
+        require("../services/messageService").logMessage(req.pcOrgId, {
+          personId: OID(pid), direction: "received", read: false, relatedPlanId: planId,
+          subject: `Planificare pentru ${st?.name || "serviciu"} — ${dateLabel}`,
+          body: `Ai fost programat(ă) pentru: ${assignments.map((a) => a.positionName).join(", ")}. Confirmă în aplicație sau din email.`,
+        });
+      }
+    }
+    res.json({ ok: true, sent });
+  } catch (err) {
+    console.error("[pc] POST /plans/:id/send-schedule-emails:", err.message);
+    res.status(500).json({ error: "Eroare la trimiterea emailurilor: " + err.message });
+  }
+});
+
+/* ───────── GET /:id/times — ore (service/rehearsal/other) ───────── */
+router.get("/:id/times", requireCan("people.view"), async (req, res) => {
+  try {
+    const id = OID(req.params.id);
+    if (!id) return res.status(400).json({ error: "ID invalid" });
+    const tz = await campusTz(req);
+    const times = await PcPlanTime.find(scoped(req, { planId: id })).sort({ startsAt: 1 }).lean();
+    const map = (t) => ({
+      id: t._id, type: t.type, name: t.name || "",
+      weekday: fmtWeekday(t.startsAt, tz),
+      date: fmtFullDate(t.startsAt, tz),
+      range: `${fmtTime(t.startsAt, tz)}${t.endsAt ? " - " + fmtTime(t.endsAt, tz) : ""}`,
+    });
+    res.json({
+      service: times.filter((t) => t.type === "service").map(map),
+      rehearsal: times.filter((t) => t.type === "rehearsal").map(map),
+      other: times.filter((t) => t.type === "other").map(map),
+    });
+  } catch (err) {
+    console.error("[pc] GET /plans/:id/times:", err.message);
+    res.status(500).json({ error: "Eroare la încărcarea orelor." });
+  }
+});
+
+/* ───────── GET /:id/notes — note grupate pe categorii ───────── */
+router.get("/:id/notes", requireCan("people.view"), async (req, res) => {
+  try {
+    const id = OID(req.params.id);
+    if (!id) return res.status(400).json({ error: "ID invalid" });
+    const notes = await PcPlanNote.find(scoped(req, { planId: id })).sort({ sortOrder: 1 }).lean();
+    res.json({ notes: notes.map((n) => ({ id: n._id, category: n.categoryName, content: n.content })) });
+  } catch (err) {
+    console.error("[pc] GET /plans/:id/notes:", err.message);
+    res.status(500).json({ error: "Eroare la încărcarea notelor." });
+  }
+});
+
+/* ───────── GET /:id/files — fișiere grupate pe scope ───────── */
+router.get("/:id/files", requireCan("people.view"), async (req, res) => {
+  try {
+    const id = OID(req.params.id);
+    if (!id) return res.status(400).json({ error: "ID invalid" });
+    const plan = await PcPlan.findOne(scoped(req, { _id: id })).select("serviceTypeId").lean();
+    const files = await PcPlanFile.find(
+      scoped(req, { $or: [{ planId: id }, { serviceTypeId: plan?.serviceTypeId || null, scope: "serviceType" }] })
+    ).sort({ sortOrder: 1 }).lean();
+    // grupare pe groupLabel (sau scope)
+    const groups = {};
+    files.forEach((f) => {
+      const label = f.groupLabel || (f.scope === "serviceType" ? "SERVICE TYPE" : f.scope === "plan" ? "PLAN" : "FILES");
+      (groups[label] = groups[label] || []).push({ id: f._id, name: f.name, kind: f.kind });
+    });
+    res.json({ groups: Object.entries(groups).map(([label, items]) => ({ label, files: items })) });
+  } catch (err) {
+    console.error("[pc] GET /plans/:id/files:", err.message);
+    res.status(500).json({ error: "Eroare la încărcarea fișierelor." });
+  }
+});
+
+/* ───────── GET /:id/rehearse — cântecele planului asamblate pt. Media Player / Songbook / Music Stand ───────── */
+router.get("/:id/rehearse", requireCan("people.view"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id);
+    if (!planId) return res.status(400).json({ error: "ID invalid" });
+    const items = await PcPlanItem.find(scoped(req, { planId, type: "song" })).sort({ sortOrder: 1 }).lean();
+    const arrIds = [...new Set(items.map((i) => String(i.arrangementId)).filter((x) => x && x !== "null"))].map(OID).filter(Boolean);
+    const [arrs, files] = await Promise.all([
+      arrIds.length ? PcArrangement.find(scoped(req, { _id: { $in: arrIds } })).lean() : [],
+      arrIds.length ? PcSongFile.find(scoped(req, { arrangementId: { $in: arrIds } })).lean() : [],
+    ]);
+    const arrById = Object.fromEntries(arrs.map((a) => [String(a._id), a]));
+    const songs = items.map((it) => {
+      const arr = arrById[String(it.arrangementId)] || null;
+      const af = files.filter((f) => String(f.arrangementId) === String(it.arrangementId));
+      const master = af.find((f) => f.scope === "arrangement" && f.kind === "chordChart" && f.source === "chordpro");
+      const audio = af.filter((f) => f.kind === "audio" && f.url).map((f) => ({ id: f._id, name: f.name, url: f.url }));
+      const docs = af.filter((f) => f.kind !== "audio" && !(f.kind === "chordChart" && f.source === "chordpro")).map((f) => ({ id: f._id, name: f.name, kind: f.kind, url: f.url, source: f.source, pending: f.transposeStatus === "pending" || (!f.url && f.source === "multitracks") }));
+      return {
+        itemId: it._id, songId: it.songId, title: it.title, keyName: it.keyName || "",
+        arrangementId: it.arrangementId, arrangementName: arr?.name || "", bpm: arr?.bpm || null,
+        sequence: (it.sequence && it.sequence.length ? it.sequence : arr?.sequence) || [],
+        audio, docs,
+        hasChordChart: !!(master && (master.chordpro || "").trim()),
+        chordpro: master?.chordpro || "", originalKey: master?.originalKey || "",
+        notes: it.description || "",
+      };
+    });
+    res.json({ planId, songs });
+  } catch (err) {
+    console.error("[pc] GET /plans/:id/rehearse:", err.message);
+    res.status(500).json({ error: "Eroare la rehearse." });
+  }
+});
+
+module.exports = router;

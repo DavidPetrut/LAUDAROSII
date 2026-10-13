@@ -13,6 +13,12 @@ const {
   PcServiceType,
   PcTagGroup,
   PcTag,
+  PcAssignment,
+  PcPlan,
+  PcBlockout,
+  PcMessage,
+  PcOrg,
+  PcCampus,
 } = require("../models");
 const { scoped, stamp } = require("../core/orgScope");
 const { can, requireCan, resolveEffective } = require("../core/permissions");
@@ -84,6 +90,13 @@ router.get("/me", async (req, res) => {
         exportCsv: await can(req, "people.exportCsv"),
         import: await can(req, "people.import"),
         managePermissions: await can(req, "people.managePermissions"),
+        addPlan: await can(req, "services.addPlan"),
+        manageServiceTypes: await can(req, "services.manageServiceTypes"),
+        editOrder: await can(req, "services.editOrder"),
+        schedule: await can(req, "services.schedule"),
+        songsEdit: await can(req, "songs.edit"),
+        mediaEdit: await can(req, "media.edit"),
+        reportsView: await can(req, "reports.view"),
       },
       myTeamIds: teamIds,
     });
@@ -217,9 +230,13 @@ router.get("/:id", requireCan("people.view"), async (req, res) => {
       addresses: p.addresses || [],
       status: p.status,
       birthdate: p.birthdate,
+      anniversary: p.anniversary,
       gender: p.gender,
+      maritalStatus: p.maritalStatus,
+      notes: p.notes,
       child: p.child,
       teamsCount,
+      tagsCount: (p.tagIds || []).length,
     });
   } catch (err) {
     console.error("[pc] GET /people/:id:", err.message);
@@ -268,35 +285,163 @@ router.get("/:id/teams", requireCan("people.view"), async (req, res) => {
 });
 
 /* ───────── Stub-uri (vor fi alimentate la feliile următoare — aditiv) ───────── */
+async function profileTz(req) {
+  if (req._pcTz) return req._pcTz;
+  const org = await PcOrg.findById(req.pcOrgId).select("defaultCampusId").lean();
+  let tz = "Europe/Bucharest";
+  if (org?.defaultCampusId) { const c = await PcCampus.findById(org.defaultCampusId).select("timezone").lean(); if (c?.timezone) tz = c.timezone; }
+  req._pcTz = tz; return tz;
+}
+const fmtDay = (d, tz) => (d ? new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(d)) : "");
+
+/* GET /:id/schedule — programările viitoare ale persoanei (pt. Profile). */
 router.get("/:id/schedule", requireCan("people.view"), async (req, res) => {
-  // Alimentat la Services core (pc_assignments). Acum gol.
-  res.json({ schedule: [] });
-});
-router.get("/:id/blockouts", requireCan("people.view"), async (req, res) => {
-  // Alimentat la Scheduling (pc_blockouts). Acum gol.
-  res.json({ blockouts: [] });
-});
-router.get("/:id/messages", requireCan("people.view"), async (req, res) => {
-  // Alimentat la Comunicare (pc_commHistory). Acum gol.
-  res.json({ unread: [], received: [], sent: [] });
+  try {
+    const personId = OID(req.params.id);
+    const tz = await profileTz(req);
+    const assigns = await PcAssignment.find(scoped(req, { personId, status: { $ne: "declined" } })).lean();
+    const planIds = [...new Set(assigns.map((a) => String(a.planId)))].map(OID);
+    const plans = await PcPlan.find(scoped(req, { _id: { $in: planIds } })).select("serviceTypeId sortDate").lean();
+    const now = new Date(Date.now() - 12 * 3600 * 1000); // include ziua curentă
+    const planById = Object.fromEntries(plans.map((p) => [String(p._id), p]));
+    const sts = await PcServiceType.find(scoped(req, { _id: { $in: plans.map((p) => p.serviceTypeId) } })).select("name").lean();
+    const stName = Object.fromEntries(sts.map((s) => [String(s._id), s.name]));
+    // grupare pe plan + doar viitoare
+    const seen = new Set(); const out = [];
+    assigns.forEach((a) => {
+      const plan = planById[String(a.planId)]; if (!plan || new Date(plan.sortDate) < now) return;
+      const key = String(a.planId); if (seen.has(key)) return; seen.add(key);
+      out.push({ planId: a.planId, dateLabel: fmtDay(plan.sortDate, tz), sortDate: plan.sortDate, serviceTypeName: stName[String(plan.serviceTypeId)] || "", status: assigns.some((x) => String(x.planId) === key && x.status === "unconfirmed") ? "unconfirmed" : "confirmed" });
+    });
+    out.sort((a, b) => new Date(a.sortDate) - new Date(b.sortDate));
+    res.json({ schedule: out });
+  } catch (err) { console.error("[pc] GET /people/:id/schedule:", err.message); res.status(500).json({ error: "Eroare." }); }
 });
 
-/* ───────── POST / — creare persoană ───────── */
+/* GET /:id/blockouts — blockout-urile (viitoare) ale persoanei. */
+router.get("/:id/blockouts", requireCan("people.view"), async (req, res) => {
+  try {
+    const personId = OID(req.params.id);
+    const today = new Date().toISOString().slice(0, 10);
+    const blockouts = await PcBlockout.find(scoped(req, { personId, endDate: { $gte: today } })).sort({ startDate: 1 }).lean();
+    res.json({ blockouts: blockouts.map((b) => ({ id: b._id, startDate: b.startDate, endDate: b.endDate, repeat: b.repeat, reason: b.reason, label: b.startDate === b.endDate ? b.startDate : `${b.startDate} → ${b.endDate}` })) });
+  } catch (err) { console.error("[pc] GET /people/:id/blockouts:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
+/* GET /:id/messages — istoric comunicare (unread/received/sent). */
+router.get("/:id/messages", requireCan("people.view"), async (req, res) => {
+  try {
+    const personId = OID(req.params.id);
+    const msgs = await PcMessage.find(scoped(req, { personId })).sort({ createdAt: -1 }).limit(200).lean();
+    const dto = (m) => ({ id: m._id, subject: m.subject, body: m.body, read: m.read, direction: m.direction, dateLabel: new Date(m.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) });
+    res.json({
+      unread: msgs.filter((m) => m.direction === "received" && !m.read).map(dto),
+      received: msgs.filter((m) => m.direction === "received").map(dto),
+      sent: msgs.filter((m) => m.direction === "sent").map(dto),
+    });
+  } catch (err) { console.error("[pc] GET /people/:id/messages:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
+/* POST /:id/messages/mark-read — marchează toate mesajele primite ca citite. */
+router.post("/:id/messages/mark-read", requireCan("people.view"), async (req, res) => {
+  try {
+    await PcMessage.updateMany(scoped(req, { personId: OID(req.params.id), direction: "received", read: false }), { $set: { read: true } });
+    res.json({ ok: true });
+  } catch (err) { console.error("[pc] mark-read:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
+/* ───────── GET /:id/tags — tag-urile persoanei grupate (My Tags / Edit Tags) ───────── */
+router.get("/:id/tags", requireCan("people.view"), async (req, res) => {
+  try {
+    const id = OID(req.params.id);
+    if (!id) return res.status(400).json({ error: "ID invalid" });
+    const person = await PcPerson.findOne(scoped(req, { _id: id })).select("tagIds").lean();
+    if (!person) return res.status(404).json({ error: "Persoana nu există" });
+    const assigned = (person.tagIds || []).map(String);
+
+    const [groups, tags] = await Promise.all([
+      PcTagGroup.find(scoped(req, { domain: "people" })).select("name sortOrder").sort({ sortOrder: 1, name: 1 }).lean(),
+      PcTag.find(scoped(req, { domain: "people" })).select("name tagGroupId sortOrder").sort({ sortOrder: 1 }).lean(),
+    ]);
+    res.json({
+      assigned,
+      groups: groups.map((g) => ({
+        id: g._id,
+        name: g.name,
+        tags: tags
+          .filter((t) => String(t.tagGroupId) === String(g._id))
+          .map((t) => ({ id: t._id, name: t.name, assigned: assigned.includes(String(t._id)) })),
+      })),
+    });
+  } catch (err) {
+    console.error("[pc] GET /people/:id/tags:", err.message);
+    res.status(500).json({ error: "Eroare la încărcarea tag-urilor." });
+  }
+});
+
+/* ───────── PATCH /:id/tags — setează tag-urile persoanei (asignare/scoatere) ───────── */
+router.patch("/:id/tags", requireCan("people.assignTags"), async (req, res) => {
+  try {
+    const id = OID(req.params.id);
+    if (!id) return res.status(400).json({ error: "ID invalid" });
+    const incoming = Array.isArray(req.body?.tagIds) ? req.body.tagIds : [];
+    // Validează că tag-urile există în org (domain people).
+    const valid = await PcTag.find(scoped(req, { domain: "people", _id: { $in: incoming.map(OID).filter(Boolean) } })).select("_id").lean();
+    const tagIds = valid.map((t) => t._id);
+    const p = await PcPerson.findOneAndUpdate(scoped(req, { _id: id }), { $set: { tagIds } }, { new: true }).select("tagIds").lean();
+    if (!p) return res.status(404).json({ error: "Persoana nu există" });
+    res.json({ ok: true, tagIds: (p.tagIds || []).map(String) });
+  } catch (err) {
+    console.error("[pc] PATCH /people/:id/tags:", err.message);
+    res.status(500).json({ error: "Eroare la salvarea tag-urilor." });
+  }
+});
+
+/* ───────── POST / — creare persoană (wizard Add Person, §9 [ADD-PERSON]) ───────── */
 router.post("/", requireCan("people.create"), async (req, res) => {
   try {
-    const { firstName, lastName = "", emails = [], phones = [] } = req.body || {};
-    if (!firstName || !String(firstName).trim()) {
+    const b = req.body || {};
+    if (!b.firstName || !String(b.firstName).trim()) {
       return res.status(400).json({ error: "Prenumele este obligatoriu." });
     }
-    const person = await PcPerson.create(
-      stamp(req, {
-        firstName: String(firstName).trim(),
-        lastName: String(lastName).trim(),
-        emails: Array.isArray(emails) ? emails : [],
-        phones: Array.isArray(phones) ? phones : [],
-        status: "active",
-      })
-    );
+    // Validare email simplă (ca PCO: „invalid formatting").
+    const emails = (Array.isArray(b.emails) ? b.emails : []).filter((e) => e && e.address);
+    for (const e of emails) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e.address).trim())) {
+        return res.status(400).json({ error: `Email invalid: ${e.address}` });
+      }
+    }
+    // 1 biserică → asignăm campusul default dacă nu vine altul.
+    const { PcOrg } = require("../models");
+    const org = await PcOrg.findById(req.pcOrgId).select("defaultCampusId").lean();
+    const doc = {
+      firstName: String(b.firstName).trim(),
+      lastName: String(b.lastName || "").trim(),
+      emails,
+      phones: (Array.isArray(b.phones) ? b.phones : []).filter((p) => p && p.number),
+      addresses: Array.isArray(b.addresses) ? b.addresses : [],
+      gender: ["M", "F"].includes(b.gender) ? b.gender : "",
+      birthdate: b.birthdate ? new Date(b.birthdate) : null,
+      anniversary: b.anniversary ? new Date(b.anniversary) : null,
+      maritalStatus: b.maritalStatus || "",
+      child: !!b.child, // Adult/Child din dropdown
+      campusId: b.campusId || org?.defaultCampusId || null,
+      status: "active",
+    };
+    // Permisiunea aleasă (Add Person step 2) → accessIntent (persoana n-are login încă).
+    if (b.accessIntent && typeof b.accessIntent === "object") {
+      doc.accessIntent = {
+        peoplePlansLevel: b.accessIntent.peoplePlansLevel || "",
+        songLevel: b.accessIntent.songLevel || "",
+        mediaLevel: b.accessIntent.mediaLevel || "",
+        fileAccess: {
+          plan: !!b.accessIntent.fileAccess?.plan,
+          song: !!b.accessIntent.fileAccess?.song,
+          media: !!b.accessIntent.fileAccess?.media,
+        },
+      };
+    }
+    const person = await PcPerson.create(stamp(req, doc));
     res.status(201).json(toRow(person.toObject()));
   } catch (err) {
     console.error("[pc] POST /people:", err.message);
@@ -309,7 +454,7 @@ router.patch("/:id/contact", requireCan("people.editContact"), async (req, res) 
   try {
     const id = OID(req.params.id);
     if (!id) return res.status(400).json({ error: "ID invalid" });
-    const { firstName, lastName, emails, phones, addresses, avatar } = req.body || {};
+    const { firstName, lastName, emails, phones, addresses, avatar, birthdate, anniversary, gender, maritalStatus, notes } = req.body || {};
     const update = {};
     if (firstName !== undefined) update.firstName = String(firstName).trim();
     if (lastName !== undefined) update.lastName = String(lastName).trim();
@@ -317,6 +462,11 @@ router.patch("/:id/contact", requireCan("people.editContact"), async (req, res) 
     if (Array.isArray(phones)) update.phones = phones;
     if (Array.isArray(addresses)) update.addresses = addresses;
     if (avatar !== undefined) update.avatar = avatar;
+    if (birthdate !== undefined) update.birthdate = birthdate ? new Date(birthdate) : null;
+    if (anniversary !== undefined) update.anniversary = anniversary ? new Date(anniversary) : null;
+    if (gender !== undefined) update.gender = String(gender || "");
+    if (maritalStatus !== undefined) update.maritalStatus = String(maritalStatus || "");
+    if (notes !== undefined) update.notes = String(notes || "");
 
     const p = await PcPerson.findOneAndUpdate(scoped(req, { _id: id }), { $set: update }, { new: true }).lean();
     if (!p) return res.status(404).json({ error: "Persoana nu există" });

@@ -59,9 +59,23 @@ const schema = pcSchema({
   child: { type: Boolean, default: false }, // copil (poate n-avea login)
   avatar: { type: String, default: "" }, // URL sau base64 moștenit din users.personalData.profilePicture
   tagIds: { type: [mongoose.Schema.Types.ObjectId], ref: "PcTag", default: [] },
+  anniversary: { type: Date, default: null },
+  notes: { type: String, default: "" }, // notă generică (ex. din import CSV)
   medicalNotes: { type: String, default: "" }, // HIPAA — sensibil
   directoryStatus: { type: String, default: "notListed" },
   remoteId: { type: String, default: "" }, // pt. import CSV (idempotent)
+  // Permisiunea ALEASĂ la Add Person pt. o persoană FĂRĂ login (nu putem crea pc_permissions
+  // fără userId). Când persoana primește login (userId), accessIntent → pc_permissions. Lossless.
+  accessIntent: {
+    peoplePlansLevel: { type: String, default: "" },
+    songLevel: { type: String, default: "" },
+    mediaLevel: { type: String, default: "" },
+    fileAccess: {
+      plan: { type: Boolean, default: false },
+      song: { type: Boolean, default: false },
+      media: { type: Boolean, default: false },
+    },
+  },
   // Link login (opțional). Referă colecția `users` existentă a app-ului.
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
 });

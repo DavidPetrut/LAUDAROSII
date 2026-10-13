@@ -12,7 +12,16 @@ const router = express.Router();
 router.use(authMiddleware); // req.user = { id, role }
 router.use(orgScope); // req.pcOrgId (seam multi-tenant §1.13)
 
+router.use("/v1/people/import", require("./peopleImport")); // ÎNAINTE de /v1/people (altfel „import" = :id)
 router.use("/v1/people", require("./people"));
+router.use("/v1/plans", require("./plans"));
+router.use("/v1/service-types", require("./services"));
+router.use("/v1/songs", require("./songs"));
+router.use("/v1/media", require("./media"));
+router.use("/v1/uploads", require("./uploads"));
+router.use("/v1/schedule", require("./schedule"));
+router.use("/v1/matrix", require("./matrix"));
+router.use("/v1/reports", require("./reports"));
 router.use("/v1/admin", require("./bootstrap"));
 
 module.exports = router;

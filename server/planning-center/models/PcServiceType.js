@@ -8,6 +8,12 @@ const { pcSchema, pcModel } = require("../core/schema");
 const schema = pcSchema({
   name: { type: String, required: true, trim: true }, // ex. „1. Serviciu Cu Impact Maxim"
   folderId: { type: Object, default: null }, // pc_folders (viitor)
+  frequency: { type: String, default: "weekly" }, // randomly|daily|weekly|everyWeekday|everyOtherWeek|monthly
+  // Șablon de ore de serviciu (wall-clock) → planurile noi moștenesc aceste ore.
+  serviceTimeTemplate: { type: [{ start: String, end: String }], default: [] }, // [{start:"08:00", end:"09:00"}]
+  // Item row colors (§16): reguli match(tip/keyword)→color. Gol = folosim DEFAULT.
+  itemRowColors: { type: [{ match: String, label: String, color: String }], default: [] },
+  useCustomRowColors: { type: Boolean, default: true },
   sortOrder: { type: Number, default: 0 },
   archived: { type: Boolean, default: false },
 });

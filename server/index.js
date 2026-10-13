@@ -97,6 +97,8 @@ app.use("/api/bible", bibleRoutes);
 // Planning Center (modul „Planificare") — TOT codul în server/planning-center/.
 // Aceasta e SINGURA atingere din afara folderului (cerință user: un folder părinte).
 app.use("/api/pc", require("./planning-center"));
+// Endpoint PUBLIC (fără auth) pt. Accept/Decline din emailul de programare (token în link).
+app.use("/api/pc-respond", require("./planning-center/public"));
 
 app.get("/api/health", (req, res) => {
   res.json({ status: "OK", message: "Laudarosii API funcționeaza" });

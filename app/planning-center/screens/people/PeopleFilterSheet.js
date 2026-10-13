@@ -1,26 +1,24 @@
 /**
  * Bottom-sheet Filter — identic cu screenshot-urile (§9 [PEOPLE-FILTER]).
- * Tab-uri: TEAMS (Teams/Positions + checkbox-uri + My Teams + Deselect All) / TAGS (chip-uri) / PERMISSIONS (dropdown).
+ * Tab-uri: TEAMS (Teams/Positions + checkbox + My Teams + Deselect All) / TAGS (chip-uri) / PERMISSIONS (dropdown).
+ * Design uniformizat prin primitive (ui/). Aplică-pe-închidere (X) — ca în PCO (fără buton „Apply").
  */
 import React, { useState, useMemo } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { PcBottomSheet } from "../../components";
+import {
+  PcBottomSheet, PcUnderlineTabs, PcSegmented, PcChip, PcCheckbox,
+} from "../../components";
 import { pcColors } from "../../theme";
 
-const TABS = ["TEAMS", "TAGS", "PERMISSIONS"];
 const PERM_LABELS = {
-  any: "Any",
-  scheduledViewer: "Scheduled Viewer",
-  viewer: "Viewer",
-  scheduler: "Scheduler",
-  editor: "Editor",
-  administrator: "Administrator",
+  any: "Any", scheduledViewer: "Scheduled Viewer", viewer: "Viewer",
+  scheduler: "Scheduler", editor: "Editor", administrator: "Administrator",
 };
 
 export function PeopleFilterSheet({ visible, onClose, data, value, onApply, resultCount }) {
   const [tab, setTab] = useState("TEAMS");
-  const [teamMode, setTeamMode] = useState("Teams"); // Teams | Positions
+  const [teamMode, setTeamMode] = useState("Teams");
   const [teamIds, setTeamIds] = useState(value.teamIds || []);
   const [tagIds, setTagIds] = useState(value.tagIds || []);
   const [minPermission, setMinPermission] = useState(value.minPermission || "any");
@@ -30,97 +28,70 @@ export function PeopleFilterSheet({ visible, onClose, data, value, onApply, resu
   const positions = data?.positions || [];
   const tagGroups = data?.tagGroups || [];
   const permLevels = data?.permissionLevels || ["any"];
-
   const allTeamIds = useMemo(() => teams.map((t) => String(t.id)), [teams]);
   const allSelected = teamIds.length > 0 && teamIds.length === allTeamIds.length;
 
-  const toggle = (list, setter, id) => {
-    const s = String(id);
-    setter(list.map(String).includes(s) ? list.filter((x) => String(x) !== s) : [...list, s]);
+  const has = (list, id) => list.map(String).includes(String(id));
+  const toggle = (list, setter, id) =>
+    setter(has(list, id) ? list.filter((x) => String(x) !== String(id)) : [...list, String(id)]);
+
+  const applyAndClose = () => {
+    onApply({ teamIds, tagIds, minPermission: minPermission === "any" ? "" : minPermission });
+    onClose();
   };
-
-  const apply = (overrides = {}) =>
-    onApply({ teamIds, tagIds, minPermission: minPermission === "any" ? "" : minPermission, ...overrides });
-
   const reset = () => {
-    setTeamIds([]);
-    setTagIds([]);
-    setMinPermission("any");
+    setTeamIds([]); setTagIds([]); setMinPermission("any");
     onApply({ teamIds: [], tagIds: [], minPermission: "" });
   };
 
   return (
-    <PcBottomSheet visible={visible} onClose={onClose} maxHeightPct={0.9}>
-      {/* Header */}
+    <PcBottomSheet visible={visible} onClose={applyAndClose} maxHeightPct={0.9}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Filter</Text>
           <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
             <Text style={styles.count}>{resultCount} Results</Text>
-            <Pressable onPress={reset} hitSlop={8}>
-              <Text style={styles.reset}>  RESET</Text>
-            </Pressable>
+            <Pressable onPress={reset} hitSlop={8}><Text style={styles.reset}>  RESET</Text></Pressable>
           </View>
         </View>
-        <Pressable onPress={() => { apply(); onClose(); }} hitSlop={10}>
+        <Pressable onPress={applyAndClose} hitSlop={10}>
           <Ionicons name="close" size={26} color={pcColors.textPrimary} />
         </Pressable>
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        {TABS.map((t) => (
-          <Pressable key={t} style={styles.tab} onPress={() => setTab(t)}>
-            <Text style={[styles.tabTxt, tab === t && styles.tabTxtOn]}>{t}</Text>
-            {tab === t && <View style={styles.tabUnderline} />}
-          </Pressable>
-        ))}
-      </View>
+      <PcUnderlineTabs
+        tabs={[
+          { key: "TEAMS", label: "TEAMS" },
+          { key: "TAGS", label: "TAGS" },
+          { key: "PERMISSIONS", label: "PERMISSIONS" },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
 
-      <ScrollView style={{ maxHeight: 440 }} contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
+      <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
         {tab === "TEAMS" && (
           <>
-            <View style={styles.segment}>
-              {["Teams", "Positions"].map((m) => (
-                <Pressable
-                  key={m}
-                  style={[styles.segBtn, teamMode === m && styles.segBtnOn]}
-                  onPress={() => setTeamMode(m)}
-                >
-                  <Text style={[styles.segTxt, teamMode === m && styles.segTxtOn]}>{m}</Text>
-                </Pressable>
-              ))}
-            </View>
-
+            <PcSegmented options={["Teams", "Positions"]} value={teamMode} onChange={setTeamMode} style={{ marginBottom: 16 }} />
             <View style={styles.rowBetween}>
               <Text style={styles.dropdownLabel}>My Teams ▾</Text>
               <Pressable onPress={() => setTeamIds(allSelected ? [] : allTeamIds)}>
                 <Text style={styles.reset}>{allSelected ? "Deselect All" : "Select All"}</Text>
               </Pressable>
             </View>
-
             {teamMode === "Teams"
-              ? teams.map((t) => {
-                  const on = teamIds.map(String).includes(String(t.id));
-                  return (
-                    <Pressable key={String(t.id)} style={styles.checkRow} onPress={() => toggle(teamIds, setTeamIds, t.id)}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.checkName}>{t.name}</Text>
-                        {!!t.serviceTypeName && <Text style={styles.checkSub}>{t.serviceTypeName}</Text>}
-                      </View>
-                      <View style={[styles.checkbox, on && styles.checkboxOn]}>
-                        {on && <Ionicons name="checkmark" size={16} color="#000" />}
-                      </View>
-                    </Pressable>
-                  );
-                })
+              ? teams.map((t) => (
+                  <Pressable key={String(t.id)} style={styles.checkRow} onPress={() => toggle(teamIds, setTeamIds, t.id)}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.checkName}>{t.name}</Text>
+                      {!!t.serviceTypeName && <Text style={styles.checkSub}>{t.serviceTypeName}</Text>}
+                    </View>
+                    <PcCheckbox checked={has(teamIds, t.id)} onPress={() => toggle(teamIds, setTeamIds, t.id)} />
+                  </Pressable>
+                ))
               : (
                 <View style={styles.chipsWrap}>
-                  {positions.map((p) => (
-                    <Pressable key={String(p.id)} style={styles.chip}>
-                      <Text style={styles.chipTxt}>{p.name}</Text>
-                    </Pressable>
-                  ))}
+                  {positions.map((p) => <PcChip key={String(p.id)} label={p.name} />)}
                   {positions.length === 0 && <Text style={styles.empty}>Nicio poziție.</Text>}
                 </View>
               )}
@@ -133,18 +104,9 @@ export function PeopleFilterSheet({ visible, onClose, data, value, onApply, resu
               {!!g.category && <Text style={styles.tagCategory}>{g.category}</Text>}
               <Text style={styles.tagGroupName}>{g.name}</Text>
               <View style={styles.chipsWrap}>
-                {g.tags.map((tag) => {
-                  const on = tagIds.map(String).includes(String(tag.id));
-                  return (
-                    <Pressable
-                      key={String(tag.id)}
-                      style={[styles.tagChip, on && styles.tagChipOn]}
-                      onPress={() => toggle(tagIds, setTagIds, tag.id)}
-                    >
-                      <Text style={[styles.tagChipTxt, on && styles.tagChipTxtOn]}>{tag.name}</Text>
-                    </Pressable>
-                  );
-                })}
+                {g.tags.map((tag) => (
+                  <PcChip key={String(tag.id)} label={tag.name} selected={has(tagIds, tag.id)} onPress={() => toggle(tagIds, setTagIds, tag.id)} />
+                ))}
               </View>
             </View>
           ))}
@@ -161,11 +123,7 @@ export function PeopleFilterSheet({ visible, onClose, data, value, onApply, resu
             {permOpen && (
               <View style={styles.permMenu}>
                 {permLevels.map((lvl) => (
-                  <Pressable
-                    key={lvl}
-                    style={styles.permOption}
-                    onPress={() => { setMinPermission(lvl); setPermOpen(false); }}
-                  >
+                  <Pressable key={lvl} style={styles.permOption} onPress={() => { setMinPermission(lvl); setPermOpen(false); }}>
                     <Text style={styles.permOptionTxt}>{PERM_LABELS[lvl] || lvl}</Text>
                   </Pressable>
                 ))}
@@ -174,10 +132,6 @@ export function PeopleFilterSheet({ visible, onClose, data, value, onApply, resu
           </View>
         )}
       </ScrollView>
-
-      <Pressable style={styles.applyBtn} onPress={() => { apply(); onClose(); }}>
-        <Text style={styles.applyTxt}>Aplică</Text>
-      </Pressable>
     </PcBottomSheet>
   );
 }
@@ -187,32 +141,14 @@ const styles = StyleSheet.create({
   title: { color: pcColors.textPrimary, fontSize: 22, fontWeight: "700" },
   count: { color: pcColors.textSecondary, fontSize: 14 },
   reset: { color: pcColors.primary, fontSize: 14, fontWeight: "700" },
-  tabs: { flexDirection: "row", borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: pcColors.divider },
-  tab: { flex: 1, alignItems: "center", paddingVertical: 12 },
-  tabTxt: { color: pcColors.textSecondary, fontWeight: "700", fontSize: 13, letterSpacing: 0.5 },
-  tabTxtOn: { color: pcColors.primary },
-  tabUnderline: { position: "absolute", bottom: 0, height: 2, width: "70%", backgroundColor: pcColors.primary },
-  segment: { flexDirection: "row", alignSelf: "center", borderWidth: 1, borderColor: pcColors.primary, borderRadius: 8, overflow: "hidden", marginBottom: 16 },
-  segBtn: { paddingVertical: 10, paddingHorizontal: 28 },
-  segBtnOn: { backgroundColor: "rgba(134,193,63,0.12)" },
-  segTxt: { color: pcColors.textSecondary, fontWeight: "700" },
-  segTxtOn: { color: pcColors.primary },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: pcColors.divider, paddingBottom: 10 },
   dropdownLabel: { color: pcColors.textPrimary, fontSize: 16, fontWeight: "600" },
   checkRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: pcColors.divider },
   checkName: { color: pcColors.textPrimary, fontSize: 16, fontWeight: "600" },
   checkSub: { color: pcColors.textSecondary, fontSize: 13, marginTop: 2 },
-  checkbox: { width: 26, height: 26, borderRadius: 6, borderWidth: 2, borderColor: pcColors.chipBorder, alignItems: "center", justifyContent: "center" },
-  checkboxOn: { backgroundColor: pcColors.primary, borderColor: pcColors.primary },
   chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 10 },
-  chip: { borderWidth: 1, borderColor: pcColors.chipBorder, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9 },
-  chipTxt: { color: pcColors.textPrimary, fontWeight: "600" },
   tagCategory: { color: pcColors.textPrimary, fontSize: 16, fontWeight: "700", marginBottom: 10 },
   tagGroupName: { color: pcColors.textPrimary, fontSize: 15, fontWeight: "600" },
-  tagChip: { borderWidth: 1, borderColor: pcColors.chipBorder, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9 },
-  tagChipOn: { borderColor: pcColors.primary, backgroundColor: "rgba(134,193,63,0.12)" },
-  tagChipTxt: { color: pcColors.textPrimary, fontWeight: "600" },
-  tagChipTxtOn: { color: pcColors.primary },
   empty: { color: pcColors.textMuted },
   permTitle: { color: pcColors.textPrimary, fontSize: 16, fontWeight: "700", marginBottom: 12 },
   permSelect: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderBottomWidth: 1, borderBottomColor: pcColors.inputBorder, paddingVertical: 10 },
@@ -220,8 +156,6 @@ const styles = StyleSheet.create({
   permMenu: { backgroundColor: pcColors.card, borderRadius: 10, marginTop: 8, overflow: "hidden" },
   permOption: { paddingVertical: 16, paddingHorizontal: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: pcColors.divider },
   permOptionTxt: { color: pcColors.textPrimary, fontSize: 16, fontWeight: "600" },
-  applyBtn: { backgroundColor: pcColors.primary, marginHorizontal: 16, marginTop: 4, borderRadius: 10, paddingVertical: 14, alignItems: "center" },
-  applyTxt: { color: "#0A0A0A", fontWeight: "700", fontSize: 16 },
 });
 
 export default PeopleFilterSheet;

@@ -127,7 +127,23 @@ async function can(req, capability) {
       return atLeast(lvl, "editor");
     case "people.removeArchiveAny":
       return atLeast(lvl, "administrator") && atLeast(lvl, def.whoCanDeleteAnything);
-    case "people.editTags":
+    case "people.editTags": // creare/ștergere taxonomie tag-uri
+      return atLeast(lvl, "editor");
+    case "people.assignTags": // asignare/scoatere tag pe o persoană (doc #24: schedulers pot)
+      return atLeast(lvl, "scheduler");
+    case "services.manageServiceTypes": // creare/ștergere service types (§5.6: administrator)
+      return atLeast(lvl, "administrator");
+    case "services.addPlan": // adăugare plan (§5.6: editor+)
+      return atLeast(lvl, "editor");
+    case "services.editOrder": // editare order of service (§5.6: editor+)
+      return atLeast(lvl, "editor");
+    case "services.schedule": // programare oameni (§5.6: scheduler pe echipele lui+)
+      return atLeast(lvl, "scheduler");
+    case "songs.edit": // creare/editare cântece/aranjamente/chei (§5.2 song editor+)
+      return atLeast(lvl, "editor") || ["editor", "administrator"].includes(eff.songLevel);
+    case "media.edit": // creare/editare media library (§5.2 media editor+)
+      return atLeast(lvl, "editor") || ["editor", "administrator"].includes(eff.mediaLevel);
+    case "reports.view": // rapoarte (editor+ — ca în PCO „editor permissions to create reports")
       return atLeast(lvl, "editor");
     default:
       return false;

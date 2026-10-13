@@ -50,6 +50,7 @@ const sendEmail = async ({ to, bcc, subject, text, html, replyTo }) => {
     });
     return { sent: 1 };
   } catch (e) {
+    console.error("[email] sendEmail failed:", e.message);
     return { sent: 0, error: true };
   }
 };

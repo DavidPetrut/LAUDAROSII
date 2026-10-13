@@ -1,12 +1,14 @@
-/** Edit Contact Info (§9 [EDIT-CONTACT]) — nume + emails + phones (+ Enable Text) + adrese. */
+/** Edit Contact Info (§9 [EDIT-CONTACT]) — folosește primitivele globale (PcScreen/PcButton/PcCheckbox). */
 import React, { useEffect, useState, useCallback } from "react";
 import { View, Text, TextInput, ScrollView, Pressable, ActivityIndicator, StyleSheet, Keyboard } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showError, showSuccess } from "../../../global/functions";
 import { pcApi } from "../../api/pcApi";
+import { uploadAsset } from "../../api/upload";
 import { pcColors } from "../../theme";
-import { PcAvatar } from "../../components";
+import { PcScreen, PcAvatar, PcButton, PcCheckbox, PcDateField } from "../../components";
 
 export function EditContactScreen({ route, navigation }) {
   const { personId } = route.params || {};
@@ -18,6 +20,9 @@ export function EditContactScreen({ route, navigation }) {
   const [lastName, setLastName] = useState("");
   const [emails, setEmails] = useState([]);
   const [phones, setPhones] = useState([]);
+  const [birthDate, setBirthDate] = useState("");
+  const [anniversary, setAnniversary] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -28,6 +33,8 @@ export function EditContactScreen({ route, navigation }) {
       setLastName(p.lastName || "");
       setEmails(p.emails?.length ? p.emails : []);
       setPhones(p.phones?.length ? p.phones : []);
+      setBirthDate(p.birthdate ? String(p.birthdate).slice(0, 10) : "");
+      setAnniversary(p.anniversary ? String(p.anniversary).slice(0, 10) : "");
     } catch (e) {
       showError(e?.message || "Nu s-a putut încărca.");
     } finally {
@@ -36,6 +43,20 @@ export function EditContactScreen({ route, navigation }) {
   }, [personId]);
 
   useEffect(() => { load(); }, [load]);
+
+  const updatePhoto = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (perm.status !== "granted") return showError("Permisiunea pentru galerie e necesară.");
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.8 });
+      if (res.canceled || !res.assets?.[0]) return;
+      const a = res.assets[0];
+      setUploading(true);
+      const r = await uploadAsset({ uri: a.uri, name: a.fileName || "avatar.jpg", mimeType: a.mimeType || "image/jpeg" });
+      if (r?.url) { setAvatar(r.url); showSuccess("Poză urcată."); }
+    } catch (e) { showError(e?.message || "Eroare la poză."); }
+    finally { setUploading(false); }
+  };
 
   const save = async () => {
     Keyboard.dismiss();
@@ -47,6 +68,9 @@ export function EditContactScreen({ route, navigation }) {
         lastName: lastName.trim(),
         emails: emails.filter((e) => e.address?.trim()),
         phones: phones.filter((p) => p.number?.trim()),
+        avatar,
+        birthdate: birthDate || null,
+        anniversary: anniversary || null,
       });
       showSuccess("Contact salvat");
       navigation.goBack();
@@ -61,7 +85,7 @@ export function EditContactScreen({ route, navigation }) {
   const setPhone = (i, patch) => setPhones((arr) => arr.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
 
   return (
-    <View style={styles.container}>
+    <PcScreen>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={10}>
           <Ionicons name="close" size={26} color={pcColors.primary} />
@@ -78,9 +102,7 @@ export function EditContactScreen({ route, navigation }) {
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled">
           <View style={{ alignItems: "center", marginBottom: 20 }}>
             <PcAvatar uri={avatar} initials={(firstName[0] || "") + (lastName[0] || "")} size={110} />
-            <Pressable style={styles.photoBtn} onPress={() => {}}>
-              <Text style={styles.photoTxt}>Update Photo</Text>
-            </Pressable>
+            <PcButton variant="outline" title={uploading ? "Se urcă…" : "Update Photo"} onPress={updatePhoto} loading={uploading} style={{ marginTop: 14, paddingVertical: 10, paddingHorizontal: 24 }} />
           </View>
 
           <View style={styles.nameRow}>
@@ -143,12 +165,10 @@ export function EditContactScreen({ route, navigation }) {
                       <Ionicons name="close" size={20} color={pcColors.textMuted} />
                     </Pressable>
                   </View>
-                  <Pressable style={styles.checkRow} onPress={() => setPhone(i, { enableText: !p.enableText })}>
-                    <View style={[styles.checkbox, p.enableText && styles.checkboxOn]}>
-                      {p.enableText && <Ionicons name="checkmark" size={14} color="#000" />}
-                    </View>
+                  <View style={styles.checkRow}>
+                    <PcCheckbox size={22} checked={!!p.enableText} onPress={() => setPhone(i, { enableText: !p.enableText })} />
                     <Text style={styles.checkLabel}>Enable Text Messaging</Text>
-                  </Pressable>
+                  </View>
                   <View style={styles.line} />
                 </View>
               ))}
@@ -160,19 +180,37 @@ export function EditContactScreen({ route, navigation }) {
               </Pressable>
             </View>
           </View>
+
+          {/* Birth Date / Anniversary */}
+          <View style={styles.section}>
+            <Ionicons name="calendar" size={22} color={pcColors.textMuted} style={{ marginTop: 8, marginRight: 12 }} />
+            <View style={{ flex: 1 }}>
+              <View style={styles.dateRow}>
+                <Text style={styles.fieldLoc}>Birth Date</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <PcDateField value={birthDate} onChange={setBirthDate} placeholder="N/A" style={{ minWidth: 150 }} />
+                  {!!birthDate && <Pressable onPress={() => setBirthDate("")} hitSlop={8}><Ionicons name="close" size={18} color={pcColors.textMuted} /></Pressable>}
+                </View>
+              </View>
+              <View style={[styles.dateRow, { marginTop: 14 }]}>
+                <Text style={styles.fieldLoc}>Anniversary</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <PcDateField value={anniversary} onChange={setAnniversary} placeholder="N/A" style={{ minWidth: 150 }} />
+                  {!!anniversary && <Pressable onPress={() => setAnniversary("")} hitSlop={8}><Ionicons name="close" size={18} color={pcColors.textMuted} /></Pressable>}
+                </View>
+              </View>
+            </View>
+          </View>
         </ScrollView>
       )}
-    </View>
+    </PcScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: pcColors.bg },
   header: { backgroundColor: pcColors.bgHeader, paddingHorizontal: 16, paddingBottom: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerTitle: { color: pcColors.textPrimary, fontSize: 20, fontWeight: "700", flex: 1, marginLeft: 12 },
   save: { color: pcColors.primary, fontSize: 16, fontWeight: "700", letterSpacing: 0.5 },
-  photoBtn: { borderWidth: 1, borderColor: pcColors.primary, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 24, marginTop: 14 },
-  photoTxt: { color: pcColors.primary, fontWeight: "700" },
   nameRow: { flexDirection: "row", marginBottom: 20 },
   input: { color: pcColors.textPrimary, fontSize: 18, fontWeight: "600", paddingVertical: 6 },
   line: { height: StyleSheet.hairlineWidth, backgroundColor: pcColors.inputBorder, marginTop: 6 },
@@ -182,9 +220,8 @@ const styles = StyleSheet.create({
   fieldInput: { flex: 1, color: pcColors.textPrimary, fontSize: 16, textAlign: "right", paddingVertical: 6 },
   addLink: { color: pcColors.primary, fontWeight: "700", fontSize: 15, marginTop: 6 },
   checkRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14 },
-  checkbox: { width: 22, height: 22, borderRadius: 5, borderWidth: 2, borderColor: pcColors.chipBorder, alignItems: "center", justifyContent: "center" },
-  checkboxOn: { backgroundColor: pcColors.primary, borderColor: pcColors.primary },
   checkLabel: { color: pcColors.textSecondary, fontSize: 16 },
+  dateRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
 });
 
 export default EditContactScreen;
