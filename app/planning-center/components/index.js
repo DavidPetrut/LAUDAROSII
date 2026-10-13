@@ -3,6 +3,7 @@ export { PcTabBar } from "./PcTabBar";
 export { PcBottomSheet } from "./PcBottomSheet";
 export { PcHeader } from "./PcHeader";
 export { PcMiniPlayer } from "./PcMiniPlayer";
+export { PcExitHandle } from "./PcExitHandle";
 
 // Design system globalizat (primitive uniformizate din screenshot-uri).
 export * from "./ui";

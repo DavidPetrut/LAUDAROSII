@@ -8,7 +8,7 @@ import { View } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
-import { PcTabBar, PcMiniPlayer } from "../components";
+import { PcTabBar, PcMiniPlayer, PcExitHandle } from "../components";
 import { pcColors } from "../theme";
 import {
   PeopleListScreen,
@@ -63,6 +63,7 @@ export function PlanningCenterNavigator() {
       <View style={{ flex: 1, backgroundColor: pcColors.bg }}>
         <PcStack />
         <PcMiniPlayer />
+        <PcExitHandle />
       </View>
     </PcAudioProvider>
   );
