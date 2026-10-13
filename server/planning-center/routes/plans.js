@@ -744,6 +744,62 @@ router.get("/:id/files", requireCan("people.view"), async (req, res) => {
   }
 });
 
+/* ───────── POST /:id/duplicate — TEMPLATE: repetă planul pe N săptămâni (order + opțional teams) ─────────
+   Copiază order items + timpii (decalați cu 7*i zile) + opțional echipele (ca cerere NOUĂ: unconfirmed,
+   neprepared, fără token/notificare). Așa poți seta același serviciu pe tot anul (max 52 săpt.). */
+router.post("/:id/duplicate", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const srcId = OID(req.params.id);
+    if (!srcId) return res.status(400).json({ error: "ID invalid" });
+    const src = await PcPlan.findOne(scoped(req, { _id: srcId })).lean();
+    if (!src) return res.status(404).json({ error: "Plan inexistent." });
+
+    const weeks = Math.max(1, Math.min(52, parseInt(req.body?.weeks, 10) || 1));
+    const includeTeams = req.body?.includeTeams !== false; // implicit true
+    const includeOrder = req.body?.includeOrder !== false; // implicit true
+
+    const [srcItems, srcTimes, srcAssigns] = await Promise.all([
+      includeOrder ? PcPlanItem.find(scoped(req, { planId: srcId })).sort({ sortOrder: 1 }).lean() : [],
+      PcPlanTime.find(scoped(req, { planId: srcId })).lean(),
+      includeTeams ? PcAssignment.find(scoped(req, { planId: srcId })).lean() : [],
+    ]);
+
+    const clean = (o) => { const { _id, planId, orgId, createdAt, updatedAt, __v, deletedAt, ...rest } = o; return rest; };
+    const created = [];
+    for (let i = 1; i <= weeks; i++) {
+      const addDays = (dt) => { const d = new Date(dt); d.setDate(d.getDate() + 7 * i); return d; };
+      const plan = await PcPlan.create(stamp(req, { serviceTypeId: src.serviceTypeId, title: src.title, sortDate: addDays(src.sortDate) }));
+
+      // Timpii planului (decalați) + hartă vechi→nou pentru remaparea timeIds.
+      const timeMap = {};
+      for (const t of srcTimes) {
+        const base = clean(t);
+        const nt = await PcPlanTime.create(stamp(req, { ...base, planId: plan._id, startsAt: base.startsAt ? addDays(base.startsAt) : base.startsAt }));
+        timeMap[String(t._id)] = nt._id;
+      }
+      const remap = (ids) => (ids || []).map((x) => timeMap[String(x)]).filter(Boolean);
+
+      for (const it of srcItems) {
+        const base = clean(it);
+        await PcPlanItem.create(stamp(req, { ...base, planId: plan._id, timeIds: remap(base.timeIds) }));
+      }
+      if (includeTeams) for (const a of srcAssigns) {
+        const base = clean(a);
+        await PcAssignment.create(stamp(req, {
+          ...base, planId: plan._id, timeIds: remap(base.timeIds),
+          status: "unconfirmed", prepared: false, notificationSentAt: null, responseToken: null,
+          acceptedAt: null, declinedAt: null, declinedAfterConfirm: false, declineReason: "", source: "template",
+        }));
+      }
+      created.push(plan._id);
+    }
+    res.json({ ok: true, created: created.length, planIds: created });
+  } catch (err) {
+    console.error("[pc] POST /plans/:id/duplicate:", err.message);
+    res.status(500).json({ error: "Eroare la duplicare: " + err.message });
+  }
+});
+
 /* ───────── GET /:id/rehearse — cântecele planului asamblate pt. Media Player / Songbook / Music Stand ───────── */
 router.get("/:id/rehearse", requireCan("people.view"), async (req, res) => {
   try {

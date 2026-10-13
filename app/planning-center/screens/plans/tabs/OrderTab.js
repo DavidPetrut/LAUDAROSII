@@ -2,6 +2,7 @@
 import React, { useState, useCallback } from "react";
 import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { showError, showInfo } from "../../../../global/functions";
 import { pcApi } from "../../../api/pcApi";
@@ -18,6 +19,8 @@ const ADD_TYPES = [
 
 export function OrderTab({ planId, navigation, head }) {
   const { me } = usePc();
+  const insets = useSafeAreaInsets();
+  const bottomSafe = insets.bottom > 0 ? insets.bottom : 10; // nu lăsa FAB-ul/lista sub bara nativă (Samsung)
   const canEdit = !!me?.capabilities?.editOrder;
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -115,12 +118,12 @@ export function OrderTab({ planId, navigation, head }) {
             </View>
           )
         }
-        contentContainerStyle={{ paddingBottom: 110 }}
+        contentContainerStyle={{ paddingBottom: bottomSafe + 100 }}
         showsVerticalScrollIndicator={false}
       />
 
       {canEdit && items.length > 0 && (
-        <Pressable style={styles.fab} onPress={() => setAddOpen(true)}>
+        <Pressable style={[styles.fab, { bottom: bottomSafe + 16 }]} onPress={() => setAddOpen(true)}>
           <Ionicons name="add" size={30} color="#0A0A0A" />
         </Pressable>
       )}

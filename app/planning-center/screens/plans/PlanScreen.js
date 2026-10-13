@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showError, showInfo } from "../../../global/functions";
 import { pcApi } from "../../api/pcApi";
 import { pcColors } from "../../theme";
-import { PcScreen, PcAvatar, PcIconButton, PcUnderlineTabs, PcBottomSheet } from "../../components";
+import { PcScreen, PcAvatar, PcIconButton, PcUnderlineTabs, PcBottomSheet, PcButton } from "../../components";
 import { usePc } from "../../navigation/PcContext";
 import { OrderTab } from "./tabs/OrderTab";
 import { TeamsTab } from "./tabs/TeamsTab";
@@ -29,12 +29,15 @@ const TABS = [
 ];
 
 const MENU = [
+  { key: "duplicate", label: "Repetă pe săptămâni (template)", icon: "copy-outline" },
   { key: "rename", label: "Rename plan", icon: "create-outline" },
   { key: "print", label: "Print report", icon: "print-outline" },
   { key: "live", label: "Services LIVE", icon: "radio-outline" },
   { key: "stand", label: "Open in Music Stand", icon: "musical-notes-outline" },
   { key: "copy", label: "Copy plan link", icon: "link-outline" },
 ];
+
+const WEEK_OPTIONS = [2, 4, 8, 12, 26, 52];
 
 export function PlanScreen({ route, navigation }) {
   const { planId } = route.params || {};
@@ -44,6 +47,10 @@ export function PlanScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("ORDER");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [dupOpen, setDupOpen] = useState(false);
+  const [dupWeeks, setDupWeeks] = useState(4);
+  const [dupTeams, setDupTeams] = useState(true);
+  const [dupBusy, setDupBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -54,6 +61,31 @@ export function PlanScreen({ route, navigation }) {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const goPlan = (id) => id && navigation.replace("PcPlan", { planId: id });
+  const [responding, setResponding] = useState(false);
+
+  // Accept/Decline direct din Plan (nu doar din Schedule). Lovește ACEEAȘI rută → se sincronizează
+  // cu My Schedule (statusul programării se actualizează la fel ca și cum ai răspunde din Schedule).
+  const respondPlan = useCallback(async (action) => {
+    if (responding) return;
+    setResponding(true);
+    try {
+      await pcApi.schedule.planRespond(planId, action);
+      await load();
+      showInfo(action === "accept" ? "Ai confirmat programarea." : "Ai refuzat programarea.");
+    } catch (e) { showError(e?.message || "Eroare la răspuns."); }
+    finally { setResponding(false); }
+  }, [responding, planId, load]);
+
+  const doDuplicate = useCallback(async () => {
+    if (dupBusy) return;
+    setDupBusy(true);
+    try {
+      const r = await pcApi.plans.duplicate(planId, { weeks: dupWeeks, includeTeams: dupTeams });
+      setDupOpen(false);
+      showInfo(`Am creat ${r?.created || dupWeeks} planuri (câte unul pe săptămână).`);
+    } catch (e) { showError(e?.message || "Eroare la duplicare."); }
+    finally { setDupBusy(false); }
+  }, [dupBusy, planId, dupWeeks, dupTeams]);
 
   // Blocul titlu + prev/next + dată + chip-uri asignare. Pe ORDER îl dăm ca `head` scrollabil
   // (se ridică la scroll); pe celelalte tab-uri îl afișăm fix deasupra conținutului.
@@ -85,6 +117,13 @@ export function PlanScreen({ route, navigation }) {
           </Text>
         </View>
       ))}
+      {/* Dacă am poziții la care încă n-am răspuns → Accept/Decline chiar de aici (sync cu Schedule). */}
+      {head.myAssignments?.some((a) => !a.confirmed && !a.declined) && (
+        <View style={styles.respondRow}>
+          <PcButton title="Accept" icon="checkmark" onPress={() => respondPlan("accept")} disabled={responding} style={styles.respondBtn} />
+          <PcButton title="Decline" variant="outline" icon="close" onPress={() => respondPlan("decline")} disabled={responding} style={styles.respondBtn} />
+        </View>
+      )}
     </View>
   ) : null;
 
@@ -132,11 +171,36 @@ export function PlanScreen({ route, navigation }) {
       <PcBottomSheet visible={menuOpen} onClose={() => setMenuOpen(false)} maxHeightPct={0.5}>
         <View style={{ paddingHorizontal: 8, paddingBottom: 8 }}>
           {MENU.map((m) => (
-            <Pressable key={m.key} style={styles.menuRow} onPress={() => { setMenuOpen(false); showInfo(`${m.label} — în curând`); }}>
+            <Pressable
+              key={m.key}
+              style={styles.menuRow}
+              onPress={() => { setMenuOpen(false); if (m.key === "duplicate") setDupOpen(true); else showInfo(`${m.label} — în curând`); }}
+            >
               <Ionicons name={m.icon} size={22} color={pcColors.textPrimary} />
               <Text style={styles.menuTxt}>{m.label}</Text>
             </Pressable>
           ))}
+        </View>
+      </PcBottomSheet>
+
+      {/* Template: repetă planul pe N săptămâni (order + opțional echipe) */}
+      <PcBottomSheet visible={dupOpen} onClose={() => setDupOpen(false)} maxHeightPct={0.6}>
+        <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+          <Text style={styles.dupTitle}>Repetă acest plan</Text>
+          <Text style={styles.dupSub}>Creez câte un plan identic (order{dupTeams ? " + echipe" : ""}) în fiecare săptămână, pornind de la săptămâna următoare.</Text>
+          <Text style={styles.dupLabel}>Câte săptămâni?</Text>
+          <View style={styles.weekRow}>
+            {WEEK_OPTIONS.map((w) => (
+              <Pressable key={w} style={[styles.weekChip, dupWeeks === w && styles.weekChipOn]} onPress={() => setDupWeeks(w)}>
+                <Text style={[styles.weekTxt, dupWeeks === w && styles.weekTxtOn]}>{w}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable style={styles.teamsRow} onPress={() => setDupTeams((v) => !v)}>
+            <Ionicons name={dupTeams ? "checkbox" : "square-outline"} size={24} color={dupTeams ? pcColors.primary : pcColors.textMuted} />
+            <Text style={styles.teamsTxt}>Copiază și echipele (ca cerere nouă, de confirmat)</Text>
+          </Pressable>
+          <PcButton title={dupBusy ? "Se creează…" : `Creează ${dupWeeks} planuri`} onPress={doDuplicate} disabled={dupBusy} style={{ marginTop: 16 }} />
         </View>
       </PcBottomSheet>
     </PcScreen>
@@ -155,8 +219,20 @@ const styles = StyleSheet.create({
   assignChip: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#1C2714", borderRadius: 8, paddingVertical: 10, paddingHorizontal: 10, marginTop: 10 },
   assignTxt: { color: pcColors.textPrimary, fontSize: 15, fontWeight: "700" },
   assignTeam: { color: pcColors.textMuted, fontWeight: "500" },
+  respondRow: { flexDirection: "row", gap: 10, marginTop: 12 },
+  respondBtn: { flex: 1, paddingVertical: 11 },
   menuRow: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 15, paddingHorizontal: 12 },
   menuTxt: { color: pcColors.textPrimary, fontSize: 16, fontWeight: "600" },
+  dupTitle: { color: pcColors.textPrimary, fontSize: 19, fontWeight: "800", marginBottom: 6 },
+  dupSub: { color: pcColors.textSecondary, fontSize: 14, lineHeight: 20, marginBottom: 16 },
+  dupLabel: { color: pcColors.textSecondary, fontSize: 13, fontWeight: "700", letterSpacing: 0.5, marginBottom: 10 },
+  weekRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  weekChip: { minWidth: 52, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 10, backgroundColor: pcColors.input, borderWidth: 1, borderColor: pcColors.inputBorder, alignItems: "center" },
+  weekChipOn: { backgroundColor: pcColors.tabActivePill, borderColor: pcColors.primary },
+  weekTxt: { color: pcColors.textPrimary, fontSize: 16, fontWeight: "700" },
+  weekTxtOn: { color: pcColors.primary },
+  teamsRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 16, marginTop: 6 },
+  teamsTxt: { color: pcColors.textPrimary, fontSize: 15, flex: 1 },
 });
 
 export default PlanScreen;

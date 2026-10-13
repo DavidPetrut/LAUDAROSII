@@ -54,6 +54,7 @@ export const pcApi = {
     times: (id) => api.get(`${B}/plans/${id}/times`),
     notes: (id) => api.get(`${B}/plans/${id}/notes`),
     files: (id) => api.get(`${B}/plans/${id}/files`),
+    duplicate: (id, body) => api.post(`${B}/plans/${id}/duplicate`, body),
     // Order editing
     addItem: (planId, data) => api.post(`${B}/plans/${planId}/items`, data),
     updateItem: (planId, itemId, data) => api.patch(`${B}/plans/${planId}/items/${itemId}`, data),
