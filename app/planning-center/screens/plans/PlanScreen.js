@@ -127,6 +127,8 @@ export function PlanScreen({ route, navigation }) {
     </View>
   ) : null;
 
+  const tabsBarNode = <PcUnderlineTabs tabs={TABS} value={tab} onChange={setTab} scrollable />;
+
   return (
     <PcScreen>
       {/* Header */}
@@ -150,14 +152,15 @@ export function PlanScreen({ route, navigation }) {
 
       {loading || !head ? (
         <ActivityIndicator color={pcColors.primary} style={{ marginTop: 40 }} />
+      ) : tab === "ORDER" ? (
+        // ORDER: scroll unic — titlul se ridică, bara de tab-uri devine sticky sub header (ca în PCO).
+        <OrderTab planId={planId} navigation={navigation} head={planHeadNode} tabsBar={tabsBarNode} />
       ) : (
+        // Celelalte tab-uri (conținut scurt): titlu + tab-uri fixe deasupra conținutului.
         <>
-          {/* Tab-urile rămân FIXE sub header-ul „Plan". Titlul + data se scrollează (vezi head). */}
-          <PcUnderlineTabs tabs={TABS} value={tab} onChange={setTab} scrollable />
-
+          {planHeadNode}
+          {tabsBarNode}
           <View style={{ flex: 1 }}>
-            {tab === "ORDER" && <OrderTab planId={planId} navigation={navigation} head={planHeadNode} />}
-            {tab !== "ORDER" && planHeadNode}
             {tab === "TEAMS" && <TeamsTab planId={planId} />}
             {tab === "REHEARSE" && <RehearseTab planId={planId} navigation={navigation} />}
             {tab === "TIMES" && <TimesTab planId={planId} />}

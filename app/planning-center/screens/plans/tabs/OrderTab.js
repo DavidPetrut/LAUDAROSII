@@ -1,6 +1,6 @@
 /** ORDER tab — ordinea serviciului. Play/Print/Live + secțiuni + itemi + Add (Item/Header/Song/Media). */
 import React, { useState, useCallback } from "react";
-import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
@@ -17,7 +17,7 @@ const ADD_TYPES = [
   { key: "media", label: "Media", icon: "videocam-outline", short: "m" },
 ];
 
-export function OrderTab({ planId, navigation, head }) {
+export function OrderTab({ planId, navigation, head, tabsBar }) {
   const { me } = usePc();
   const insets = useSafeAreaInsets();
   const bottomSafe = insets.bottom > 0 ? insets.bottom : 10; // nu lăsa FAB-ul/lista sub bara nativă (Samsung)
@@ -46,7 +46,7 @@ export function OrderTab({ planId, navigation, head }) {
 
   const openItem = (item) => navigation.navigate("PcItemDetail", { planId, itemId: item.id });
 
-  const renderItem = ({ item }) => {
+  const renderRow = (item) => {
     if (item.type === "header") {
       return (
         <Pressable style={styles.sectionBar} onPress={() => openItem(item)} disabled={!canEdit}>
@@ -83,44 +83,42 @@ export function OrderTab({ planId, navigation, head }) {
     );
   };
 
-  // head (titlu + dată + chip-uri asignare) + acțiuni + antetul coloanelor fac parte din zona
-  // SCROLLABILĂ → se ridică la scroll, iar sus rămân doar header-ul „Plan" + tab-urile.
-  const ListHeader = () => (
-    <View>
-      {head}
-      <View style={styles.actions}>
-        <PcButton title="Play" variant="outline" icon="play-circle-outline" onPress={() => showInfo("Media player — în curând")} style={styles.actBtn} textStyle={styles.actTxt} />
-        <PcButton title="Print" variant="outline" icon="print-outline" onPress={() => showInfo("Print report — în curând")} style={styles.actBtn} textStyle={styles.actTxt} />
-        <PcButton title="Live" variant="outline" icon="radio-outline" onPress={() => showInfo("Services LIVE — în curând")} style={styles.actBtn} textStyle={styles.actTxt} />
-      </View>
-      <View style={styles.colHeader}>
-        <Text style={styles.colLen}>Length</Text>
-        <Text style={styles.colTitle}>TITLE</Text>
-        <Ionicons name="reorder-three" size={22} color={pcColors.textMuted} />
-      </View>
-    </View>
-  );
-
+  // Scroll UNIC (ca în PCO): la început titlul+data stau DEASUPRA barei de tab-uri; când scrollezi
+  // în jos, titlul se ridică, iar bara „ORDER/TEAMS/…" se LIPEȘTE sub header-ul „Plan" (sticky).
+  // Scroll înapoi sus → totul revine la aranjarea inițială.
   return (
     <View style={{ flex: 1 }}>
-      <FlatList
-        data={loading ? [] : items}
-        keyExtractor={(it, i) => String(it.id || i)}
-        renderItem={renderItem}
-        ListHeaderComponent={ListHeader}
-        ListEmptyComponent={
-          loading ? (
-            <ActivityIndicator color={pcColors.primary} style={{ marginTop: 30 }} />
-          ) : (
-            <View style={styles.emptyWrap}>
-              <Text style={styles.empty}>No items for this plan yet</Text>
-              {canEdit && <PcButton title="Add your first item" onPress={() => setAddOpen(true)} style={{ marginTop: 14, paddingHorizontal: 24 }} />}
-            </View>
-          )
-        }
+      <ScrollView
+        stickyHeaderIndices={[1]}
         contentContainerStyle={{ paddingBottom: bottomSafe + 100 }}
         showsVerticalScrollIndicator={false}
-      />
+        keyboardShouldPersistTaps="handled"
+      >
+        {head}
+        <View style={styles.stickyTabs}>{tabsBar}</View>
+        <View>
+          <View style={styles.actions}>
+            <PcButton title="Play" variant="outline" icon="play-circle-outline" onPress={() => showInfo("Media player — în curând")} style={styles.actBtn} textStyle={styles.actTxt} />
+            <PcButton title="Print" variant="outline" icon="print-outline" onPress={() => showInfo("Print report — în curând")} style={styles.actBtn} textStyle={styles.actTxt} />
+            <PcButton title="Live" variant="outline" icon="radio-outline" onPress={() => showInfo("Services LIVE — în curând")} style={styles.actBtn} textStyle={styles.actTxt} />
+          </View>
+          <View style={styles.colHeader}>
+            <Text style={styles.colLen}>Length</Text>
+            <Text style={styles.colTitle}>TITLE</Text>
+            <Ionicons name="reorder-three" size={22} color={pcColors.textMuted} />
+          </View>
+        </View>
+        {loading ? (
+          <ActivityIndicator color={pcColors.primary} style={{ marginTop: 30 }} />
+        ) : items.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.empty}>No items for this plan yet</Text>
+            {canEdit && <PcButton title="Add your first item" onPress={() => setAddOpen(true)} style={{ marginTop: 14, paddingHorizontal: 24 }} />}
+          </View>
+        ) : (
+          items.map((it, i) => <React.Fragment key={String(it.id || i)}>{renderRow(it)}</React.Fragment>)
+        )}
+      </ScrollView>
 
       {canEdit && items.length > 0 && (
         <Pressable style={[styles.fab, { bottom: bottomSafe + 16 }]} onPress={() => setAddOpen(true)}>
@@ -148,6 +146,8 @@ export function OrderTab({ planId, navigation, head }) {
 }
 
 const styles = StyleSheet.create({
+  // Bara de tab-uri sticky are nevoie de fundal opac ca să nu se vadă conținutul pe sub ea la scroll.
+  stickyTabs: { backgroundColor: pcColors.bg },
   actions: { flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
   actBtn: { flex: 1, paddingVertical: 10, paddingHorizontal: 8 },
   actTxt: { fontSize: 14 },
