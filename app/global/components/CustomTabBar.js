@@ -115,9 +115,14 @@ export const CustomTabBar = ({ state, descriptors, navigation }) => {
 
   // Taburi permise (gol = toate). Daca lista exclude toate rutele, revenim la toate
   // (nu lasam userul fara niciun tab).
+  // „Planificare" NU e gestionat de allowedTabs (admin tool-ul nu-l cunoaste — ofera doar
+  // vechiul „Courses"), iar modulul are permisiunile LUI interne. Deci e MEREU activ, altfel
+  // conturile cu lista veche (fara „Planificare") l-ar avea disabled din greseala.
+  const ALWAYS_ON = ["Planificare"];
   const rawAllowed = user?.allowedTabs || [];
   const anyAllowed = state.routes.some((r) => rawAllowed.includes(r.name));
-  const isAllowed = (name) => rawAllowed.length === 0 || !anyAllowed || rawAllowed.includes(name);
+  const isAllowed = (name) =>
+    ALWAYS_ON.includes(name) || rawAllowed.length === 0 || !anyAllowed || rawAllowed.includes(name);
 
   // Anti-lockout: daca tabul curent nu e permis, muta pe primul permis.
   useEffect(() => {
