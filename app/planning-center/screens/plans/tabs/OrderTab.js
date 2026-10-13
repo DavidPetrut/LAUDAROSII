@@ -16,7 +16,7 @@ const ADD_TYPES = [
   { key: "media", label: "Media", icon: "videocam-outline", short: "m" },
 ];
 
-export function OrderTab({ planId, navigation }) {
+export function OrderTab({ planId, navigation, head }) {
   const { me } = usePc();
   const canEdit = !!me?.capabilities?.editOrder;
   const [items, setItems] = useState([]);
@@ -55,14 +55,16 @@ export function OrderTab({ planId, navigation }) {
       <Pressable
         style={[
           styles.row,
-          item.rowColor ? { backgroundColor: hexToRgba(item.rowColor, 0.16), borderLeftWidth: 3, borderLeftColor: item.rowColor } : null,
+          // Default: FĂRĂ fundal special (curat, ca în PCO). Dacă itemul are o culoare,
+          // o arătăm doar ca accent subtil pe margine stângă — nu umplem rândul.
+          item.rowColor ? { borderLeftWidth: 3, borderLeftColor: item.rowColor } : null,
         ]}
         onPress={() => openItem(item)}
       >
         <Text style={styles.len}>{item.lengthLabel}</Text>
         <View style={{ flex: 1 }}>
           <View style={styles.titleRow}>
-            <Text style={styles.title}>{item.title}</Text>
+            <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
             {!!item.keyName && <View style={styles.keyBadge}><Text style={styles.keyTxt}>{item.keyName}</Text></View>}
           </View>
           {!!item.description && <Text style={styles.desc}>{item.description}</Text>}
@@ -78,8 +80,11 @@ export function OrderTab({ planId, navigation }) {
     );
   };
 
-  return (
-    <View style={{ flex: 1 }}>
+  // head (titlu + dată + chip-uri asignare) + acțiuni + antetul coloanelor fac parte din zona
+  // SCROLLABILĂ → se ridică la scroll, iar sus rămân doar header-ul „Plan" + tab-urile.
+  const ListHeader = () => (
+    <View>
+      {head}
       <View style={styles.actions}>
         <PcButton title="Play" variant="outline" icon="play-circle-outline" onPress={() => showInfo("Media player — în curând")} style={styles.actBtn} textStyle={styles.actTxt} />
         <PcButton title="Print" variant="outline" icon="print-outline" onPress={() => showInfo("Print report — în curând")} style={styles.actBtn} textStyle={styles.actTxt} />
@@ -90,21 +95,29 @@ export function OrderTab({ planId, navigation }) {
         <Text style={styles.colTitle}>TITLE</Text>
         <Ionicons name="reorder-three" size={22} color={pcColors.textMuted} />
       </View>
-      {loading ? (
-        <ActivityIndicator color={pcColors.primary} style={{ marginTop: 30 }} />
-      ) : items.length === 0 ? (
-        <View style={styles.emptyWrap}>
-          <Text style={styles.empty}>No items for this plan yet</Text>
-          {canEdit && <PcButton title="Add your first item" onPress={() => setAddOpen(true)} style={{ marginTop: 14, paddingHorizontal: 24 }} />}
-        </View>
-      ) : (
-        <FlatList
-          data={items}
-          keyExtractor={(it, i) => String(it.id || i)}
-          renderItem={renderItem}
-          contentContainerStyle={{ paddingBottom: 90 }}
-        />
-      )}
+    </View>
+  );
+
+  return (
+    <View style={{ flex: 1 }}>
+      <FlatList
+        data={loading ? [] : items}
+        keyExtractor={(it, i) => String(it.id || i)}
+        renderItem={renderItem}
+        ListHeaderComponent={ListHeader}
+        ListEmptyComponent={
+          loading ? (
+            <ActivityIndicator color={pcColors.primary} style={{ marginTop: 30 }} />
+          ) : (
+            <View style={styles.emptyWrap}>
+              <Text style={styles.empty}>No items for this plan yet</Text>
+              {canEdit && <PcButton title="Add your first item" onPress={() => setAddOpen(true)} style={{ marginTop: 14, paddingHorizontal: 24 }} />}
+            </View>
+          )
+        }
+        contentContainerStyle={{ paddingBottom: 110 }}
+        showsVerticalScrollIndicator={false}
+      />
 
       {canEdit && items.length > 0 && (
         <Pressable style={styles.fab} onPress={() => setAddOpen(true)}>
@@ -142,11 +155,12 @@ const styles = StyleSheet.create({
   sectionTxt: { color: pcColors.textMuted, fontWeight: "700", letterSpacing: 0.5, fontSize: 13 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: pcColors.divider },
   len: { color: pcColors.textSecondary, width: 60, fontSize: 15 },
-  titleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  title: { color: pcColors.textPrimary, fontSize: 17, fontWeight: "700", flexShrink: 1 },
-  keyBadge: { backgroundColor: pcColors.primary, width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-  keyTxt: { color: "#0A0A0A", fontSize: 12, fontWeight: "800" },
-  desc: { color: pcColors.textSecondary, fontSize: 14, marginTop: 4, lineHeight: 19 },
+  titleRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  title: { color: pcColors.textPrimary, fontSize: 17, fontWeight: "700", flexShrink: 1, lineHeight: 22 },
+  // Pastilă verde de cheie (ex. „Gb", „C#m") — ca în PCO, lățime automată.
+  keyBadge: { backgroundColor: pcColors.primary, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 3, minWidth: 34, alignItems: "center", justifyContent: "center", marginTop: 1 },
+  keyTxt: { color: "#0A0A0A", fontSize: 13, fontWeight: "800" },
+  desc: { color: pcColors.textSecondary, fontSize: 13.5, marginTop: 3, lineHeight: 19 },
   neededDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: pcColors.orange, alignItems: "center", justifyContent: "center" },
   neededNum: { color: "#0A0A0A", fontWeight: "800", fontSize: 12 },
   emptyWrap: { alignItems: "center", marginTop: 50 },

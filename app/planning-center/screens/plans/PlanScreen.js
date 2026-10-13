@@ -55,6 +55,39 @@ export function PlanScreen({ route, navigation }) {
 
   const goPlan = (id) => id && navigation.replace("PcPlan", { planId: id });
 
+  // Blocul titlu + prev/next + dată + chip-uri asignare. Pe ORDER îl dăm ca `head` scrollabil
+  // (se ridică la scroll); pe celelalte tab-uri îl afișăm fix deasupra conținutului.
+  const planHeadNode = head ? (
+    <View style={styles.planHead}>
+      <Text style={styles.planTitle}>{head.title}</Text>
+      <View style={styles.navRow}>
+        <Pressable style={styles.circleBtn} onPress={() => goPlan(head.prevId)} disabled={!head.prevId}>
+          <Ionicons name="chevron-back" size={20} color={head.prevId ? pcColors.primary : pcColors.textMuted} />
+        </Pressable>
+        <Pressable style={styles.circleBtn} onPress={() => goPlan(head.nextId)} disabled={!head.nextId}>
+          <Ionicons name="chevron-forward" size={20} color={head.nextId ? pcColors.primary : pcColors.textMuted} />
+        </Pressable>
+        <Text style={styles.date}>{head.dateLabel}</Text>
+        <View style={{ flex: 1 }} />
+        <Pressable onPress={() => setMenuOpen(true)} hitSlop={10}>
+          <Ionicons name="ellipsis-vertical" size={22} color={pcColors.primary} />
+        </Pressable>
+      </View>
+      {head.myAssignments?.map((a, i) => (
+        <View key={i} style={styles.assignChip}>
+          <Ionicons
+            name={a.confirmed ? "checkmark-circle" : a.declined ? "close-circle" : "help-circle"}
+            size={26}
+            color={a.confirmed ? pcColors.primary : a.declined ? pcColors.danger : pcColors.orange}
+          />
+          <Text style={styles.assignTxt}>
+            {a.label}{a.team ? <Text style={styles.assignTeam}>  ({a.team})</Text> : null}
+          </Text>
+        </View>
+      ))}
+    </View>
+  ) : null;
+
   return (
     <PcScreen>
       {/* Header */}
@@ -80,42 +113,12 @@ export function PlanScreen({ route, navigation }) {
         <ActivityIndicator color={pcColors.primary} style={{ marginTop: 40 }} />
       ) : (
         <>
-          {/* Titlu + prev/next + 3-dot */}
-          <View style={styles.planHead}>
-            <Text style={styles.planTitle}>{head.title}</Text>
-            <View style={styles.navRow}>
-              <Pressable style={styles.circleBtn} onPress={() => goPlan(head.prevId)} disabled={!head.prevId}>
-                <Ionicons name="chevron-back" size={20} color={head.prevId ? pcColors.primary : pcColors.textMuted} />
-              </Pressable>
-              <Pressable style={styles.circleBtn} onPress={() => goPlan(head.nextId)} disabled={!head.nextId}>
-                <Ionicons name="chevron-forward" size={20} color={head.nextId ? pcColors.primary : pcColors.textMuted} />
-              </Pressable>
-              <Text style={styles.date}>{head.dateLabel}</Text>
-              <View style={{ flex: 1 }} />
-              <Pressable onPress={() => setMenuOpen(true)} hitSlop={10}>
-                <Ionicons name="ellipsis-vertical" size={22} color={pcColors.primary} />
-              </Pressable>
-            </View>
-
-            {/* Chip-uri asignări (verzi) */}
-            {head.myAssignments?.map((a, i) => (
-              <View key={i} style={styles.assignChip}>
-                <Ionicons
-                  name={a.confirmed ? "checkmark-circle" : a.declined ? "close-circle" : "help-circle"}
-                  size={26}
-                  color={a.confirmed ? pcColors.primary : a.declined ? pcColors.danger : pcColors.orange}
-                />
-                <Text style={styles.assignTxt}>
-                  {a.label}{a.team ? <Text style={styles.assignTeam}>  ({a.team})</Text> : null}
-                </Text>
-              </View>
-            ))}
-          </View>
-
-          <PcUnderlineTabs tabs={TABS} value={tab} onChange={setTab} />
+          {/* Tab-urile rămân FIXE sub header-ul „Plan". Titlul + data se scrollează (vezi head). */}
+          <PcUnderlineTabs tabs={TABS} value={tab} onChange={setTab} scrollable />
 
           <View style={{ flex: 1 }}>
-            {tab === "ORDER" && <OrderTab planId={planId} navigation={navigation} />}
+            {tab === "ORDER" && <OrderTab planId={planId} navigation={navigation} head={planHeadNode} />}
+            {tab !== "ORDER" && planHeadNode}
             {tab === "TEAMS" && <TeamsTab planId={planId} />}
             {tab === "REHEARSE" && <RehearseTab planId={planId} navigation={navigation} />}
             {tab === "TIMES" && <TimesTab planId={planId} />}
