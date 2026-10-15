@@ -4,7 +4,7 @@
  * Autosave la blur / la schimbare. Read-only pentru cine n-are editOrder.
  */
 import React, { useState, useCallback } from "react";
-import { View, Text, TextInput, ScrollView, Pressable, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, TextInput, ScrollView, Pressable, ActivityIndicator, Linking, StyleSheet } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,6 +13,10 @@ import { pcApi } from "../../api/pcApi";
 import { pcColors } from "../../theme";
 import { PcScreen, PcUnderlineTabs, PcAvatar, PcButton, PcBottomSheet, PcCheckbox, PcSearchBar, PcSelect } from "../../components";
 import { usePc } from "../../navigation/PcContext";
+import { usePcAudio } from "../../navigation/PcAudioContext";
+
+// Numele vine uneori URL-encodat (ex. „My%20Song.mp3") → afișat/redat decodat, lizibil.
+const prettyName = (n) => { const s = String(n || ""); if (!s.includes("%")) return s; try { return decodeURIComponent(s); } catch (e) { return s; } };
 
 const TABS = [
   { key: "NOTES", label: "NOTES", icon: "document-text-outline" },
@@ -26,7 +30,28 @@ export function ItemDetailScreen({ route, navigation }) {
   const { planId, itemId } = route.params || {};
   const insets = useSafeAreaInsets();
   const { me } = usePc();
+  const { playQueue } = usePcAudio();
   const canEdit = !!me?.capabilities?.editOrder;
+
+  // Deschide un fișier al cântecului: chord chart → viewer; audio → player global; alt fișier → se deschide.
+  const openSongFile = useCallback(async (f) => {
+    if (!f) return;
+    if (f.derived && f.source === "chordpro") {
+      navigation.navigate("PcChartViewer", { songId: f.songId, arrangementId: f.arrangementId, initialDisplayKey: f.displayKey });
+      return;
+    }
+    if (f.kind === "audio" && f.url) {
+      const ok = await playQueue([{ id: String(f.id), title: prettyName(f.name), url: f.url }], 0);
+      if (!ok) showError("Nu pot reda acest fișier audio.");
+      return;
+    }
+    if (f.url) {
+      try { await Linking.openURL(f.url); } catch (e) { showError("Nu pot deschide fișierul."); }
+      return;
+    }
+    if (f.pending || f.transposeStatus === "pending") { showInfo("Fișier în așteptare (transpunere/MultiTracks)."); return; }
+    showInfo("Fișier fără conținut descărcabil.");
+  }, [navigation, playQueue]);
 
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -172,21 +197,18 @@ export function ItemDetailScreen({ route, navigation }) {
               onAddArrangement={() => navigation.navigate("PcSongDetail", { songId: item.songId })}
               onEditArrangement={() => navigation.navigate("PcArrangement", { songId: item.songId, arrangementId: item.arrangementId })}
               onEditSequence={() => navigation.navigate("PcSequenceEditor", { mode: "plan", planId, itemId, songId: item.songId, arrangementId: item.arrangementId })}
-              onOpenFile={(f) => {
-                if (f.derived && f.source === "chordpro") navigation.navigate("PcChartViewer", { songId: item.songId, arrangementId: item.arrangementId, initialDisplayKey: f.displayKey });
-                else if (f.pending) showInfo("Fișier în așteptare (transpunere/MultiTracks).");
-                else showInfo("Deschiderea/redarea fișierelor = felie ulterioară.");
-              }}
+              onOpenFile={(f) => openSongFile({ ...f, songId: item.songId, arrangementId: item.arrangementId })}
             />
           ) : (
             <View style={{ paddingVertical: 30, alignItems: "center" }}>
               {tab === "FILES" ? (
                 item.files?.length ? (
                   item.files.map((f) => (
-                    <View key={String(f.id)} style={styles.fileRow}>
-                      <Ionicons name="document-outline" size={20} color={pcColors.textSecondary} />
-                      <Text style={styles.fileName}>{f.name}</Text>
-                    </View>
+                    <Pressable key={String(f.id)} style={styles.fileRow} onPress={() => openSongFile(f)}>
+                      <Ionicons name={f.kind === "audio" ? "musical-note" : "document-outline"} size={20} color={f.url ? pcColors.primary : pcColors.textSecondary} />
+                      <Text style={styles.fileName} numberOfLines={1}>{prettyName(f.name)}</Text>
+                      {f.url && <Ionicons name={f.kind === "audio" ? "play-circle" : "open-outline"} size={20} color={pcColors.textMuted} />}
+                    </Pressable>
                   ))
                 ) : (
                   <>
@@ -310,11 +332,16 @@ function SongTab({ item, songMeta, arrDetail, canEdit, onChangeArrangement, onCh
       <Text style={[styles.label, { marginTop: 20 }]}>Files</Text>
       {files.length ? files.map((f) => (
         <Pressable key={String(f.id)} style={styles.songFileRow} onPress={() => onOpenFile && onOpenFile(f)}>
-          <Ionicons name="document-text-outline" size={20} color={f.derived ? pcColors.primary : pcColors.textSecondary} />
-          <Text style={styles.fileName} numberOfLines={1}>{f.name}</Text>
+          <Ionicons
+            name={f.kind === "audio" ? "musical-note" : f.derived ? "musical-notes-outline" : "document-text-outline"}
+            size={20}
+            color={(f.kind === "audio" && f.url) || f.derived ? pcColors.primary : pcColors.textSecondary}
+          />
+          <Text style={styles.fileName} numberOfLines={1}>{prettyName(f.name)}</Text>
           {f.derived && <View style={styles.mtTag}><Text style={styles.mtTagTxt}>♪</Text></View>}
           {f.source === "multitracks" && <View style={styles.mtTag}><Text style={styles.mtTagTxt}>MT</Text></View>}
           {(f.pending || f.transposeStatus === "pending") && <View style={styles.pendTag}><Text style={styles.pendTxt}>pending</Text></View>}
+          {f.kind === "audio" && f.url && <Ionicons name="play-circle" size={20} color={pcColors.textMuted} />}
         </Pressable>
       )) : <Text style={[styles.emptyTxt, { textAlign: "left", marginTop: 6 }]}>Niciun fișier pe aranjament/cheie.</Text>}
 

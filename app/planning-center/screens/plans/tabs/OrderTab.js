@@ -94,7 +94,7 @@ export function OrderTab({ planId, navigation, head, tabsBar }) {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {head}
+        <View>{head}</View>
         <View style={styles.stickyTabs}>{tabsBar}</View>
         <View>
           <View style={styles.actions}>

@@ -248,7 +248,7 @@ router.get("/:id/items/:itemId", requireCan("people.view"), async (req, res) => 
       duringLabel: (it.placement && it.placement !== "during") ? `${it.placement[0].toUpperCase()}${it.placement.slice(1)} All` : (it.duringAll !== false ? "During All" : `${(it.timeIds || []).length} time(s)`),
       leaders: leadersMap[String(it._id)] || [],
       serviceTimes: serviceTimes.map((t) => ({ id: t._id, label: fmtTime(t.startsAt, tz) })),
-      files: files.map((f) => ({ id: f._id, name: f.name, kind: f.kind })),
+      files: files.map((f) => ({ id: f._id, name: f.name, kind: f.kind, url: f.url || null })),
     });
   } catch (err) {
     console.error("[pc] GET /plans/:id/items/:itemId:", err.message);
@@ -449,14 +449,17 @@ router.get("/:id/teams", requireCan("people.view"), async (req, res) => {
   try {
     const id = OID(req.params.id);
     if (!id) return res.status(400).json({ error: "ID invalid" });
+    const plan = await PcPlan.findOne(scoped(req, { _id: id })).select("serviceTypeId").lean();
+    if (!plan) return res.status(404).json({ error: "Plan inexistent." });
     const [assignments, needed] = await Promise.all([
       PcAssignment.find(scoped(req, { planId: id })).lean(),
       PcNeededPosition.find(scoped(req, { planId: id })).lean(),
     ]);
-    const teamIds = [...new Set([...assignments.map((a) => String(a.teamId)), ...needed.map((n) => String(n.teamId))])].map(OID).filter(Boolean);
-    const [teams, positions, people] = await Promise.all([
-      PcTeam.find(scoped(req, { _id: { $in: teamIds } })).lean(),
-      PcPosition.find(scoped(req, { teamId: { $in: teamIds } })).lean(),
+    // TEAMS pre-concepute: TOATE echipele service type-ului (nu doar cele cu asignări) → apar si cele goale.
+    const teams = await PcTeam.find(scoped(req, { serviceTypeId: plan.serviceTypeId, archived: false })).sort({ sortOrder: 1 }).lean();
+    const teamIds = teams.map((t) => t._id);
+    const [positions, people] = await Promise.all([
+      PcPosition.find(scoped(req, { teamId: { $in: teamIds } })).sort({ sortOrder: 1 }).lean(),
       PcPerson.find(scoped(req, { _id: { $in: assignments.map((a) => a.personId) } })).select("firstName lastName avatar").lean(),
     ]);
     const posName = Object.fromEntries(positions.map((p) => [String(p._id), p.name]));
@@ -472,9 +475,9 @@ router.get("/:id/teams", requireCan("people.view"), async (req, res) => {
     const buildTeam = (team) => {
       const tAssigns = assignments.filter((a) => String(a.teamId) === String(team._id));
       const tNeeded = needed.filter((n) => String(n.teamId) === String(team._id));
-      // grupare pe poziție
+      // grupare pe poziție. DECLINED → persoana NU apare pe poziție (cerință user: cine refuză dispare).
       const groups = {};
-      tAssigns.forEach((a) => {
+      tAssigns.filter((a) => a.status !== "declined").forEach((a) => {
         const key = a.positionId ? String(a.positionId) : "__none";
         (groups[key] = groups[key] || { positionId: a.positionId, positionName: posName[String(a.positionId)] || "", people: [] }).people.push({
           ...personMini(personById[String(a.personId)]),
@@ -486,6 +489,8 @@ router.get("/:id/teams", requireCan("people.view"), async (req, res) => {
         const g = (groups[key] = groups[key] || { positionId: n.positionId, positionName: posName[String(n.positionId)] || "", people: [] });
         for (let i = 0; i < (n.count || 0); i++) g.people.push({ needed: true });
       });
+      // Poziții rămase complet goale (ex. singura persoană a dat decline) nu se mai afișează.
+      Object.keys(groups).forEach((k) => { if (!groups[k].people.length) delete groups[k]; });
       return {
         teamId: team._id,
         name: team.name,
