@@ -8,6 +8,7 @@ import { showError } from "../../../global/functions";
 import { pcApi } from "../../api/pcApi";
 import { pcColors } from "../../theme";
 import { PcScreen, PcAvatar, PcUnderlineTabs, PcButton, PcSegmented, PcDivider } from "../../components";
+import { usePc } from "../../navigation/PcContext";
 
 const TABS = [
   { key: "SCHEDULE", label: "SCHEDULE", icon: "calendar-check", lib: "mci" },
@@ -18,6 +19,10 @@ const TABS = [
 export function ProfileScreen({ route, navigation }) {
   const { personId } = route.params || {};
   const insets = useSafeAreaInsets();
+  const { me } = usePc();
+  // Titlurile (rolurile cumulate) se afișează DOAR pe profilul propriu (vin din /me = viewerul curent).
+  const isOwn = me?.person?.id && String(me.person.id) === String(personId);
+  const myTitles = isOwn ? (me?.permission?.titles || []) : [];
   const [person, setPerson] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("SCHEDULE");
@@ -80,6 +85,15 @@ export function ProfileScreen({ route, navigation }) {
           <View style={styles.identity}>
             <PcAvatar uri={person?.avatar} initials={person?.initials} size={96} />
             <Text style={styles.name}>{person?.fullName}</Text>
+            {myTitles.length > 0 && (
+              <View style={styles.titlesRow}>
+                {myTitles.map((t, i) => (
+                  <View key={i} style={[styles.titleBadge, i === 0 && styles.titleBadgePrimary]}>
+                    <Text style={[styles.titleTxt, i === 0 && styles.titleTxtPrimary]}>{t}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
             {!!primaryEmail && <Text style={styles.contact}>{primaryEmail}</Text>}
             {!!primaryPhone && <Text style={styles.contact}>{primaryPhone}</Text>}
             <View style={styles.actionBtns}>
@@ -196,6 +210,11 @@ const styles = StyleSheet.create({
   identity: { alignItems: "center", paddingVertical: 20, backgroundColor: "#141416" },
   actionBtns: { flexDirection: "row", gap: 12, marginTop: 18, alignSelf: "stretch", paddingHorizontal: 16 },
   name: { color: pcColors.textPrimary, fontSize: 24, fontWeight: "700", marginTop: 14, textAlign: "center", paddingHorizontal: 20 },
+  titlesRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 6, marginTop: 8, paddingHorizontal: 16 },
+  titleBadge: { borderWidth: 1, borderColor: pcColors.chipBorder, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 4 },
+  titleBadgePrimary: { borderColor: pcColors.primary, backgroundColor: pcColors.tabActivePill },
+  titleTxt: { color: pcColors.textSecondary, fontSize: 12, fontWeight: "700" },
+  titleTxtPrimary: { color: pcColors.primary },
   contact: { color: pcColors.textSecondary, fontSize: 15, marginTop: 4 },
   schedRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: pcColors.divider },
   schedDate: { color: pcColors.textPrimary, fontSize: 17, fontWeight: "700" },

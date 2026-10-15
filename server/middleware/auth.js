@@ -26,7 +26,7 @@ const authMiddleware = async (req, res, next) => {
 
   try {
     const user = await User.findById(decoded.id).select(
-      "role status.isBanned tokenVersion deletedAt"
+      "role extraRoles status.isBanned tokenVersion deletedAt"
     );
 
     if (!user || user.deletedAt) {
@@ -39,7 +39,7 @@ const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ error: "Sesiune revocata. Reautentifica-te." });
     }
 
-    req.user = { id: user._id.toString(), role: user.role };
+    req.user = { id: user._id.toString(), role: user.role, extraRoles: Array.isArray(user.extraRoles) ? user.extraRoles : [] };
     next();
   } catch (error) {
     return res.status(500).json({ error: "Eroare la verificarea sesiunii" });

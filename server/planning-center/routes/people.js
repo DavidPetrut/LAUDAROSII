@@ -21,7 +21,7 @@ const {
   PcCampus,
 } = require("../models");
 const { scoped, stamp } = require("../core/orgScope");
-const { can, requireCan, resolveEffective } = require("../core/permissions");
+const { can, requireCan, resolveEffective, pcTitles } = require("../core/permissions");
 
 const router = express.Router();
 const OID = (v) => (mongoose.Types.ObjectId.isValid(v) ? new mongoose.Types.ObjectId(v) : null);
@@ -77,6 +77,8 @@ router.get("/me", async (req, res) => {
     res.json({
       person: me ? toRow(me) : null,
       permission: {
+        pcAccess: eff.pcAccess, // "total" | "partial" | "basic"
+        titles: pcTitles(req), // ex. ["Admin", "Planning Admin"] — afișate în profil
         peoplePlansLevel: eff.peoplePlansLevel,
         songLevel: eff.songLevel,
         mediaLevel: eff.mediaLevel,

@@ -37,42 +37,61 @@ function atLeast(level, min) {
   return ppRank(level) >= ppRank(min);
 }
 
+// ─────────────── RBAC Planificare: 3 NIVELURI (cerință user, 2026-10-15) ───────────────
+// total   = super-admin / developer → TOT (orice, oriunde în Planificare).
+// partial = are "planningAdmin" în user.extraRoles → tot pe Plans/Songs/Media + view People/Reports.
+//           NU administrează People (create/edit contact/permisiuni/delete) și NU e orgAdmin.
+//           Super-adminii acordă acest acces oricui (indiferent de rolul de bază) → titlu „Planning Admin".
+// basic   = restul → doar vizualizare (vede oamenii/planurile, răspunde la propriile programări).
+// Accesele sunt CUMULATIVE pe extraRoles (fundație pt. roluri stacate; vezi memoria proiectului).
+function resolvePcAccess(req) {
+  const role = req.user?.role;
+  const extra = Array.isArray(req.user?.extraRoles) ? req.user.extraRoles : [];
+  if (role === "superadmin" || role === "developer") return "total";
+  if (extra.includes("planningAdmin")) return "partial";
+  return "basic";
+}
+
+const ACCESS_TO_LEVELS = {
+  total: { peoplePlansLevel: "orgAdmin", songLevel: "administrator", mediaLevel: "administrator" },
+  partial: { peoplePlansLevel: "editor", songLevel: "editor", mediaLevel: "editor" },
+  basic: { peoplePlansLevel: "viewer", songLevel: "viewer", mediaLevel: "viewer" },
+};
+
+// Capabilitățile permise pentru „partial" (Planning Admin) — tot pe Plans/Songs/Media + view.
+const PARTIAL_CAPS = new Set([
+  "people.view", "people.viewAll", "people.assignTags",
+  "services.manageServiceTypes", "services.addPlan", "services.editOrder", "services.schedule",
+  "songs.edit", "media.edit", "reports.view",
+]);
+// „basic" — doar vizualizare.
+const BASIC_CAPS = new Set(["people.view"]);
+
+// Titluri afișabile (rolul de bază + rolurile extra cumulate). Pt. profilul din app.
+const ROLE_TITLES = { superadmin: "Super Admin", developer: "Developer", admin: "Admin", editor: "Editor", user: "User" };
+const EXTRA_ROLE_TITLES = { planningAdmin: "Planning Admin" };
+function pcTitles(req) {
+  const role = req.user?.role || "user";
+  const extra = Array.isArray(req.user?.extraRoles) ? req.user.extraRoles : [];
+  const titles = [ROLE_TITLES[role] || role];
+  extra.forEach((r) => { if (EXTRA_ROLE_TITLES[r] && !titles.includes(EXTRA_ROLE_TITLES[r])) titles.push(EXTRA_ROLE_TITLES[r]); });
+  return titles;
+}
+
 /**
- * Rezolvă permisiunea efectivă a userului care face requestul (cache pe req).
- * Returnează { peoplePlansLevel, songLevel, mediaLevel, fileAccess, isOrgAdmin }.
+ * Rezolvă permisiunea efectivă (cache pe req). Derivată din nivelul RBAC (total/partial/basic).
  */
 async function resolveEffective(req) {
   if (req._pcPerm) return req._pcPerm;
-
-  const { scoped } = require("./orgScope");
-  const PcPermission = require("../models/PcPermission");
-  const PcServicesDefaults = require("../models/PcServicesDefaults");
-
-  // Nivel de pornire din rolul app (bridge).
-  const bridge = APP_ROLE_TO_PP[req.user?.role] || "viewer";
-
-  // Permisiuni explicite pe scope global (dacă există, au prioritate / le ridicăm la max cu bridge-ul).
-  const perm = await PcPermission.findOne(
-    scoped(req, { userId: req.user.id, scope: "global" })
-  ).lean();
-
-  const pick = (stored, fallback, rankMap) => {
-    if (!stored) return fallback;
-    // nivelul efectiv = maximul dintre bridge și cel stocat (nu coborâm sub rolul app)
-    return (rankMap[stored] ?? -1) >= (rankMap[fallback] ?? -1) ? stored : fallback;
-  };
-
-  const peoplePlansLevel = pick(perm?.peoplePlansLevel, bridge, PP_RANK);
-  const songFallback = bridge === "scheduler" ? "viewer" : bridge; // song n-are scheduler
-  const songLevel = pick(perm?.songLevel, SM_RANK[songFallback] != null ? songFallback : "viewer", SM_RANK);
-  const mediaLevel = pick(perm?.mediaLevel, SM_RANK[songFallback] != null ? songFallback : "viewer", SM_RANK);
-
+  const access = resolvePcAccess(req);
+  const lv = ACCESS_TO_LEVELS[access] || ACCESS_TO_LEVELS.basic;
   const eff = {
-    peoplePlansLevel,
-    songLevel,
-    mediaLevel,
-    fileAccess: perm?.fileAccess || { plan: false, song: false, media: false },
-    isOrgAdmin: peoplePlansLevel === "orgAdmin",
+    pcAccess: access,
+    peoplePlansLevel: lv.peoplePlansLevel,
+    songLevel: lv.songLevel,
+    mediaLevel: lv.mediaLevel,
+    fileAccess: { plan: access !== "basic", song: access !== "basic", media: access !== "basic" },
+    isOrgAdmin: access === "total",
   };
   req._pcPerm = eff;
   return eff;
@@ -103,51 +122,10 @@ async function getDefaults(req) {
  * Capabilitățile pt. felia People (§5.6). Extensibil aditiv.
  */
 async function can(req, capability) {
-  const eff = await resolveEffective(req);
-  const lvl = eff.peoplePlansLevel;
-  if (eff.isOrgAdmin) return true;
-  const def = await getDefaults(req);
-
-  switch (capability) {
-    case "people.view": // vezi pagina People
-      return atLeast(lvl, "viewer");
-    case "people.viewAll": // vezi TOȚI oamenii (nu doar echipele proprii)
-      return atLeast(lvl, "editor");
-    case "people.create":
-      return atLeast(lvl, "administrator") || atLeast(lvl, def.whoCanCreatePeople);
-    case "people.editContact":
-      return atLeast(lvl, "administrator") || atLeast(lvl, def.whoCanEditContactInfo);
-    case "people.exportCsv":
-      return atLeast(lvl, "editor") || atLeast(lvl, def.whoCanEditContactInfo /* scheduler* */);
-    case "people.import":
-      return atLeast(lvl, "editor");
-    case "people.managePermissions":
-      return atLeast(lvl, "administrator");
-    case "people.removeArchiveOwn":
-      return atLeast(lvl, "editor");
-    case "people.removeArchiveAny":
-      return atLeast(lvl, "administrator") && atLeast(lvl, def.whoCanDeleteAnything);
-    case "people.editTags": // creare/ștergere taxonomie tag-uri
-      return atLeast(lvl, "editor");
-    case "people.assignTags": // asignare/scoatere tag pe o persoană (doc #24: schedulers pot)
-      return atLeast(lvl, "scheduler");
-    case "services.manageServiceTypes": // creare/ștergere service types (§5.6: administrator)
-      return atLeast(lvl, "administrator");
-    case "services.addPlan": // adăugare plan (§5.6: editor+)
-      return atLeast(lvl, "editor");
-    case "services.editOrder": // editare order of service (§5.6: editor+)
-      return atLeast(lvl, "editor");
-    case "services.schedule": // programare oameni (§5.6: scheduler pe echipele lui+)
-      return atLeast(lvl, "scheduler");
-    case "songs.edit": // creare/editare cântece/aranjamente/chei (§5.2 song editor+)
-      return atLeast(lvl, "editor") || ["editor", "administrator"].includes(eff.songLevel);
-    case "media.edit": // creare/editare media library (§5.2 media editor+)
-      return atLeast(lvl, "editor") || ["editor", "administrator"].includes(eff.mediaLevel);
-    case "reports.view": // rapoarte (editor+ — ca în PCO „editor permissions to create reports")
-      return atLeast(lvl, "editor");
-    default:
-      return false;
-  }
+  const access = resolvePcAccess(req);
+  if (access === "total") return true;
+  if (access === "partial") return PARTIAL_CAPS.has(capability);
+  return BASIC_CAPS.has(capability); // basic
 }
 
 /** Middleware: blochează ruta dacă userul n-are capabilitatea. */
@@ -167,6 +145,8 @@ module.exports = {
   PP_RANK,
   SM_RANK,
   atLeast,
+  resolvePcAccess,
+  pcTitles,
   resolveEffective,
   getDefaults,
   can,

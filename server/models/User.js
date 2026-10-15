@@ -206,9 +206,16 @@ const userSchema = new mongoose.Schema({
     enum: ["bug", "uiux", "features", "uiuxdev", "rating"],
     default: ["bug"],
   },
-  // taburile din footer permise (chei: Home/Prayers/Courses/Games/Profile).
+  // taburile din footer permise (chei: Home/Prayers/Planificare/Games/Profile).
   // gol = toate permise.
   allowedTabs: {
+    type: [String],
+    default: [],
+  },
+  // Roluri EXTRA care se CUMULEAZĂ peste rolul de bază (role). Chei de rol custom/ app,
+  // ex. "planningAdmin" (acces partial la Planificare). Accesele din toate rolurile se adună,
+  // nu se anulează. Fundația pentru RBAC cumulativ (vezi memoria proiectului).
+  extraRoles: {
     type: [String],
     default: [],
   },
