@@ -132,22 +132,23 @@ async function migratePeople() {
   const users = await User.find({ deletedAt: { $in: [null, undefined] } })
     .select("email personalData role status")
     .lean();
+  if (!users.length) return { total: 0, created: 0 };
+
+  // EFICIENT: o singură interogare pt. userId-urile care au deja pc_person (în loc de N findOne).
+  const existing = await PcPerson.find({ orgId: org._id, userId: { $in: users.map((u) => u._id) }, deletedAt: null })
+    .select("userId").lean();
+  const have = new Set(existing.map((p) => String(p.userId)));
 
   let created = 0;
   for (const u of users) {
-    const existing = await PcPerson.findOne({ orgId: org._id, userId: u._id, deletedAt: null }).select("_id");
-    if (existing) continue;
+    if (have.has(String(u._id))) continue;
     const { firstName, lastName } = splitName(u.personalData?.fullName || u.email);
-    const emails = u.email ? [{ address: u.email, location: "Home", primary: true }] : [];
-    const phones = u.personalData?.phone
-      ? [{ number: u.personalData.phone, location: "Mobile", primary: true }]
-      : [];
     await PcPerson.create({
       orgId: org._id,
       firstName,
       lastName,
-      emails,
-      phones,
+      emails: u.email ? [{ address: u.email, location: "Home", primary: true }] : [],
+      phones: u.personalData?.phone ? [{ number: u.personalData.phone, location: "Mobile", primary: true }] : [],
       avatar: u.personalData?.profilePicture || "",
       campusId: org.defaultCampusId,
       status: u.status?.isActive === false ? "inactive" : "active",
@@ -155,8 +156,18 @@ async function migratePeople() {
     });
     created++;
   }
-  console.log(`[pc] migratePeople: ${created} pc_people create (din ${users.length} useri)`);
+  if (created) console.log(`[pc] migratePeople: ${created} pc_people noi (din ${users.length} useri)`);
   return { total: users.length, created };
+}
+
+// Sincronizare DINAMICĂ throttled: apelată la încărcarea listei People; creează pc_people pentru
+// userii noi din `users` (ex. adăugați din admin dashboard) fără re-seed manual. Rulează cel mult o dată/20s.
+let _lastSync = 0;
+async function syncPeopleIfStale() {
+  const now = Date.now();
+  if (now - _lastSync < 20000) return { skipped: true };
+  _lastSync = now;
+  try { return await migratePeople(); } catch (e) { console.error("[pc] syncPeopleIfStale:", e.message); return { error: true }; }
 }
 
 /**
@@ -236,4 +247,4 @@ async function seedDemoPlan(orgId, viewerUserId) {
   return { planId: plan._id, created: true };
 }
 
-module.exports = { ensureBootstrap, seedPeopleTags, migratePeople, splitName, seedDemoPlan, ensureDefaultServiceTypes };
+module.exports = { ensureBootstrap, seedPeopleTags, migratePeople, syncPeopleIfStale, splitName, seedDemoPlan, ensureDefaultServiceTypes };

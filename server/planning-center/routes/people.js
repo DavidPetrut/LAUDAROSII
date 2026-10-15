@@ -22,6 +22,7 @@ const {
 } = require("../models");
 const { scoped, stamp } = require("../core/orgScope");
 const { can, requireCan, resolveEffective, pcTitles } = require("../core/permissions");
+const { syncPeopleIfStale } = require("../services/seed");
 
 const router = express.Router();
 const OID = (v) => (mongoose.Types.ObjectId.isValid(v) ? new mongoose.Types.ObjectId(v) : null);
@@ -147,6 +148,8 @@ router.get("/meta/filters", requireCan("people.view"), async (req, res) => {
 /* ───────── GET / — listă People (search + sort + paginare + filtre) ───────── */
 router.get("/", requireCan("people.view"), async (req, res) => {
   try {
+    // Sincronizare dinamică: userii creați în admin (ex. bulk CSV) apar automat în Planificare.
+    await syncPeopleIfStale();
     const {
       q = "",
       sortBy = "firstName",
