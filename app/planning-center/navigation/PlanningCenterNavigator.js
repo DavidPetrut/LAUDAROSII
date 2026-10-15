@@ -3,13 +3,15 @@
  * - PcTabs: bottom nav propriu (Schedule/Plans/Songs/Media/People) cu PcTabBar.
  * - Ecrane full-screen peste tab-uri: Profile / My Teams / Edit Contact / Settings.
  */
-import React, { useEffect } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { View } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
-import { PcTabBar, PcMiniPlayer, PcExitHandle } from "../components";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { PcTabBar, PcMiniPlayer, PcExitHandle, PcBottomNav } from "../components";
 import { pcColors } from "../theme";
+import { PcNavContext, usePcNav } from "./PcContext";
 import {
   PeopleListScreen,
   ProfileScreen,
@@ -28,23 +30,26 @@ import { MediaListScreen, MediaItemScreen, AddMediaScreen } from "../screens/med
 import { ReportsScreen } from "../screens/reports";
 import { PcAudioProvider, usePcAudio } from "./PcAudioContext";
 
-/** Capturează navigația stack-ului PC pentru mini-player (deschide Media Player de oriunde). */
+/** Capturează navigația stack-ului PC (pt. mini-player ȘI bara de jos persistentă). */
 function NavCapture() {
   const nav = useNavigation();
   const { attachNav } = usePcAudio();
-  useEffect(() => { attachNav(nav); }, [nav, attachNav]);
+  const { stackNavRef } = usePcNav();
+  useEffect(() => { attachNav(nav); if (stackNavRef) stackNavRef.current = nav; }, [nav, attachNav, stackNavRef]);
   return null;
 }
 
 const Tab = createBottomTabNavigator();
 function PcTabs() {
+  const { setActiveTab } = usePcNav();
   return (
     <>
       <NavCapture />
       <Tab.Navigator
-        tabBar={(props) => <PcTabBar {...props} />}
+        tabBar={() => null}
         initialRouteName="People"
         screenOptions={{ headerShown: false, sceneContainerStyle: { backgroundColor: pcColors.bg } }}
+        screenListeners={{ focus: (e) => { const name = String(e?.target || "").split("-")[0]; if (name) setActiveTab(name); } }}
       >
         <Tab.Screen name="Schedule" component={MyScheduleScreen} />
         <Tab.Screen name="Plans" component={PlansScreen} />
@@ -58,21 +63,36 @@ function PcTabs() {
 
 const Stack = createNativeStackNavigator();
 export function PlanningCenterNavigator() {
+  const [activeTab, setActiveTab] = useState("People");
+  const [currentRoute, setCurrentRoute] = useState("PcTabs");
+  const stackNavRef = useRef(null);
   return (
     <PcAudioProvider>
-      <View style={{ flex: 1, backgroundColor: pcColors.bg }}>
-        <PcStack />
-        <PcMiniPlayer />
-        <PcExitHandle />
-      </View>
+      <PcNavContext.Provider value={{ activeTab, setActiveTab, stackNavRef, currentRoute, setCurrentRoute }}>
+        <View style={{ flex: 1, backgroundColor: pcColors.bg }}>
+          <PcStack />
+          <PcMiniPlayer />
+          <PcBottomNav />
+          <PcExitHandle />
+        </View>
+      </PcNavContext.Provider>
     </PcAudioProvider>
   );
 }
 
+// Ecrane full-screen (fără bară de jos): modale + editoare/viewere imersive.
+const FULL_SCREEN = { contentStyle: { backgroundColor: pcColors.bg } };
+
 function PcStack() {
+  const insets = useSafeAreaInsets();
+  const { setCurrentRoute } = usePcNav();
+  const navH = 58 + (insets.bottom > 0 ? insets.bottom : 8);
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: pcColors.bg } }}>
-      <Stack.Screen name="PcTabs" component={PcTabs} />
+    <Stack.Navigator
+      screenOptions={{ headerShown: false, contentStyle: { backgroundColor: pcColors.bg, paddingBottom: navH } }}
+      screenListeners={{ state: (e) => { try { const s = e?.data?.state; const r = s?.routes?.[s.index]?.name; if (r) setCurrentRoute(r); } catch (_) {} } }}
+    >
+      <Stack.Screen name="PcTabs" component={PcTabs} options={FULL_SCREEN} />
       <Stack.Screen name="PcProfile" component={ProfileScreen} />
       <Stack.Screen name="PcMyTeams" component={MyTeamsScreen} />
       <Stack.Screen name="PcEditContact" component={EditContactScreen} />
@@ -91,15 +111,15 @@ function PcStack() {
       <Stack.Screen name="PcIntegrations" component={IntegrationsScreen} />
       <Stack.Screen name="PcSequenceEditor" component={SequenceEditorScreen} />
       <Stack.Screen name="PcTagsManager" component={TagsManagerScreen} />
-      <Stack.Screen name="PcLyricsChords" component={LyricsChordsEditor} />
-      <Stack.Screen name="PcChartViewer" component={LyricsChordsEditor} initialParams={{ readOnly: true }} />
-      <Stack.Screen name="PcMediaPlayer" component={MediaPlayerScreen} options={{ presentation: "modal" }} />
-      <Stack.Screen name="PcMusicStand" component={MusicStandScreen} />
-      <Stack.Screen name="PcSongbookView" component={SongbookViewScreen} />
+      <Stack.Screen name="PcLyricsChords" component={LyricsChordsEditor} options={FULL_SCREEN} />
+      <Stack.Screen name="PcChartViewer" component={LyricsChordsEditor} initialParams={{ readOnly: true }} options={FULL_SCREEN} />
+      <Stack.Screen name="PcMediaPlayer" component={MediaPlayerScreen} options={{ presentation: "modal", ...FULL_SCREEN }} />
+      <Stack.Screen name="PcMusicStand" component={MusicStandScreen} options={FULL_SCREEN} />
+      <Stack.Screen name="PcSongbookView" component={SongbookViewScreen} options={FULL_SCREEN} />
       <Stack.Screen name="PcMediaItem" component={MediaItemScreen} />
       <Stack.Screen name="PcAddMedia" component={AddMediaScreen} />
       <Stack.Screen name="PcCalendar" component={CalendarScreen} />
-      <Stack.Screen name="PcBlockoutEditor" component={BlockoutEditorScreen} options={{ presentation: "modal" }} />
+      <Stack.Screen name="PcBlockoutEditor" component={BlockoutEditorScreen} options={{ presentation: "modal", ...FULL_SCREEN }} />
       <Stack.Screen name="PcReports" component={ReportsScreen} />
     </Stack.Navigator>
   );

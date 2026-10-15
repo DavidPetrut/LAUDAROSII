@@ -55,4 +55,9 @@ export const usePc = () => useContext(PcContext);
 export const PcShellContext = createContext({ exitModule: () => {} });
 export const usePcShell = () => useContext(PcShellContext);
 
+/** Nav context — pt. bara de jos PERSISTENTĂ (rămâne vizibilă și pe ecranele de detaliu, ca în PCO).
+ *  `activeTab` = tab-ul curent (actualizat la focus); `stackNavRef` = navigația stack-ului PC (pt. navigare la tab). */
+export const PcNavContext = createContext({ activeTab: "People", setActiveTab: () => {}, stackNavRef: { current: null }, currentRoute: "PcTabs", setCurrentRoute: () => {} });
+export const usePcNav = () => useContext(PcNavContext);
+
 export default PcContext;

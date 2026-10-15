@@ -90,7 +90,7 @@ export function OrderTab({ planId, navigation, head, tabsBar }) {
     <View style={{ flex: 1 }}>
       <ScrollView
         stickyHeaderIndices={[1]}
-        contentContainerStyle={{ paddingBottom: bottomSafe + 100 }}
+        contentContainerStyle={{ paddingBottom: 28 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >

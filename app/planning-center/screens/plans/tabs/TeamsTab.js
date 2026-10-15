@@ -1,6 +1,6 @@
 /** TEAMS tab — echipe My/Other + status + Needed + Add People + Send emails (scheduling). */
 import React, { useState, useCallback } from "react";
-import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, ScrollView, Pressable, ActivityIndicator, useWindowDimensions, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { showError, showSuccess, showInfo } from "../../../../global/functions";
@@ -39,10 +39,10 @@ function PersonAvatar({ p }) {
   );
 }
 
-function TeamCard({ team, onMenu, onSend, onAddNeeded, sending }) {
+function TeamCard({ team, width, onMenu, onSend, onAddNeeded, sending }) {
   const empty = !team.groups || team.groups.length === 0;
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { width }]}>
       <View style={styles.cardHead}>
         <Text style={styles.teamName} numberOfLines={1}>{team.name}</Text>
         <Pressable onPress={() => onMenu(team)} hitSlop={8}>
@@ -60,32 +60,36 @@ function TeamCard({ team, onMenu, onSend, onAddNeeded, sending }) {
           <Text style={styles.sendTxt}>{sending ? "..." : "Trimite"}</Text>
         </Pressable>
       )}
-      {empty ? (
-        <Text style={styles.cardEmpty}>Nimeni programat încă.{"\n"}Folosește butonul + ca să adaugi.</Text>
-      ) : team.groups.map((g, gi) => (
-        <View key={gi}>
-          {!!g.positionName && <View style={styles.posBar}><Text style={styles.posLabel}>{g.positionName.toUpperCase()}</Text></View>}
-          {g.people.map((p, pi) =>
-            p.needed ? (
-              <Pressable key={pi} style={styles.personRow} onPress={() => onAddNeeded(team.teamId, g.positionId)}>
-                <View style={styles.neededBadge}><Ionicons name="add" size={18} color="#0A0A0A" /></View>
-                <Text style={styles.neededTxt}>Needed</Text>
-              </Pressable>
-            ) : (
-              <View key={pi} style={styles.personRow}>
-                <PersonAvatar p={p} />
-                <Text style={styles.personName} numberOfLines={1}>{p.name}</Text>
-              </View>
-            )
-          )}
-        </View>
-      ))}
+      {/* Lista pozițiilor+oameni scrollează VERTICAL în interiorul cardului; cardurile se dau cu swipe orizontal. */}
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} nestedScrollEnabled contentContainerStyle={{ paddingBottom: 10 }}>
+        {empty ? (
+          <Text style={styles.cardEmpty}>Nimeni programat încă.{"\n"}Folosește butonul + ca să adaugi.</Text>
+        ) : team.groups.map((g, gi) => (
+          <View key={gi}>
+            {!!g.positionName && <View style={styles.posBar}><Text style={styles.posLabel}>{g.positionName.toUpperCase()}</Text></View>}
+            {g.people.map((p, pi) =>
+              p.needed ? (
+                <Pressable key={pi} style={styles.personRow} onPress={() => onAddNeeded(team.teamId, g.positionId)}>
+                  <View style={styles.neededBadge}><Ionicons name="add" size={18} color="#0A0A0A" /></View>
+                  <Text style={styles.neededTxt}>Needed</Text>
+                </Pressable>
+              ) : (
+                <View key={pi} style={styles.personRow}>
+                  <PersonAvatar p={p} />
+                  <Text style={styles.personName} numberOfLines={1}>{p.name}</Text>
+                </View>
+              )
+            )}
+          </View>
+        ))}
+      </ScrollView>
     </View>
   );
 }
 
 export function TeamsTab({ planId }) {
   const { me } = usePc();
+  const { width } = useWindowDimensions();
   const canSchedule = !!me?.capabilities?.schedule;
   const [data, setData] = useState({ myTeams: [], otherTeams: [] });
   const [loading, setLoading] = useState(true);
@@ -137,19 +141,42 @@ export function TeamsTab({ planId }) {
 
   if (loading) return <ActivityIndicator color={pcColors.primary} style={{ marginTop: 30 }} />;
 
+  // Echipele pre-concepute ale service type-ului, afișate ca un CARUSEL orizontal (swipe stânga/dreapta),
+  // fiecare card scrollează vertical în interior. Cardul lasă un „peek" la următorul (ca în PCO).
+  const allTeams = [...(data.myTeams || []), ...(data.otherTeams || [])];
+  const CARD_W = Math.min(Math.max(width - 54, 240), 380);
+
   return (
     <View style={{ flex: 1 }}>
       <View style={styles.topActions}>
-        <PcButton title="Email or Text" variant="outline" icon="mail-outline" onPress={() => canSchedule ? sendEmails(null) : showInfo("Doar schedulerii")} style={styles.topBtn} textStyle={{ fontSize: 14 }} />
         <PcButton title="Chat" variant="outline" icon="chatbubble-outline" onPress={() => showInfo("Chat — în curând")} style={styles.topBtn} textStyle={{ fontSize: 14 }} />
+        <PcButton title="Email or Text" variant="outline" icon="mail-outline" onPress={() => canSchedule ? sendEmails(null) : showInfo("Doar schedulerii")} style={styles.topBtn} textStyle={{ fontSize: 14 }} />
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 90 }}>
-        {data.myTeams.length > 0 && <Text style={styles.groupTitle}>MY TEAMS</Text>}
-        {data.myTeams.map((t) => <TeamCard key={String(t.teamId)} team={t} onMenu={(tm) => setMenu({ team: tm })} onSend={sendEmails} onAddNeeded={(tid, pid) => canSchedule ? openAdd(tid, pid) : showInfo("Doar schedulerii")} sending={sending} />)}
-        {data.otherTeams.length > 0 && <Text style={styles.groupTitle}>OTHER TEAMS</Text>}
-        {data.otherTeams.map((t) => <TeamCard key={String(t.teamId)} team={t} onMenu={(tm) => setMenu({ team: tm })} onSend={sendEmails} onAddNeeded={(tid, pid) => canSchedule ? openAdd(tid, pid) : showInfo("Doar schedulerii")} sending={sending} />)}
-        {data.myTeams.length === 0 && data.otherTeams.length === 0 && <Text style={styles.empty}>Nicio echipă pe acest plan.</Text>}
-      </ScrollView>
+      {allTeams.length === 0 ? (
+        <Text style={styles.empty}>Nicio echipă pe acest plan.</Text>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12, alignItems: "stretch" }}
+          snapToInterval={CARD_W + 12}
+          snapToAlignment="start"
+          decelerationRate="fast"
+        >
+          {allTeams.map((t) => (
+            <TeamCard
+              key={String(t.teamId)}
+              team={t}
+              width={CARD_W}
+              onMenu={(tm) => setMenu({ team: tm })}
+              onSend={sendEmails}
+              onAddNeeded={(tid, pid) => canSchedule ? openAdd(tid, pid) : showInfo("Doar schedulerii")}
+              sending={sending}
+            />
+          ))}
+        </ScrollView>
+      )}
 
       {canSchedule && (
         <Pressable style={styles.fab} onPress={() => openAdd(null, null)}>
@@ -195,7 +222,7 @@ const styles = StyleSheet.create({
   topBtn: { flex: 1, paddingVertical: 10 },
   groupTitle: { color: pcColors.textSecondary, fontWeight: "700", letterSpacing: 0.5, marginBottom: 10, marginTop: 6, fontSize: 12 },
   // Card pe fundal negru, cu header-e de poziție ca strip-uri (ca în PCO).
-  card: { backgroundColor: "#141416", borderRadius: 12, marginBottom: 14, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth, borderColor: pcColors.divider, paddingBottom: 4 },
+  card: { backgroundColor: "#141416", borderRadius: 12, marginRight: 12, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth, borderColor: pcColors.divider, paddingBottom: 4 },
   cardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingTop: 14, paddingBottom: 6 },
   teamName: { color: pcColors.textPrimary, fontSize: 18, fontWeight: "800", flex: 1, marginRight: 10 },
   countsRow: { flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingBottom: 6 },
