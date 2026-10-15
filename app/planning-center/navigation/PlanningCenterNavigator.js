@@ -22,7 +22,7 @@ import {
   ImportScreen,
   PersonTagsScreen,
 } from "../screens/people";
-import { PlansScreen, PlanScreen, ItemDetailScreen, AddServiceTypeScreen, SelectSongScreen, ServiceTypeSettingsScreen, MatrixScreen } from "../screens/plans";
+import { PlansScreen, ServiceTypePlansScreen, PlanScreen, ItemDetailScreen, AddServiceTypeScreen, SelectSongScreen, ServiceTypeSettingsScreen, MatrixScreen } from "../screens/plans";
 import { MyScheduleScreen, CalendarScreen, BlockoutEditorScreen } from "../screens/schedule";
 import { SongsScreen, SongDetailScreen, ArrangementScreen, IntegrationsScreen, SequenceEditorScreen, TagsManagerScreen, LyricsChordsEditor } from "../screens/songs";
 import { MediaPlayerScreen, MusicStandScreen, SongbookViewScreen } from "../screens/rehearse";
@@ -100,6 +100,7 @@ function PcStack() {
       <Stack.Screen name="PcAddPerson" component={AddPersonScreen} />
       <Stack.Screen name="PcImport" component={ImportScreen} />
       <Stack.Screen name="PcPersonTags" component={PersonTagsScreen} />
+      <Stack.Screen name="PcServiceTypePlans" component={ServiceTypePlansScreen} />
       <Stack.Screen name="PcPlan" component={PlanScreen} />
       <Stack.Screen name="PcItemDetail" component={ItemDetailScreen} />
       <Stack.Screen name="PcAddServiceType" component={AddServiceTypeScreen} />

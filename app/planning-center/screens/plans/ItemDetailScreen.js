@@ -17,6 +17,9 @@ import { usePcAudio } from "../../navigation/PcAudioContext";
 
 // Numele vine uneori URL-encodat (ex. „My%20Song.mp3") → afișat/redat decodat, lizibil.
 const prettyName = (n) => { const s = String(n || ""); if (!s.includes("%")) return s; try { return decodeURIComponent(s); } catch (e) { return s; } };
+// Audio după kind SAU extensie → redare în playerul INTERN (nu browser).
+const AUDIO_RX = /\.(mp3|m4a|aac|wav|ogg|flac|opus|aiff?)(\?|#|$)/i;
+const isAudio = (f) => !!(f && (f.kind === "audio" || (f.url && AUDIO_RX.test(f.url)) || (f.name && AUDIO_RX.test(f.name))));
 
 const TABS = [
   { key: "NOTES", label: "NOTES", icon: "document-text-outline" },
@@ -40,7 +43,7 @@ export function ItemDetailScreen({ route, navigation }) {
       navigation.navigate("PcChartViewer", { songId: f.songId, arrangementId: f.arrangementId, initialDisplayKey: f.displayKey });
       return;
     }
-    if (f.kind === "audio" && f.url) {
+    if (isAudio(f) && f.url) {
       const ok = await playQueue([{ id: String(f.id), title: prettyName(f.name), url: f.url }], 0);
       if (!ok) showError("Nu pot reda acest fișier audio.");
       return;
@@ -205,9 +208,9 @@ export function ItemDetailScreen({ route, navigation }) {
                 item.files?.length ? (
                   item.files.map((f) => (
                     <Pressable key={String(f.id)} style={styles.fileRow} onPress={() => openSongFile(f)}>
-                      <Ionicons name={f.kind === "audio" ? "musical-note" : "document-outline"} size={20} color={f.url ? pcColors.primary : pcColors.textSecondary} />
+                      <Ionicons name={isAudio(f) ? "musical-note" : "document-outline"} size={20} color={f.url ? pcColors.primary : pcColors.textSecondary} />
                       <Text style={styles.fileName} numberOfLines={1}>{prettyName(f.name)}</Text>
-                      {f.url && <Ionicons name={f.kind === "audio" ? "play-circle" : "open-outline"} size={20} color={pcColors.textMuted} />}
+                      {f.url && <Ionicons name={isAudio(f) ? "play-circle" : "open-outline"} size={20} color={pcColors.textMuted} />}
                     </Pressable>
                   ))
                 ) : (
@@ -333,15 +336,15 @@ function SongTab({ item, songMeta, arrDetail, canEdit, onChangeArrangement, onCh
       {files.length ? files.map((f) => (
         <Pressable key={String(f.id)} style={styles.songFileRow} onPress={() => onOpenFile && onOpenFile(f)}>
           <Ionicons
-            name={f.kind === "audio" ? "musical-note" : f.derived ? "musical-notes-outline" : "document-text-outline"}
+            name={isAudio(f) ? "musical-note" : f.derived ? "musical-notes-outline" : "document-text-outline"}
             size={20}
-            color={(f.kind === "audio" && f.url) || f.derived ? pcColors.primary : pcColors.textSecondary}
+            color={(isAudio(f) && f.url) || f.derived ? pcColors.primary : pcColors.textSecondary}
           />
           <Text style={styles.fileName} numberOfLines={1}>{prettyName(f.name)}</Text>
           {f.derived && <View style={styles.mtTag}><Text style={styles.mtTagTxt}>♪</Text></View>}
           {f.source === "multitracks" && <View style={styles.mtTag}><Text style={styles.mtTagTxt}>MT</Text></View>}
           {(f.pending || f.transposeStatus === "pending") && <View style={styles.pendTag}><Text style={styles.pendTxt}>pending</Text></View>}
-          {f.kind === "audio" && f.url && <Ionicons name="play-circle" size={20} color={pcColors.textMuted} />}
+          {isAudio(f) && f.url && <Ionicons name="play-circle" size={20} color={pcColors.textMuted} />}
         </Pressable>
       )) : <Text style={[styles.emptyTxt, { textAlign: "left", marginTop: 6 }]}>Niciun fișier pe aranjament/cheie.</Text>}
 

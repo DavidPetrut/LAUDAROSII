@@ -109,49 +109,29 @@ export function PlansScreen({ navigation }) {
             </View>
           )}
 
-          {serviceTypes.map((st) => (
-            <View key={String(st.id)} style={{ marginBottom: 12 }}>
-              <View style={styles.stRow}>
-                <Pressable onLongPress={() => canManageST && deleteServiceType(st)} delayLongPress={450} style={{ flex: 1 }}>
-                  <PcSectionTitle style={{ marginBottom: 0 }}>{st.name}</PcSectionTitle>
+          {serviceTypes.length > 0 && (
+            <View style={styles.stCard}>
+              {serviceTypes.map((st, i) => (
+                <Pressable
+                  key={String(st.id)}
+                  style={[styles.stCardRow, i > 0 && styles.stCardRowBorder]}
+                  onPress={() => navigation.navigate("PcServiceTypePlans", { serviceTypeId: st.id, serviceTypeName: st.name })}
+                  onLongPress={() => canManageST && deleteServiceType(st)}
+                  delayLongPress={450}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.stCardName}>{st.name}</Text>
+                    <Text style={styles.stCardSub}>
+                      {st.plans.length ? `${st.plans.length} ${st.plans.length === 1 ? "plan" : "planuri"}` : "Niciun plan"}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={pcColors.textMuted} />
                 </Pressable>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  {canSchedule && (
-                    <Pressable style={styles.addPlanBtn} onPress={() => navigation.navigate("PcMatrix", { serviceTypeId: st.id, serviceTypeName: st.name })} hitSlop={8}>
-                      <Ionicons name="grid-outline" size={16} color={pcColors.textMuted} />
-                    </Pressable>
-                  )}
-                  {canManageST && (
-                    <Pressable style={styles.addPlanBtn} onPress={() => navigation.navigate("PcServiceTypeSettings", { serviceTypeId: st.id })} hitSlop={8}>
-                      <Ionicons name="settings-outline" size={18} color={pcColors.textMuted} />
-                    </Pressable>
-                  )}
-                  {canAddPlan && (
-                    <Pressable style={styles.addPlanBtn} onPress={() => setAddPlanFor(st.id)} hitSlop={8}>
-                      <Ionicons name="add" size={20} color={pcColors.primary} />
-                    </Pressable>
-                  )}
-                </View>
-              </View>
-              {st.plans.length === 0 ? (
-                <Text style={styles.noPlans}>Niciun plan.</Text>
-              ) : (
-                st.plans.map((p) => (
-                  <PcListRow
-                    key={String(p.id)}
-                    title={p.dateLabel}
-                    sub={p.title || st.name}
-                    right={<Text style={styles.chev}>›</Text>}
-                    onPress={() => navigation.navigate("PcPlan", { planId: p.id })}
-                  />
-                ))
-              )}
+              ))}
             </View>
-          ))}
+          )}
         </ScrollView>
       )}
-
-      <PcDatePicker visible={!!addPlanFor} onClose={() => setAddPlanFor(null)} value="" onChange={createPlan} />
     </PcScreen>
   );
 }
@@ -168,6 +148,12 @@ const styles = StyleSheet.create({
   stHeaderTxt: { color: pcColors.textPrimary, fontSize: 18, fontWeight: "700" },
   stRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingRight: 16 },
   addPlanBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: pcColors.chipBorder, alignItems: "center", justifyContent: "center" },
+  // Card cu service types (ca în PCO): rânduri cu divider, tap → planurile tipului.
+  stCard: { backgroundColor: pcColors.card, borderRadius: 14, marginHorizontal: 16, overflow: "hidden" },
+  stCardRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 16, gap: 10 },
+  stCardRowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: pcColors.divider },
+  stCardName: { color: pcColors.textPrimary, fontSize: 17, fontWeight: "700" },
+  stCardSub: { color: pcColors.textMuted, fontSize: 13, marginTop: 3 },
 });
 
 export default PlansScreen;

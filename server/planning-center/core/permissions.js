@@ -64,8 +64,9 @@ const PARTIAL_CAPS = new Set([
   "services.manageServiceTypes", "services.addPlan", "services.editOrder", "services.schedule",
   "songs.edit", "media.edit", "reports.view",
 ]);
-// „basic" — doar vizualizare.
-const BASIC_CAPS = new Set(["people.view"]);
+// „basic" — doar vizualizare: vede directorul de oameni (toți), citește planuri/songs/media, își vede
+// propriul schedule și răspunde la propriile programări. NU editează nimic.
+const BASIC_CAPS = new Set(["people.view", "people.viewAll"]);
 
 // Titluri afișabile (rolul de bază + rolurile extra cumulate). Pt. profilul din app.
 const ROLE_TITLES = { superadmin: "Super Admin", developer: "Developer", admin: "Admin", editor: "Editor", user: "User" };

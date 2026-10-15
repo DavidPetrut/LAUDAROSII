@@ -11,8 +11,12 @@ import { pcColors } from "../../../theme";
 import { PcButton } from "../../../components";
 import { usePcAudio } from "../../../navigation/PcAudioContext";
 
-const fileIcon = (kind) =>
-  kind === "audio" ? "musical-note" : kind === "chordChart" ? "document-text-outline" : kind === "link" ? "link-outline" : "document-outline";
+// Audio detectat după kind SAU extensie (upload-urile nu au mereu kind="audio") → redare în playerul INTERN.
+const AUDIO_RX = /\.(mp3|m4a|aac|wav|ogg|flac|opus|aiff?)(\?|#|$)/i;
+const isAudio = (f) => !!(f && (f.kind === "audio" || (f.url && AUDIO_RX.test(f.url)) || (f.name && AUDIO_RX.test(f.name))));
+
+const fileIcon = (f) =>
+  isAudio(f) ? "musical-note" : f.kind === "chordChart" ? "document-text-outline" : f.kind === "link" ? "link-outline" : "document-outline";
 
 // Numele vine uneori URL-encodat (ex. „My%20Song.mp3") → îl afișăm decodat, lizibil.
 const prettyName = (n) => {
@@ -38,13 +42,13 @@ export function FilesTab({ planId }) {
   const audioTracks = useMemo(() => {
     const out = [];
     groups.forEach((g) => (g.files || []).forEach((f) => {
-      if (f.kind === "audio" && f.url) out.push({ id: String(f.id), title: prettyName(f.name), url: f.url, subtitle: g.label });
+      if (isAudio(f) && f.url) out.push({ id: String(f.id), title: prettyName(f.name), url: f.url, subtitle: g.label });
     }));
     return out;
   }, [groups]);
 
   const openFile = useCallback(async (f) => {
-    if (f.kind === "audio" && f.url) {
+    if (isAudio(f) && f.url) {
       const start = Math.max(0, audioTracks.findIndex((t) => t.id === String(f.id)));
       const ok = await playQueue(audioTracks, start);
       if (!ok) showError("Nu pot reda acest fișier audio.");
@@ -79,17 +83,18 @@ export function FilesTab({ planId }) {
           <View key={gi} style={{ marginBottom: 16 }}>
             <Text style={styles.group}>{String(g.label || "").toUpperCase()}</Text>
             {g.files.map((f) => {
-              const openable = f.kind === "audio" ? !!f.url : !!f.url;
+              const audio = isAudio(f);
+              const openable = !!f.url;
               return (
                 <Pressable
                   key={String(f.id)}
                   style={({ pressed }) => [styles.fileRow, pressed && openable && { opacity: 0.6 }]}
                   onPress={() => openFile(f)}
                 >
-                  <Ionicons name={fileIcon(f.kind)} size={20} color={openable ? pcColors.primary : pcColors.textSecondary} />
+                  <Ionicons name={fileIcon(f)} size={20} color={openable ? pcColors.primary : pcColors.textSecondary} />
                   <Text style={styles.fileName} numberOfLines={1}>{prettyName(f.name)}</Text>
                   {openable && (
-                    <Ionicons name={f.kind === "audio" ? "play-circle" : "open-outline"} size={20} color={pcColors.textMuted} />
+                    <Ionicons name={audio ? "play-circle" : "open-outline"} size={20} color={pcColors.textMuted} />
                   )}
                 </Pressable>
               );

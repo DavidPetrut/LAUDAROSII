@@ -1,4 +1,5 @@
 export { PlansScreen } from "./PlansScreen";
+export { ServiceTypePlansScreen } from "./ServiceTypePlansScreen";
 export { PlanScreen } from "./PlanScreen";
 export { ItemDetailScreen } from "./ItemDetailScreen";
 export { AddServiceTypeScreen } from "./AddServiceTypeScreen";
