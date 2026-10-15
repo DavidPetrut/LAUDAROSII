@@ -71,9 +71,11 @@ export function PcAudioProvider({ children }) {
   }, [playAt]);
 
   const toggle = useCallback(() => {
-    const p = playerRef.current; if (!p) return;
+    const p = playerRef.current;
+    // Niciun player activ (ex. s-a descărcat la navigare) dar avem coadă → reîncarcă piesa curentă.
+    if (!p) { if (queueRef.current.length) playAt(index); return; }
     try { if (p.playing) { p.pause(); setPlaying(false); } else { p.play(); setPlaying(true); } } catch (e) {}
-  }, []);
+  }, [index, playAt]);
   const seek = useCallback((sec) => { try { playerRef.current?.seekTo(Math.max(0, sec)); setPosition(sec); } catch (e) {} }, []);
   const skip = useCallback((delta) => { try { const p = playerRef.current; if (p) { const t = Math.max(0, (p.currentTime || position) + delta); p.seekTo(t); setPosition(t); } } catch (e) {} }, [position]);
   const next = useCallback(() => playAt(index + 1), [index, playAt]);

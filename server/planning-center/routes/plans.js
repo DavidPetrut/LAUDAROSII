@@ -18,6 +18,10 @@ const { DEFAULT_ITEM_ROW_COLORS, rowColorFor } = require("../lib/orderColors");
 const router = express.Router();
 const OID = (v) => (mongoose.Types.ObjectId.isValid(v) ? new mongoose.Types.ObjectId(v) : null);
 
+// Detectează audio după kind SAU extensie (fișierele uploadate pot avea kind generic → altfel nu ajung în player).
+const AUDIO_RX = /\.(mp3|m4a|aac|wav|ogg|flac|opus|aiff?)(\?|#|$)/i;
+const isAudioFile = (f) => f?.kind === "audio" || AUDIO_RX.test(f?.url || "") || AUDIO_RX.test(f?.name || "");
+
 /* ---------- helpers tz / format ---------- */
 async function campusTz(req) {
   if (req._pcTz) return req._pcTz;
@@ -736,11 +740,19 @@ router.get("/:id/files", requireCan("people.view"), async (req, res) => {
     const songFiles = arrIds.length
       ? await PcSongFile.find(scoped(req, { arrangementId: { $in: arrIds }, url: { $nin: [null, ""] } })).lean()
       : [];
+    //    Grupate pe cântec, sub-grupate ca în PCO: „Arrangement Attachments" (scope aranjament)
+    //    + „Key Attachments" (scope cheie). Dinamic: orice fișier atașat cântecului apare aici.
+    const pushTo = (label, f) => {
+      (groups[label] = groups[label] || []).push({ id: f._id, name: f.name, kind: f.kind, url: f.url || null });
+    };
     items.forEach((it) => {
       const af = songFiles.filter((f) => String(f.arrangementId) === String(it.arrangementId));
       if (!af.length) return;
-      const label = (it.title || "CÂNTEC").toUpperCase();
-      af.forEach((f) => (groups[label] = groups[label] || []).push({ id: f._id, name: f.name, kind: f.kind, url: f.url || null }));
+      const title = (it.title || "CÂNTEC").toUpperCase();
+      const arrFiles = af.filter((f) => f.scope !== "key");
+      const keyFiles = af.filter((f) => f.scope === "key");
+      arrFiles.forEach((f) => pushTo(`${title} · ARRANGEMENT ATTACHMENTS`, f));
+      keyFiles.forEach((f) => pushTo(`${title} · KEY ATTACHMENTS`, f));
     });
     res.json({ groups: Object.entries(groups).map(([label, items]) => ({ label, files: items })) });
   } catch (err) {
@@ -821,8 +833,8 @@ router.get("/:id/rehearse", requireCan("people.view"), async (req, res) => {
       const arr = arrById[String(it.arrangementId)] || null;
       const af = files.filter((f) => String(f.arrangementId) === String(it.arrangementId));
       const master = af.find((f) => f.scope === "arrangement" && f.kind === "chordChart" && f.source === "chordpro");
-      const audio = af.filter((f) => f.kind === "audio" && f.url).map((f) => ({ id: f._id, name: f.name, url: f.url }));
-      const docs = af.filter((f) => f.kind !== "audio" && !(f.kind === "chordChart" && f.source === "chordpro")).map((f) => ({ id: f._id, name: f.name, kind: f.kind, url: f.url, source: f.source, pending: f.transposeStatus === "pending" || (!f.url && f.source === "multitracks") }));
+      const audio = af.filter((f) => isAudioFile(f) && f.url).map((f) => ({ id: f._id, name: f.name, url: f.url }));
+      const docs = af.filter((f) => !isAudioFile(f) && !(f.kind === "chordChart" && f.source === "chordpro")).map((f) => ({ id: f._id, name: f.name, kind: f.kind, url: f.url, source: f.source, pending: f.transposeStatus === "pending" || (!f.url && f.source === "multitracks") }));
       return {
         itemId: it._id, songId: it.songId, title: it.title, keyName: it.keyName || "",
         arrangementId: it.arrangementId, arrangementName: arr?.name || "", bpm: arr?.bpm || null,
