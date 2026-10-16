@@ -104,6 +104,55 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "OK", message: "Laudarosii API funcționeaza" });
 });
 
+// TEMP diagnostic email (se sterge dupa ce aflam cauza). Verifica trimiterea SMTP DIN mediul
+// Render (verify + send), cu timeout-uri, ca sa vedem daca Render blocheaza SMTP-ul pe 587.
+app.get("/api/email-probe", async (req, res) => {
+  if (req.query.key !== "sa-diag-2026") return res.status(403).json({ error: "forbidden" });
+  const nodemailer = require("nodemailer");
+  const to = req.query.to || "davidpetrutdev@gmail.com";
+  const { EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS, EMAIL_FROM, EMAIL_FROM_NAME } = process.env;
+  const out = {
+    host: EMAIL_HOST || null,
+    port: EMAIL_PORT || null,
+    user: EMAIL_USER ? EMAIL_USER.slice(0, 4) + "***" + (EMAIL_USER.includes("@") ? EMAIL_USER.slice(EMAIL_USER.indexOf("@")) : "") : null,
+    userLen: EMAIL_USER ? EMAIL_USER.length : 0,
+    hasPass: !!EMAIL_PASS,
+    passLen: EMAIL_PASS ? EMAIL_PASS.length : 0,
+    from: EMAIL_FROM || null,
+  };
+  if (!EMAIL_HOST || !EMAIL_USER || !EMAIL_PASS) {
+    out.result = "ENV-MISSING";
+    return res.json(out);
+  }
+  const t = nodemailer.createTransport({
+    host: EMAIL_HOST,
+    port: Number(EMAIL_PORT) || 587,
+    secure: Number(EMAIL_PORT) === 465,
+    auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 15000,
+  });
+  try { const t0 = Date.now(); await t.verify(); out.verify = "OK"; out.verifyMs = Date.now() - t0; }
+  catch (e) { out.verify = "FAIL: " + e.message; }
+  try {
+    const t0 = Date.now();
+    const info = await t.sendMail({
+      from: `"${EMAIL_FROM_NAME || "Laudarosii"}" <${EMAIL_FROM || EMAIL_USER}>`,
+      to,
+      subject: "Render email probe " + new Date().toISOString(),
+      text: "probe din Render",
+      html: "<p>probe din Render</p>",
+    });
+    out.send = "OK";
+    out.response = info.response;
+    out.sendMs = Date.now() - t0;
+  } catch (e) {
+    out.send = "FAIL: " + e.message;
+  }
+  res.json(out);
+});
+
 // Auth pe WebSocket: root namespace (game + mission) si namespace-ul /pray-rooms.
 // Refuza conexiunile fara token valid si leaga identitatea de socket.
 io.use(socketAuth);
