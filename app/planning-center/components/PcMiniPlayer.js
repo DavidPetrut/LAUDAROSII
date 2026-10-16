@@ -6,13 +6,20 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { pcColors } from "../theme";
 import { usePcAudio } from "../navigation/PcAudioContext";
+import { usePcNav } from "../navigation/PcContext";
 
 const fmt = (s) => { const x = Math.max(0, Math.floor(s || 0)); return `${Math.floor(x / 60)}:${String(x % 60).padStart(2, "0")}`; };
+
+// Rute imersive unde mini-player-ul NU trebuie să apară (identic cu PcBottomNav).
+// Pe iOS modalul nativ acoperă oricum overlay-ul; pe Android NU → fără asta rămânea bara jos în player
+// și userul apăsa X-ul ei (close) care golea coada → playerul deschis rămânea mort.
+const HIDE_ON = new Set(["PcMediaPlayer", "PcBlockoutEditor", "PcMusicStand", "PcLyricsChords", "PcChartViewer", "PcSongbookView"]);
 
 export function PcMiniPlayer({ tabBarOffset = 58 }) {
   const insets = useSafeAreaInsets();
   const { visible, track, playing, position, toggle, close, openPlayer } = usePcAudio();
-  if (!visible || !track) return null;
+  const { currentRoute } = usePcNav();
+  if (!visible || !track || HIDE_ON.has(currentRoute)) return null;
   return (
     <Pressable style={[styles.bar, { bottom: insets.bottom + tabBarOffset }]} onPress={openPlayer}>
       <View style={styles.thumb}><Ionicons name="musical-note" size={18} color={pcColors.textMuted} /></View>
