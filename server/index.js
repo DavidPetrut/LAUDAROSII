@@ -124,31 +124,17 @@ app.get("/api/email-probe", async (req, res) => {
     out.result = "ENV-MISSING";
     return res.json(out);
   }
-  const t = nodemailer.createTransport({
-    host: EMAIL_HOST,
-    port: Number(EMAIL_PORT) || 587,
-    secure: Number(EMAIL_PORT) === 465,
-    auth: { user: EMAIL_USER, pass: EMAIL_PASS },
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 15000,
-  });
-  try { const t0 = Date.now(); await t.verify(); out.verify = "OK"; out.verifyMs = Date.now() - t0; }
-  catch (e) { out.verify = "FAIL: " + e.message; }
-  try {
-    const t0 = Date.now();
-    const info = await t.sendMail({
-      from: `"${EMAIL_FROM_NAME || "Laudarosii"}" <${EMAIL_FROM || EMAIL_USER}>`,
-      to,
-      subject: "Render email probe " + new Date().toISOString(),
-      text: "probe din Render",
-      html: "<p>probe din Render</p>",
+  // Testeaza ce PORT SMTP e deschis din Render (587 blocat -> incercam 2525/465/25).
+  out.ports = {};
+  for (const p of [587, 2525, 465, 25]) {
+    const t = nodemailer.createTransport({
+      host: EMAIL_HOST, port: p, secure: p === 465,
+      auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+      connectionTimeout: 8000, greetingTimeout: 8000, socketTimeout: 8000,
     });
-    out.send = "OK";
-    out.response = info.response;
-    out.sendMs = Date.now() - t0;
-  } catch (e) {
-    out.send = "FAIL: " + e.message;
+    const t0 = Date.now();
+    try { await t.verify(); out.ports[p] = "OK (" + (Date.now() - t0) + "ms)"; }
+    catch (e) { out.ports[p] = "FAIL: " + e.message + " (" + (Date.now() - t0) + "ms)"; }
   }
   res.json(out);
 });
