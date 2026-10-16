@@ -3,11 +3,11 @@
  * ORDER/TEAMS/TIMES/NOTES/FILES. Identic cu screenshot-urile (mobil dark+verde).
  */
 import React, { useState, useCallback } from "react";
-import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, Pressable, ActivityIndicator, StyleSheet, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { showError, showInfo, showConfirm } from "../../../global/functions";
+import { showError, showInfo } from "../../../global/functions";
 import { pcApi } from "../../api/pcApi";
 import { pcColors } from "../../theme";
 import { PcScreen, PcAvatar, PcIconButton, PcUnderlineTabs, PcBottomSheet, PcButton } from "../../components";
@@ -76,12 +76,15 @@ export function PlanScreen({ route, navigation }) {
     finally { setRespondingId(null); }
   }, [respondingId, load]);
 
-  // Confirmare înainte de accept/decline (modal din app, nu alertă nativă).
+  // Confirmare înainte de accept/decline — dialog NATIV (întunecat pe Android), nu modalul alb.
   const confirmRespond = useCallback((a, action) => {
-    showConfirm(
+    Alert.alert(
       action === "accept" ? "Accept" : "Decline",
       action === "accept" ? "Ești sigur că accepți această poziție?" : "Ești sigur că refuzi această poziție?",
-      () => respondAssignment(a.assignmentId, action),
+      [
+        { text: "Anulează", style: "cancel" },
+        { text: "Da", onPress: () => respondAssignment(a.assignmentId, action) },
+      ],
     );
   }, [respondAssignment]);
 
