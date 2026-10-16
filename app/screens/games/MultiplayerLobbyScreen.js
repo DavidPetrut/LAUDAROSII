@@ -6,6 +6,7 @@ import {
   FlatList,
   TextInput,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../global/context";
 import {
   getSocket,
@@ -19,6 +20,7 @@ import { lobbyStyles as styles } from "./styles";
 
 export const MultiplayerLobbyScreen = ({ route, navigation }) => {
   const { gameKey, gameName } = route.params;
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [roomId, setRoomId] = useState("");
   const [players, setPlayers] = useState([]);
@@ -93,7 +95,7 @@ export const MultiplayerLobbyScreen = ({ route, navigation }) => {
 
   if (!inRoom) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingBottom: insets.bottom + 16 }]}>
         <ScreenHeader title={`🎮 ${gameName}`} subtitle="Multiplayer" />
 
         <View style={styles.content}>

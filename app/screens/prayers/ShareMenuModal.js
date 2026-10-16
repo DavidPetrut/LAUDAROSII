@@ -10,6 +10,7 @@ import {
   Share,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { headerGradient, colors } from "../../public/styles/global";
 import { showSuccess, showError } from "../../global/functions";
@@ -45,6 +46,7 @@ export const ShareMenuModal = ({
   onDelete,
   deleting,
 }) => {
+  const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(300)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -133,7 +135,10 @@ export const ShareMenuModal = ({
       <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
         <TouchableOpacity style={styles.backdrop} onPress={onClose} />
         <Animated.View
-          style={[styles.container, { transform: [{ translateY: slideAnim }] }]}
+          style={[
+            styles.container,
+            { paddingBottom: insets.bottom, transform: [{ translateY: slideAnim }] },
+          ]}
         >
           <LinearGradient
             colors={headerGradient.colors}

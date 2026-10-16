@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Keyboard, View, Text, TextInput, TouchableOpacity, ScrollView, Switch, ActivityIndicator, Modal, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { broadcastStyles as styles } from "./broadcastStyles";
 import { colors } from "../../../public/styles/global";
 import { useToast } from "../../../global/context";
@@ -20,6 +21,7 @@ const TITLE_MAX = 80;
  * titlu + mesaj (cu sabloane salvate), email si trimitere imediata sau programata.
  */
 export const ComposeView = ({ onSent }) => {
+  const insets = useSafeAreaInsets();
   const { showSuccess, showError } = useToast();
   const [roles, setRoles] = useState([]);
   const [tags, setTags] = useState([]);
@@ -93,7 +95,7 @@ export const ComposeView = ({ onSent }) => {
   };
 
   return (
-    <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+    <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled">
       <Text style={styles.label}>Cui te adresezi</Text>
       <View style={styles.chipsRow}>
         {ROLE_OPTIONS.map((r) => (
@@ -158,7 +160,7 @@ export const ComposeView = ({ onSent }) => {
 
       <Modal visible={saveOpen} transparent animationType="fade" onRequestClose={() => setSaveOpen(false)}>
         <Pressable style={styles.sheetBackdrop} onPress={() => setSaveOpen(false)}>
-          <Pressable style={styles.sheet} onPress={() => Keyboard.dismiss()}>
+          <Pressable style={[styles.sheet, { maxHeight: "90%", paddingBottom: insets.bottom + 12 }]} onPress={() => Keyboard.dismiss()}>
             <Text style={styles.sheetTitle}>Salvează șablonul</Text>
             <TextInput style={styles.input} value={tplTitle} onChangeText={setTplTitle} placeholder="Titlu (ex: pentru botez)" placeholderTextColor={colors.textMuted} maxLength={60} autoFocus />
             <TouchableOpacity style={[styles.primaryBtn, !tplTitle.trim() && styles.disabled]} onPress={saveTemplate} disabled={!tplTitle.trim()}>

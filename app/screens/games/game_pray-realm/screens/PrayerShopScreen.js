@@ -8,6 +8,7 @@ import {
   ImageBackground,
   Animated,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { shopStyles as styles } from "./styles/shopStyles";
 import ShopItem from "../components/ShopItem";
 import { GameImages } from "../assets";
@@ -47,6 +48,7 @@ const ITEM_LORE = {
 };
 
 const PrayerShopScreen = ({ userId, onBack, onAlabastUpdate }) => {
+  const insets = useSafeAreaInsets();
   const [items, setItems] = useState([]);
   const [inventory, setInventory] = useState({ tools: {}, items: {} });
   const [alabastruCount, setAlabastruCount] = useState(0);
@@ -315,7 +317,7 @@ const PrayerShopScreen = ({ userId, onBack, onAlabastUpdate }) => {
       resizeMode="cover"
     >
       {/* Header - doar butonul X în dreapta */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={{ flex: 1 }} />
         <TouchableOpacity style={styles.backButton} onPress={onBack}>
           <Image

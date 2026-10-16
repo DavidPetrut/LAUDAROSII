@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, Modal, TouchableOpacity, ScrollView } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { UserAvatar } from "../../global/components";
 import { modalStyles as styles } from "./styles";
 
@@ -13,10 +14,16 @@ export const CreateListModal = ({
   onCreate,
   creating,
 }) => {
+  const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+        <View
+          style={[
+            styles.modalContent,
+            { maxHeight: "90%", paddingBottom: insets.bottom + 24 },
+          ]}
+        >
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Creeaza lista rugaciuni</Text>
             <TouchableOpacity onPress={onClose}>

@@ -11,6 +11,7 @@ import { Keyboard,
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { devotionalStyles as d } from "../timer/devotionalStyles";
 import { api, showError } from "../../../global/functions";
 import { prayerBoardsApi } from "../lists/prayerBoardsApi";
@@ -22,6 +23,7 @@ import { PUBLIC_LIST_IMAGE, resolveListImage } from "../lists/listImages";
  * Copie independenta: textul/starea sunt trimise, nu o referinta la lista sursa.
  */
 export const ExistingPrayerPicker = ({ visible, currentUserId, submitting, onClose, onPick }) => {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [lists, setLists] = useState([]);
   const [step, setStep] = useState("lists");
@@ -82,7 +84,10 @@ export const ExistingPrayerPicker = ({ visible, currentUserId, submitting, onClo
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={d.sheetBackdrop} onPress={onClose}>
-        <Pressable style={d.sheet} onPress={() => Keyboard.dismiss()}>
+        <Pressable
+          style={[d.sheet, { paddingBottom: insets.bottom + 16, maxHeight: "90%" }]}
+          onPress={() => Keyboard.dismiss()}
+        >
           <View style={d.sheetHandle} />
 
           {step === "lists" ? (

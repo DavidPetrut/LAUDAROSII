@@ -10,6 +10,7 @@ import {
   Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { devotionalStyles as d } from "../timer/devotionalStyles";
 import { BulbToggle } from "../../../global/components";
 
@@ -27,6 +28,7 @@ const MOODS = [
  * de fiecare data cand se deschide.
  */
 export const PrayerFormModal = ({ visible, onClose, onSubmit, submitting, title = "Adaugă un motiv", initial = null }) => {
+  const insets = useSafeAreaInsets();
   const [text, setText] = useState("");
   const [isUrgent, setIsUrgent] = useState(false);
   const [mood, setMood] = useState(null);
@@ -44,7 +46,10 @@ export const PrayerFormModal = ({ visible, onClose, onSubmit, submitting, title 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={d.sheetBackdrop} onPress={onClose}>
-        <Pressable style={d.sheet} onPress={() => Keyboard.dismiss()}>
+        <Pressable
+          style={[d.sheet, { paddingBottom: insets.bottom + 16, maxHeight: "90%" }]}
+          onPress={() => Keyboard.dismiss()}
+        >
           <View style={d.sheetHandle} />
           <Text style={d.sheetTitle}>{title}</Text>
 

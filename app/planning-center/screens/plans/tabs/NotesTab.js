@@ -2,12 +2,14 @@
 import React, { useState, useCallback } from "react";
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showError, showInfo } from "../../../../global/functions";
 import { pcApi } from "../../../api/pcApi";
 import { pcColors } from "../../../theme";
 import { PcButton } from "../../../components";
 
 export function NotesTab({ planId }) {
+  const insets = useSafeAreaInsets();
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
@@ -21,7 +23,7 @@ export function NotesTab({ planId }) {
   if (loading) return <ActivityIndicator color={pcColors.primary} style={{ marginTop: 30 }} />;
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }}>
       {notes.length === 0 && <Text style={styles.empty}>Nicio notă.</Text>}
       {notes.map((n) => (
         <View key={String(n.id)} style={{ marginBottom: 18 }}>

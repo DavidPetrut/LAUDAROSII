@@ -11,6 +11,7 @@ import { Keyboard,
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { prayerBoardsApi } from "../../lists/prayerBoardsApi";
 import { api } from "../../../../global/functions";
@@ -23,6 +24,7 @@ import { PUBLIC_LIST_IMAGE, resolveListImage } from "../../lists/listImages";
  * Returneaza { kind, boardId, roomId } sau null.
  */
 export const PrayerListPickerModal = ({ visible, selected, onSelect, onClose }) => {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [boards, setBoards] = useState([]);
   const [rooms, setRooms] = useState([]);
@@ -46,7 +48,10 @@ export const PrayerListPickerModal = ({ visible, selected, onSelect, onClose }) 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => Keyboard.dismiss()}>
+        <Pressable
+          style={[styles.sheet, { paddingBottom: insets.bottom + 16, maxHeight: "90%" }]}
+          onPress={() => Keyboard.dismiss()}
+        >
           <View style={styles.sheetHandle} />
           <Text style={styles.sheetTitle}>Alege o listă de rugăciuni</Text>
 

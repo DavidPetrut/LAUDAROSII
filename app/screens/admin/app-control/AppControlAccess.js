@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader } from "../../../global/components";
 import { useTheme } from "../../../global/context";
 import { showError, showSuccess } from "../../../global/functions";
@@ -17,6 +18,7 @@ const fmtWhen = (iso) => {
 
 export const AppControlAccess = ({ navigation }) => {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [catalog, setCatalog] = useState(null);
   const [roleData, setRoleData] = useState({});
   const [loading, setLoading] = useState(true);
@@ -102,7 +104,7 @@ export const AppControlAccess = ({ navigation }) => {
   return (
     <View style={[ac.container, { backgroundColor: theme.background }]}>
       <ScreenHeader title="Accesibilitate" subtitle="Alege rolul, apoi acorda accese" onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={ac.content}>
+      <ScrollView contentContainerStyle={[ac.content, { paddingBottom: insets.bottom + 120 }]}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Text style={ac.sectionLabel}>1 · Alege rolul</Text>
           <TouchableOpacity
@@ -148,7 +150,7 @@ export const AppControlAccess = ({ navigation }) => {
       </ScrollView>
 
       {role && (
-        <View style={[ac.saveBar, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
+        <View style={[ac.saveBar, { backgroundColor: theme.surface, borderTopColor: theme.border, paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
             style={[ac.saveBtn, (!dirty || saving) && ac.saveBtnDisabled]}
             onPress={save}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { broadcastStyles as styles } from "./broadcastStyles";
 import { broadcastApi } from "./broadcastApi";
 
@@ -21,6 +22,7 @@ const fmtDate = (d) => {
  * programate inca netrimise pot fi anulate.
  */
 export const ScheduledView = () => {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
 
@@ -46,7 +48,7 @@ export const ScheduledView = () => {
   }
 
   return (
-    <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }} refreshControl={<RefreshControl refreshing={false} onRefresh={load} />}>
+    <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} refreshControl={<RefreshControl refreshing={false} onRefresh={load} />}>
       {items.length === 0 && <Text style={styles.emptyText}>Nicio notificare încă.</Text>}
       {items.map((b) => {
         const st = STATUS[b.status] || STATUS.sent;

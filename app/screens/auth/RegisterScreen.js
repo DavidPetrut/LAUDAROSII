@@ -8,12 +8,14 @@ import {
   ScrollView,
   Animated,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../global/context";
 import { showError } from "../../global/functions";
 import { teamRoleLabels } from "../../global/functions/formatters";
 import { styles } from "./styles";
 
 export const RegisterScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const [form, setForm] = useState({
     email: "",
     password: "",
@@ -55,7 +57,11 @@ export const RegisterScreen = ({ navigation }) => {
   const roleKeys = Object.keys(teamRoleLabels);
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingBottom: insets.bottom }}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.header}>
         <Text style={styles.title}>Bine ai venit!</Text>
         <Text style={styles.subtitle}>Creeaza-ți contul în echipa</Text>

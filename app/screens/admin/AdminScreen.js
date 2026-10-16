@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api, showError, showSuccess } from "../../global/functions";
 import { useAuth } from "../../global/context";
 import { ScreenHeader, UserAvatar } from "../../global/components";
@@ -21,6 +22,7 @@ const roleLabels = {
 };
 
 export const AdminScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const [users, setUsers] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -147,7 +149,7 @@ export const AdminScreen = ({ navigation }) => {
         data={users}
         renderItem={renderUser}
         keyExtractor={(item) => item._id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }

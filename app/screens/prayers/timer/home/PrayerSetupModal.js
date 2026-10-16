@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Keyboard, View, Text, TouchableOpacity, Modal, Pressable } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { devotionalStyles as styles } from "../devotionalStyles";
 
 const DURATIONS = [
@@ -14,6 +15,7 @@ const DURATIONS = [
  * "Incepe". Intoarce configuratia catre parinte (minutes null = nelimitat).
  */
 export const PrayerSetupModal = ({ visible, program, onStart, onClose }) => {
+  const insets = useSafeAreaInsets();
   const [minutes, setMinutes] = useState(15);
   const [category, setCategory] = useState(null);
 
@@ -29,7 +31,10 @@ export const PrayerSetupModal = ({ visible, program, onStart, onClose }) => {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => Keyboard.dismiss()}>
+        <Pressable
+          style={[styles.sheet, { paddingBottom: insets.bottom + 16, maxHeight: "90%" }]}
+          onPress={() => Keyboard.dismiss()}
+        >
           <View style={styles.sheetHandle} />
           <Text style={styles.sheetTitle}>Începe rugăciunea</Text>
 

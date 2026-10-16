@@ -2,6 +2,7 @@
 import React, { useState, useCallback } from "react";
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showError, showInfo } from "../../../../global/functions";
 import { pcApi } from "../../../api/pcApi";
 import { pcColors } from "../../../theme";
@@ -23,6 +24,7 @@ function TimeRow({ t }) {
 }
 
 export function TimesTab({ planId }) {
+  const insets = useSafeAreaInsets();
   const [data, setData] = useState({ service: [], rehearsal: [], other: [] });
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
@@ -44,7 +46,7 @@ export function TimesTab({ planId }) {
     ) : null;
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }}>
       <Section title="SERVICE TIMES" rows={data.service} />
       <Section title="REHEARSAL TIMES" rows={data.rehearsal} />
       <Section title="OTHER TIMES" rows={data.other} />

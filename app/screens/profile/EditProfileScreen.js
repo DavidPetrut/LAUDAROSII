@@ -7,6 +7,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../global/context";
 import { api, showSuccess, showError } from "../../global/functions";
 import { teamRoleLabels } from "../../global/functions/formatters";
@@ -14,6 +15,7 @@ import { ScreenHeader } from "../../global/components";
 import { editStyles as styles } from "./styles";
 
 export const EditProfileScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const { user, updateUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -75,6 +77,7 @@ export const EditProfileScreen = ({ navigation }) => {
       <ScreenHeader title="Editeaza Profilul" />
       <ScrollView
         style={styles.scrollContent}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.form}>

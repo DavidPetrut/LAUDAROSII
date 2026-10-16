@@ -3,6 +3,7 @@ import React, { useState, useCallback } from "react";
 import { View, Text, ScrollView, Pressable, ActivityIndicator, useWindowDimensions, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showError, showSuccess, showInfo } from "../../../../global/functions";
 import { pcApi } from "../../../api/pcApi";
 import { pcColors } from "../../../theme";
@@ -90,6 +91,7 @@ function TeamCard({ team, width, onMenu, onSend, onAddNeeded, sending }) {
 export function TeamsTab({ planId }) {
   const { me } = usePc();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const canSchedule = !!me?.capabilities?.schedule;
   const [data, setData] = useState({ myTeams: [], otherTeams: [] });
   const [loading, setLoading] = useState(true);
@@ -159,7 +161,7 @@ export function TeamsTab({ planId }) {
           horizontal
           showsHorizontalScrollIndicator={false}
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12, alignItems: "stretch" }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 12, alignItems: "stretch" }}
           snapToInterval={CARD_W + 12}
           snapToAlignment="start"
           decelerationRate="fast"
@@ -179,7 +181,7 @@ export function TeamsTab({ planId }) {
       )}
 
       {canSchedule && (
-        <Pressable style={styles.fab} onPress={() => openAdd(null, null)}>
+        <Pressable style={[styles.fab, { bottom: insets.bottom + 20 }]} onPress={() => openAdd(null, null)}>
           <Ionicons name="add" size={30} color="#0A0A0A" />
         </Pressable>
       )}

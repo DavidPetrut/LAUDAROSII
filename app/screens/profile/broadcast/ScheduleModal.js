@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Keyboard, View, Text, TouchableOpacity, Modal, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { broadcastStyles as styles } from "./broadcastStyles";
 import { colors } from "../../../public/styles/global";
 
@@ -14,6 +15,7 @@ const startOfMonth = (y, m) => (new Date(y, m, 1).getDay() + 6) % 7;
  * momentul viitor la care sa fie trimisa notificarea.
  */
 export const ScheduleModal = ({ visible, onConfirm, onClose }) => {
+  const insets = useSafeAreaInsets();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
@@ -51,7 +53,7 @@ export const ScheduleModal = ({ visible, onConfirm, onClose }) => {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => Keyboard.dismiss()}>
+        <Pressable style={[styles.sheet, { maxHeight: "90%", paddingBottom: insets.bottom + 12 }]} onPress={() => Keyboard.dismiss()}>
           <Text style={styles.sheetTitle}>Programează notificarea</Text>
 
           <View style={styles.monthNav}>

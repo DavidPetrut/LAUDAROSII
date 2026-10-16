@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Keyboard, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader, UserAvatar } from "../../../global/components";
 import { useAuth, useTheme } from "../../../global/context";
 import { showError, showSuccess } from "../../../global/functions";
@@ -12,6 +13,7 @@ import { ac, ACCENT, ROLE_META } from "./appControlStyles";
 export const AppControlMemberDetail = ({ navigation, route }) => {
   const { id } = route.params;
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { user: me } = useAuth();
 
   const [member, setMember] = useState(null);
@@ -123,7 +125,7 @@ export const AppControlMemberDetail = ({ navigation, route }) => {
   return (
     <View style={[ac.container, { backgroundColor: theme.background }]}>
       <ScreenHeader title="Membru" onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={ac.content}>
+      <ScrollView contentContainerStyle={[ac.content, { paddingBottom: insets.bottom + 120 }]}>
         <View style={ac.detailHead}>
           <UserAvatar profilePicture={member.profilePicture} size={72} />
           <Text style={[ac.detailName, { color: theme.textPrimary }]}>{member.fullName || "Fara nume"}</Text>
@@ -172,7 +174,7 @@ export const AppControlMemberDetail = ({ navigation, route }) => {
       </ScrollView>
 
       {!isSuper && (
-        <View style={[ac.saveBar, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
+        <View style={[ac.saveBar, { backgroundColor: theme.surface, borderTopColor: theme.border, paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
             style={[ac.saveBtn, (!dirty || saving) && ac.saveBtnDisabled]}
             onPress={saveGrants}

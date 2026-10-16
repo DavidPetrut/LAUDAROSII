@@ -7,12 +7,14 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api, showError } from "../../global/functions";
 import { ScreenHeader } from "../../global/components";
 import { leaderboardStyles as styles } from "./styles";
 
 export const LeaderboardScreen = ({ route, navigation }) => {
   const { gameKey, gameName } = route.params;
+  const insets = useSafeAreaInsets();
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -76,7 +78,10 @@ export const LeaderboardScreen = ({ route, navigation }) => {
         data={leaderboard}
         renderItem={renderItem}
         keyExtractor={(item, idx) => idx.toString()}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[
+          styles.list,
+          { paddingBottom: insets.bottom + 16 },
+        ]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }

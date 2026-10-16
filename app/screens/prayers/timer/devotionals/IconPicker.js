@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Modal } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { devotionalStyles as styles } from "../devotionalStyles";
 import { colors } from "../../../../public/styles/global";
@@ -11,12 +12,13 @@ import { searchIcons } from "./iconCatalog";
  * evidentiata cu culoarea aleasa. Fara pachet nou (foloseste @expo/vector-icons).
  */
 export const IconPicker = ({ visible, color = "#10b981", selected, onSelect, onClose }) => {
+  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   const groups = searchIcons(query);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.pickerContainer}>
+      <View style={[styles.pickerContainer, { paddingTop: Math.max(48, insets.top + 8) }]}>
         <View style={styles.pickerHeader}>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="close" size={26} color="#e5e7eb" />
@@ -36,7 +38,7 @@ export const IconPicker = ({ visible, color = "#10b981", selected, onSelect, onC
           />
         </View>
 
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
           {groups.map((g) => (
             <View key={g.category}>
               <Text style={styles.pickerCategory}>{g.category}</Text>

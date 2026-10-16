@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, Text, TouchableOpacity, Animated } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api, showSuccess } from "../../global/functions";
 import { BackArrowIcon } from "../../global/components";
 import { memoryStyles as styles } from "./styles";
@@ -24,6 +25,7 @@ const verses = [
 ];
 
 export const MemoryGameScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const [currentVerse, setCurrentVerse] = useState(null);
   const [shuffledWords, setShuffledWords] = useState([]);
   const [selectedWords, setSelectedWords] = useState([]);
@@ -136,8 +138,8 @@ export const MemoryGameScreen = ({ navigation }) => {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, { paddingBottom: insets.bottom + 16 }]}>
+      <View style={[styles.header, { marginTop: insets.top }]}>
         <Text style={styles.reference}>{currentVerse?.reference}</Text>
         <View style={styles.stats}>
           <Text style={styles.timer}>⏱️ {timeLeft}s</Text>

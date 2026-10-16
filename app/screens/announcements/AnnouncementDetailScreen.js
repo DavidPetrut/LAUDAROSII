@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { BackArrowIcon, UserAvatar, ImageViewer } from "../../global/components";
 import { api, showError, formatDate } from "../../global/functions";
@@ -16,6 +17,7 @@ import { detailStyles as styles } from "./styles";
 
 export const AnnouncementDetailScreen = ({ route, navigation }) => {
   const { announcementId } = route.params;
+  const insets = useSafeAreaInsets();
   const [announcement, setAnnouncement] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -54,7 +56,7 @@ export const AnnouncementDetailScreen = ({ route, navigation }) => {
         colors={headerGradient.colors}
         start={headerGradient.start}
         end={headerGradient.end}
-        style={styles.detailHeader}
+        style={[styles.detailHeader, { paddingTop: insets.top + spacing.md }]}
       >
         <TouchableOpacity
           style={styles.backBtn}

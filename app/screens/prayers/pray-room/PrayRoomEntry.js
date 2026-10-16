@@ -8,6 +8,7 @@ import {
   Platform,
   Image,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader, TiledBackground, BackArrowIcon } from "../../../global/components";
 import { api, showError, showSuccess } from "../../../global/functions";
 import { useTheme } from "../../../global/context";
@@ -20,6 +21,7 @@ const WAR_ROOM_2 = require("../../../public/images/war_room_2.jpg");
 
 export const PrayRoomEntry = ({ navigation }) => {
   const { isDarkMode } = useTheme();
+  const insets = useSafeAreaInsets();
   const [showJoinInput, setShowJoinInput] = useState(false);
   const [joinCode, setJoinCode] = useState("");
   const [joining, setJoining] = useState(false);
@@ -113,7 +115,7 @@ export const PrayRoomEntry = ({ navigation }) => {
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={styles.entryBackBtn}
+        style={[styles.entryBackBtn, { top: insets.top + 8 }]}
         onPress={() => navigation.goBack()}
       >
         <BackArrowIcon size={48} light />

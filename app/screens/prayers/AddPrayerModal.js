@@ -10,6 +10,7 @@ import {
   Platform,
   Image,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { modalStyles as styles } from "./styles";
 import { BulbToggle, TestReportButton } from "../../global/components";
 
@@ -35,13 +36,19 @@ export const AddPrayerModal = ({
   onSubmit,
   submitting,
 }) => {
+  const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <KeyboardAvoidingView
         style={styles.modalOverlay}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.modalContent}>
+        <View
+          style={[
+            styles.modalContent,
+            { maxHeight: "90%", paddingBottom: insets.bottom + 24 },
+          ]}
+        >
           <TestReportButton style={{ left: undefined, right: 46, top: 6 }} />
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Adauga un motiv</Text>

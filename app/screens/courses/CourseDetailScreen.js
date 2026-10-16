@@ -7,6 +7,7 @@ import {
   Linking,
   ActivityIndicator,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   api,
   showError,
@@ -18,6 +19,7 @@ import { detailStyles as styles } from "./styles";
 
 export const CourseDetailScreen = ({ route, navigation }) => {
   const { courseId } = route.params;
+  const insets = useSafeAreaInsets();
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -66,7 +68,7 @@ export const CourseDetailScreen = ({ route, navigation }) => {
     <View style={styles.container}>
       <ScreenHeader title={course.title} />
 
-      <ScrollView>
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}>
         <View style={styles.thumbnail}>
           <Text style={styles.thumbnailEmoji}>🎓</Text>
         </View>

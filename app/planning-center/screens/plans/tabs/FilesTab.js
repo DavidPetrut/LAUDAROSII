@@ -5,6 +5,7 @@ import React, { useMemo, useState, useCallback } from "react";
 import { View, Text, ScrollView, Pressable, ActivityIndicator, Linking, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showError, showInfo } from "../../../../global/functions";
 import { pcApi } from "../../../api/pcApi";
 import { pcColors } from "../../../theme";
@@ -26,6 +27,7 @@ const prettyName = (n) => {
 };
 
 export function FilesTab({ planId }) {
+  const insets = useSafeAreaInsets();
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const { playQueue } = usePcAudio();
@@ -77,7 +79,7 @@ export function FilesTab({ planId }) {
         />
         <PcButton title="Music Stand" variant="outline" icon="musical-notes-outline" onPress={() => showInfo("Music Stand — în curând")} style={styles.btn} textStyle={{ fontSize: 14 }} />
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }}>
         {groups.length === 0 && <Text style={styles.empty}>Niciun fișier atașat.</Text>}
         {groups.map((g, gi) => (
           <View key={gi} style={{ marginBottom: 16 }}>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, Animated } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api, showSuccess } from "../../global/functions";
 import { BackArrowIcon } from "../../global/components";
 import { quizStyles as styles } from "./styles";
@@ -34,6 +35,7 @@ const localQuestions = [
 
 export const QuizGameScreen = ({ route, navigation }) => {
   const { gameKey, gameName } = route.params;
+  const insets = useSafeAreaInsets();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [selected, setSelected] = useState(null);
@@ -117,8 +119,13 @@ export const QuizGameScreen = ({ route, navigation }) => {
   }
 
   return (
-    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      <View style={styles.header}>
+    <Animated.View
+      style={[
+        styles.container,
+        { opacity: fadeAnim, paddingBottom: insets.bottom + 16 },
+      ]}
+    >
+      <View style={[styles.header, { marginTop: insets.top }]}>
         <Text style={styles.progress}>
           {currentIndex + 1} / {localQuestions.length}
         </Text>
