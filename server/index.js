@@ -104,53 +104,6 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "OK", message: "Laudarosii API funcționeaza" });
 });
 
-// TEMP diagnostic email (se sterge dupa ce aflam cauza). Verifica trimiterea SMTP DIN mediul
-// Render (verify + send), cu timeout-uri, ca sa vedem daca Render blocheaza SMTP-ul pe 587.
-app.get("/api/email-probe", async (req, res) => {
-  if (req.query.key !== "sa-diag-2026") return res.status(403).json({ error: "forbidden" });
-  const nodemailer = require("nodemailer");
-  const to = req.query.to || "davidpetrutdev@gmail.com";
-  const { EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS, EMAIL_FROM, EMAIL_FROM_NAME } = process.env;
-  const out = {
-    host: EMAIL_HOST || null,
-    port: EMAIL_PORT || null,
-    user: EMAIL_USER ? EMAIL_USER.slice(0, 4) + "***" + (EMAIL_USER.includes("@") ? EMAIL_USER.slice(EMAIL_USER.indexOf("@")) : "") : null,
-    userLen: EMAIL_USER ? EMAIL_USER.length : 0,
-    hasPass: !!EMAIL_PASS,
-    passLen: EMAIL_PASS ? EMAIL_PASS.length : 0,
-    from: EMAIL_FROM || null,
-  };
-  if (!EMAIL_HOST || !EMAIL_USER || !EMAIL_PASS) {
-    out.result = "ENV-MISSING";
-    return res.json(out);
-  }
-  // Testeaza ce PORT SMTP e deschis din Render (587 blocat -> incercam 2525/465/25).
-  out.ports = {};
-  for (const p of [587, 2525, 465, 25]) {
-    const t = nodemailer.createTransport({
-      host: EMAIL_HOST, port: p, secure: p === 465,
-      auth: { user: EMAIL_USER, pass: EMAIL_PASS },
-      connectionTimeout: 8000, greetingTimeout: 8000, socketTimeout: 8000,
-    });
-    const t0 = Date.now();
-    try { await t.verify(); out.ports[p] = "OK (" + (Date.now() - t0) + "ms)"; }
-    catch (e) { out.ports[p] = "FAIL: " + e.message + " (" + (Date.now() - t0) + "ms)"; }
-  }
-  // Test REAL prin emailService (foloseste EMAIL_PORT din env) -> trimite efectiv un email.
-  try {
-    const emailService = require("./services/emailService");
-    out.realConfigured = emailService.isEmailConfigured();
-    const r = await emailService.sendEmail({
-      to,
-      subject: "Render REAL send (EMAIL_PORT=" + (EMAIL_PORT || "?") + ") " + new Date().toISOString(),
-      text: "Daca primesti acest email, trimiterea de pe Render functioneaza pe portul " + EMAIL_PORT + ".",
-      html: "<p>Email trimis DE PE RENDER pe portul <b>" + EMAIL_PORT + "</b> — functioneaza.</p>",
-    });
-    out.realSend = r;
-  } catch (e) { out.realSend = { error: e.message }; }
-  res.json(out);
-});
-
 // Auth pe WebSocket: root namespace (game + mission) si namespace-ul /pray-rooms.
 // Refuza conexiunile fara token valid si leaga identitatea de socket.
 io.use(socketAuth);
