@@ -17,9 +17,10 @@ import * as ImagePicker from "expo-image-picker";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../global/context";
 import { UserAvatar } from "../../global/components";
-import { headerGradient } from "../../public/styles/global";
+import { headerGradient, colors } from "../../public/styles/global";
 import {
   api,
   showError,
@@ -422,73 +423,98 @@ export const AnnouncementsScreen = ({ navigation }) => {
           />
           <ScrollView style={modalStyles.content} bounces={false} keyboardShouldPersistTaps="handled">
             <View style={modalStyles.handle} />
-            <Text style={modalStyles.title}>Anunț nou</Text>
-
-            <TextInput
-              style={modalStyles.input}
-              placeholder="Titlu anunț"
-              value={form.title}
-              onChangeText={(v) => setForm({ ...form, title: v.slice(0, 27) })}
-              maxLength={27}
-            />
-
-            <TextInput
-              style={[modalStyles.input, modalStyles.textArea]}
-              placeholder="Conținut anunț..."
-              value={form.body}
-              onChangeText={(v) => setForm({ ...form, body: v })}
-              multiline
-              numberOfLines={5}
-            />
-
-            <Text style={modalStyles.colorLabel}>Fundal:</Text>
-            <View style={modalStyles.bgToggle}>
-              <TouchableOpacity
-                style={[modalStyles.bgToggleBtn, bgMode === "color" && modalStyles.bgToggleActive]}
-                onPress={() => setBgMode("color")}
-              >
-                <Text style={[modalStyles.bgToggleText, bgMode === "color" && modalStyles.bgToggleTextActive]}>Culoare</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[modalStyles.bgToggleBtn, bgMode === "image" && modalStyles.bgToggleActive]}
-                onPress={() => setBgMode("image")}
-              >
-                <Text style={[modalStyles.bgToggleText, bgMode === "image" && modalStyles.bgToggleTextActive]}>Imagine</Text>
+            <View style={modalStyles.titleRow}>
+              <Text style={modalStyles.title}>Anunț nou</Text>
+              <TouchableOpacity style={modalStyles.closeBtn} onPress={() => setModalVisible(false)} hitSlop={10}>
+                <Ionicons name="close" size={20} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
 
-            {bgMode === "color" && (
-              <View style={modalStyles.colorRow}>
-                {BG_COLORS.map((c) => (
-                  <TouchableOpacity
-                    key={c.key}
-                    style={[
-                      modalStyles.colorBtn,
-                      c.color ? { backgroundColor: c.color } : modalStyles.colorPlain,
-                      form.bgColor === c.color && modalStyles.colorActive,
-                    ]}
-                    onPress={() => setForm({ ...form, bgColor: c.color, bgImage: null })}
-                  />
-                ))}
+            <View style={modalStyles.field}>
+              <View style={modalStyles.labelRow}>
+                <Text style={modalStyles.label}>Titlu</Text>
+                <Text style={modalStyles.counter}>{form.title.length}/27</Text>
               </View>
-            )}
+              <TextInput
+                style={modalStyles.input}
+                placeholder="Ex: Repetiție duminică"
+                placeholderTextColor={colors.textMuted}
+                value={form.title}
+                onChangeText={(v) => setForm({ ...form, title: v.slice(0, 27) })}
+                maxLength={27}
+              />
+            </View>
 
-            {bgMode === "image" && (
-              <View style={modalStyles.imagePickWrap}>
-                <TouchableOpacity style={modalStyles.imagePickBtn} onPress={handlePickBgImage}>
-                  <Text style={modalStyles.imagePickText}>
-                    {form.bgImage ? "Schimba imaginea" : "Alege imagine"}
-                  </Text>
+            <View style={modalStyles.field}>
+              <Text style={modalStyles.label}>Conținut</Text>
+              <TextInput
+                style={[modalStyles.input, modalStyles.textArea]}
+                placeholder="Scrie detaliile anunțului…"
+                placeholderTextColor={colors.textMuted}
+                value={form.body}
+                onChangeText={(v) => setForm({ ...form, body: v })}
+                multiline
+                numberOfLines={5}
+              />
+            </View>
+
+            <View style={modalStyles.section}>
+              <Text style={modalStyles.sectionLabel}>FUNDAL</Text>
+              <View style={modalStyles.bgToggle}>
+                <TouchableOpacity
+                  style={[modalStyles.bgToggleBtn, bgMode === "color" && modalStyles.bgToggleActive]}
+                  onPress={() => setBgMode("color")}
+                >
+                  <Ionicons name="color-palette-outline" size={16} color={bgMode === "color" ? colors.info : colors.textMuted} />
+                  <Text style={[modalStyles.bgToggleText, bgMode === "color" && modalStyles.bgToggleTextActive]}>Culoare</Text>
                 </TouchableOpacity>
-                {form.bgImage && (
-                  <Image source={{ uri: form.bgImage }} style={modalStyles.imagePreview} />
-                )}
+                <TouchableOpacity
+                  style={[modalStyles.bgToggleBtn, bgMode === "image" && modalStyles.bgToggleActive]}
+                  onPress={() => setBgMode("image")}
+                >
+                  <Ionicons name="image-outline" size={16} color={bgMode === "image" ? colors.info : colors.textMuted} />
+                  <Text style={[modalStyles.bgToggleText, bgMode === "image" && modalStyles.bgToggleTextActive]}>Imagine</Text>
+                </TouchableOpacity>
               </View>
-            )}
+
+              {bgMode === "color" && (
+                <View style={modalStyles.colorRow}>
+                  {BG_COLORS.map((c) => (
+                    <TouchableOpacity
+                      key={c.key}
+                      style={[
+                        modalStyles.colorBtn,
+                        c.color ? { backgroundColor: c.color } : modalStyles.colorPlain,
+                        form.bgColor === c.color && modalStyles.colorActive,
+                      ]}
+                      onPress={() => setForm({ ...form, bgColor: c.color, bgImage: null })}
+                    >
+                      {form.bgColor === c.color && (
+                        <Ionicons name="checkmark" size={16} color={c.color ? "#fff" : colors.textPrimary} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {bgMode === "image" && (
+                <View style={modalStyles.imagePickWrap}>
+                  <TouchableOpacity style={modalStyles.imagePickBtn} onPress={handlePickBgImage}>
+                    <Ionicons name="cloud-upload-outline" size={18} color={colors.info} />
+                    <Text style={modalStyles.imagePickText}>
+                      {form.bgImage ? "Schimbă imaginea" : "Alege imagine"}
+                    </Text>
+                  </TouchableOpacity>
+                  {form.bgImage && (
+                    <Image source={{ uri: form.bgImage }} style={modalStyles.imagePreview} />
+                  )}
+                </View>
+              )}
+            </View>
 
             {(form.title || form.body) && (
-              <View style={modalStyles.previewWrap}>
-                <Text style={modalStyles.previewLabel}>Preview:</Text>
+              <View style={modalStyles.field}>
+                <Text style={modalStyles.label}>Previzualizare</Text>
                 <View style={[
                   modalStyles.previewCard,
                   form.bgColor && bgMode === "color" && { backgroundColor: form.bgColor },
@@ -500,14 +526,15 @@ export const AnnouncementsScreen = ({ navigation }) => {
                     {form.title || "Titlu"}
                   </Text>
                   <Text style={[modalStyles.previewBody, (form.bgColor || form.bgImage) && { color: "rgba(255,255,255,0.85)" }]} numberOfLines={2}>
-                    {form.body || "Continut..."}
+                    {form.body || "Conținut…"}
                   </Text>
                 </View>
               </View>
             )}
 
             <View style={modalStyles.expiryRow}>
-              <Text style={modalStyles.expiryLabel}>Expira in:</Text>
+              <Ionicons name="time-outline" size={18} color={colors.textSecondary} />
+              <Text style={modalStyles.expiryLabel}>Expiră în</Text>
               <TextInput
                 style={modalStyles.expiryInput}
                 value={form.expiryDays}
@@ -518,8 +545,16 @@ export const AnnouncementsScreen = ({ navigation }) => {
               <Text style={modalStyles.expiryLabel}>zile</Text>
             </View>
 
-            <TouchableOpacity style={modalStyles.button} onPress={handleCreate}>
-              <Text style={modalStyles.buttonText}>Publica Anuntul</Text>
+            <TouchableOpacity activeOpacity={0.9} onPress={handleCreate}>
+              <LinearGradient
+                colors={headerGradient.colors}
+                start={headerGradient.start}
+                end={headerGradient.end}
+                style={modalStyles.button}
+              >
+                <Ionicons name="megaphone-outline" size={18} color={colors.textInverse} />
+                <Text style={modalStyles.buttonText}>Publică anunțul</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </ScrollView>
         </View>

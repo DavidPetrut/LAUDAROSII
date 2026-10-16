@@ -8,7 +8,8 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { BackArrowIcon, UserAvatar } from "../../global/components";
+import { Ionicons } from "@expo/vector-icons";
+import { BackArrowIcon, UserAvatar, ImageViewer } from "../../global/components";
 import { api, showError, formatDate } from "../../global/functions";
 import { headerGradient, colors, spacing } from "../../public/styles/global";
 import { detailStyles as styles } from "./styles";
@@ -17,6 +18,7 @@ export const AnnouncementDetailScreen = ({ route, navigation }) => {
   const { announcementId } = route.params;
   const [announcement, setAnnouncement] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   useEffect(() => { loadAnnouncement(); }, []);
 
@@ -69,7 +71,12 @@ export const AnnouncementDetailScreen = ({ route, navigation }) => {
 
       <ScrollView bounces={false} style={{ flex: 1 }}>
         {hasBgImg && (
-          <Image source={{ uri: announcement.bgImage }} style={styles.bannerImg} />
+          <TouchableOpacity activeOpacity={0.9} onPress={() => setViewerOpen(true)}>
+            <Image source={{ uri: announcement.bgImage }} style={styles.bannerImg} />
+            <View style={styles.bannerZoom}>
+              <Ionicons name="expand-outline" size={18} color="#fff" />
+            </View>
+          </TouchableOpacity>
         )}
 
         <View style={styles.content}>
@@ -91,6 +98,12 @@ export const AnnouncementDetailScreen = ({ route, navigation }) => {
           <Text style={styles.body}>{announcement.body}</Text>
         </View>
       </ScrollView>
+
+      <ImageViewer
+        visible={viewerOpen}
+        uri={announcement.bgImage}
+        onClose={() => setViewerOpen(false)}
+      />
     </View>
   );
 };

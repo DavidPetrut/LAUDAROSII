@@ -33,7 +33,9 @@ export const listsStyles = StyleSheet.create({
   // ---- Bara de sus a sub-ecranelor (detaliu/creare) ----
   subHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, gap: spacing.sm },
   subBack: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  subTitle: { ...typography.h3, flex: 1 },
+  subTitleWrap: { flex: 1 },
+  subTitle: { ...typography.h3 },
+  subCount: { ...typography.caption, marginTop: 2, textTransform: "none", letterSpacing: 0 },
   subAction: { paddingHorizontal: spacing.sm, height: 40, alignItems: "center", justifyContent: "center" },
 
   // ---- Detaliu lista (carduri) ----

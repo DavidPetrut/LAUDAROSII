@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-16T08:58:14.776Z",
+  "generatedAt": "2026-10-16T09:49:52.227Z",
   "appRoot": "app",
   "note": "Generat automat de global/testing/generateAppMap.js. NU edita manual.",
   "domains": {
@@ -125,6 +125,10 @@
       "BackArrowIcon": {
         "file": "global/components/BackArrowIcon.js",
         "purpose": "Iconița globala de back arrow"
+      },
+      "ImageViewer": {
+        "file": "global/components/ImageViewer.js",
+        "purpose": "Pressable,"
       },
       "CustomTabBar": {
         "file": "global/components/CustomTabBar.js",
@@ -749,6 +753,10 @@
           "file": "global/components/UserAvatar.js"
         },
         {
+          "name": "ImageViewer",
+          "file": "global/components/ImageViewer.js"
+        },
+        {
           "name": "api",
           "file": "global/functions/api.js"
         },
@@ -804,7 +812,8 @@
         }
       ],
       "styleTokens": [
-        "headerGradient"
+        "headerGradient",
+        "colors"
       ],
       "crossScreens": [],
       "domainsTouched": [
@@ -2511,12 +2520,19 @@
     },
     "screens/prayers/lists/PrayerListDetail.js": {
       "stylesFile": null,
-      "globals": [],
+      "globals": [
+        {
+          "name": "useTheme",
+          "file": "global/context/ThemeContext.js"
+        }
+      ],
       "styleTokens": [],
       "crossScreens": [
         "screens/prayers/AnimatedPrayerCard.js"
       ],
-      "domainsTouched": []
+      "domainsTouched": [
+        "tema"
+      ]
     },
     "screens/prayers/lists/PrayerListRow.js": {
       "stylesFile": null,
@@ -4130,6 +4146,7 @@
       "screens/prayers/AchievementsScreen.js",
       "screens/prayers/AnimatedPrayerCard.js",
       "screens/prayers/bible/BibleReaderScreen.js",
+      "screens/prayers/lists/PrayerListDetail.js",
       "screens/prayers/PersonalPrayersTab.js",
       "screens/prayers/pray-room/PrayRoomCard.js",
       "screens/prayers/pray-room/PrayRoomEntry.js",
@@ -4150,6 +4167,9 @@
       "screens/prayers/pray-room/PrayRoomEntry.js",
       "screens/prayers/pray-room/PrayRoomSetup.js",
       "screens/prayers/ProgramPrayersTab.js"
+    ],
+    "global/components/ImageViewer.js": [
+      "screens/announcements/AnnouncementDetailScreen.js"
     ],
     "global/functions/formatters.js": [
       "screens/announcements/AnnouncementDetailScreen.js",

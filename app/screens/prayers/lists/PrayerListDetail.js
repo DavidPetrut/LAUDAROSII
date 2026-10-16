@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, FlatList, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../../global/context";
 import { listsStyles as styles } from "./listsStyles";
 import { AnimatedPrayerCard } from "../AnimatedPrayerCard";
 
@@ -27,15 +28,22 @@ export const PrayerListDetail = ({
   onEnd,
   emptyText,
 }) => {
+  const { theme } = useTheme();
+  const count = prayers?.length || 0;
   return (
     <View style={{ flex: 1 }}>
       <View style={styles.subHeader}>
         {onBack && (
           <TouchableOpacity style={styles.subBack} onPress={onBack}>
-            <Ionicons name="chevron-back" size={26} color="#64748b" />
+            <Ionicons name="chevron-back" size={26} color={theme.textMuted} />
           </TouchableOpacity>
         )}
-        <Text style={styles.subTitle} numberOfLines={1}>{title}</Text>
+        <View style={styles.subTitleWrap}>
+          <Text style={[styles.subTitle, { color: theme.textPrimary }]} numberOfLines={1}>{title}</Text>
+          <Text style={[styles.subCount, { color: theme.textMuted }]}>
+            {count} {count === 1 ? "motiv" : "motive"}{isPublic ? " · public" : ""}
+          </Text>
+        </View>
       </View>
 
       {expired && (

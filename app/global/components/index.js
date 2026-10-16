@@ -6,6 +6,7 @@ export { ScreenHeader } from "./ScreenHeader";
 export { RibbonBadge } from "./RibbonBadge";
 export { UserAvatar } from "./UserAvatar";
 export { BackArrowIcon } from "./BackArrowIcon";
+export { ImageViewer } from "./ImageViewer";
 export { CustomTabBar } from "./CustomTabBar";
 export { GlobalToast } from "./GlobalToast";
 export { ConfirmModal } from "./ConfirmModal";

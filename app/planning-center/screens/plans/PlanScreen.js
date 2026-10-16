@@ -7,7 +7,7 @@ import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-nati
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { showError, showInfo } from "../../../global/functions";
+import { showError, showInfo, showConfirm } from "../../../global/functions";
 import { pcApi } from "../../api/pcApi";
 import { pcColors } from "../../theme";
 import { PcScreen, PcAvatar, PcIconButton, PcUnderlineTabs, PcBottomSheet, PcButton } from "../../components";
@@ -62,18 +62,39 @@ export function PlanScreen({ route, navigation }) {
 
   const goPlan = (id) => id && navigation.replace("PcPlan", { planId: id });
   const [responding, setResponding] = useState(false);
+  const [respondingId, setRespondingId] = useState(null); // assignmentId în curs
 
-  // Accept/Decline direct din Plan (nu doar din Schedule). Lovește ACEEAȘI rută → se sincronizează
-  // cu My Schedule (statusul programării se actualizează la fel ca și cum ai răspunde din Schedule).
-  const respondPlan = useCallback(async (action) => {
-    if (responding) return;
-    setResponding(true);
+  // Accept/Decline PE FIECARE poziție (assignment). Lovește aceeași rută per-assignment ca din
+  // Schedule → statusul se sincronizează cu My Schedule.
+  const respondAssignment = useCallback(async (assignmentId, action) => {
+    if (!assignmentId || respondingId) return;
+    setRespondingId(assignmentId);
     try {
-      await pcApi.schedule.planRespond(planId, action);
+      await pcApi.schedule.respond(assignmentId, action);
       await load();
-      showInfo(action === "accept" ? "Ai confirmat programarea." : "Ai refuzat programarea.");
+      showInfo(action === "accept" ? "Ai confirmat poziția." : "Ai refuzat poziția.");
     } catch (e) { showError(e?.message || "Eroare la răspuns."); }
-    finally { setResponding(false); }
+    finally { setRespondingId(null); }
+  }, [respondingId, load]);
+
+  // Confirmare înainte de accept/decline (ca pop-up-ul nativ).
+  const confirmRespond = useCallback((a, action) => {
+    showConfirm(
+      action === "accept" ? "Accept" : "Decline",
+      action === "accept" ? "Ești sigur că accepți această poziție?" : "Ești sigur că refuzi această poziție?",
+      () => respondAssignment(a.assignmentId, action),
+    );
+  }, [respondAssignment]);
+
+  // Accept all (plan-level) când ai mai multe poziții în așteptare.
+  const confirmAcceptAll = useCallback(() => {
+    showConfirm("Accept all", "Confirmi toate pozițiile din acest plan?", async () => {
+      if (responding) return;
+      setResponding(true);
+      try { await pcApi.schedule.planRespond(planId, "accept"); await load(); showInfo("Ai confirmat toate pozițiile."); }
+      catch (e) { showError(e?.message || "Eroare."); }
+      finally { setResponding(false); }
+    });
   }, [responding, planId, load]);
 
   const doDuplicate = useCallback(async () => {
@@ -105,24 +126,40 @@ export function PlanScreen({ route, navigation }) {
           <Ionicons name="ellipsis-vertical" size={22} color={pcColors.primary} />
         </Pressable>
       </View>
-      {head.myAssignments?.map((a, i) => (
-        <View key={i} style={styles.assignChip}>
-          <Ionicons
-            name={a.confirmed ? "checkmark-circle" : a.declined ? "close-circle" : "help-circle"}
-            size={26}
-            color={a.confirmed ? pcColors.primary : a.declined ? pcColors.danger : pcColors.orange}
-          />
-          <Text style={styles.assignTxt}>
-            {a.label}{a.team ? <Text style={styles.assignTeam}>  ({a.team})</Text> : null}
-          </Text>
-        </View>
-      ))}
-      {/* Dacă am poziții la care încă n-am răspuns → Accept/Decline chiar de aici (sync cu Schedule). */}
-      {head.myAssignments?.some((a) => !a.confirmed && !a.declined) && (
-        <View style={styles.respondRow}>
-          <PcButton title="Accept" icon="checkmark" onPress={() => respondPlan("accept")} disabled={responding} style={styles.respondBtn} />
-          <PcButton title="Decline" variant="outline" icon="close" onPress={() => respondPlan("decline")} disabled={responding} style={styles.respondBtn} />
-        </View>
+      {head.myAssignments?.map((a, i) => {
+        const pending = !a.confirmed && !a.declined;
+        const busyRow = respondingId && respondingId === a.assignmentId;
+        return (
+          <View key={a.assignmentId || i} style={[styles.assignChip, a.confirmed && styles.assignChipOk, a.declined && styles.assignChipNo]}>
+            <Ionicons
+              name={a.confirmed ? "checkmark-circle" : a.declined ? "close-circle" : "help-circle"}
+              size={26}
+              color={a.confirmed ? pcColors.primary : a.declined ? pcColors.danger : pcColors.orange}
+            />
+            <Text style={styles.assignTxt} numberOfLines={2}>
+              {a.label}{a.team ? <Text style={styles.assignTeam}>  ({a.team})</Text> : null}
+            </Text>
+            {pending && (busyRow ? (
+              <ActivityIndicator color={pcColors.primary} style={{ marginLeft: 6 }} />
+            ) : (
+              <View style={styles.assignActions}>
+                <Pressable onPress={() => confirmRespond(a, "decline")} hitSlop={8} style={[styles.assignIconBtn, styles.assignDecline]}>
+                  <Ionicons name="close" size={20} color={pcColors.danger} />
+                </Pressable>
+                <Pressable onPress={() => confirmRespond(a, "accept")} hitSlop={8} style={[styles.assignIconBtn, styles.assignAccept]}>
+                  <Ionicons name="checkmark" size={20} color={pcColors.primary} />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        );
+      })}
+      {/* Mai multe poziții în așteptare → un singur Accept all (plan-level, sync cu Schedule). */}
+      {head.myAssignments?.filter((a) => !a.confirmed && !a.declined).length > 1 && (
+        <Pressable style={styles.acceptAllRow} onPress={confirmAcceptAll} disabled={responding}>
+          <Ionicons name="checkmark-done" size={18} color="#0A0A0A" />
+          <Text style={styles.acceptAllTxt}>ACCEPT ALL</Text>
+        </Pressable>
       )}
     </View>
   ) : null;
@@ -220,10 +257,16 @@ const styles = StyleSheet.create({
   circleBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#1E1E20", alignItems: "center", justifyContent: "center" },
   date: { color: pcColors.textSecondary, fontSize: 18, marginLeft: 4 },
   assignChip: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#1C2714", borderRadius: 8, paddingVertical: 10, paddingHorizontal: 10, marginTop: 10 },
-  assignTxt: { color: pcColors.textPrimary, fontSize: 15, fontWeight: "700" },
+  assignChipOk: { backgroundColor: "#15230F" },
+  assignChipNo: { backgroundColor: "#2A1414" },
+  assignTxt: { flex: 1, color: pcColors.textPrimary, fontSize: 15, fontWeight: "700" },
   assignTeam: { color: pcColors.textMuted, fontWeight: "500" },
-  respondRow: { flexDirection: "row", gap: 10, marginTop: 12 },
-  respondBtn: { flex: 1, paddingVertical: 11 },
+  assignActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  assignIconBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", borderWidth: 1.5 },
+  assignAccept: { borderColor: pcColors.primary, backgroundColor: "rgba(33,192,99,0.12)" },
+  assignDecline: { borderColor: pcColors.danger, backgroundColor: "rgba(239,68,68,0.10)" },
+  acceptAllRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: pcColors.primary, borderRadius: 8, paddingVertical: 11, marginTop: 12 },
+  acceptAllTxt: { color: "#0A0A0A", fontWeight: "800", fontSize: 13, letterSpacing: 0.5 },
   menuRow: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 15, paddingHorizontal: 12 },
   menuTxt: { color: pcColors.textPrimary, fontSize: 16, fontWeight: "600" },
   dupTitle: { color: pcColors.textPrimary, fontSize: 19, fontWeight: "800", marginBottom: 6 },

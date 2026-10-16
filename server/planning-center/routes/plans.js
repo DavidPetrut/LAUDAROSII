@@ -129,6 +129,7 @@ router.get("/:id", requireCan("people.view"), async (req, res) => {
       const posName = Object.fromEntries(positions.map((p) => [String(p._id), p.name]));
       const teamName = Object.fromEntries(teams.map((t) => [String(t._id), t.name]));
       myAssignments = mine.map((a) => ({
+        assignmentId: String(a._id),
         label: posName[String(a.positionId)] || "Poziție",
         team: teamName[String(a.teamId)] || "",
         confirmed: a.status === "confirmed",

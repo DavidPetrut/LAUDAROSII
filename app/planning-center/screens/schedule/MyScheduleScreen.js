@@ -59,9 +59,11 @@ export function MyScheduleScreen({ navigation }) {
       <View style={styles.positions}>
         {g.positions.map((p) => (
           <View key={String(p.assignmentId)} style={styles.posRow}>
-            <Ionicons name={p.status === "confirmed" ? "checkmark-circle" : "help-circle"} size={20} color={p.status === "confirmed" ? pcColors.primary : pcColors.orange} />
-            <Text style={styles.posName}>{p.positionName}</Text>
-            <Text style={styles.posTeam}>{p.teamName}</Text>
+            <Ionicons name={p.status === "confirmed" ? "checkmark-circle" : "help-circle"} size={20} color={p.status === "confirmed" ? pcColors.primary : pcColors.orange} style={{ marginTop: 1 }} />
+            <View style={styles.posText}>
+              <Text style={styles.posName}>{p.positionName}</Text>
+              <Text style={styles.posTeam}>{p.teamName}</Text>
+            </View>
           </View>
         ))}
       </View>
@@ -146,7 +148,8 @@ const styles = StyleSheet.create({
   date: { color: pcColors.textPrimary, fontSize: 18, fontWeight: "700" },
   sub: { color: pcColors.textSecondary, fontSize: 14, marginTop: 1 },
   positions: { marginTop: 10, gap: 8 },
-  posRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  posRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  posText: { flex: 1, flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 8, rowGap: 2 },
   posName: { color: pcColors.textPrimary, fontSize: 15, fontWeight: "700" },
   posTeam: { color: pcColors.textSecondary, fontSize: 14 },
   cardActions: { flexDirection: "row", alignItems: "center", marginTop: 14, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: pcColors.divider },
