@@ -19,6 +19,7 @@ export const TAB_LABELS = {
   Courses: "Learn",
   Games: "Games",
   Profile: "Profile",
+  Planificare: "Planificare",
 };
 
 // Cheie = numele rutei din navigator. Valoare = locatia in cod.
@@ -56,6 +57,53 @@ export const SCREEN_REGISTRY = {
   EditProfile: { tab: "Profile", screen: "Editează profil", folder: "screens/profile", file: "screens/profile/EditProfileScreen.js" },
   Settings: { tab: "Profile", screen: "Setări", folder: "screens/profile", file: "screens/profile/SettingsScreen.js" },
   Admin: { tab: "Profile", screen: "Admin", folder: "screens/admin", file: "screens/admin/AdminScreen.js" },
+
+  // ---- PLANIFICARE (Planning Center, app-in-app cu navigator propriu) ----
+  // Rutele traiesc in planning-center/navigation/PlanningCenterNavigator.js.
+  // Toate apartin tabului principal „Planificare" (al 6-lea tab, dupa Profile).
+  PcTabs: { tab: "Planificare", screen: "Planning Center (home)", folder: "planning-center/screens/people", file: "planning-center/screens/people/PeopleListScreen.js" },
+  // Bottom tabs interne
+  Schedule: { tab: "Planificare", screen: "Programul meu (Schedule)", folder: "planning-center/screens/schedule", file: "planning-center/screens/schedule/MyScheduleScreen.js" },
+  Plans: { tab: "Planificare", screen: "Planuri (Plans)", folder: "planning-center/screens/plans", file: "planning-center/screens/plans/PlansScreen.js" },
+  Songs: { tab: "Planificare", screen: "Cântece (Songs)", folder: "planning-center/screens/songs", file: "planning-center/screens/songs/SongsScreen.js" },
+  Media: { tab: "Planificare", screen: "Media (listă)", folder: "planning-center/screens/media", file: "planning-center/screens/media/MediaListScreen.js" },
+  People: { tab: "Planificare", screen: "Persoane (People)", folder: "planning-center/screens/people", file: "planning-center/screens/people/PeopleListScreen.js" },
+  // People — ecrane full-screen
+  PcProfile: { tab: "Planificare", screen: "Profil persoană", folder: "planning-center/screens/people", file: "planning-center/screens/people/ProfileScreen.js" },
+  PcMyTeams: { tab: "Planificare", screen: "Echipele mele", folder: "planning-center/screens/people", file: "planning-center/screens/people/MyTeamsScreen.js" },
+  PcEditContact: { tab: "Planificare", screen: "Editează contact", folder: "planning-center/screens/people", file: "planning-center/screens/people/EditContactScreen.js" },
+  PcSettings: { tab: "Planificare", screen: "Setări Planificare", folder: "planning-center/screens/people", file: "planning-center/screens/people/PcSettingsScreen.js" },
+  PcAddPerson: { tab: "Planificare", screen: "Adaugă persoană", folder: "planning-center/screens/people", file: "planning-center/screens/people/AddPersonScreen.js" },
+  PcImport: { tab: "Planificare", screen: "Import persoane", folder: "planning-center/screens/people", file: "planning-center/screens/people/ImportScreen.js" },
+  PcPersonTags: { tab: "Planificare", screen: "Etichete persoană", folder: "planning-center/screens/people", file: "planning-center/screens/people/PersonTagsScreen.js" },
+  // Plans — ecrane full-screen
+  PcServiceTypePlans: { tab: "Planificare", screen: "Planuri pe tip serviciu", folder: "planning-center/screens/plans", file: "planning-center/screens/plans/ServiceTypePlansScreen.js" },
+  PcPlan: { tab: "Planificare", screen: "Plan (detaliu)", folder: "planning-center/screens/plans", file: "planning-center/screens/plans/PlanScreen.js" },
+  PcItemDetail: { tab: "Planificare", screen: "Detaliu element plan", folder: "planning-center/screens/plans", file: "planning-center/screens/plans/ItemDetailScreen.js" },
+  PcAddServiceType: { tab: "Planificare", screen: "Adaugă tip serviciu", folder: "planning-center/screens/plans", file: "planning-center/screens/plans/AddServiceTypeScreen.js" },
+  PcSelectSong: { tab: "Planificare", screen: "Selectează cântec", folder: "planning-center/screens/plans", file: "planning-center/screens/plans/SelectSongScreen.js" },
+  PcServiceTypeSettings: { tab: "Planificare", screen: "Setări tip serviciu", folder: "planning-center/screens/plans", file: "planning-center/screens/plans/ServiceTypeSettingsScreen.js" },
+  PcMatrix: { tab: "Planificare", screen: "Matrice (Matrix)", folder: "planning-center/screens/plans", file: "planning-center/screens/plans/MatrixScreen.js" },
+  // Songs — ecrane full-screen
+  PcSongDetail: { tab: "Planificare", screen: "Detaliu cântec", folder: "planning-center/screens/songs", file: "planning-center/screens/songs/SongDetailScreen.js" },
+  PcArrangement: { tab: "Planificare", screen: "Aranjament", folder: "planning-center/screens/songs", file: "planning-center/screens/songs/ArrangementScreen.js" },
+  PcIntegrations: { tab: "Planificare", screen: "Integrări (Songs)", folder: "planning-center/screens/songs", file: "planning-center/screens/songs/IntegrationsScreen.js" },
+  PcSequenceEditor: { tab: "Planificare", screen: "Editor secvență", folder: "planning-center/screens/songs", file: "planning-center/screens/songs/SequenceEditorScreen.js" },
+  PcTagsManager: { tab: "Planificare", screen: "Manager etichete", folder: "planning-center/screens/songs", file: "planning-center/screens/songs/TagsManagerScreen.js" },
+  PcLyricsChords: { tab: "Planificare", screen: "Editor versuri + acorduri", folder: "planning-center/screens/songs", file: "planning-center/screens/songs/LyricsChordsEditor.js" },
+  PcChartViewer: { tab: "Planificare", screen: "Vizualizare chart", folder: "planning-center/screens/songs", file: "planning-center/screens/songs/LyricsChordsEditor.js" },
+  // Rehearse — player + music stand + songbook
+  PcMediaPlayer: { tab: "Planificare", screen: "Player media", folder: "planning-center/screens/rehearse", file: "planning-center/screens/rehearse/MediaPlayerScreen.js" },
+  PcMusicStand: { tab: "Planificare", screen: "Music stand", folder: "planning-center/screens/rehearse", file: "planning-center/screens/rehearse/MusicStandScreen.js" },
+  PcSongbookView: { tab: "Planificare", screen: "Songbook", folder: "planning-center/screens/rehearse", file: "planning-center/screens/rehearse/SongbookViewScreen.js" },
+  // Media — detaliu + adaugare
+  PcMediaItem: { tab: "Planificare", screen: "Detaliu media", folder: "planning-center/screens/media", file: "planning-center/screens/media/MediaItemScreen.js" },
+  PcAddMedia: { tab: "Planificare", screen: "Adaugă media", folder: "planning-center/screens/media", file: "planning-center/screens/media/AddMediaScreen.js" },
+  // Schedule — calendar + blockout
+  PcCalendar: { tab: "Planificare", screen: "Calendar", folder: "planning-center/screens/schedule", file: "planning-center/screens/schedule/CalendarScreen.js" },
+  PcBlockoutEditor: { tab: "Planificare", screen: "Editor blockout", folder: "planning-center/screens/schedule", file: "planning-center/screens/schedule/BlockoutEditorScreen.js" },
+  // Reporting
+  PcReports: { tab: "Planificare", screen: "Rapoarte", folder: "planning-center/screens/reports", file: "planning-center/screens/reports/ReportsScreen.js" },
 
   // ---- AUTH (in afara taburilor) ----
   Login: { tab: "Auth", screen: "Autentificare", folder: "screens/auth", file: "screens/auth/LoginScreen.js" },
