@@ -136,6 +136,18 @@ app.get("/api/email-probe", async (req, res) => {
     try { await t.verify(); out.ports[p] = "OK (" + (Date.now() - t0) + "ms)"; }
     catch (e) { out.ports[p] = "FAIL: " + e.message + " (" + (Date.now() - t0) + "ms)"; }
   }
+  // Test REAL prin emailService (foloseste EMAIL_PORT din env) -> trimite efectiv un email.
+  try {
+    const emailService = require("./services/emailService");
+    out.realConfigured = emailService.isEmailConfigured();
+    const r = await emailService.sendEmail({
+      to,
+      subject: "Render REAL send (EMAIL_PORT=" + (EMAIL_PORT || "?") + ") " + new Date().toISOString(),
+      text: "Daca primesti acest email, trimiterea de pe Render functioneaza pe portul " + EMAIL_PORT + ".",
+      html: "<p>Email trimis DE PE RENDER pe portul <b>" + EMAIL_PORT + "</b> — functioneaza.</p>",
+    });
+    out.realSend = r;
+  } catch (e) { out.realSend = { error: e.message }; }
   res.json(out);
 });
 
