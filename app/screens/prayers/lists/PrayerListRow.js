@@ -28,18 +28,16 @@ export const PrayerListRow = ({ title, image, isPublic, expired, count, onPress,
         )}
 
         <View style={styles.rowBar}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.rowTitle} numberOfLines={1}>{title}</Text>
-            <Text style={styles.rowMeta}>
-              {count} {count === 1 ? "motiv" : "motive"}
-              {isPublic ? " · max 3" : ""}
-            </Text>
-          </View>
+          <Text style={styles.rowTitle} numberOfLines={1}>{title}</Text>
           {expired && (
             <View style={styles.expiredPill}>
               <Text style={styles.expiredPillText}>EXPIRATĂ</Text>
             </View>
           )}
+          <Text style={styles.rowMeta}>
+            {count} {count === 1 ? "motiv" : "motive"}
+            {isPublic ? " · max 3" : ""}
+          </Text>
         </View>
       </ImageBackground>
     </TouchableOpacity>

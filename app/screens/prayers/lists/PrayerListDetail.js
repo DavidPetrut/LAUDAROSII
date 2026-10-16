@@ -38,12 +38,10 @@ export const PrayerListDetail = ({
             <Ionicons name="chevron-back" size={26} color={theme.textMuted} />
           </TouchableOpacity>
         )}
-        <View style={styles.subTitleWrap}>
-          <Text style={[styles.subTitle, { color: theme.textPrimary }]} numberOfLines={1}>{title}</Text>
-          <Text style={[styles.subCount, { color: theme.textMuted }]}>
-            {count} {count === 1 ? "motiv" : "motive"}{isPublic ? " · public" : ""}
-          </Text>
-        </View>
+        <Text style={[styles.subTitle, { color: theme.textPrimary }]} numberOfLines={1}>{title}</Text>
+        <Text style={[styles.subCount, { color: theme.textMuted }]}>
+          {count} {count === 1 ? "motiv" : "motive"}
+        </Text>
       </View>
 
       {expired && (

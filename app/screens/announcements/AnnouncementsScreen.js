@@ -426,7 +426,7 @@ export const AnnouncementsScreen = ({ navigation }) => {
             <View style={modalStyles.titleRow}>
               <Text style={modalStyles.title}>Anunț nou</Text>
               <TouchableOpacity style={modalStyles.closeBtn} onPress={() => setModalVisible(false)} hitSlop={10}>
-                <Ionicons name="close" size={20} color={colors.textMuted} />
+                <Ionicons name="close" size={20} color="rgba(229,231,235,0.7)" />
               </TouchableOpacity>
             </View>
 
@@ -438,7 +438,7 @@ export const AnnouncementsScreen = ({ navigation }) => {
               <TextInput
                 style={modalStyles.input}
                 placeholder="Ex: Repetiție duminică"
-                placeholderTextColor={colors.textMuted}
+                placeholderTextColor="rgba(229,231,235,0.4)"
                 value={form.title}
                 onChangeText={(v) => setForm({ ...form, title: v.slice(0, 27) })}
                 maxLength={27}
@@ -450,7 +450,7 @@ export const AnnouncementsScreen = ({ navigation }) => {
               <TextInput
                 style={[modalStyles.input, modalStyles.textArea]}
                 placeholder="Scrie detaliile anunțului…"
-                placeholderTextColor={colors.textMuted}
+                placeholderTextColor="rgba(229,231,235,0.4)"
                 value={form.body}
                 onChangeText={(v) => setForm({ ...form, body: v })}
                 multiline
@@ -465,14 +465,14 @@ export const AnnouncementsScreen = ({ navigation }) => {
                   style={[modalStyles.bgToggleBtn, bgMode === "color" && modalStyles.bgToggleActive]}
                   onPress={() => setBgMode("color")}
                 >
-                  <Ionicons name="color-palette-outline" size={16} color={bgMode === "color" ? colors.info : colors.textMuted} />
+                  <Ionicons name="color-palette-outline" size={16} color={bgMode === "color" ? "#10b981" : "rgba(229,231,235,0.6)"} />
                   <Text style={[modalStyles.bgToggleText, bgMode === "color" && modalStyles.bgToggleTextActive]}>Culoare</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[modalStyles.bgToggleBtn, bgMode === "image" && modalStyles.bgToggleActive]}
                   onPress={() => setBgMode("image")}
                 >
-                  <Ionicons name="image-outline" size={16} color={bgMode === "image" ? colors.info : colors.textMuted} />
+                  <Ionicons name="image-outline" size={16} color={bgMode === "image" ? "#10b981" : "rgba(229,231,235,0.6)"} />
                   <Text style={[modalStyles.bgToggleText, bgMode === "image" && modalStyles.bgToggleTextActive]}>Imagine</Text>
                 </TouchableOpacity>
               </View>
@@ -490,7 +490,7 @@ export const AnnouncementsScreen = ({ navigation }) => {
                       onPress={() => setForm({ ...form, bgColor: c.color, bgImage: null })}
                     >
                       {form.bgColor === c.color && (
-                        <Ionicons name="checkmark" size={16} color={c.color ? "#fff" : colors.textPrimary} />
+                        <Ionicons name="checkmark" size={16} color={c.color ? "#fff" : "#e5e7eb"} />
                       )}
                     </TouchableOpacity>
                   ))}
@@ -500,7 +500,7 @@ export const AnnouncementsScreen = ({ navigation }) => {
               {bgMode === "image" && (
                 <View style={modalStyles.imagePickWrap}>
                   <TouchableOpacity style={modalStyles.imagePickBtn} onPress={handlePickBgImage}>
-                    <Ionicons name="cloud-upload-outline" size={18} color={colors.info} />
+                    <Ionicons name="cloud-upload-outline" size={18} color="#10b981" />
                     <Text style={modalStyles.imagePickText}>
                       {form.bgImage ? "Schimbă imaginea" : "Alege imagine"}
                     </Text>
@@ -533,7 +533,7 @@ export const AnnouncementsScreen = ({ navigation }) => {
             )}
 
             <View style={modalStyles.expiryRow}>
-              <Ionicons name="time-outline" size={18} color={colors.textSecondary} />
+              <Ionicons name="time-outline" size={18} color="rgba(229,231,235,0.6)" />
               <Text style={modalStyles.expiryLabel}>Expiră în</Text>
               <TextInput
                 style={modalStyles.expiryInput}
@@ -552,7 +552,7 @@ export const AnnouncementsScreen = ({ navigation }) => {
                 end={headerGradient.end}
                 style={modalStyles.button}
               >
-                <Ionicons name="megaphone-outline" size={18} color={colors.textInverse} />
+                <Ionicons name="megaphone-outline" size={18} color="#fff" />
                 <Text style={modalStyles.buttonText}>Publică anunțul</Text>
               </LinearGradient>
             </TouchableOpacity>

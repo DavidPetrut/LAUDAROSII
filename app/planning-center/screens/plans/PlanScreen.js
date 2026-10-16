@@ -61,7 +61,6 @@ export function PlanScreen({ route, navigation }) {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const goPlan = (id) => id && navigation.replace("PcPlan", { planId: id });
-  const [responding, setResponding] = useState(false);
   const [respondingId, setRespondingId] = useState(null); // assignmentId în curs
 
   // Accept/Decline PE FIECARE poziție (assignment). Lovește aceeași rută per-assignment ca din
@@ -77,7 +76,7 @@ export function PlanScreen({ route, navigation }) {
     finally { setRespondingId(null); }
   }, [respondingId, load]);
 
-  // Confirmare înainte de accept/decline (ca pop-up-ul nativ).
+  // Confirmare înainte de accept/decline (modal din app, nu alertă nativă).
   const confirmRespond = useCallback((a, action) => {
     showConfirm(
       action === "accept" ? "Accept" : "Decline",
@@ -85,17 +84,6 @@ export function PlanScreen({ route, navigation }) {
       () => respondAssignment(a.assignmentId, action),
     );
   }, [respondAssignment]);
-
-  // Accept all (plan-level) când ai mai multe poziții în așteptare.
-  const confirmAcceptAll = useCallback(() => {
-    showConfirm("Accept all", "Confirmi toate pozițiile din acest plan?", async () => {
-      if (responding) return;
-      setResponding(true);
-      try { await pcApi.schedule.planRespond(planId, "accept"); await load(); showInfo("Ai confirmat toate pozițiile."); }
-      catch (e) { showError(e?.message || "Eroare."); }
-      finally { setResponding(false); }
-    });
-  }, [responding, planId, load]);
 
   const doDuplicate = useCallback(async () => {
     if (dupBusy) return;
@@ -129,38 +117,37 @@ export function PlanScreen({ route, navigation }) {
       {head.myAssignments?.map((a, i) => {
         const pending = !a.confirmed && !a.declined;
         const busyRow = respondingId && respondingId === a.assignmentId;
+        const iconBg = a.confirmed ? pcColors.primary : a.declined ? pcColors.danger : pcColors.orange;
+        const iconName = a.confirmed ? "checkmark" : a.declined ? "close" : "help";
         return (
-          <View key={a.assignmentId || i} style={[styles.assignChip, a.confirmed && styles.assignChipOk, a.declined && styles.assignChipNo]}>
-            <Ionicons
-              name={a.confirmed ? "checkmark-circle" : a.declined ? "close-circle" : "help-circle"}
-              size={26}
-              color={a.confirmed ? pcColors.primary : a.declined ? pcColors.danger : pcColors.orange}
-            />
-            <Text style={styles.assignTxt} numberOfLines={2}>
-              {a.label}{a.team ? <Text style={styles.assignTeam}>  ({a.team})</Text> : null}
-            </Text>
-            {pending && (busyRow ? (
-              <ActivityIndicator color={pcColors.primary} style={{ marginLeft: 6 }} />
-            ) : (
-              <View style={styles.assignActions}>
-                <Pressable onPress={() => confirmRespond(a, "decline")} hitSlop={8} style={[styles.assignIconBtn, styles.assignDecline]}>
-                  <Ionicons name="close" size={20} color={pcColors.danger} />
-                </Pressable>
-                <Pressable onPress={() => confirmRespond(a, "accept")} hitSlop={8} style={[styles.assignIconBtn, styles.assignAccept]}>
-                  <Ionicons name="checkmark" size={20} color={pcColors.primary} />
-                </Pressable>
+          <View key={a.assignmentId || i} style={styles.assignCard}>
+            <View style={styles.assignTop}>
+              <View style={[styles.assignIcon, { backgroundColor: iconBg }]}>
+                <Ionicons name={iconName} size={18} color="#fff" />
               </View>
-            ))}
+              <Text style={styles.assignName} numberOfLines={1}>
+                {a.label}{a.team ? <Text style={styles.assignTeam}>  ({a.team})</Text> : null}
+              </Text>
+            </View>
+            {pending && (
+              <View style={styles.assignActions}>
+                {busyRow ? (
+                  <ActivityIndicator color={pcColors.primary} />
+                ) : (
+                  <>
+                    <Pressable onPress={() => confirmRespond(a, "decline")} hitSlop={8}>
+                      <Text style={styles.declineTxt}>DECLINE</Text>
+                    </Pressable>
+                    <Pressable onPress={() => confirmRespond(a, "accept")} hitSlop={8} style={{ marginLeft: 28 }}>
+                      <Text style={styles.acceptTxt}>ACCEPT</Text>
+                    </Pressable>
+                  </>
+                )}
+              </View>
+            )}
           </View>
         );
       })}
-      {/* Mai multe poziții în așteptare → un singur Accept all (plan-level, sync cu Schedule). */}
-      {head.myAssignments?.filter((a) => !a.confirmed && !a.declined).length > 1 && (
-        <Pressable style={styles.acceptAllRow} onPress={confirmAcceptAll} disabled={responding}>
-          <Ionicons name="checkmark-done" size={18} color="#0A0A0A" />
-          <Text style={styles.acceptAllTxt}>ACCEPT ALL</Text>
-        </Pressable>
-      )}
     </View>
   ) : null;
 
@@ -256,17 +243,14 @@ const styles = StyleSheet.create({
   navRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12 },
   circleBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#1E1E20", alignItems: "center", justifyContent: "center" },
   date: { color: pcColors.textSecondary, fontSize: 18, marginLeft: 4 },
-  assignChip: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#1C2714", borderRadius: 8, paddingVertical: 10, paddingHorizontal: 10, marginTop: 10 },
-  assignChipOk: { backgroundColor: "#15230F" },
-  assignChipNo: { backgroundColor: "#2A1414" },
-  assignTxt: { flex: 1, color: pcColors.textPrimary, fontSize: 15, fontWeight: "700" },
-  assignTeam: { color: pcColors.textMuted, fontWeight: "500" },
-  assignActions: { flexDirection: "row", alignItems: "center", gap: 8 },
-  assignIconBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", borderWidth: 1.5 },
-  assignAccept: { borderColor: pcColors.primary, backgroundColor: "rgba(33,192,99,0.12)" },
-  assignDecline: { borderColor: pcColors.danger, backgroundColor: "rgba(239,68,68,0.10)" },
-  acceptAllRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: pcColors.primary, borderRadius: 8, paddingVertical: 11, marginTop: 12 },
-  acceptAllTxt: { color: "#0A0A0A", fontWeight: "800", fontSize: 13, letterSpacing: 0.5 },
+  assignCard: { backgroundColor: "#202024", borderRadius: 12, paddingVertical: 12, paddingHorizontal: 12, marginTop: 10 },
+  assignTop: { flexDirection: "row", alignItems: "center", gap: 12 },
+  assignIcon: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  assignName: { flex: 1, color: pcColors.textPrimary, fontSize: 16, fontWeight: "800" },
+  assignTeam: { color: pcColors.textMuted, fontSize: 15, fontWeight: "500" },
+  assignActions: { flexDirection: "row", alignItems: "center", marginTop: 10, paddingLeft: 44 },
+  declineTxt: { color: pcColors.textMuted, fontWeight: "800", fontSize: 13, letterSpacing: 0.5 },
+  acceptTxt: { color: pcColors.primary, fontWeight: "800", fontSize: 13, letterSpacing: 0.5 },
   menuRow: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 15, paddingHorizontal: 12 },
   menuTxt: { color: pcColors.textPrimary, fontSize: 16, fontWeight: "600" },
   dupTitle: { color: pcColors.textPrimary, fontSize: 19, fontWeight: "800", marginBottom: 6 },

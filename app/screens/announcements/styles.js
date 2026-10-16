@@ -183,24 +183,34 @@ export const styles = StyleSheet.create({
   },
 });
 
+// Paleta întunecată (copiată din stilul modalelor din Pray / Devotional).
+const D_SHEET = "#1a1f2b";
+const D_SURF = "rgba(255,255,255,0.06)";
+const D_SURF2 = "rgba(255,255,255,0.1)";
+const D_BORDER = "rgba(255,255,255,0.12)";
+const D_TEXT = "#e5e7eb";
+const D_DIM = "rgba(229,231,235,0.6)";
+const D_FAINT = "rgba(229,231,235,0.4)";
+const D_ACCENT = "#10b981";
+
 export const modalStyles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: colors.overlay,
+    backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "flex-end",
   },
   content: {
-    backgroundColor: colors.surface,
+    backgroundColor: D_SHEET,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: spacing.lg,
     paddingTop: spacing.xl,
   },
   handle: {
-    width: 40,
-    height: 4,
-    backgroundColor: colors.border,
-    borderRadius: 2,
+    width: 44,
+    height: 5,
+    backgroundColor: D_BORDER,
+    borderRadius: 3,
     alignSelf: "center",
     marginBottom: spacing.lg,
   },
@@ -210,24 +220,25 @@ export const modalStyles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: spacing.lg,
   },
-  title: {
-    ...typography.h2,
-    color: colors.textPrimary,
-  },
+  title: { ...typography.h2, color: D_TEXT },
   closeBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.background,
+    backgroundColor: D_SURF,
+    borderWidth: 1,
+    borderColor: D_BORDER,
     alignItems: "center",
     justifyContent: "center",
   },
   field: { marginBottom: spacing.md },
   section: {
-    backgroundColor: colors.background,
+    backgroundColor: D_SURF,
     borderRadius: borderRadius.lg,
     padding: spacing.md,
     marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: D_BORDER,
   },
   labelRow: {
     flexDirection: "row",
@@ -237,42 +248,31 @@ export const modalStyles = StyleSheet.create({
   },
   label: {
     ...typography.bodySmall,
-    color: colors.textSecondary,
+    color: D_DIM,
     fontWeight: "700",
     marginBottom: spacing.xs,
   },
-  counter: {
-    ...typography.caption,
-    color: colors.textMuted,
-  },
+  counter: { ...typography.caption, color: D_FAINT },
   sectionLabel: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: D_DIM,
     fontWeight: "700",
     letterSpacing: 1,
     marginBottom: spacing.sm,
   },
   input: {
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: colors.border,
+    backgroundColor: D_SURF,
+    borderWidth: 1,
+    borderColor: D_BORDER,
     borderRadius: borderRadius.lg,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
     ...typography.body,
-    color: colors.textPrimary,
+    color: D_TEXT,
   },
   textArea: { height: 120, textAlignVertical: "top" },
-  colorLabel: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginBottom: spacing.sm,
-  },
-  colorRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
+  colorLabel: { ...typography.body, color: D_DIM, marginBottom: spacing.sm },
+  colorRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
   colorBtn: {
     width: 36,
     height: 36,
@@ -281,42 +281,31 @@ export const modalStyles = StyleSheet.create({
     justifyContent: "center",
   },
   colorPlain: {
-    backgroundColor: colors.surface,
+    backgroundColor: D_SURF2,
     borderWidth: 2,
-    borderColor: colors.border,
-    position: "relative",
+    borderColor: D_BORDER,
     overflow: "hidden",
   },
-  colorActive: {
-    borderWidth: 3,
-    borderColor: colors.textPrimary,
-  },
+  colorActive: { borderWidth: 3, borderColor: "#fff" },
   expiryRow: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: spacing.md,
     gap: spacing.sm,
   },
-  expiryLabel: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
+  expiryLabel: { ...typography.body, color: D_DIM },
   expiryInput: {
     width: 60,
-    backgroundColor: colors.background,
-    borderWidth: 2,
-    borderColor: colors.border,
+    backgroundColor: D_SURF,
+    borderWidth: 1,
+    borderColor: D_BORDER,
     borderRadius: borderRadius.md,
     padding: spacing.sm,
     textAlign: "center",
     ...typography.body,
-    color: colors.textPrimary,
+    color: D_TEXT,
   },
-  bgToggle: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
+  bgToggle: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
   bgToggleBtn: {
     flex: 1,
     flexDirection: "row",
@@ -324,59 +313,38 @@ export const modalStyles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.md,
     borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: D_BORDER,
+    backgroundColor: D_SURF,
     alignItems: "center",
     justifyContent: "center",
   },
-  bgToggleActive: {
-    borderColor: colors.info,
-    backgroundColor: colors.info + "15",
-  },
-  bgToggleText: {
-    ...typography.bodySmall,
-    color: colors.textMuted,
-    fontWeight: "600",
-  },
-  bgToggleTextActive: {
-    color: colors.info,
-  },
-  imagePickWrap: {
-    marginBottom: spacing.md,
-  },
+  bgToggleActive: { borderColor: D_ACCENT, backgroundColor: "rgba(16,185,129,0.14)" },
+  bgToggleText: { ...typography.bodySmall, color: D_DIM, fontWeight: "600" },
+  bgToggleTextActive: { color: D_ACCENT },
+  imagePickWrap: { marginBottom: spacing.sm },
   imagePickBtn: {
     flexDirection: "row",
     gap: 8,
     paddingVertical: spacing.md,
     borderRadius: borderRadius.md,
     borderWidth: 1.5,
-    borderColor: colors.info,
+    borderColor: D_ACCENT,
     borderStyle: "dashed",
-    backgroundColor: colors.surface,
+    backgroundColor: "rgba(16,185,129,0.08)",
     alignItems: "center",
     justifyContent: "center",
   },
-  imagePickText: {
-    ...typography.body,
-    color: colors.info,
-    fontWeight: "600",
-  },
+  imagePickText: { ...typography.body, color: D_ACCENT, fontWeight: "700" },
   imagePreview: {
     width: "100%",
     height: 120,
     borderRadius: borderRadius.md,
     marginTop: spacing.sm,
   },
-  previewWrap: {
-    marginBottom: spacing.md,
-  },
-  previewLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
-    marginBottom: spacing.xs,
-  },
+  previewWrap: { marginBottom: spacing.md },
+  previewLabel: { ...typography.caption, color: D_DIM, marginBottom: spacing.xs },
   previewCard: {
-    backgroundColor: colors.background,
+    backgroundColor: D_SURF2,
     borderRadius: 12,
     padding: spacing.md,
     overflow: "hidden",
@@ -391,15 +359,8 @@ export const modalStyles = StyleSheet.create({
     borderRadius: 12,
     opacity: 0.7,
   },
-  previewTitle: {
-    ...typography.h3,
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  previewBody: {
-    ...typography.bodySmall,
-    color: colors.textSecondary,
-  },
+  previewTitle: { ...typography.h3, color: D_TEXT, marginBottom: 4 },
+  previewBody: { ...typography.bodySmall, color: D_DIM },
   button: {
     flexDirection: "row",
     gap: 8,
@@ -410,7 +371,7 @@ export const modalStyles = StyleSheet.create({
     marginTop: spacing.sm,
     marginBottom: spacing.xl,
   },
-  buttonText: { ...typography.button, color: colors.textInverse },
+  buttonText: { ...typography.button, color: "#fff" },
 });
 
 export const detailStyles = StyleSheet.create({

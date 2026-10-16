@@ -20,7 +20,7 @@ export const listsStyles = StyleSheet.create({
   rowOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.28)" },
   rowBar: { backgroundColor: "rgba(0,0,0,0.5)", paddingHorizontal: spacing.md, paddingVertical: spacing.sm, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   rowTitle: { ...typography.body, color: "#fff", fontWeight: "800", textTransform: "uppercase", letterSpacing: 1, flex: 1 },
-  rowMeta: { ...typography.caption, color: "rgba(255,255,255,0.75)", marginTop: 2 },
+  rowMeta: { ...typography.caption, color: "rgba(255,255,255,0.85)", fontWeight: "700", marginLeft: 8 },
   publicBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: PUBLIC_ACCENT, borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 2, position: "absolute", top: 8, left: 8 },
   publicBadgeText: { ...typography.caption, color: "#1e293b", fontWeight: "800", fontSize: 10, letterSpacing: 0.5 },
   expiredPill: { backgroundColor: "rgba(0,0,0,0.6)", borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 2 },
@@ -33,9 +33,8 @@ export const listsStyles = StyleSheet.create({
   // ---- Bara de sus a sub-ecranelor (detaliu/creare) ----
   subHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, gap: spacing.sm },
   subBack: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  subTitleWrap: { flex: 1 },
-  subTitle: { ...typography.h3 },
-  subCount: { ...typography.caption, marginTop: 2, textTransform: "none", letterSpacing: 0 },
+  subTitle: { ...typography.h3, flex: 1 },
+  subCount: { ...typography.caption, marginLeft: 8, textTransform: "none", letterSpacing: 0, fontWeight: "700" },
   subAction: { paddingHorizontal: spacing.sm, height: 40, alignItems: "center", justifyContent: "center" },
 
   // ---- Detaliu lista (carduri) ----
