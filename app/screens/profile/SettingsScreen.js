@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme, useAuth } from "../../global/context";
 import {
@@ -35,6 +36,7 @@ const roleLabels = {
 export const SettingsScreen = ({ navigation }) => {
   const { isDarkMode, toggleTheme, theme } = useTheme();
   const { user, logout, updateUser } = useAuth();
+  const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState(null);
   const [uploadingPicture, setUploadingPicture] = useState(false);
   const [updateStatus, setUpdateStatus] = useState(null);
@@ -141,7 +143,11 @@ export const SettingsScreen = ({ navigation }) => {
         <View style={settingsStyles.placeholder} />
       </LinearGradient>
 
-      <ScrollView style={settingsStyles.content}>
+      <ScrollView
+        style={settingsStyles.content}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={[settingsStyles.profileCard, dynamicStyles.surface]}>
           <TouchableOpacity
             style={settingsStyles.avatarWrapper}

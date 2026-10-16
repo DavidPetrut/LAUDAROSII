@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 import { storage } from "./utils/storage";
 
 // Adresa serverului de productie. Se schimba aici dupa deployment.
@@ -25,7 +26,9 @@ export const CONFIG = {
   APP_URL: isWeb ? "http://localhost:8081" : DEFAULT_BASE,
 
   APP_NAME: "Laudarosii Vertical",
-  VERSION: "1.0.0",
+  // Versiunea REALA a buildului curent (din app.json/manifest, nu hardcodata). La OTA vine din
+  // manifestul update-ului, la build nativ din cel inglobat; fallback doar daca lipseste.
+  VERSION: Constants.expoConfig?.version || "1.0.6",
 
   CACHE_DURATION: 5 * 60 * 1000,
   TOKEN_KEY: "authToken",
