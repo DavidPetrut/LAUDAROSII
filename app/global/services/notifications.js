@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 import { api } from "../functions";
 
 let Notifications = null;
@@ -34,7 +35,13 @@ export const registerForPushNotifications = async () => {
       return null;
     }
 
-    const token = (await Notifications.getExpoPushTokenAsync()).data;
+    // projectId explicit (EAS) — necesar sa obtii un token valid in build-uri de productie.
+    const projectId =
+      Constants?.expoConfig?.extra?.eas?.projectId ||
+      Constants?.easConfig?.projectId;
+    const token = (
+      await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined)
+    ).data;
 
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("default", {
