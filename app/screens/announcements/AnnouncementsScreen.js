@@ -63,10 +63,12 @@ export const AnnouncementsScreen = ({ navigation }) => {
   const [announcements, setAnnouncements] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [form, setForm] = useState({
     title: "",
     body: "",
     expiryDays: "7",
+    expiryHours: "0",
     bgColor: null,
     bgImage: null,
   });
@@ -135,9 +137,11 @@ export const AnnouncementsScreen = ({ navigation }) => {
       return;
     }
 
-    const days = parseInt(form.expiryDays) || 7;
+    const days = parseInt(form.expiryDays) || 0;
+    const hours = parseInt(form.expiryHours) || 0;
+    const totalHours = days * 24 + hours || 24 * 7;
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + days);
+    expiresAt.setHours(expiresAt.getHours() + totalHours);
 
     try {
       const payload = {
@@ -150,7 +154,7 @@ export const AnnouncementsScreen = ({ navigation }) => {
       const newAnnouncement = await api.post("/announcements", payload);
       setAnnouncements([newAnnouncement, ...announcements]);
       setModalVisible(false);
-      setForm({ title: "", body: "", expiryDays: "7", bgColor: null, bgImage: null });
+      setForm({ title: "", body: "", expiryDays: "7", expiryHours: "0", bgColor: null, bgImage: null });
       setBgMode("color");
       showSuccess("Anunt creat cu succes!");
     } catch (error) {
@@ -421,13 +425,23 @@ export const AnnouncementsScreen = ({ navigation }) => {
             style={{ flex: 1 }}
             onPress={() => setModalVisible(false)}
           />
-          <ScrollView style={modalStyles.content} bounces={false} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            style={[modalStyles.content, { maxHeight: "90%" }]}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+            bounces={false}
+            keyboardShouldPersistTaps="handled"
+          >
             <View style={modalStyles.handle} />
             <View style={modalStyles.titleRow}>
               <Text style={modalStyles.title}>Anunț nou</Text>
-              <TouchableOpacity style={modalStyles.closeBtn} onPress={() => setModalVisible(false)} hitSlop={10}>
-                <Ionicons name="close" size={20} color="rgba(229,231,235,0.7)" />
-              </TouchableOpacity>
+              <View style={modalStyles.titleActions}>
+                <TouchableOpacity style={modalStyles.closeBtn} onPress={() => setPreviewOpen(true)} hitSlop={10}>
+                  <Ionicons name="eye-outline" size={20} color="#10b981" />
+                </TouchableOpacity>
+                <TouchableOpacity style={modalStyles.closeBtn} onPress={() => setModalVisible(false)} hitSlop={10}>
+                  <Ionicons name="close" size={20} color="rgba(229,231,235,0.7)" />
+                </TouchableOpacity>
+              </View>
             </View>
 
             <View style={modalStyles.field}>
@@ -512,26 +526,6 @@ export const AnnouncementsScreen = ({ navigation }) => {
               )}
             </View>
 
-            {(form.title || form.body) && (
-              <View style={modalStyles.field}>
-                <Text style={modalStyles.label}>Previzualizare</Text>
-                <View style={[
-                  modalStyles.previewCard,
-                  form.bgColor && bgMode === "color" && { backgroundColor: form.bgColor },
-                ]}>
-                  {form.bgImage && bgMode === "image" && (
-                    <Image source={{ uri: form.bgImage }} style={modalStyles.previewBgImg} />
-                  )}
-                  <Text style={[modalStyles.previewTitle, (form.bgColor || form.bgImage) && { color: "#fff" }]} numberOfLines={1}>
-                    {form.title || "Titlu"}
-                  </Text>
-                  <Text style={[modalStyles.previewBody, (form.bgColor || form.bgImage) && { color: "rgba(255,255,255,0.85)" }]} numberOfLines={2}>
-                    {form.body || "Conținut…"}
-                  </Text>
-                </View>
-              </View>
-            )}
-
             <View style={modalStyles.expiryRow}>
               <Ionicons name="time-outline" size={18} color="rgba(229,231,235,0.6)" />
               <Text style={modalStyles.expiryLabel}>Expiră în</Text>
@@ -543,21 +537,49 @@ export const AnnouncementsScreen = ({ navigation }) => {
                 maxLength={3}
               />
               <Text style={modalStyles.expiryLabel}>zile</Text>
+              <TextInput
+                style={modalStyles.expiryInput}
+                value={form.expiryHours}
+                onChangeText={(v) => setForm({ ...form, expiryHours: v })}
+                keyboardType="numeric"
+                maxLength={2}
+              />
+              <Text style={modalStyles.expiryLabel}>ore</Text>
             </View>
 
-            <TouchableOpacity activeOpacity={0.9} onPress={handleCreate}>
-              <LinearGradient
-                colors={headerGradient.colors}
-                start={headerGradient.start}
-                end={headerGradient.end}
-                style={modalStyles.button}
-              >
-                <Ionicons name="megaphone-outline" size={18} color="#fff" />
-                <Text style={modalStyles.buttonText}>Publică anunțul</Text>
-              </LinearGradient>
+            <TouchableOpacity style={modalStyles.button} activeOpacity={0.85} onPress={handleCreate}>
+              <Ionicons name="megaphone-outline" size={18} color="#34d399" />
+              <Text style={modalStyles.buttonText}>Publică anunțul</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
+      </Modal>
+
+      {/* Previzualizare 100% identică (deschisă din iconul de ochi). */}
+      <Modal visible={previewOpen} transparent animationType="fade" onRequestClose={() => setPreviewOpen(false)}>
+        <Pressable style={modalStyles.previewOverlay} onPress={() => setPreviewOpen(false)}>
+          <Text style={modalStyles.previewHint}>Așa va arăta anunțul</Text>
+          <Pressable style={[styles.card, form.bgColor && bgMode === "color" && { backgroundColor: form.bgColor }, { width: "100%" }]}>
+            {form.bgImage && bgMode === "image" && (
+              <Image source={{ uri: form.bgImage }} style={modalStyles.previewBgImg} />
+            )}
+            <View style={styles.cardHeader}>
+              <View style={styles.authorRow}>
+                <UserAvatar profilePicture={user?.personalData?.profilePicture} size={28} />
+                <Text style={[styles.authorName, (form.bgColor || form.bgImage) && { color: "#fff" }]}>
+                  {user?.personalData?.fullName || "Admin"}
+                </Text>
+              </View>
+            </View>
+            <Text style={[styles.cardTitle, (form.bgColor || form.bgImage) && { color: "#fff" }]}>
+              {form.title || "Titlu"}
+            </Text>
+            <Text style={[styles.cardBody, (form.bgColor || form.bgImage) && { color: "rgba(255,255,255,0.9)" }]}>
+              {form.body || "Conținut…"}
+            </Text>
+          </Pressable>
+          <Text style={modalStyles.previewClose}>Apasă oriunde ca să închizi</Text>
+        </Pressable>
       </Modal>
     </View>
   );

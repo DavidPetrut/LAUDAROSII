@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
   navRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12 },
   circleBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#1E1E20", alignItems: "center", justifyContent: "center" },
   date: { color: pcColors.textSecondary, fontSize: 18, marginLeft: 4 },
-  assignCard: { backgroundColor: "#202024", borderRadius: 12, paddingVertical: 12, paddingHorizontal: 12, marginTop: 10 },
+  assignCard: { backgroundColor: "#202024", borderRadius: 6, paddingVertical: 12, paddingHorizontal: 12, marginTop: 10 },
   assignTop: { flexDirection: "row", alignItems: "center", gap: 12 },
   assignIcon: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   assignName: { flex: 1, color: pcColors.textPrimary, fontSize: 16, fontWeight: "800" },

@@ -1,5 +1,9 @@
-import { StyleSheet } from "react-native";
+import { StyleSheet, Dimensions } from "react-native";
 import { colors, typography, spacing, borderRadius } from "../../../public/styles/global";
+
+// Înălțime FIXĂ per card, calculată ca să încapă exact 4 containere în ecran (fără scroll).
+const WIN_H = Dimensions.get("window").height;
+const GRID_ROW_H = Math.max(92, Math.min(148, Math.round((WIN_H - 300) / 4)));
 
 const ACCENT = "#21c063";
 const PUBLIC_ACCENT = "#f59e0b";
@@ -14,7 +18,7 @@ const DIM = "rgba(229,231,235,0.6)";
 export const listsStyles = StyleSheet.create({
   // ---- Grid de liste (max 4 rows, fara scroll, dinamic) ----
   grid: { flex: 1, paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.md, gap: spacing.sm },
-  row: { flex: 1, borderRadius: borderRadius.lg, overflow: "hidden", borderWidth: 2, borderColor: "transparent" },
+  row: { height: GRID_ROW_H, borderRadius: borderRadius.lg, overflow: "hidden", borderWidth: 2, borderColor: "transparent" },
   rowPublic: { borderColor: PUBLIC_ACCENT, borderWidth: 2.5 },
   rowBg: { flex: 1, justifyContent: "flex-end" },
   rowOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.28)" },
@@ -27,7 +31,7 @@ export const listsStyles = StyleSheet.create({
   expiredPillText: { ...typography.caption, color: "#f87171", fontWeight: "700", fontSize: 10 },
 
   // ---- Row de adaugare lista noua ----
-  addRow: { flex: 1, borderRadius: borderRadius.lg, borderWidth: 2, borderColor: ACCENT, borderStyle: "dashed", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(33,192,99,0.06)", gap: spacing.xs },
+  addRow: { height: GRID_ROW_H, borderRadius: borderRadius.lg, borderWidth: 2, borderColor: ACCENT, borderStyle: "dashed", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(33,192,99,0.06)", gap: spacing.xs },
   addRowText: { ...typography.body, color: ACCENT, fontWeight: "700" },
 
   // ---- Bara de sus a sub-ecranelor (detaliu/creare) ----

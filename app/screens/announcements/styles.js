@@ -221,6 +221,7 @@ export const modalStyles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   title: { ...typography.h2, color: D_TEXT },
+  titleActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   closeBtn: {
     width: 32,
     height: 32,
@@ -370,8 +371,14 @@ export const modalStyles = StyleSheet.create({
     justifyContent: "center",
     marginTop: spacing.sm,
     marginBottom: spacing.xl,
+    backgroundColor: "rgba(16,185,129,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(16,185,129,0.45)",
   },
-  buttonText: { ...typography.button, color: "#fff" },
+  buttonText: { ...typography.button, color: "#34d399" },
+  previewOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.8)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
+  previewHint: { ...typography.caption, color: "rgba(255,255,255,0.7)", marginBottom: spacing.md },
+  previewClose: { ...typography.caption, color: "rgba(255,255,255,0.5)", marginTop: spacing.md },
 });
 
 export const detailStyles = StyleSheet.create({

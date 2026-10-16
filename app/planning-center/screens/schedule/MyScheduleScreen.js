@@ -11,12 +11,15 @@ import { showError, showSuccess, showConfirm, showInfo } from "../../../global/f
 import { pcApi } from "../../api/pcApi";
 import { pcColors } from "../../theme";
 import { PcScreen, PcIconButton, PcAvatar } from "../../components";
-import { usePc } from "../../navigation/PcContext";
+import { usePc, usePcNav } from "../../navigation/PcContext";
 import { TimesSheet } from "./TimesSheet";
 
 export function MyScheduleScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { me } = usePc();
+  const { setActiveTab } = usePcNav();
+  // Tap pe card → comută bara de jos pe „Plans" ȘI deschide planul (unde ești programat).
+  const openPlan = (planId) => { setActiveTab("Plans"); navigation.navigate("PcPlan", { planId }); };
   const [data, setData] = useState({ pending: [], confirmed: [] });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null); // planId în curs
@@ -43,30 +46,30 @@ export function MyScheduleScreen({ navigation }) {
 
   const Card = ({ g, pending }) => (
     <View style={styles.card}>
-      <Pressable style={styles.cardHead} onPress={() => navigation.navigate("PcPlan", { planId: g.planId })}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.date}>{g.dateLabel}</Text>
-          <Text style={styles.sub}>{g.serviceTypeName}</Text>
-        </View>
-        {!pending && (
-          <>
-            <PcIconButton icon="play-circle-outline" size={26} color={pcColors.textSecondary} onPress={() => navigation.navigate("PcMediaPlayer", { planId: g.planId })} style={{ marginRight: 8 }} />
-          </>
-        )}
-        <PcIconButton icon="time-outline" size={24} color={pcColors.textSecondary} onPress={() => setTimesFor(g)} />
-      </Pressable>
-
-      <View style={styles.positions}>
-        {g.positions.map((p) => (
-          <View key={String(p.assignmentId)} style={styles.posRow}>
-            <Ionicons name={p.status === "confirmed" ? "checkmark-circle" : "help-circle"} size={20} color={p.status === "confirmed" ? pcColors.primary : pcColors.orange} style={{ marginTop: 1 }} />
-            <View style={styles.posText}>
-              <Text style={styles.posName}>{p.positionName}</Text>
-              <Text style={styles.posTeam}>{p.teamName}</Text>
-            </View>
+      <Pressable onPress={() => openPlan(g.planId)}>
+        <View style={styles.cardHead}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.date}>{g.dateLabel}</Text>
+            <Text style={styles.sub}>{g.serviceTypeName}</Text>
           </View>
-        ))}
-      </View>
+          {!pending && (
+            <PcIconButton icon="play-circle-outline" size={26} color={pcColors.textSecondary} onPress={() => navigation.navigate("PcMediaPlayer", { planId: g.planId })} style={{ marginRight: 8 }} />
+          )}
+          <PcIconButton icon="time-outline" size={24} color={pcColors.textSecondary} onPress={() => setTimesFor(g)} />
+        </View>
+
+        <View style={styles.positions}>
+          {g.positions.map((p) => (
+            <View key={String(p.assignmentId)} style={styles.posRow}>
+              <Ionicons name={p.status === "confirmed" ? "checkmark-circle" : "help-circle"} size={20} color={p.status === "confirmed" ? pcColors.primary : pcColors.orange} />
+              <Text style={styles.posText} numberOfLines={1}>
+                <Text style={styles.posName}>{p.positionName}</Text>
+                {p.teamName ? <Text style={styles.posTeam}>  {p.teamName}</Text> : null}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </Pressable>
 
       {pending && (
         <View style={styles.cardActions}>
@@ -149,9 +152,9 @@ const styles = StyleSheet.create({
   sub: { color: pcColors.textSecondary, fontSize: 14, marginTop: 1 },
   positions: { marginTop: 10, gap: 8 },
   posRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  posText: { flex: 1, flexDirection: "column" },
+  posText: { flex: 1 },
   posName: { color: pcColors.textPrimary, fontSize: 15, fontWeight: "700" },
-  posTeam: { color: pcColors.textSecondary, fontSize: 14, marginTop: 1 },
+  posTeam: { color: pcColors.textSecondary, fontSize: 14 },
   cardActions: { flexDirection: "row", alignItems: "center", marginTop: 14, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: pcColors.divider },
   split: { color: pcColors.textMuted, fontWeight: "800", fontSize: 13, letterSpacing: 0.5 },
   decline: { color: pcColors.textMuted, fontWeight: "800", fontSize: 13, letterSpacing: 0.5 },
