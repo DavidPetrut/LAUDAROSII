@@ -104,13 +104,6 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "OK", message: "Laudarosii API funcționeaza" });
 });
 
-// TEMP: confirma ce port SMTP rezolva serviciul global pe Render (fara a trimite email). Se sterge.
-app.get("/api/email-status", async (req, res) => {
-  if (req.query.key !== "sa-diag-2026") return res.status(403).json({ error: "forbidden" });
-  try { res.json(await require("./services/emailService").emailHealth()); }
-  catch (e) { res.json({ error: e.message }); }
-});
-
 // Auth pe WebSocket: root namespace (game + mission) si namespace-ul /pray-rooms.
 // Refuza conexiunile fara token valid si leaga identitatea de socket.
 io.use(socketAuth);
