@@ -1,81 +1,153 @@
 const nodemailer = require("nodemailer");
 
-let transporter = null;
-
 /**
- * Componenta GLOBALA de email, refolosibila oriunde in backend. Transportul se
- * construieste o singura data dintr-un cont SMTP comun definit in env (merge cu
- * orice provider: Brevo/SendGrid/Resend/Gmail). Fara configurare, emailul e
- * dezactivat elegant (functiile intorc { skipped:true }, nu arunca).
+ * Componenta GLOBALA de email, refolosibila oriunde in backend. UN SINGUR loc pentru TOT emailul
+ * (invitatii, broadcast, programari Planning Center, notificari, orice adaugi in viitor).
  *
- * ENV: EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS (login SMTP),
- *      EMAIL_FROM (adresa expeditor verificata; implicit EMAIL_USER),
- *      EMAIL_FROM_NAME (numele afisat; implicit "Laudarosii").
+ * Integrare oriunde:
+ *   const { sendEmail } = require("<cale>/services/emailService");
+ *   await sendEmail({ to, subject, text, html });   // to poate fi string sau array
+ *
+ * ROBUST / DINAMIC: transportul SMTP incearca automat mai multe porturi si il cache-uieste pe
+ * primul care se conecteaza. Unele hosturi blocheaza porturi SMTP (ex: Render blocheaza
+ * 25/465/587, dar lasa 2525) — asa emailul "just works" fara sa modifici cod cand schimbi host.
+ *
+ * ENV: EMAIL_HOST, EMAIL_USER, EMAIL_PASS (login SMTP), EMAIL_PORT (preferat; fallback 2525/587/465),
+ *      EMAIL_FROM (expeditor verificat; implicit EMAIL_USER), EMAIL_FROM_NAME (implicit "Laudarosii").
+ * Fara EMAIL_HOST/USER/PASS, emailul e dezactivat elegant ({ skipped:true }, nu arunca).
  */
-const getTransporter = () => {
-  if (transporter) return transporter;
-  const { EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS } = process.env;
-  if (!EMAIL_HOST || !EMAIL_USER || !EMAIL_PASS) return null;
-  transporter = nodemailer.createTransport({
-    host: EMAIL_HOST,
-    port: Number(EMAIL_PORT) || 587,
-    secure: Number(EMAIL_PORT) === 465,
-    auth: { user: EMAIL_USER, pass: EMAIL_PASS },
-  });
-  return transporter;
+
+const envReady = () =>
+  !!(process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS);
+
+// Porturi incercate, in ordine: intai cel configurat, apoi fallback-uri uzuale.
+const candidatePorts = () => {
+  const configured = Number(process.env.EMAIL_PORT) || null;
+  return [...new Set([configured, 2525, 587, 465].filter(Boolean))];
 };
 
-const isEmailConfigured = () => !!getTransporter();
+const buildTransport = (port) =>
+  nodemailer.createTransport({
+    host: process.env.EMAIL_HOST,
+    port,
+    secure: port === 465,
+    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    connectionTimeout: 12000,
+    greetingTimeout: 12000,
+    socketTimeout: 20000,
+  });
+
+let cached = null; // { transporter, port }
+let resolving = null; // promisiunea de rezolvare in curs (evita curse la cold start)
+
+/** Primul transport care se conecteaza (cache-uit). Null daca niciun port nu merge. */
+const getWorkingTransport = async () => {
+  if (!envReady()) return null;
+  if (cached) return cached.transporter;
+  if (resolving) return resolving;
+  resolving = (async () => {
+    for (const port of candidatePorts()) {
+      const t = buildTransport(port);
+      try {
+        await t.verify();
+        cached = { transporter: t, port };
+        console.log(`[email] transport activ pe portul ${port}`);
+        return t;
+      } catch (e) {
+        console.warn(`[email] portul ${port} indisponibil: ${e.message}`);
+      }
+    }
+    console.error("[email] niciun port SMTP disponibil (verifica EMAIL_* / reteaua hostului)");
+    return null;
+  })();
+  try {
+    return await resolving;
+  } finally {
+    resolving = null;
+  }
+};
+
+const isConnError = (e) =>
+  /timeout|econn|etimedout|esocket|connection|greeting|dns|enotfound/i.test(
+    String((e && (e.message || e.code)) || ""),
+  );
+
+/** Trimite; daca pica din conexiune, reseteaza cache-ul si reincearca o data (poate alt port). */
+const deliver = async (mailOptions) => {
+  let t = await getWorkingTransport();
+  if (!t) return { sent: 0, skipped: true };
+  try {
+    await t.sendMail(mailOptions);
+    return { sent: 1, port: cached && cached.port };
+  } catch (e) {
+    if (isConnError(e)) {
+      cached = null;
+      t = await getWorkingTransport();
+      if (t) {
+        try {
+          await t.sendMail(mailOptions);
+          return { sent: 1, port: cached && cached.port };
+        } catch (e2) {
+          console.error("[email] send failed (retry):", e2.message);
+          return { sent: 0, error: true };
+        }
+      }
+    }
+    console.error("[email] send failed:", e.message);
+    return { sent: 0, error: true };
+  }
+};
 
 const fromName = () => process.env.EMAIL_FROM_NAME || "Laudarosii";
 const fromAddress = () => process.env.EMAIL_FROM || process.env.EMAIL_USER;
 const from = (name) => `"${name || fromName()}" <${fromAddress()}>`;
 
+const isEmailConfigured = () => envReady();
+
+/** Stare email (fara a trimite): config prezenta + portul SMTP activ rezolvat. */
+const emailHealth = async () => {
+  if (!envReady()) return { configured: false };
+  const t = await getWorkingTransport();
+  return { configured: true, ok: !!t, activePort: cached && cached.port };
+};
+
+// Pastrat pentru compatibilitate (transport pe portul configurat, sincron). Pentru trimitere
+// foloseste sendEmail (care are fallback de port).
+const getTransporter = () =>
+  envReady() ? buildTransport(Number(process.env.EMAIL_PORT) || 2525) : null;
+
 /**
- * Trimite un email generic. `to` poate fi string sau array; `bcc` la fel. Fara
- * transport configurat -> { skipped:true }. Nu arunca.
+ * Trimite un email generic. `to`/`bcc` pot fi string sau array. Fara config -> { skipped:true }.
  */
 const sendEmail = async ({ to, bcc, subject, text, html, replyTo }) => {
-  const t = getTransporter();
-  if (!t) return { sent: 0, skipped: true };
-  try {
-    await t.sendMail({
-      from: from(),
-      ...(to && { to }),
-      ...(bcc && { bcc }),
-      subject: subject || "Notificare",
-      ...(text && { text }),
-      ...(html && { html }),
-      ...(replyTo && { replyTo }),
-    });
-    return { sent: 1 };
-  } catch (e) {
-    console.error("[email] sendEmail failed:", e.message);
-    return { sent: 0, error: true };
-  }
+  if (!envReady()) return { sent: 0, skipped: true };
+  return deliver({
+    from: from(),
+    ...(to && { to }),
+    ...(bcc && { bcc }),
+    subject: subject || "Notificare",
+    ...(text && { text }),
+    ...(html && { html }),
+    ...(replyTo && { replyTo }),
+  });
 };
 
 /**
- * Broadcast: un email de la contul comun, cu numele super-adminului ca expeditor
- * afisat. Destinatarii merg in BCC (nu isi vad adresele - GDPR).
+ * Broadcast: un email de la contul comun, cu numele super-adminului ca expeditor afisat.
+ * Destinatarii merg in BCC (nu isi vad adresele - GDPR).
  */
 const sendBroadcastEmail = async (toEmails, { subject, text, fromName: displayName, replyTo }) => {
-  const t = getTransporter();
   const emails = [...new Set(toEmails)].filter((e) => typeof e === "string" && e.includes("@"));
-  if (!t || emails.length === 0) return { sent: 0, skipped: !t };
-  try {
-    await t.sendMail({
-      from: from(displayName),
-      to: fromAddress(),
-      bcc: emails,
-      subject: subject || "Notificare",
-      text,
-      ...(replyTo && { replyTo }),
-    });
-    return { sent: emails.length };
-  } catch (e) {
-    return { sent: 0, error: true };
-  }
+  if (!envReady() || emails.length === 0) return { sent: 0, skipped: !envReady() };
+  const r = await deliver({
+    from: from(displayName),
+    to: fromAddress(),
+    bcc: emails,
+    subject: subject || "Notificare",
+    text,
+    ...(replyTo && { replyTo }),
+  });
+  return r.sent ? { sent: emails.length } : { sent: 0, error: true };
 };
 
 const escapeHtml = (s) =>
@@ -116,6 +188,7 @@ Linkul expira in ${expiresDays} zile. Daca nu te asteptai la acest email, il pot
 module.exports = {
   getTransporter,
   isEmailConfigured,
+  emailHealth,
   sendEmail,
   sendBroadcastEmail,
   sendInviteEmail,
