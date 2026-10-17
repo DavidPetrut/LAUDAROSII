@@ -124,7 +124,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
     if (ta.selectionStart !== ta.selectionEnd) {
       const c = getCaretCoordinates(ta, ta.selectionStart);
       setTb({ x: c.x, y: c.y }); setAc(null); setPick(null); setSymOpen(false); setAiOpen(false);
-    } else { setTb(null); setSymOpen(false); setAiOpen(false); openPickerAtCaret(); }
+    } else { setTb(null); setSymOpen(false); setAiOpen(false); if (!openPickerAtCaret()) setPick(null); }
   }
 
   // Toggle: dacă selecția e deja înfășurată în tag → scoate; altfel adaugă.
@@ -187,7 +187,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
       <pre ref={preRef} className="hl" style={fontStyle} aria-hidden dangerouslySetInnerHTML={{ __html: highlight(value) }} />
       <textarea
         ref={taRef} className="ta" style={fontStyle} value={value} spellCheck={false}
-        onChange={(e) => { onChange(e.target.value); requestAnimationFrame(updateAutocomplete); }}
+        onChange={(e) => { onChange(e.target.value); setPick(null); requestAnimationFrame(updateAutocomplete); }}
         onKeyDown={onKeyDown}
         onKeyUp={(e) => { if (!["ArrowUp", "ArrowDown", "Enter", "Tab", "Escape"].includes(e.key)) updateAutocomplete(); }}
         onMouseUp={onMouseUpTextarea}

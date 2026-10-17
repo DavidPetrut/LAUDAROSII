@@ -1,25 +1,24 @@
 /**
- * Paginare comună (preview ȘI PDF folosesc ACEEAȘI logică → arată identic).
- * Împarte liniile randate (renderChordPro) în pagini A4, ca să nu se înghesuie (cerința D).
- * Fiecare pagină primește ACELAȘI header (titlu/gamă/bpm/metru + aranjament + sequence).
+ * Paginare comună (preview ȘI PDF) → pagini A4, header repetat (cerința D).
+ * Metrici aliniate cu randarea din pdf.js ca împărțirea să fie corectă (fără gol mare jos).
  */
-// Înălțimea utilă a unei pagini A4 (pt), după header (~92) și marginea de jos (~40). A4 = 842pt.
-export const PAGE_CONTENT_PT = 710;
+export const PAGE_CONTENT_PT = 740; // A4 842pt - header(~92) - margine jos(~30)
 
-export function lineCost(ln, lineH) {
-  if (ln.kind === "row") return (ln.chordRow ? lineH * 2.08 : lineH * 1.08);
-  if (ln.kind === "section") return lineH * 1.3;
-  return lineH; // empty
+export function lineCost(ln, fs) {
+  if (ln.kind === "section") return fs * 1.9;
+  if (ln.kind === "empty") return fs * 0.8;
+  // row
+  const chord = ln.chordRow ? fs * 1.05 : 0;
+  const lyric = (ln.lyricRow && ln.lyricRow.replace(/<\/?[biu]>/gi, "").trim()) || !ln.chordRow ? fs * 1.4 : 0;
+  return chord + lyric;
 }
 
-/** Întoarce un array de pagini; fiecare pagină = array de linii. */
-export function paginateLines(lines, { fontSize = 14 } = {}) {
-  const lineH = Math.max(12, fontSize * 1.4);
+export function paginateLines(lines, { fontSize = 16 } = {}) {
   const pages = [];
   let cur = [];
   let h = 0;
   for (const ln of lines) {
-    const c = lineCost(ln, lineH);
+    const c = lineCost(ln, fontSize);
     if (h + c > PAGE_CONTENT_PT && cur.length) { pages.push(cur); cur = []; h = 0; }
     cur.push(ln);
     h += c;

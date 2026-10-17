@@ -20,7 +20,7 @@ import Modal from "@/components/ui/Modal";
 
 const PDF_NAMES = { numerals: "Numerals Chart", numbers: "Numbers Chart", lyrics: "Lyrics" };
 
-const CHORD_COLORS = { Blue: "#2f6fe0", Orange: "#d98a2b", Black: "#111", Green: "#2f9e5b", Red: "#d14b43" };
+const CHORD_COLORS = { Blue: "#0921ff", Orange: "#d98a2b", Black: "#111", Green: "#2f9e5b", Red: "#d14b43" };
 
 export default function ChordEditor() {
   const { id, aid } = useParams();
@@ -295,7 +295,7 @@ export default function ChordEditor() {
         .panes { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 0; min-height: 0; }
         .code-pane { border-right: 1px solid var(--border); overflow: hidden; min-height: 0; }
         .preview-wrap { background: #0b0d10; overflow-y: auto; overflow-x: hidden; padding: 22px; display: flex; flex-direction: column; align-items: center; gap: 22px; }
-        .sheet { position: relative; width: 100%; max-width: 800px; aspect-ratio: 210 / 297; flex: 0 0 auto; background: #fff; color: #111; border-radius: 3px; padding: 0 0 44px; box-shadow: 0 4px 28px rgba(0,0,0,.5); overflow: hidden; }
+        .sheet { position: relative; width: 100%; max-width: 800px; min-height: 1040px; flex: 0 0 auto; background: #fff; color: #111; border-radius: 3px; padding: 0 0 44px; box-shadow: 0 4px 28px rgba(0,0,0,.5); }
         .pg-num { position: absolute; bottom: 14px; right: 24px; color: #aab0b6; font-size: 11px; }
         .hdr { background: #ececec; padding: 16px 22px; }
         .hdr-title { font-size: 20px; font-weight: 700; }
@@ -303,11 +303,11 @@ export default function ChordEditor() {
         .hdr-arr { font-size: 11px; font-weight: 700; color: #333; margin-top: 2px; }
         .hdr-arr b { color: #111; }
         .hdr-seq { font-weight: 700; margin-top: 6px; font-size: 14px; }
-        .body { padding: 24px 26px; font-family: "Courier New", monospace; }
-        .psec { font-weight: 900; margin: 26px 0 10px; letter-spacing: .4px; font-size: 1.04em; }
+        .body { padding: 24px 26px; font-family: "PcMono", "Courier New", monospace; }
+        .psec { font-weight: 900; margin: 22px 0 6px; letter-spacing: .4px; font-size: 1.04em; }
         .body > .psec:first-child { margin-top: 0; }
-        .prow { margin-bottom: 5px; }
-        .pch, .ply { font-family: inherit; margin: 0; white-space: pre; font-size: inherit; line-height: 1.5; }
+        .prow { margin-bottom: 3px; }
+        .pch, .ply { font-family: inherit; margin: 0; white-space: pre; font-size: inherit; line-height: 1.3; }
         .pch { font-weight: 700; }
         .pl { height: .7em; }
         .fmt-sec { font-size: 12px; color: var(--text-dim); margin: 6px 0 10px; }

@@ -55,16 +55,16 @@ export async function generateChartPdf({
   let y = 0;
 
   function header() {
-    const boxH = 66;
+    const boxH = 72;
     doc.setFillColor(236, 236, 236);
     doc.rect(0, 0, pageW, boxH, "F");
     doc.setTextColor(17, 17, 17);
-    doc.setFont(FH, "bold"); doc.setFontSize(15);
-    doc.text(`${title || ""} [${keyLabel}, ${bpm || "—"} bpm, ${meter || "4/4"}]`, margin, 26);
+    doc.setFont(FH, "bold"); doc.setFontSize(19);
+    doc.text(`${title || ""} [${keyLabel}, ${bpm || "—"} bpm, ${meter || "4/4"}]`, margin, 28);
     doc.setFontSize(8);
-    doc.text(`[${arrName || ""}]${author ? ` by ${author}` : ""}`, margin, 40);
-    if (seqTokens.length) { doc.setFontSize(11); doc.text(seqTokens.join(", "), margin, 57); }
-    y = boxH + 26;
+    doc.text(`[${arrName || ""}]${author ? ` by ${author}` : ""}`, margin, 43);
+    if (seqTokens.length) { doc.setFontSize(11); doc.text(seqTokens.join(", "), margin, 60); }
+    y = boxH + 24;
   }
 
   const pages = paginateLines(lines, { fontSize });
@@ -73,19 +73,20 @@ export async function generateChartPdf({
     header();
     doc.setFont(F, "normal"); doc.setFontSize(fontSize);
     for (const ln of pageLines) {
-      if (ln.kind === "empty") { y += lineH; continue; }
+      if (ln.kind === "empty") { y += fontSize * 0.8; continue; }
       if (ln.kind === "section") {
+        y += fontSize * 0.5; // mic spațiu înainte de secțiune
         doc.setFont(FB, "bold"); doc.setTextColor(17, 17, 17);
         doc.text(stripFmt(ln.label), margin, y); doc.setFont(F, "normal");
-        y += lineH * 1.3; continue;
+        y += fontSize * 1.4; continue;
       }
       if (ln.chordRow) {
         doc.setTextColor(cr, cg, cb); doc.setFont(FB, "bold");
         doc.text(ln.chordRow, margin, y); doc.setFont(F, "normal");
-        y += lineH;
+        y += fontSize * 1.05; // acordul STRÂNS deasupra versului
       }
       const lyric = stripFmt(ln.lyricRow);
-      if (lyric.trim() || !ln.chordRow) { doc.setTextColor(17, 17, 17); doc.text(lyric || " ", margin, y); y += lineH * 1.08; }
+      if (lyric.trim() || !ln.chordRow) { doc.setTextColor(17, 17, 17); doc.text(lyric || " ", margin, y); y += fontSize * 1.4; }
     }
     doc.setFontSize(9); doc.setTextColor(150, 150, 150);
     doc.text(`${pi + 1} / ${pages.length}`, pageW - margin, pageH - 20, { align: "right" });

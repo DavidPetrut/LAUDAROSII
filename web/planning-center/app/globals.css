@@ -46,6 +46,10 @@
   color-scheme: dark;
 }
 
+/* Font monospace cu diacritice ro — ACELAȘI ca în PDF (preview == PDF). */
+@font-face { font-family: "PcMono"; src: url("/fonts/RobotoMono.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "PcMono"; src: url("/fonts/RobotoMono-Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+
 * { box-sizing: border-box; }
 
 html, body {

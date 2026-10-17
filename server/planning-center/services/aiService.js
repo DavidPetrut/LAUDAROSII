@@ -33,13 +33,16 @@ async function run({ feature = "web", action = "generic", prompt = "", context =
   const model = process.env.PC_AI_MODEL || "claude-3-5-sonnet-latest";
   const { system, user } = buildMessages({ action, prompt, context });
   try {
+    const headers = {
+      "content-type": "application/json",
+      "x-api-key": process.env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+    };
+    // Cheile la nivel de organizație (sk-ant-usr / admin) cer workspace-ul explicit.
+    if (process.env.ANTHROPIC_WORKSPACE_ID) headers["anthropic-workspace-id"] = process.env.ANTHROPIC_WORKSPACE_ID;
     const res = await fetch(ANTHROPIC_URL, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
+      headers,
       body: JSON.stringify({ model, max_tokens: 1500, system, messages: [{ role: "user", content: user }] }),
     });
     const data = await res.json().catch(() => ({}));

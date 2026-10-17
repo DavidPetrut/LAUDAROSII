@@ -15,6 +15,7 @@ import AddKeyModal from "@/components/songs/AddKeyModal";
 import AddArrangementModal from "@/components/songs/AddArrangementModal";
 import AddFileModal from "@/components/songs/AddFileModal";
 import SongInfoModal from "@/components/songs/SongInfoModal";
+import ChartPreviewModal from "@/components/songs/ChartPreviewModal";
 
 const METERS = ["none", "2/2", "2/4", "3/2", "3/4", "4/2", "4/4", "5/4", "6/4", "3/8", "6/8", "7/4", "7/8", "9/8", "12/4", "12/8"];
 
@@ -27,6 +28,20 @@ export default function SongDetail() {
   const [err, setErr] = useState("");
   const [modal, setModal] = useState(null); // 'seq'|'key'|'arr'|'file'|'info'
   const [editField, setEditField] = useState(null); // 'bpm'|'length'|'name'
+  const [preview, setPreview] = useState(null); // { mode, targetKey } pt. ChartPreviewModal
+
+  // Click pe un fișier: chart-urile generate → preview in-app; audio/link → tab nou; derivat → editor.
+  const openFile = (f) => {
+    if (f.source === "generated") {
+      let mode = "chords", targetKey = "";
+      if (f.kind === "numbers") mode = "numbers";
+      else if (f.kind === "numerals") mode = "numerals";
+      else if (f.kind === "lyrics") mode = "lyrics";
+      else { mode = "chords"; const m = /in\s+(\S+)/i.exec(f.name || ""); targetKey = m ? m[1] : ""; }
+      setPreview({ mode, targetKey });
+    } else if (f.url) window.open(f.url, "_blank", "noopener");
+    else router.push(`/chords/${id}/${arrId}`);
+  };
 
   const loadSong = useCallback(async () => {
     try {
@@ -152,13 +167,13 @@ export default function SongDetail() {
               <div className="file-cols">
                 <div className="fcol">
                   <div className="fcol-h">Arrangement</div>
-                  {(arr.arrangementFiles || []).map((f) => <FileRow key={f.id} f={f} onOpen={() => router.push(`/chords/${id}/${arrId}`)} />)}
+                  {(arr.arrangementFiles || []).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} />)}
                   {(arr.arrangementFiles || []).length === 0 && <div className="fcol-empty" />}
                 </div>
                 {(arr.keys || []).map((k) => (
                   <div key={k.id} className="fcol">
                     <div className="fcol-h">{k.label || k.startKey}</div>
-                    {(k.files || []).filter((f) => !f.derived).map((f) => <FileRow key={f.id} f={f} onOpen={() => router.push(`/chords/${id}/${arrId}`)} />)}
+                    {(k.files || []).filter((f) => !f.derived).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} />)}
                   </div>
                 ))}
               </div>
@@ -194,6 +209,7 @@ export default function SongDetail() {
       {modal === "arr" && <AddArrangementModal onClose={() => setModal(null)} onSubmit={addArrangement} />}
       {modal === "file" && <AddFileModal songId={id} arrangementId={arrId} keys={arr?.keys || []} onClose={() => setModal(null)} onDone={() => { setModal(null); loadArr(); }} />}
       {modal === "info" && <SongInfoModal song={song} onClose={() => setModal(null)} onSubmit={saveInfo} />}
+      {preview && <ChartPreviewModal songId={id} arrId={arrId} song={song} arr={arr} mode={preview.mode} targetKey={preview.targetKey} onClose={() => setPreview(null)} />}
 
       <style jsx>{`
         .detail { padding: 22px 0 90px; }
@@ -253,9 +269,7 @@ function FileRow({ f, onOpen }) {
   );
   return (
     <div className="frow">
-      {f.url
-        ? <a href={f.url} target="_blank" rel="noreferrer" className="fl">{inner}</a>
-        : <button className="fl fl-btn" onClick={onOpen} title="Deschide editorul Lyrics & Chords">{inner}</button>}
+      <button className="fl fl-btn" onClick={onOpen} title="Deschide">{inner}</button>
       <style jsx>{`
         .frow { padding: 6px 0; }
         .fl { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 13px; }
