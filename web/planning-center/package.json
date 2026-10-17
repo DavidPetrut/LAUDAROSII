@@ -1,0 +1,19 @@
+{
+  "name": "pc-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Planning Center — web app (Songs întâi). Consumă /api/pc/v1 din backend-ul Vertical. One source of truth cu mobilul.",
+  "scripts": {
+    "dev": "next dev -p 4100",
+    "build": "next build",
+    "start": "next start -p 4100",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "chordsheetjs": "^18.0.0",
+    "jspdf": "^4.2.1",
+    "next": "14.2.35",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  }
+}

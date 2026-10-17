@@ -1,0 +1,96 @@
+/* =============================================================================
+   Design tokens — temă PCO (dark). Scop: IDENTIC vizual cu Planning Center.
+   Valorile sunt extrase din screenshot-urile Songs/Arrangement. Le rafinăm pe
+   măsură ce comparăm 1:1 — de-aia totul e în variabile (un singur loc de reglat).
+   ============================================================================= */
+:root {
+  /* Fundaluri */
+  --bg: #0f1318;            /* fundalul paginii (aproape negru, ușor navy) */
+  --bg-header: #121820;     /* bara de sus; are un gradient verzui subtil din product color */
+  --surface: #171c23;       /* carduri / panouri (Files, modale interior) */
+  --surface-2: #1c222b;     /* inputuri, hover pe surface */
+  --surface-3: #232a34;     /* dropdown-uri, elemente ridicate */
+  --modal-bg: #1b212a;      /* fundal modal */
+  --row-hover: #151b22;     /* hover pe rânduri de tabel */
+
+  /* Borduri / separatoare */
+  --border: #232a33;        /* linii între rânduri, borduri carduri */
+  --border-soft: #1c232c;   /* separatoare foarte subtile */
+  --border-strong: #2d3640; /* borduri inputuri / modale */
+
+  /* Text */
+  --text: #e7e9ec;          /* text principal */
+  --text-dim: #9aa4b0;      /* text secundar (sub-titlu, meta) */
+  --text-faint: #6b7580;    /* headere coloane, placeholder */
+  --text-link: #5aa2d8;     /* porțiuni colorate din titluri / linkuri */
+
+  /* Accente */
+  --primary: #2f81f7;       /* butoane primare (Submit, Add a song), tab activ */
+  --primary-hover: #2673e6;
+  --primary-ink: #ffffff;
+  --product: #57b98a;       /* verdele „services" (logo, badge key) */
+  --danger: #e5534b;        /* Delete */
+
+  /* Dimensiuni / layout */
+  --nav-h: 52px;            /* înălțimea barei de sus */
+  --radius: 6px;            /* raza colțurilor (carduri, butoane) — PCO e „aproape drept" */
+  --radius-sm: 4px;
+  --content-max: 1600px;    /* lățimea maximă a conținutului */
+  --gutter: 28px;           /* padding lateral pagină */
+
+  /* Tipografie */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --fs-h1: 26px;
+  --fs-colhead: 11px;       /* TITLE / BPM / KEYS — uppercase, spațiat */
+
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; }
+
+/* Scrollbar discret, ca în PCO (nu bara groasă default de Windows). */
+* { scrollbar-width: thin; scrollbar-color: #2a323c transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: #2a323c; border-radius: 6px; border: 2px solid transparent; background-clip: content-box; }
+*::-webkit-scrollbar-thumb:hover { background: #3a434e; background-clip: content-box; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* Butoane de bază reutilizabile. */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 14px;
+  border-radius: var(--radius); border: 1px solid transparent;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  background: var(--surface-2); color: var(--text);
+}
+.btn:hover { background: var(--surface-3); }
+.btn-primary { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-ghost { background: transparent; color: var(--text-dim); }
+.btn-ghost:hover { background: var(--surface-2); color: var(--text); }
+.btn-link { background: transparent; color: var(--text-dim); padding: 0; height: auto; }
+.btn-link:hover { color: var(--text); background: transparent; }
+
+/* Input de bază. */
+.input {
+  width: 100%; height: 34px; padding: 0 10px;
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  font-size: 13px; outline: none;
+}
+.input:focus { border-color: var(--primary); }
+.input::placeholder { color: var(--text-faint); }

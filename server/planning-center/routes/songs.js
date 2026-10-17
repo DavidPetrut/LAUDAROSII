@@ -60,6 +60,7 @@ router.get("/", requireCan("people.view"), async (req, res) => {
       songs: songs.map((s) => ({
         id: s._id, title: s.title, defaultKey: s.defaultKey, bpm: s.bpm, author: s.author,
         keys: [...(keysBySong[String(s._id)] || [])], tagIds: (s.tagIds || []).map(String),
+        createdAt: s.createdAt || null,
       })),
     });
   } catch (err) { console.error("[pc] GET /songs:", err.message); res.status(500).json({ error: "Eroare la cântări." }); }
@@ -78,6 +79,22 @@ router.post("/", requireCan("songs.edit"), async (req, res) => {
   } catch (err) { console.error("[pc] POST /songs:", err.message); res.status(500).json({ error: "Eroare la creare." }); }
 });
 
+/* ───────── PATCH /:id — editează „Song Information" (title/ccli/author/copyright/admin/notes/themes) ───────── */
+router.patch("/:id", requireCan("songs.edit"), async (req, res) => {
+  try {
+    const b = req.body || {}; const set = {};
+    ["title", "ccli", "author", "copyrightYear", "administration", "notes", "defaultKey"].forEach(
+      (k) => b[k] !== undefined && (set[k] = String(b[k]))
+    );
+    if (b.bpm !== undefined) set.bpm = Number(b.bpm) || null;
+    if (Array.isArray(b.themes)) set.themes = b.themes.map((t) => String(t).trim()).filter(Boolean);
+    if (set.title !== undefined && !set.title.trim()) return res.status(400).json({ error: "Titlul e obligatoriu." });
+    const s = await PcSong.findOneAndUpdate(scoped(req, { _id: OID(req.params.id) }), { $set: set }, { new: true }).select("_id").lean();
+    if (!s) return res.status(404).json({ error: "Cântec inexistent." });
+    res.json({ ok: true });
+  } catch (err) { console.error("[pc] PATCH /songs/:id:", err.message); res.status(500).json({ error: "Eroare la salvare." }); }
+});
+
 /* ───────── GET /:id — detaliu cântec + aranjamente ───────── */
 router.get("/:id", requireCan("people.view"), async (req, res) => {
   try {
@@ -87,6 +104,7 @@ router.get("/:id", requireCan("people.view"), async (req, res) => {
     const arrangements = await PcArrangement.find(scoped(req, { songId: id, archived: false })).sort({ createdAt: 1 }).lean();
     res.json({
       id: song._id, title: song.title, ccli: song.ccli, author: song.author, copyrightYear: song.copyrightYear,
+      administration: song.administration || "", notes: song.notes || "",
       themes: song.themes || [], tagIds: (song.tagIds || []).map(String),
       arrangements: arrangements.map((a) => ({ id: a._id, name: a.name, lengthLabel: fmtLen(a.lengthSec), bpm: a.bpm, meter: a.meter })),
     });
@@ -223,6 +241,18 @@ router.post("/:id/arrangements/:aid/files", requireCan("songs.edit"), async (req
     }));
     res.status(201).json({ id: file._id });
   } catch (err) { console.error("[pc] POST song file:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
+/* ───────── DELETE /:id/arrangements/:aid/files/:fid — șterge un fișier (ex. la regenerare PDF) ───────── */
+router.delete("/:id/arrangements/:aid/files/:fid", requireCan("songs.edit"), async (req, res) => {
+  try {
+    const r = await PcSongFile.updateOne(
+      scoped(req, { _id: OID(req.params.fid), arrangementId: OID(req.params.aid) }),
+      { $set: { deletedAt: new Date() } }
+    );
+    if (!r.matchedCount) return res.status(404).json({ error: "Fișier inexistent." });
+    res.json({ ok: true });
+  } catch (err) { console.error("[pc] DELETE song file:", err.message); res.status(500).json({ error: "Eroare." }); }
 });
 
 /* ───────── Integrations (MultiTracks principala) ───────── */

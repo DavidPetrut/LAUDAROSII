@@ -22,6 +22,7 @@ router.use("/v1/uploads", require("./uploads"));
 router.use("/v1/schedule", require("./schedule"));
 router.use("/v1/matrix", require("./matrix"));
 router.use("/v1/reports", require("./reports"));
+router.use("/v1/ai", require("./ai"));
 router.use("/v1/admin", require("./bootstrap"));
 
 module.exports = router;

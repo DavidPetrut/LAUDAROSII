@@ -12,6 +12,8 @@ const schema = pcSchema({
   author: { type: String, default: "" },
   ccli: { type: String, default: "" },
   copyrightYear: { type: String, default: "" },
+  administration: { type: String, default: "" }, // §Songs — „Administration" din Song Information
+  notes: { type: String, default: "" },          // observații la nivel de cântec
   lengthSec: { type: Number, default: 0 },
   themes: { type: [String], default: [] },
   tagIds: { type: [mongoose.Schema.Types.ObjectId], ref: "PcTag", default: [] }, // tag-uri la nivel de SONG (domain=song)

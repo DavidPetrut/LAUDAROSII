@@ -41,8 +41,11 @@ router.post("/", canUpload, (req, res) => {
     if (err) return res.status(400).json({ error: "Fișier invalid: " + err.message });
     if (!req.file) return res.status(400).json({ error: "Niciun fișier primit (câmpul file)." });
     const folder = `pc/${req.pcOrgId || "org"}`;
+    // PDF-urile ca „image" sunt blocate la livrare (ACL Cloudinary) → le urcăm ca „raw".
+    const rtQ = String(req.query.rt || "").toLowerCase();
+    const resourceType = ["raw", "image", "video", "auto"].includes(rtQ) ? rtQ : "auto";
     const stream = cloudinary.uploader.upload_stream(
-      { resource_type: "auto", folder, use_filename: true, unique_filename: true },
+      { resource_type: resourceType, folder, use_filename: true, unique_filename: true },
       (error, result) => {
         if (error) { console.error("[pc] cloudinary:", error.message); return res.status(500).json({ error: "Eroare la Cloudinary." }); }
         res.status(201).json({
