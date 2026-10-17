@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api/client";
 import { renderChordPro, lyricToHtml } from "@/lib/songs/chordpro";
 import { abbreviateSequence } from "@/lib/songs/sequence";
+import { paginateLines } from "@/lib/songs/paginate";
 import { generateChartPdf } from "@/lib/songs/pdf";
 
 const CHORD = "#0921ff";
@@ -34,6 +35,7 @@ export default function ChartPreviewModal({ songId, arrId, song, arr, mode = "ch
 
   const tk = mode === "chords" ? (targetKey || originalKey) : originalKey;
   const lines = useMemo(() => renderChordPro(text, { mode, originalKey, targetKey: tk }), [text, mode, originalKey, tk]);
+  const pages = useMemo(() => paginateLines(lines, { fontSize: 18 * 0.9 }), [lines]);
   const keyLabel = mode === "lyrics" ? "Lyrics" : mode === "numbers" ? "Numbers" : mode === "numerals" ? "Numerals" : (targetKey || originalKey);
   const seqTokens = abbreviateSequence(arr?.sequence || []);
 
@@ -79,26 +81,29 @@ export default function ChartPreviewModal({ songId, arrId, song, arr, mode = "ch
         </div>
       </div>
       <div className="scroll">
-        <div className="sheet">
-          <div className="hdr">
-            <div className="hdr-title">{song?.title || "…"} <span className="hdr-key">[{keyLabel}, {arr?.bpm || "—"} bpm, {arr?.meter || "4/4"}]</span></div>
-            <div className="hdr-arr">[{arr?.name}]{song?.author ? <> by <b>{song.author}</b></> : null}</div>
-            {seqTokens.length > 0 && <div className="hdr-seq">{seqTokens.join(", ")}</div>}
+        {loading ? <div className="sheet"><div className="body"><div className="dim">Se încarcă…</div></div></div> : pages.map((pageLines, pi) => (
+          <div className="sheet" key={pi}>
+            <div className="hdr">
+              <div className="hdr-title">{song?.title || "…"} <span className="hdr-key">[{keyLabel}, {arr?.bpm || "—"} bpm, {arr?.meter || "4/4"}]</span></div>
+              <div className="hdr-arr">[{arr?.name}]{song?.author ? <> by <b>{song.author}</b></> : null}</div>
+              {seqTokens.length > 0 && <div className="hdr-seq">{seqTokens.join(", ")}</div>}
+            </div>
+            <div className="body">
+              {pageLines.map((ln, i) => {
+                if (ln.kind === "empty") return <div key={i} className="pl">&nbsp;</div>;
+                if (ln.kind === "section") return <div key={i} className="psec">{ln.label}</div>;
+                const hasLyric = ln.lyricRow && ln.lyricRow.replace(/<\/?[biu]>/gi, "").trim();
+                return (
+                  <div key={i} className="prow">
+                    {ln.chordRow ? <pre className="pch">{ln.chordRow}</pre> : null}
+                    {hasLyric ? <pre className="ply" dangerouslySetInnerHTML={{ __html: lyricToHtml(ln.lyricRow) }} /> : (!ln.chordRow ? <pre className="ply">&nbsp;</pre> : null)}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="pg-num">{pi + 1} / {pages.length}</div>
           </div>
-          <div className="body">
-            {loading ? <div className="dim">Se încarcă…</div> : lines.map((ln, i) => {
-              if (ln.kind === "empty") return <div key={i} className="pl">&nbsp;</div>;
-              if (ln.kind === "section") return <div key={i} className="psec">{ln.label}</div>;
-              const hasLyric = ln.lyricRow && ln.lyricRow.replace(/<\/?[biu]>/gi, "").trim();
-              return (
-                <div key={i} className="prow">
-                  {ln.chordRow ? <pre className="pch">{ln.chordRow}</pre> : null}
-                  {hasLyric ? <pre className="ply" dangerouslySetInnerHTML={{ __html: lyricToHtml(ln.lyricRow) }} /> : (!ln.chordRow ? <pre className="ply">&nbsp;</pre> : null)}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        ))}
       </div>
 
       <style jsx>{`
@@ -108,12 +113,13 @@ export default function ChartPreviewModal({ songId, arrId, song, arr, mode = "ch
         .acts { margin-left: auto; display: flex; gap: 6px; }
         .acts button { background: transparent; border: none; color: #c7ccd2; width: 34px; height: 34px; border-radius: 7px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
         .acts button:hover { background: rgba(255,255,255,.1); color: #fff; }
-        .scroll { flex: 1; overflow-y: scroll; display: flex; align-items: flex-start; justify-content: center; padding: 0 16px 40px; }
+        .scroll { flex: 1; overflow-y: scroll; display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 10px 16px 50px; }
         .scroll::-webkit-scrollbar { width: 12px; }
         .scroll::-webkit-scrollbar-thumb { background: #4a545f; border-radius: 6px; border: 3px solid transparent; background-clip: content-box; }
         .scroll::-webkit-scrollbar-track { background: transparent; }
-        .sheet { width: 100%; max-width: 860px; background: #fff; color: #111; border-radius: 4px 4px 0 0; box-shadow: 0 6px 40px rgba(0,0,0,.5); min-height: 100%; padding: 22px 26px 60px; }
-        .hdr { background: #edeef0; border: 1px solid #e0e1e4; border-radius: 10px; padding: 18px 22px; margin-bottom: 20px; }
+        .sheet { position: relative; width: 100%; max-width: 820px; flex: 0 0 auto; background: #fff; color: #111; border-radius: 3px; box-shadow: 0 6px 40px rgba(0,0,0,.5); min-height: 1080px; padding: 22px 26px 56px; }
+        .pg-num { position: absolute; bottom: 14px; right: 24px; color: #aab0b6; font-size: 11px; }
+        .hdr { background: #edeef0; border: 1px solid #e0e1e4; border-radius: 2px; padding: 18px 22px; margin-bottom: 20px; }
         .hdr-title { font-size: 22px; font-weight: 700; letter-spacing: -.2px; }
         .hdr-key { font-weight: 700; }
         .hdr-arr { font-size: 11px; font-weight: 700; color: #444; margin-top: 4px; }

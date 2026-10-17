@@ -11,20 +11,26 @@
  */
 import { api } from "@/lib/api/client";
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 export async function runAi({ feature = "web", action = "command", prompt, context, actions }) {
-  try {
-    const res = await api.raw("/api/pc/v1/ai/run", {
-      method: "POST",
-      body: { feature, action, prompt, context, actions },
-      raw: true,
-    });
-    if (res.status === 404) {
-      return { ok: false, notWired: true, message: "Poarta AI e pregătită, dar gateway-ul încă nu e deployat pe server.", proposedActions: [] };
+  // Până la 2 reîncercări pt. erori tranzitorii (cold-start Render / rețea / 5xx).
+  let last = { ok: false, message: "Eroare AI." };
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await sleep(1200);
+    try {
+      const res = await api.raw("/api/pc/v1/ai/run", { method: "POST", body: { feature, action, prompt, context, actions }, raw: true });
+      if (res.status === 404 || res.status === 502 || res.status === 503 || res.status === 504) {
+        last = { ok: false, message: "Serverul AI pornește (cold-start) — reîncerc…", proposedActions: [] };
+        continue; // retry
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, message: data?.message || data?.error || `Eroare ${res.status}`, proposedActions: [], raw: data };
+      return { ok: true, message: data.message || "", proposedActions: data.proposedActions || [], raw: data };
+    } catch (e) {
+      last = { ok: false, message: String(e?.message || e), proposedActions: [] };
+      // retry pe erori de rețea
     }
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, message: data?.message || data?.error || `Eroare ${res.status}`, proposedActions: [], raw: data };
-    return { ok: true, message: data.message || "", proposedActions: data.proposedActions || [], raw: data };
-  } catch (e) {
-    return { ok: false, message: String(e?.message || e), proposedActions: [] };
   }
+  return last;
 }

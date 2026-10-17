@@ -298,7 +298,7 @@ export default function ChordEditor() {
         .preview-wrap { background: #0b0d10; overflow-y: auto; overflow-x: hidden; padding: 22px; display: flex; flex-direction: column; align-items: center; gap: 22px; }
         .sheet { position: relative; width: 100%; max-width: 820px; min-height: 1040px; flex: 0 0 auto; background: #fff; color: #111; border-radius: 3px; padding: 20px 24px 44px; box-shadow: 0 4px 28px rgba(0,0,0,.5); }
         .pg-num { position: absolute; bottom: 14px; right: 24px; color: #aab0b6; font-size: 11px; }
-        .hdr { background: #edeef0; border: 1px solid #e0e1e4; border-radius: 10px; padding: 16px 20px; margin-bottom: 18px; }
+        .hdr { background: #edeef0; border: 1px solid #e0e1e4; border-radius: 2px; padding: 16px 20px; margin-bottom: 18px; }
         .hdr-title { font-size: 21px; font-weight: 700; letter-spacing: -.2px; }
         .hdr-key { font-weight: 700; }
         .hdr-arr { font-size: 11px; font-weight: 700; color: #444; margin-top: 3px; }

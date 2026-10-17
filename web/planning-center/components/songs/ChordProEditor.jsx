@@ -53,6 +53,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
   const [aiText, setAiText] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [aiErr, setAiErr] = useState("");
+  const [selHl, setSelHl] = useState(null); // highlight vizual al selecției (cât timp AI e deschis)
   const [draw, setDraw] = useState(null); // { x, y, n } ghost constructor de măsuri
   const [choice, setChoice] = useState(null); // { n, x, y, pos } alegere după release
   const press = useRef({ timer: null, active: false, startX: 0, startY: 0, pos: 0 });
@@ -145,7 +146,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
 
   function onMouseDownTextarea(e) {
     const ta = taRef.current; if (!ta) return;
-    setChoice(null); // o nouă apăsare închide orice chooser deschis
+    setChoice(null); setSelHl(null); // o nouă apăsare închide chooser/highlight
     press.current.startX = e.clientX; press.current.startY = e.clientY; press.current.active = false;
     clearTimeout(press.current.timer);
     press.current.timer = setTimeout(() => {
@@ -214,16 +215,28 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
     const [s, e] = aiSel.current || [ta.selectionStart, ta.selectionEnd];
     const sel = value.slice(s, e);
     if (!sel || !aiText.trim() || !onAi) return;
+    const st = ta.scrollTop; // păstrează poziția (nu teleporta jos)
     setAiBusy(true); setAiErr("");
     const out = await onAi(sel, aiText.trim());
     setAiBusy(false);
     if (typeof out === "string") {
       onChange(value.slice(0, s) + out + value.slice(e));
-      requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s, s + out.length); });
-      setAiOpen(false); setAiText(""); setTb(null); aiSel.current = null;
+      requestAnimationFrame(() => { if (ta) { ta.focus({ preventScroll: true }); ta.setSelectionRange(s, s + out.length); ta.scrollTop = st; } });
+      setAiOpen(false); setAiText(""); setTb(null); setSelHl(null); aiSel.current = null;
     } else {
       setAiErr(out?.error || "Eroare AI.");
     }
+  }
+
+  function computeSelHl(s, e) {
+    const ta = taRef.current; if (!ta || s === e) return null;
+    const a = getCaretCoordinates(ta, s), b = getCaretCoordinates(ta, e);
+    const w = ta.clientWidth - 36;
+    if (Math.abs(a.y - b.y) < 3) return [{ left: a.x, top: a.y, width: Math.max(3, b.x - a.x), height: a.height }];
+    const rects = [{ left: a.x, top: a.y, width: Math.max(3, w + 18 - a.x), height: a.height }];
+    for (let yy = a.y + a.height; yy < b.y - 1; yy += a.height) rects.push({ left: 18, top: yy, width: w, height: a.height });
+    rects.push({ left: 18, top: b.y, width: Math.max(3, b.x - 18), height: a.height });
+    return rects;
   }
 
   function onKeyDown(e) {
@@ -241,7 +254,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
       requestAnimationFrame(() => { ta.setSelectionRange(s + ins.length, s + ins.length); });
       return;
     }
-    if (e.key === "Escape") { setPick(null); setTb(null); setChoice(null); }
+    if (e.key === "Escape") { setPick(null); setTb(null); setChoice(null); setAiOpen(false); setSelHl(null); }
   }
 
   const fontStyle = { fontSize, lineHeight: 1.6, fontFamily: '"Courier New", monospace' };
@@ -250,14 +263,15 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
   return (
     <div className="cpe">
       <pre ref={preRef} className="hl" style={fontStyle} aria-hidden dangerouslySetInnerHTML={{ __html: highlight(value) }} />
+      {aiOpen && selHl && selHl.map((r, i) => <div key={i} className="selhl" style={{ left: r.left, top: r.top, width: r.width, height: r.height }} />)}
       <textarea
         ref={taRef} className="ta" style={fontStyle} value={value} spellCheck={false}
-        onChange={(e) => { onChange(e.target.value); setPick(null); requestAnimationFrame(updateAutocomplete); }}
+        onChange={(e) => { onChange(e.target.value); setPick(null); setSelHl(null); requestAnimationFrame(updateAutocomplete); }}
         onKeyDown={onKeyDown}
         onKeyUp={(e) => { if (!["ArrowUp", "ArrowDown", "Enter", "Tab", "Escape"].includes(e.key)) updateAutocomplete(); }}
         onMouseDown={onMouseDownTextarea}
         onMouseUp={onMouseUpTextarea}
-        onScroll={() => { syncScroll(); setAc(null); setPick(null); setTb(null); }}
+        onScroll={() => { syncScroll(); setAc(null); setPick(null); setTb(null); setSelHl(null); }}
         onBlur={() => { setTimeout(() => { setAc(null); setPick(null); if (!aiOpen) setTb(null); setSymOpen(false); }, 180); }}
         placeholder={"VERSE 1:\n[C]Cine-i ca [Am]Tine în uni[F]vers,\n..."}
       />
@@ -298,7 +312,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
           <button onMouseDown={(e) => { e.preventDefault(); wrapSel("u"); }}><u>U</u></button>
           <span className="tb-sep" />
           <button className={symOpen ? "on" : ""} onMouseDown={(e) => { e.preventDefault(); setSymOpen((v) => !v); setAiOpen(false); }} title="Simboluri">♪</button>
-          <button className={`ai ${aiOpen ? "on" : ""}`} onMouseDown={(e) => { e.preventDefault(); const ta = taRef.current; aiSel.current = [ta.selectionStart, ta.selectionEnd]; setAiOpen((v) => !v); setSymOpen(false); }} title="AI">✦</button>
+          <button className={`ai ${aiOpen ? "on" : ""}`} onMouseDown={(e) => { e.preventDefault(); const ta = taRef.current; if (!aiOpen) { aiSel.current = [ta.selectionStart, ta.selectionEnd]; setSelHl(computeSelHl(ta.selectionStart, ta.selectionEnd)); setAiOpen(true); } else { setAiOpen(false); setSelHl(null); } setSymOpen(false); }} title="AI">✦</button>
           {symOpen && (
             <div className="sympanel">
               {MUSIC_SYMBOLS.map((m) => (<button key={m.s} title={m.n} onMouseDown={(e) => { e.preventDefault(); insertText(m.s); }}>{m.s}</button>))}
@@ -346,6 +360,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
         .choice-x:hover { color: #e7e9ec; }
         .hl, .ta { position: absolute; inset: 0; margin: 0; padding: 18px; border: 0; white-space: pre-wrap; word-break: break-word; overflow: auto; font-variant-ligatures: none; tab-size: 2; }
         .hl { color: #d6dae0; pointer-events: none; z-index: 1; }
+        .selhl { position: absolute; background: rgba(90,162,255,.30); border-radius: 2px; pointer-events: none; z-index: 0; }
         .ta { color: transparent; caret-color: #e7e9ec; background: transparent; resize: none; outline: none; z-index: 2; }
         .ta::placeholder { color: #55606b; }
         .hl :global(.hl-bk) { color: #1f8a4c; font-weight: 700; }
