@@ -126,8 +126,9 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
   }
 
   // ── Constructor de măsuri: long-press (~0.5s) + drag dreapta → măsuri; la release alegi modul ──
-  function commitMeasures(n, mode, pos) {
+  function commitMeasures(n, mode, posArg) {
     const key = defaultKey || "C";
+    const pos = Number.isInteger(posArg) ? posArg : (taRef.current ? taRef.current.selectionStart : 0);
     // „single" = o singură gamă la început; „each" = o gamă pe fiecare măsură.
     const body = mode === "single" ? `[${key}]` + "----|".repeat(n) : `[${key}]----|`.repeat(n);
     const lineStart = value.lastIndexOf("\n", pos - 1) + 1;
@@ -144,6 +145,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
 
   function onMouseDownTextarea(e) {
     const ta = taRef.current; if (!ta) return;
+    setChoice(null); // o nouă apăsare închide orice chooser deschis
     press.current.startX = e.clientX; press.current.startY = e.clientY; press.current.active = false;
     clearTimeout(press.current.timer);
     press.current.timer = setTimeout(() => {
@@ -323,14 +325,12 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
       )}
 
       {choice && (
-        <>
-          <div className="choice-backdrop" onClick={() => setChoice(null)} />
-          <div className="pop choice" style={{ left: Math.min(choice.x, (typeof window !== "undefined" ? window.innerWidth - 240 : choice.x)), top: Math.max(6, choice.y - 44) }}>
-            <span className="choice-n">{choice.n}🎵</span>
-            <button className="choice-b" onClick={() => commitMeasures(choice.n, "single", choice.pos)} title="O singură gamă la început">1 gamă</button>
-            <button className="choice-b" onClick={() => commitMeasures(choice.n, "each", choice.pos)} title="Gamă pe fiecare măsură">fiecare</button>
-          </div>
-        </>
+        <div className="pop choice" style={{ left: Math.min(choice.x, (typeof window !== "undefined" ? window.innerWidth - 240 : choice.x)), top: Math.max(6, choice.y - 50) }}>
+          <span className="choice-n">{choice.n}🎵</span>
+          <button className="choice-b" onClick={(e) => { e.stopPropagation(); commitMeasures(choice.n, "single", choice.pos); }} title="O singură gamă la început">1 gamă</button>
+          <button className="choice-b" onClick={(e) => { e.stopPropagation(); commitMeasures(choice.n, "each", choice.pos); }} title="Gamă pe fiecare măsură">fiecare</button>
+          <button className="choice-x" onClick={(e) => { e.stopPropagation(); setChoice(null); }} title="Închide">✕</button>
+        </div>
       )}
 
       <style jsx>{`
@@ -338,11 +338,12 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
         .drawghost { position: fixed; z-index: 20; pointer-events: none; background: rgba(28,34,43,.96); border: 1px solid #3a434e; border-radius: 8px; padding: 8px 10px; box-shadow: 0 10px 28px rgba(0,0,0,.5); }
         .dg-measures { font-family: "Courier New", monospace; color: #5aa2ff; opacity: .55; font-size: 15px; white-space: nowrap; max-width: 60vw; overflow: hidden; }
         .dg-label { color: #c7ccd2; font-size: 11.5px; margin-top: 3px; }
-        .choice-backdrop { position: fixed; inset: 0; z-index: 24; }
-        .choice { position: fixed; z-index: 25; display: flex; flex-direction: row; align-items: center; gap: 6px; padding: 6px 8px; }
+        .choice { position: fixed; z-index: 45; display: flex; flex-direction: row; align-items: center; gap: 6px; padding: 6px 8px; }
         .choice-n { color: #9aa4b0; font-size: 12px; padding: 0 2px; white-space: nowrap; }
         .choice-b { background: #2a3340; border: 1px solid #343e4a; color: #e7e9ec; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12.5px; white-space: nowrap; }
         .choice-b:hover { background: #34506e; border-color: #5aa2ff; }
+        .choice-x { background: transparent; border: none; color: #6b7580; cursor: pointer; font-size: 12px; padding: 4px; }
+        .choice-x:hover { color: #e7e9ec; }
         .hl, .ta { position: absolute; inset: 0; margin: 0; padding: 18px; border: 0; white-space: pre-wrap; word-break: break-word; overflow: auto; font-variant-ligatures: none; tab-size: 2; }
         .hl { color: #d6dae0; pointer-events: none; z-index: 1; }
         .ta { color: transparent; caret-color: #e7e9ec; background: transparent; resize: none; outline: none; z-index: 2; }
