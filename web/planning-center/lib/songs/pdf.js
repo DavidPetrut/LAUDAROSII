@@ -50,43 +50,45 @@ export async function generateChartPdf({
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const margin = 40;
-  const lineH = Math.max(12, fontSize * 1.4);
+  const fs = Math.max(8, Math.round(fontSize * 0.72)); // px (preview) → pt (print), densitate ca PCO
   const [cr, cg, cb] = hexToRgb(chordColorHex);
   let y = 0;
 
   function header() {
-    const boxH = 72;
-    doc.setFillColor(236, 236, 236);
-    doc.rect(0, 0, pageW, boxH, "F");
-    doc.setTextColor(17, 17, 17);
-    doc.setFont(FH, "bold"); doc.setFontSize(19);
-    doc.text(`${title || ""} [${keyLabel}, ${bpm || "—"} bpm, ${meter || "4/4"}]`, margin, 28);
-    doc.setFontSize(8);
-    doc.text(`[${arrName || ""}]${author ? ` by ${author}` : ""}`, margin, 43);
-    if (seqTokens.length) { doc.setFontSize(11); doc.text(seqTokens.join(", "), margin, 60); }
-    y = boxH + 24;
+    const bx = margin - 14, bw = pageW - 2 * (margin - 14), bh = 66;
+    doc.setFillColor(237, 238, 240);
+    doc.roundedRect(bx, 18, bw, bh, 8, 8, "F"); // card gri rotunjit, ca PCO
+    doc.setTextColor(20, 20, 20);
+    doc.setFont(FH, "bold"); doc.setFontSize(16);
+    doc.text(`${title || ""} [${keyLabel}, ${bpm || "—"} bpm, ${meter || "4/4"}]`, margin, 42);
+    doc.setFont(FH, "bold"); doc.setFontSize(7.5); doc.setTextColor(70, 70, 70);
+    doc.text(`[${arrName || ""}]${author ? ` by ${author}` : ""}`, margin, 55);
+    if (seqTokens.length) { doc.setFontSize(10.5); doc.setTextColor(20, 20, 20); doc.text(seqTokens.join(", "), margin, 70); }
+    y = 18 + bh + 22;
   }
 
-  const pages = paginateLines(lines, { fontSize });
+  const lineH = Math.max(10, fs * 1.4);
+  const pages = paginateLines(lines, { fontSize: fs });
   pages.forEach((pageLines, pi) => {
     if (pi > 0) doc.addPage();
     header();
-    doc.setFont(F, "normal"); doc.setFontSize(fontSize);
+    doc.setFont(F, "normal"); doc.setFontSize(fs);
     for (const ln of pageLines) {
-      if (ln.kind === "empty") { y += fontSize * 0.8; continue; }
+      if (ln.kind === "empty") { y += fs * 0.8; continue; }
       if (ln.kind === "section") {
-        y += fontSize * 0.5; // mic spațiu înainte de secțiune
-        doc.setFont(FB, "bold"); doc.setTextColor(17, 17, 17);
+        y += fs * 0.5; // mic spațiu înainte de secțiune
+        doc.setFont(FB, "bold"); doc.setFontSize(fs); doc.setTextColor(17, 17, 17);
         doc.text(stripFmt(ln.label), margin, y); doc.setFont(F, "normal");
-        y += fontSize * 1.4; continue;
+        y += fs * 1.35; continue;
       }
+      doc.setFontSize(fs);
       if (ln.chordRow) {
         doc.setTextColor(cr, cg, cb); doc.setFont(FB, "bold");
         doc.text(ln.chordRow, margin, y); doc.setFont(F, "normal");
-        y += fontSize * 1.05; // acordul STRÂNS deasupra versului
+        y += fs * 1.02; // acordul STRÂNS deasupra versului
       }
       const lyric = stripFmt(ln.lyricRow);
-      if (lyric.trim() || !ln.chordRow) { doc.setTextColor(17, 17, 17); doc.text(lyric || " ", margin, y); y += fontSize * 1.4; }
+      if (lyric.trim() || !ln.chordRow) { doc.setTextColor(17, 17, 17); doc.text(lyric || " ", margin, y); y += fs * 1.28; }
     }
     doc.setFontSize(9); doc.setTextColor(150, 150, 150);
     doc.text(`${pi + 1} / ${pages.length}`, pageW - margin, pageH - 20, { align: "right" });

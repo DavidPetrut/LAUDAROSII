@@ -109,7 +109,8 @@ export default function ChordEditor() {
   const targetKey = previewSel === "original" ? originalKey : (mode === "chords" ? previewSel : originalKey);
   const lines = useMemo(() => renderChordPro(text, { mode, originalKey, targetKey }),
     [text, mode, originalKey, targetKey]);
-  const pages = useMemo(() => paginateLines(lines, { fontSize: formatting.size }), [lines, formatting.size]);
+  // Paginare în puncte (ca PDF) ca împărțirea pe pagini din preview să corespundă cu PDF-ul.
+  const pages = useMemo(() => paginateLines(lines, { fontSize: formatting.size * 0.72 }), [lines, formatting.size]);
 
   const keyLabel = mode === "lyrics" ? "Lyrics" : mode === "numbers" ? "Numbers" : mode === "numerals" ? "Numerals" : targetKey;
   const seqTokens = abbreviateSequence(arr?.sequence || []);
@@ -295,15 +296,15 @@ export default function ChordEditor() {
         .panes { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 0; min-height: 0; }
         .code-pane { border-right: 1px solid var(--border); overflow: hidden; min-height: 0; }
         .preview-wrap { background: #0b0d10; overflow-y: auto; overflow-x: hidden; padding: 22px; display: flex; flex-direction: column; align-items: center; gap: 22px; }
-        .sheet { position: relative; width: 100%; max-width: 800px; min-height: 1040px; flex: 0 0 auto; background: #fff; color: #111; border-radius: 3px; padding: 0 0 44px; box-shadow: 0 4px 28px rgba(0,0,0,.5); }
+        .sheet { position: relative; width: 100%; max-width: 820px; min-height: 1040px; flex: 0 0 auto; background: #fff; color: #111; border-radius: 3px; padding: 20px 24px 44px; box-shadow: 0 4px 28px rgba(0,0,0,.5); }
         .pg-num { position: absolute; bottom: 14px; right: 24px; color: #aab0b6; font-size: 11px; }
-        .hdr { background: #ececec; padding: 16px 22px; }
-        .hdr-title { font-size: 20px; font-weight: 700; }
+        .hdr { background: #edeef0; border: 1px solid #e0e1e4; border-radius: 10px; padding: 16px 20px; margin-bottom: 18px; }
+        .hdr-title { font-size: 21px; font-weight: 700; letter-spacing: -.2px; }
         .hdr-key { font-weight: 700; }
-        .hdr-arr { font-size: 11px; font-weight: 700; color: #333; margin-top: 2px; }
+        .hdr-arr { font-size: 11px; font-weight: 700; color: #444; margin-top: 3px; }
         .hdr-arr b { color: #111; }
-        .hdr-seq { font-weight: 700; margin-top: 6px; font-size: 14px; }
-        .body { padding: 24px 26px; font-family: "PcMono", "Courier New", monospace; }
+        .hdr-seq { font-weight: 700; margin-top: 7px; font-size: 14px; }
+        .body { padding: 2px; font-family: "PcMono", "Courier New", monospace; }
         .psec { font-weight: 900; margin: 22px 0 6px; letter-spacing: .4px; font-size: 1.04em; }
         .body > .psec:first-child { margin-top: 0; }
         .prow { margin-bottom: 3px; }

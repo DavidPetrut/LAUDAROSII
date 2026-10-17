@@ -108,14 +108,17 @@ export default function ChartPreviewModal({ songId, arrId, song, arr, mode = "ch
         .acts { margin-left: auto; display: flex; gap: 6px; }
         .acts button { background: transparent; border: none; color: #c7ccd2; width: 34px; height: 34px; border-radius: 7px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
         .acts button:hover { background: rgba(255,255,255,.1); color: #fff; }
-        .scroll { flex: 1; overflow-y: auto; display: flex; justify-content: center; padding: 0 16px 40px; }
-        .sheet { width: 100%; max-width: 820px; background: #fff; color: #111; border-radius: 4px 4px 0 0; box-shadow: 0 6px 40px rgba(0,0,0,.5); min-height: 100%; padding-bottom: 60px; }
-        .hdr { background: #ececec; padding: 20px 26px; }
-        .hdr-title { font-size: 26px; font-weight: 800; }
-        .hdr-key { font-weight: 800; }
-        .hdr-arr { font-size: 11px; font-weight: 700; color: #333; margin-top: 3px; }
-        .hdr-seq { font-weight: 800; margin-top: 8px; font-size: 15px; }
-        .body { padding: 22px 26px; font-family: "PcMono", "Courier New", monospace; font-size: 16px; }
+        .scroll { flex: 1; overflow-y: scroll; display: flex; justify-content: center; padding: 0 16px 40px; }
+        .scroll::-webkit-scrollbar { width: 12px; }
+        .scroll::-webkit-scrollbar-thumb { background: #4a545f; border-radius: 6px; border: 3px solid transparent; background-clip: content-box; }
+        .scroll::-webkit-scrollbar-track { background: transparent; }
+        .sheet { width: 100%; max-width: 860px; background: #fff; color: #111; border-radius: 4px 4px 0 0; box-shadow: 0 6px 40px rgba(0,0,0,.5); min-height: 100%; padding: 22px 26px 60px; }
+        .hdr { background: #edeef0; border: 1px solid #e0e1e4; border-radius: 10px; padding: 18px 22px; margin-bottom: 20px; }
+        .hdr-title { font-size: 22px; font-weight: 700; letter-spacing: -.2px; }
+        .hdr-key { font-weight: 700; }
+        .hdr-arr { font-size: 11px; font-weight: 700; color: #444; margin-top: 4px; }
+        .hdr-seq { font-weight: 700; margin-top: 8px; font-size: 15px; }
+        .body { padding: 2px 2px; font-family: "PcMono", "Courier New", monospace; font-size: 18px; }
         .psec { font-weight: 900; margin: 22px 0 6px; letter-spacing: .4px; }
         .body > .psec:first-child { margin-top: 0; }
         .prow { margin-bottom: 3px; }
