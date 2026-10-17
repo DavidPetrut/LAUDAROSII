@@ -218,7 +218,7 @@ export default function ChordEditor() {
       {/* Two panes */}
       <div className="panes">
         <div className="code-pane">
-          <ChordProEditor value={text} onChange={onText} fontSize={formatting.size} customLabels={arr?.sequence || []} onAi={aiTransform} />
+          <ChordProEditor value={text} onChange={onText} fontSize={formatting.size} customLabels={arr?.sequence || []} onAi={aiTransform} defaultKey={originalKey} />
         </div>
         <div className="preview-wrap">
           {pages.map((pageLines, pi) => (

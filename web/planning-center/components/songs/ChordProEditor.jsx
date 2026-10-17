@@ -40,7 +40,9 @@ const highlight = (value) => value.split("\n").map(highlightLine).join("\n") + "
 
 const POPULAR = ["", "m", "7", "sus4"];
 
-export default function ChordProEditor({ value, onChange, fontSize = 16, customLabels = [], onAi }) {
+const PX_PER_MEASURE = 46; // cât drag = o măsură „----|"
+
+export default function ChordProEditor({ value, onChange, fontSize = 16, customLabels = [], onAi, defaultKey = "C" }) {
   const taRef = useRef(null);
   const preRef = useRef(null);
   const [ac, setAc] = useState(null);
@@ -51,6 +53,8 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
   const [aiText, setAiText] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [aiErr, setAiErr] = useState("");
+  const [draw, setDraw] = useState(null); // { x, y, n } ghost constructor de măsuri
+  const press = useRef({ timer: null, active: false, startX: 0, startY: 0, pos: 0 });
 
   const allLabels = useMemo(() => {
     const seen = new Set(); const out = [];
@@ -119,7 +123,53 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
     requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(caret, caret); } });
   }
 
+  // ── Constructor de măsuri: long-press (~0.5s) + drag dreapta → [key]----| × N ──
+  function commitMeasures(n) {
+    const key = defaultKey || "C";
+    const measures = `[${key}]----|`.repeat(n);
+    const pos = press.current.pos;
+    const lineStart = value.lastIndexOf("\n", pos - 1) + 1;
+    let lineEnd = value.indexOf("\n", pos); if (lineEnd < 0) lineEnd = value.length;
+    const curLine = value.slice(lineStart, lineEnd);
+    let next, caret;
+    if (!curLine.trim()) { next = value.slice(0, lineStart) + measures + value.slice(lineEnd); caret = lineStart + measures.length; }
+    else { next = value.slice(0, lineEnd) + "\n" + measures + value.slice(lineEnd); caret = lineEnd + 1 + measures.length; }
+    onChange(next);
+    requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(caret, caret); } });
+  }
+
+  function onMouseDownTextarea(e) {
+    const ta = taRef.current; if (!ta) return;
+    press.current.startX = e.clientX; press.current.startY = e.clientY; press.current.active = false;
+    clearTimeout(press.current.timer);
+    press.current.timer = setTimeout(() => {
+      press.current.active = true; press.current.pos = ta.selectionStart;
+      setDraw({ x: e.clientX, y: e.clientY, n: 0 }); setAc(null); setPick(null); setTb(null);
+    }, 500);
+    const move = (ev) => {
+      if (!press.current.active) {
+        if (Math.abs(ev.clientX - press.current.startX) > 8 || Math.abs(ev.clientY - press.current.startY) > 8) clearTimeout(press.current.timer);
+        return;
+      }
+      const n = Math.max(0, Math.round((ev.clientX - press.current.startX) / PX_PER_MEASURE));
+      setDraw((d) => (d ? { ...d, n } : d));
+    };
+    const up = (ev) => {
+      document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up);
+      clearTimeout(press.current.timer);
+      if (press.current.active) {
+        const n = Math.max(0, Math.round((ev.clientX - press.current.startX) / PX_PER_MEASURE));
+        if (n >= 1) commitMeasures(n);
+        setDraw(null);
+        setTimeout(() => { press.current.active = false; }, 0);
+        ev.preventDefault();
+      }
+    };
+    document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
+  }
+
   function onMouseUpTextarea() {
+    if (press.current.active) return; // a fost un draw de măsuri
     const ta = taRef.current; if (!ta) return;
     if (ta.selectionStart !== ta.selectionEnd) {
       const c = getCaretCoordinates(ta, ta.selectionStart);
@@ -190,6 +240,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
         onChange={(e) => { onChange(e.target.value); setPick(null); requestAnimationFrame(updateAutocomplete); }}
         onKeyDown={onKeyDown}
         onKeyUp={(e) => { if (!["ArrowUp", "ArrowDown", "Enter", "Tab", "Escape"].includes(e.key)) updateAutocomplete(); }}
+        onMouseDown={onMouseDownTextarea}
         onMouseUp={onMouseUpTextarea}
         onScroll={() => { syncScroll(); setAc(null); setPick(null); setTb(null); }}
         onBlur={() => { setTimeout(() => { setAc(null); setPick(null); if (!aiOpen) setTb(null); setSymOpen(false); }, 180); }}
@@ -251,8 +302,18 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
         </div>
       )}
 
+      {draw && (
+        <div className="drawghost" style={{ left: draw.x + 12, top: draw.y - 8 }}>
+          <div className="dg-measures">{draw.n >= 1 ? "----|".repeat(draw.n) : "trage spre dreapta →"}</div>
+          <div className="dg-label">{draw.n >= 1 ? `${draw.n} ${draw.n === 1 ? "măsură" : "măsuri"} · [${defaultKey}]` : "constructor măsuri"}</div>
+        </div>
+      )}
+
       <style jsx>{`
         .cpe { position: relative; height: 100%; overflow: hidden; background: #0b0d10; }
+        .drawghost { position: fixed; z-index: 20; pointer-events: none; background: rgba(28,34,43,.96); border: 1px solid #3a434e; border-radius: 8px; padding: 8px 10px; box-shadow: 0 10px 28px rgba(0,0,0,.5); }
+        .dg-measures { font-family: "Courier New", monospace; color: #5aa2ff; opacity: .55; font-size: 15px; white-space: nowrap; max-width: 60vw; overflow: hidden; }
+        .dg-label { color: #c7ccd2; font-size: 11.5px; margin-top: 3px; }
         .hl, .ta { position: absolute; inset: 0; margin: 0; padding: 18px; border: 0; white-space: pre-wrap; word-break: break-word; overflow: auto; font-variant-ligatures: none; tab-size: 2; }
         .hl { color: #d6dae0; pointer-events: none; z-index: 1; }
         .ta { color: transparent; caret-color: #e7e9ec; background: transparent; resize: none; outline: none; z-index: 2; }
