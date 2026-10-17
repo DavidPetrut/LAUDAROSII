@@ -49,6 +49,8 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
   const [symOpen, setSymOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiText, setAiText] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiErr, setAiErr] = useState("");
 
   const allLabels = useMemo(() => {
     const seen = new Set(); const out = [];
@@ -155,12 +157,16 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
     const ta = taRef.current; const s = ta.selectionStart, e = ta.selectionEnd;
     const sel = value.slice(s, e);
     if (!sel || !aiText.trim() || !onAi) return;
+    setAiBusy(true); setAiErr("");
     const out = await onAi(sel, aiText.trim());
+    setAiBusy(false);
     if (typeof out === "string") {
       onChange(value.slice(0, s) + out + value.slice(e));
       requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s, s + out.length); });
+      setAiOpen(false); setAiText(""); setTb(null);
+    } else {
+      setAiErr(out?.error || "Eroare AI.");
     }
-    setAiOpen(false); setAiText(""); setTb(null);
   }
 
   function onKeyDown(e) {
@@ -234,9 +240,12 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
           )}
           {aiOpen && (
             <div className="aipanel">
-              <input autoFocus placeholder="Ce să fac cu textul selectat? (ex: corectează gramatical)" value={aiText}
-                onChange={(e) => setAiText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); runAiOnSelection(); } }} />
-              <button onMouseDown={(e) => { e.preventDefault(); runAiOnSelection(); }}>✦</button>
+              <div className="airow">
+                <input autoFocus placeholder="Ce să fac cu textul selectat? (ex: corectează gramatical)" value={aiText}
+                  onChange={(e) => setAiText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); runAiOnSelection(); } }} />
+                <button onMouseDown={(e) => { e.preventDefault(); runAiOnSelection(); }} disabled={aiBusy}>{aiBusy ? "…" : "✦"}</button>
+              </div>
+              {aiErr && <div className="aierr">{aiErr}</div>}
             </div>
           )}
         </div>
@@ -275,9 +284,11 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
         .sympanel { position: absolute; top: 40px; left: 0; background: #1c222b; border: 1px solid #2d3640; border-radius: 8px; padding: 6px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; width: 230px; box-shadow: 0 12px 32px rgba(0,0,0,.5); }
         .sympanel button { background: #2a3340; border: 1px solid #343e4a; color: #e7e9ec; border-radius: 5px; height: 30px; cursor: pointer; font-size: 15px; }
         .sympanel button:hover { background: #34506e; border-color: #5aa2ff; }
-        .aipanel { position: absolute; top: 40px; left: 0; display: flex; gap: 6px; background: #1c222b; border: 1px solid #2d3640; border-radius: 8px; padding: 6px; width: 320px; box-shadow: 0 12px 32px rgba(0,0,0,.5); }
+        .aipanel { position: absolute; top: 40px; left: 0; display: flex; flex-direction: column; gap: 6px; background: #1c222b; border: 1px solid #2d3640; border-radius: 8px; padding: 6px; width: 340px; box-shadow: 0 12px 32px rgba(0,0,0,.5); }
+        .airow { display: flex; gap: 6px; }
         .aipanel input { flex: 1; background: #10151c; border: 1px solid #343e4a; color: #e7e9ec; border-radius: 5px; padding: 6px 8px; font-size: 12.5px; outline: none; }
-        .aipanel button { background: #6a5cff; border: none; color: #fff; border-radius: 5px; width: 32px; cursor: pointer; }
+        .aipanel button { background: #6a5cff; border: none; color: #fff; border-radius: 5px; width: 34px; cursor: pointer; }
+        .aierr { color: #e8c468; font-size: 11.5px; line-height: 1.35; }
         @keyframes pop { from { opacity: 0; transform: scale(.95); } to { opacity: 1; transform: scale(1); } }
       `}</style>
     </div>

@@ -44,8 +44,14 @@ router.post("/", canUpload, (req, res) => {
     // PDF-urile ca „image" sunt blocate la livrare (ACL Cloudinary) → le urcăm ca „raw".
     const rtQ = String(req.query.rt || "").toLowerCase();
     const resourceType = ["raw", "image", "video", "auto"].includes(rtQ) ? rtQ : "auto";
+    // Nume frumos + extensie în URL (ca să se descarce ca .pdf, nu „file_xxx").
+    const rawName = String(req.body?.name || req.file.originalname || "file.pdf");
+    const nm = rawName.match(/^(.*?)(\.[^.]+)?$/);
+    const base = (nm[1] || "file").replace(/[^\w-]+/g, "_").slice(0, 60);
+    const ext = (nm[2] || (resourceType === "raw" ? ".pdf" : "")).toLowerCase();
+    const publicId = `${base}_${Date.now().toString(36)}${ext}`;
     const stream = cloudinary.uploader.upload_stream(
-      { resource_type: resourceType, folder, use_filename: true, unique_filename: true },
+      { resource_type: resourceType, folder, public_id: publicId, use_filename: false, unique_filename: false },
       (error, result) => {
         if (error) { console.error("[pc] cloudinary:", error.message); return res.status(500).json({ error: "Eroare la Cloudinary." }); }
         res.status(201).json({

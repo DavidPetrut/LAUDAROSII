@@ -30,7 +30,7 @@ async function run({ feature = "web", action = "generic", prompt = "", context =
   if (!isConfigured()) {
     return { ok: false, notConfigured: true, message: "AI neconfigurat pe server: adaugă ANTHROPIC_API_KEY în env (Render).", text: "" };
   }
-  const model = process.env.PC_AI_MODEL || "claude-sonnet-5-5";
+  const model = process.env.PC_AI_MODEL || "claude-3-5-sonnet-latest";
   const { system, user } = buildMessages({ action, prompt, context });
   try {
     const res = await fetch(ANTHROPIC_URL, {

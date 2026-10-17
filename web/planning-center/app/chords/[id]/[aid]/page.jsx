@@ -101,8 +101,7 @@ export default function ChordEditor() {
   const aiTransform = useCallback(async (selected, prompt) => {
     const r = await runAi({ feature: "editor", action: "transform-lyrics", prompt, context: { selected } });
     if (r?.raw?.text) return r.raw.text;
-    setGen(r?.message || "Gateway AI inactiv — îl activăm la deploy.");
-    return null;
+    return { error: r?.message || "Gateway AI inactiv." };
   }, []);
 
   // Modul + gama țintă pentru preview.
@@ -139,19 +138,19 @@ export default function ChordEditor() {
         await songsApi.addFile(id, aid, { name, url: up.url, kind: t, source: "generated" });
       }
 
-      // 2) Chord chart în gama selectată la preview → cardul cheii respective
-      if (keySel) {
-        const k = (fresh.keys || []).find((x) => x.startKey === keySel);
-        if (k) {
-          const lns = renderChordPro(text, { mode: "chords", originalKey, targetKey: keySel });
-          const blob = await generateChartPdf({ ...common, keyLabel: keySel, lines: lns });
-          const name = `Chord Chart in ${keySel}`;
-          for (const o of (k.files || []).filter((f) => f.source === "generated" && f.name === name)) {
-            try { await songsApi.deleteFile(id, aid, o.id); } catch {}
-          }
-          const up = await songsApi.uploadBlob(blob, `${name}.pdf`, "raw");
-          await songsApi.addFile(id, aid, { name, url: up.url, kind: "chordChart", source: "generated", keyId: k.id });
+      // 2) Chord chart (cu acorduri) → cardul GAMEI: mereu gama originală + gama de preview (dacă diferă).
+      const keysToChart = [...new Set([originalKey, ...(keySel ? [keySel] : [])])];
+      for (const kk of keysToChart) {
+        const k = (fresh.keys || []).find((x) => x.startKey === kk);
+        if (!k) continue;
+        const lns = renderChordPro(text, { mode: "chords", originalKey, targetKey: kk });
+        const blob = await generateChartPdf({ ...common, keyLabel: kk, lines: lns });
+        const name = `Chord Chart in ${kk}`;
+        for (const o of (k.files || []).filter((f) => f.source === "generated" && f.name === name)) {
+          try { await songsApi.deleteFile(id, aid, o.id); } catch {}
         }
+        const up = await songsApi.uploadBlob(blob, `${name}.pdf`, "raw");
+        await songsApi.addFile(id, aid, { name, url: up.url, kind: "chordChart", source: "generated", keyId: k.id });
       }
       setArr(await songsApi.arrangement(id, aid));
       setGen("✓ PDF-uri generate (vezi în Files pe pagina piesei).");
