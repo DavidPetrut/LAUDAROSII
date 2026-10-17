@@ -164,7 +164,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
       if (press.current.active) {
         const n = Math.max(0, Math.round((ev.clientX - press.current.startX) / PX_PER_MEASURE));
         setDraw(null);
-        if (n >= 1) setChoice({ n, x: ev.clientX, y: ev.clientY, pos: press.current.pos });
+        if (n >= 1) setChoice({ n, x: press.current.startX, y: press.current.startY, pos: press.current.pos });
         setTimeout(() => { press.current.active = false; }, 0);
         ev.preventDefault();
       }
@@ -324,11 +324,11 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
 
       {choice && (
         <>
-          <div className="choice-backdrop" onMouseDown={() => setChoice(null)} />
-          <div className="pop choice" style={{ left: Math.min(choice.x, (typeof window !== "undefined" ? window.innerWidth - 230 : choice.x)), top: choice.y + 10 }}>
-            <div className="choice-h">{choice.n} {choice.n === 1 ? "măsură" : "măsuri"} — unde pui acordul?</div>
-            <button onMouseDown={(e) => { e.preventDefault(); commitMeasures(choice.n, "single", choice.pos); }}>O singură gamă (la început)</button>
-            <button onMouseDown={(e) => { e.preventDefault(); commitMeasures(choice.n, "each", choice.pos); }}>Gamă pe fiecare măsură</button>
+          <div className="choice-backdrop" onClick={() => setChoice(null)} />
+          <div className="pop choice" style={{ left: Math.min(choice.x, (typeof window !== "undefined" ? window.innerWidth - 240 : choice.x)), top: Math.max(6, choice.y - 44) }}>
+            <span className="choice-n">{choice.n}🎵</span>
+            <button className="choice-b" onClick={() => commitMeasures(choice.n, "single", choice.pos)} title="O singură gamă la început">1 gamă</button>
+            <button className="choice-b" onClick={() => commitMeasures(choice.n, "each", choice.pos)} title="Gamă pe fiecare măsură">fiecare</button>
           </div>
         </>
       )}
@@ -339,10 +339,10 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
         .dg-measures { font-family: "Courier New", monospace; color: #5aa2ff; opacity: .55; font-size: 15px; white-space: nowrap; max-width: 60vw; overflow: hidden; }
         .dg-label { color: #c7ccd2; font-size: 11.5px; margin-top: 3px; }
         .choice-backdrop { position: fixed; inset: 0; z-index: 24; }
-        .choice { position: fixed; z-index: 25; display: flex; flex-direction: column; gap: 4px; padding: 8px; width: 220px; }
-        .choice-h { color: #9aa4b0; font-size: 11.5px; padding: 2px 6px 6px; }
-        .choice button { text-align: left; background: #2a3340; border: 1px solid #343e4a; color: #e7e9ec; border-radius: 6px; padding: 8px 10px; cursor: pointer; font-size: 12.5px; }
-        .choice button:hover { background: #34506e; border-color: #5aa2ff; }
+        .choice { position: fixed; z-index: 25; display: flex; flex-direction: row; align-items: center; gap: 6px; padding: 6px 8px; }
+        .choice-n { color: #9aa4b0; font-size: 12px; padding: 0 2px; white-space: nowrap; }
+        .choice-b { background: #2a3340; border: 1px solid #343e4a; color: #e7e9ec; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12.5px; white-space: nowrap; }
+        .choice-b:hover { background: #34506e; border-color: #5aa2ff; }
         .hl, .ta { position: absolute; inset: 0; margin: 0; padding: 18px; border: 0; white-space: pre-wrap; word-break: break-word; overflow: auto; font-variant-ligatures: none; tab-size: 2; }
         .hl { color: #d6dae0; pointer-events: none; z-index: 1; }
         .ta { color: transparent; caret-color: #e7e9ec; background: transparent; resize: none; outline: none; z-index: 2; }
