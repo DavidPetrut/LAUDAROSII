@@ -56,6 +56,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
   const [draw, setDraw] = useState(null); // { x, y, n } ghost constructor de măsuri
   const [choice, setChoice] = useState(null); // { n, x, y, pos } alegere după release
   const press = useRef({ timer: null, active: false, startX: 0, startY: 0, pos: 0 });
+  const aiSel = useRef(null); // range-ul selectat când deschizi AI
 
   const allLabels = useMemo(() => {
     const seen = new Set(); const out = [];
@@ -207,7 +208,8 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
   }
 
   async function runAiOnSelection() {
-    const ta = taRef.current; const s = ta.selectionStart, e = ta.selectionEnd;
+    const ta = taRef.current;
+    const [s, e] = aiSel.current || [ta.selectionStart, ta.selectionEnd];
     const sel = value.slice(s, e);
     if (!sel || !aiText.trim() || !onAi) return;
     setAiBusy(true); setAiErr("");
@@ -216,7 +218,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
     if (typeof out === "string") {
       onChange(value.slice(0, s) + out + value.slice(e));
       requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s, s + out.length); });
-      setAiOpen(false); setAiText(""); setTb(null);
+      setAiOpen(false); setAiText(""); setTb(null); aiSel.current = null;
     } else {
       setAiErr(out?.error || "Eroare AI.");
     }
@@ -294,7 +296,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
           <button onMouseDown={(e) => { e.preventDefault(); wrapSel("u"); }}><u>U</u></button>
           <span className="tb-sep" />
           <button className={symOpen ? "on" : ""} onMouseDown={(e) => { e.preventDefault(); setSymOpen((v) => !v); setAiOpen(false); }} title="Simboluri">♪</button>
-          <button className={`ai ${aiOpen ? "on" : ""}`} onMouseDown={(e) => { e.preventDefault(); setAiOpen((v) => !v); setSymOpen(false); }} title="AI">✦</button>
+          <button className={`ai ${aiOpen ? "on" : ""}`} onMouseDown={(e) => { e.preventDefault(); const ta = taRef.current; aiSel.current = [ta.selectionStart, ta.selectionEnd]; setAiOpen((v) => !v); setSymOpen(false); }} title="AI">✦</button>
           {symOpen && (
             <div className="sympanel">
               {MUSIC_SYMBOLS.map((m) => (<button key={m.s} title={m.n} onMouseDown={(e) => { e.preventDefault(); insertText(m.s); }}>{m.s}</button>))}
