@@ -54,6 +54,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
   const [aiBusy, setAiBusy] = useState(false);
   const [aiErr, setAiErr] = useState("");
   const [draw, setDraw] = useState(null); // { x, y, n } ghost constructor de măsuri
+  const [choice, setChoice] = useState(null); // { n, x, y, pos } alegere după release
   const press = useRef({ timer: null, active: false, startX: 0, startY: 0, pos: 0 });
 
   const allLabels = useMemo(() => {
@@ -123,18 +124,20 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
     requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(caret, caret); } });
   }
 
-  // ── Constructor de măsuri: long-press (~0.5s) + drag dreapta → [key]----| × N ──
-  function commitMeasures(n) {
+  // ── Constructor de măsuri: long-press (~0.5s) + drag dreapta → măsuri; la release alegi modul ──
+  function commitMeasures(n, mode, pos) {
     const key = defaultKey || "C";
-    const measures = `[${key}]----|`.repeat(n);
-    const pos = press.current.pos;
+    // „single" = o singură gamă la început; „each" = o gamă pe fiecare măsură.
+    const body = mode === "single" ? `[${key}]` + "----|".repeat(n) : `[${key}]----|`.repeat(n);
     const lineStart = value.lastIndexOf("\n", pos - 1) + 1;
     let lineEnd = value.indexOf("\n", pos); if (lineEnd < 0) lineEnd = value.length;
     const curLine = value.slice(lineStart, lineEnd);
     let next, caret;
-    if (!curLine.trim()) { next = value.slice(0, lineStart) + measures + value.slice(lineEnd); caret = lineStart + measures.length; }
-    else { next = value.slice(0, lineEnd) + "\n" + measures + value.slice(lineEnd); caret = lineEnd + 1 + measures.length; }
+    if (/----\|/.test(curLine)) { next = value.slice(0, lineEnd) + body + value.slice(lineEnd); caret = lineEnd + body.length; } // ACEEAȘI linie
+    else if (!curLine.trim()) { next = value.slice(0, lineStart) + body + value.slice(lineEnd); caret = lineStart + body.length; }
+    else { next = value.slice(0, lineEnd) + "\n" + body + value.slice(lineEnd); caret = lineEnd + 1 + body.length; }
     onChange(next);
+    setChoice(null);
     requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(caret, caret); } });
   }
 
@@ -159,8 +162,8 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
       clearTimeout(press.current.timer);
       if (press.current.active) {
         const n = Math.max(0, Math.round((ev.clientX - press.current.startX) / PX_PER_MEASURE));
-        if (n >= 1) commitMeasures(n);
         setDraw(null);
+        if (n >= 1) setChoice({ n, x: ev.clientX, y: ev.clientY, pos: press.current.pos });
         setTimeout(() => { press.current.active = false; }, 0);
         ev.preventDefault();
       }
@@ -226,7 +229,15 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
       if (e.key === "Tab" || e.key === "Enter") { e.preventDefault(); acceptAc(ac.items[ac.idx]); return; }
       if (e.key === "Escape") { setAc(null); return; }
     }
-    if (e.key === "Escape") { setPick(null); setTb(null); }
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const ta = taRef.current; const s = ta.selectionStart, en = ta.selectionEnd;
+      const ins = "    "; // indentație (4 spații)
+      onChange(value.slice(0, s) + ins + value.slice(en));
+      requestAnimationFrame(() => { ta.setSelectionRange(s + ins.length, s + ins.length); });
+      return;
+    }
+    if (e.key === "Escape") { setPick(null); setTb(null); setChoice(null); }
   }
 
   const fontStyle = { fontSize, lineHeight: 1.6, fontFamily: '"Courier New", monospace' };
@@ -309,11 +320,27 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
         </div>
       )}
 
+      {choice && (
+        <>
+          <div className="choice-backdrop" onMouseDown={() => setChoice(null)} />
+          <div className="pop choice" style={{ left: Math.min(choice.x, (typeof window !== "undefined" ? window.innerWidth - 230 : choice.x)), top: choice.y + 10 }}>
+            <div className="choice-h">{choice.n} {choice.n === 1 ? "măsură" : "măsuri"} — unde pui acordul?</div>
+            <button onMouseDown={(e) => { e.preventDefault(); commitMeasures(choice.n, "single", choice.pos); }}>O singură gamă (la început)</button>
+            <button onMouseDown={(e) => { e.preventDefault(); commitMeasures(choice.n, "each", choice.pos); }}>Gamă pe fiecare măsură</button>
+          </div>
+        </>
+      )}
+
       <style jsx>{`
         .cpe { position: relative; height: 100%; overflow: hidden; background: #0b0d10; }
         .drawghost { position: fixed; z-index: 20; pointer-events: none; background: rgba(28,34,43,.96); border: 1px solid #3a434e; border-radius: 8px; padding: 8px 10px; box-shadow: 0 10px 28px rgba(0,0,0,.5); }
         .dg-measures { font-family: "Courier New", monospace; color: #5aa2ff; opacity: .55; font-size: 15px; white-space: nowrap; max-width: 60vw; overflow: hidden; }
         .dg-label { color: #c7ccd2; font-size: 11.5px; margin-top: 3px; }
+        .choice-backdrop { position: fixed; inset: 0; z-index: 24; }
+        .choice { position: fixed; z-index: 25; display: flex; flex-direction: column; gap: 4px; padding: 8px; width: 220px; }
+        .choice-h { color: #9aa4b0; font-size: 11.5px; padding: 2px 6px 6px; }
+        .choice button { text-align: left; background: #2a3340; border: 1px solid #343e4a; color: #e7e9ec; border-radius: 6px; padding: 8px 10px; cursor: pointer; font-size: 12.5px; }
+        .choice button:hover { background: #34506e; border-color: #5aa2ff; }
         .hl, .ta { position: absolute; inset: 0; margin: 0; padding: 18px; border: 0; white-space: pre-wrap; word-break: break-word; overflow: auto; font-variant-ligatures: none; tab-size: 2; }
         .hl { color: #d6dae0; pointer-events: none; z-index: 1; }
         .ta { color: transparent; caret-color: #e7e9ec; background: transparent; resize: none; outline: none; z-index: 2; }
