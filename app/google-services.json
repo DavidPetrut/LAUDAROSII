@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "3621819602",
+    "project_id": "laudarosii",
+    "storage_bucket": "laudarosii.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:3621819602:android:3c855309639a9c3360090b",
+        "android_client_info": {
+          "package_name": "com.laudarosii.vertical"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCop1pZV8VvE11usAxy2TE1CObzx3iOVD0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
