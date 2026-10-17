@@ -108,7 +108,7 @@ export default function ChartPreviewModal({ songId, arrId, song, arr, mode = "ch
         .acts { margin-left: auto; display: flex; gap: 6px; }
         .acts button { background: transparent; border: none; color: #c7ccd2; width: 34px; height: 34px; border-radius: 7px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
         .acts button:hover { background: rgba(255,255,255,.1); color: #fff; }
-        .scroll { flex: 1; overflow-y: scroll; display: flex; justify-content: center; padding: 0 16px 40px; }
+        .scroll { flex: 1; overflow-y: scroll; display: flex; align-items: flex-start; justify-content: center; padding: 0 16px 40px; }
         .scroll::-webkit-scrollbar { width: 12px; }
         .scroll::-webkit-scrollbar-thumb { background: #4a545f; border-radius: 6px; border: 3px solid transparent; background-clip: content-box; }
         .scroll::-webkit-scrollbar-track { background: transparent; }

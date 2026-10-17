@@ -49,46 +49,45 @@ export async function generateChartPdf({
 
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const margin = 40;
-  const fs = Math.max(8, Math.round(fontSize * 0.72)); // px (preview) → pt (print), densitate ca PCO
+  const margin = 34;
+  const fs = Math.max(9, Math.round(fontSize * 0.9)); // px (preview) → pt (print)
   const [cr, cg, cb] = hexToRgb(chordColorHex);
   let y = 0;
 
   function header() {
-    const bx = margin - 14, bw = pageW - 2 * (margin - 14), bh = 66;
+    const bx = margin - 10, bw = pageW - 2 * (margin - 10), bh = 66;
     doc.setFillColor(237, 238, 240);
-    doc.roundedRect(bx, 18, bw, bh, 8, 8, "F"); // card gri rotunjit, ca PCO
+    doc.roundedRect(bx, 16, bw, bh, 2, 2, "F"); // card gri aproape PĂTRAT, ca PCO
     doc.setTextColor(20, 20, 20);
-    doc.setFont(FH, "bold"); doc.setFontSize(16);
-    doc.text(`${title || ""} [${keyLabel}, ${bpm || "—"} bpm, ${meter || "4/4"}]`, margin, 42);
-    doc.setFont(FH, "bold"); doc.setFontSize(7.5); doc.setTextColor(70, 70, 70);
-    doc.text(`[${arrName || ""}]${author ? ` by ${author}` : ""}`, margin, 55);
-    if (seqTokens.length) { doc.setFontSize(10.5); doc.setTextColor(20, 20, 20); doc.text(seqTokens.join(", "), margin, 70); }
-    y = 18 + bh + 22;
+    doc.setFont(FH, "bold"); doc.setFontSize(18);
+    doc.text(`${title || ""} [${keyLabel}, ${bpm || "—"} bpm, ${meter || "4/4"}]`, margin, 40);
+    doc.setFont(FH, "bold"); doc.setFontSize(8); doc.setTextColor(70, 70, 70);
+    doc.text(`[${arrName || ""}]${author ? ` by ${author}` : ""}`, margin, 53);
+    if (seqTokens.length) { doc.setFontSize(12); doc.setTextColor(20, 20, 20); doc.text(seqTokens.join(", "), margin, 70); }
+    y = 16 + bh + 22;
   }
 
-  const lineH = Math.max(10, fs * 1.4);
   const pages = paginateLines(lines, { fontSize: fs });
   pages.forEach((pageLines, pi) => {
     if (pi > 0) doc.addPage();
     header();
     doc.setFont(F, "normal"); doc.setFontSize(fs);
     for (const ln of pageLines) {
-      if (ln.kind === "empty") { y += fs * 0.8; continue; }
+      if (ln.kind === "empty") { y += fs * 0.9; continue; }
       if (ln.kind === "section") {
-        y += fs * 0.5; // mic spațiu înainte de secțiune
-        doc.setFont(FB, "bold"); doc.setFontSize(fs); doc.setTextColor(17, 17, 17);
+        y += fs * 0.7; // spațiu înainte de secțiune
+        doc.setFont(FB, "bold"); doc.setFontSize(fs + 1); doc.setTextColor(17, 17, 17);
         doc.text(stripFmt(ln.label), margin, y); doc.setFont(F, "normal");
-        y += fs * 1.35; continue;
+        y += fs * 1.55; continue;
       }
       doc.setFontSize(fs);
       if (ln.chordRow) {
         doc.setTextColor(cr, cg, cb); doc.setFont(FB, "bold");
         doc.text(ln.chordRow, margin, y); doc.setFont(F, "normal");
-        y += fs * 1.02; // acordul STRÂNS deasupra versului
+        y += fs * 1.12; // acordul deasupra versului
       }
       const lyric = stripFmt(ln.lyricRow);
-      if (lyric.trim() || !ln.chordRow) { doc.setTextColor(17, 17, 17); doc.text(lyric || " ", margin, y); y += fs * 1.28; }
+      if (lyric.trim() || !ln.chordRow) { doc.setTextColor(17, 17, 17); doc.text(lyric || " ", margin, y); y += fs * 1.45; }
     }
     doc.setFontSize(9); doc.setTextColor(150, 150, 150);
     doc.text(`${pi + 1} / ${pages.length}`, pageW - margin, pageH - 20, { align: "right" });

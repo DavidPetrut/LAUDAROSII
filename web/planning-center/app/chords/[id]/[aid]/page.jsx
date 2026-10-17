@@ -110,7 +110,7 @@ export default function ChordEditor() {
   const lines = useMemo(() => renderChordPro(text, { mode, originalKey, targetKey }),
     [text, mode, originalKey, targetKey]);
   // Paginare în puncte (ca PDF) ca împărțirea pe pagini din preview să corespundă cu PDF-ul.
-  const pages = useMemo(() => paginateLines(lines, { fontSize: formatting.size * 0.72 }), [lines, formatting.size]);
+  const pages = useMemo(() => paginateLines(lines, { fontSize: formatting.size * 0.9 }), [lines, formatting.size]);
 
   const keyLabel = mode === "lyrics" ? "Lyrics" : mode === "numbers" ? "Numbers" : mode === "numerals" ? "Numerals" : targetKey;
   const seqTokens = abbreviateSequence(arr?.sequence || []);
