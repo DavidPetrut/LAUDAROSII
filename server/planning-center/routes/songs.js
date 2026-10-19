@@ -101,12 +101,12 @@ router.get("/:id", requireCan("people.view"), async (req, res) => {
     const id = OID(req.params.id);
     const song = await PcSong.findOne(scoped(req, { _id: id })).lean();
     if (!song) return res.status(404).json({ error: "Cântec inexistent." });
-    const arrangements = await PcArrangement.find(scoped(req, { songId: id, archived: false })).sort({ createdAt: 1 }).lean();
+    const arrangements = await PcArrangement.find(scoped(req, { songId: id, archived: false })).sort({ sortOrder: 1, createdAt: 1 }).lean();
     res.json({
       id: song._id, title: song.title, ccli: song.ccli, author: song.author, copyrightYear: song.copyrightYear,
       administration: song.administration || "", notes: song.notes || "",
       themes: song.themes || [], tagIds: (song.tagIds || []).map(String),
-      arrangements: arrangements.map((a) => ({ id: a._id, name: a.name, lengthLabel: fmtLen(a.lengthSec), bpm: a.bpm, meter: a.meter })),
+      arrangements: arrangements.map((a, i) => ({ id: a._id, name: a.name, lengthLabel: fmtLen(a.lengthSec), bpm: a.bpm, meter: a.meter, sortOrder: a.sortOrder || 0, isDefault: i === 0 })),
     });
   } catch (err) { console.error("[pc] GET /songs/:id:", err.message); res.status(500).json({ error: "Eroare la cântec." }); }
 });
@@ -151,8 +151,9 @@ router.post("/:id/arrangements", requireCan("songs.edit"), async (req, res) => {
     const b = req.body || {};
     const name = String(b.name || "").trim();
     if (!name) return res.status(400).json({ error: "Numele aranjamentului e obligatoriu." });
+    const count = await PcArrangement.countDocuments(scoped(req, { songId, archived: false }));
     const arr = await PcArrangement.create(stamp(req, {
-      songId, name, bpm: Number(b.bpm) || null, meter: b.meter || "", lengthSec: Number(b.lengthSec) || 0,
+      songId, name, bpm: Number(b.bpm) || null, meter: b.meter || "", lengthSec: Number(b.lengthSec) || 0, sortOrder: count,
     }));
     let keyId = null;
     if (b.startKey) {
@@ -164,6 +165,20 @@ router.post("/:id/arrangements", requireCan("songs.edit"), async (req, res) => {
     }
     res.status(201).json({ id: arr._id, keyId });
   } catch (err) { console.error("[pc] POST arrangements:", err.message); res.status(500).json({ error: "Eroare: " + err.message }); }
+});
+
+/* ───────── POST /:id/arrangements/reorder — rescrie ordinea (prioritatea) aranjamentelor ─────────
+   Body: { order: [aid, aid, ...] } (ordinea dorită). sortOrder = indexul; primul = implicit. */
+router.post("/:id/arrangements/reorder", requireCan("songs.edit"), async (req, res) => {
+  try {
+    const songId = OID(req.params.id);
+    const order = Array.isArray(req.body?.order) ? req.body.order : [];
+    if (!order.length) return res.status(400).json({ error: "Ordine goală." });
+    await Promise.all(order.map((aid, i) =>
+      PcArrangement.updateOne(scoped(req, { _id: OID(aid), songId }), { $set: { sortOrder: i } })
+    ));
+    res.json({ ok: true });
+  } catch (err) { console.error("[pc] reorder arrangements:", err.message); res.status(500).json({ error: "Eroare." }); }
 });
 
 /* ───────── PATCH /:id/arrangements/:aid ───────── */

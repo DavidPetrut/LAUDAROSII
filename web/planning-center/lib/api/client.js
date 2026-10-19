@@ -57,6 +57,7 @@ export const songsApi = {
   addArrangement: (id, payload) => api.post(`/songs/${id}/arrangements`, payload),
   updateArrangement: (id, aid, payload) => api.patch(`/songs/${id}/arrangements/${aid}`, payload),
   deleteArrangement: (id, aid) => api.del(`/songs/${id}/arrangements/${aid}`),
+  reorderArrangements: (id, order) => api.post(`/songs/${id}/arrangements/reorder`, { order }),
   addKey: (id, aid, payload) => api.post(`/songs/${id}/arrangements/${aid}/keys`, payload),
   updateKey: (id, aid, kid, payload) => api.patch(`/songs/${id}/arrangements/${aid}/keys/${kid}`, payload),
   deleteKey: (id, aid, kid) => api.del(`/songs/${id}/arrangements/${aid}/keys/${kid}`),

@@ -13,6 +13,7 @@ const schema = pcSchema({
   tagIds: { type: [mongoose.Schema.Types.ObjectId], ref: "PcTag", default: [] },
   notes: { type: String, default: "" },
   archived: { type: Boolean, default: false },
+  sortOrder: { type: Number, default: 0 }, // ordine/prioritate; primul (cel mai mic) = implicit
 });
 
 schema.index({ orgId: 1, songId: 1 });

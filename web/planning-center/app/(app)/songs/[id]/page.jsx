@@ -17,6 +17,7 @@ import { usePlayer, isAudioUrl, isYouTube } from "@/lib/player/PlayerProvider";
 import EditSequenceModal from "@/components/songs/EditSequenceModal";
 import AddKeyModal from "@/components/songs/AddKeyModal";
 import AddArrangementModal from "@/components/songs/AddArrangementModal";
+import ArrangementModal from "@/components/songs/ArrangementModal";
 import AddFileModal from "@/components/songs/AddFileModal";
 import SongInfoModal from "@/components/songs/SongInfoModal";
 import ChartPreviewModal from "@/components/songs/ChartPreviewModal";
@@ -33,6 +34,7 @@ export default function SongDetail() {
   const [arr, setArr] = useState(null);
   const [err, setErr] = useState("");
   const [modal, setModal] = useState(null); // 'seq'|'key'|'arr'|'file'|'info'
+  const [manageArr, setManageArr] = useState(null); // aranjamentul de gestionat (modal)
   const [editField, setEditField] = useState(null); // 'bpm'|'length'|'name'
   const [preview, setPreview] = useState(null); // { mode, targetKey } pt. ChartPreviewModal
   const [transposeFor, setTransposeFor] = useState(null); // fișierul de transpus
@@ -207,6 +209,13 @@ export default function SongDetail() {
   const addKey = async (payload) => { await songsApi.addKey(id, arrId, payload); setModal(null); await loadArr(); };
   const addArrangement = async (payload) => { const r = await songsApi.addArrangement(id, payload); setModal(null); setArrId(r.id); await loadSong(); };
   const saveInfo = async (payload) => { await songsApi.patchSong(id, payload); setModal(null); await loadSong(); };
+  const onManageDone = async (res) => {
+    setManageArr(null);
+    if (res?.deleted && res.deleted === arrId) {
+      // aranjamentul curent a fost șters → comută pe primul rămas
+      const s = await songsApi.get(id); setSong(s); setArrId(s.arrangements?.[0]?.id || null);
+    } else { await loadSong(); }
+  };
 
   // ── AI surface ──
   useAiSurface({
@@ -257,7 +266,10 @@ export default function SongDetail() {
           <div className="side-link active">All Arrangements</div>
           <div className="side-h mt">ARRANGEMENTS</div>
           {song.arrangements?.map((a) => (
-            <div key={a.id} className={`side-link ${a.id === arrId ? "sel" : ""}`} onClick={() => setArrId(a.id)}>{a.name}</div>
+            <div key={a.id} className={`side-link arr-row ${a.id === arrId ? "sel" : ""}`} onClick={() => setArrId(a.id)}>
+              <span className="arr-name">{a.name}</span>
+              <button className="arr-gear" title="Gestionează aranjamentul" onClick={(e) => { e.stopPropagation(); setManageArr(a); }}><Ico name="gear" size={14} /></button>
+            </div>
           ))}
           <button className="side-add" onClick={() => setModal("arr")}>Add</button>
         </aside>
@@ -351,6 +363,10 @@ export default function SongDetail() {
       {modal === "arr" && <AddArrangementModal onClose={() => setModal(null)} onSubmit={addArrangement} />}
       {modal === "file" && <AddFileModal songId={id} arrangementId={arrId} keys={arr?.keys || []} onClose={() => setModal(null)} onDone={() => { setModal(null); loadArr(); }} />}
       {modal === "info" && <SongInfoModal song={song} onClose={() => setModal(null)} onSubmit={saveInfo} />}
+      {manageArr && (
+        <ArrangementModal songId={id} arrangement={manageArr} arrangements={song.arrangements || []}
+          onClose={() => setManageArr(null)} onDone={onManageDone} />
+      )}
       {preview && <ChartPreviewModal songId={id} arrId={arrId} song={song} arr={arr} mode={preview.mode} targetKey={preview.targetKey} onClose={() => setPreview(null)} />}
       {transposeFor && <TransposeModal file={transposeFor} onClose={() => setTransposeFor(null)} onPick={doTranspose} />}
       {renameFor && (
@@ -490,6 +506,11 @@ export default function SongDetail() {
         .side-link { padding: 8px 10px; border-radius: 6px; color: var(--text-dim); cursor: pointer; font-size: 13.5px; }
         .side-link:hover { background: var(--surface-2); color: var(--text); }
         .side-link.active, .side-link.sel { background: var(--surface-2); color: var(--text); }
+        .arr-row { display: flex; align-items: center; gap: 8px; }
+        .arr-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .arr-gear { display: none; background: transparent; border: none; color: var(--text-faint); cursor: pointer; padding: 2px; align-items: center; }
+        .side-link:hover .arr-gear { display: inline-flex; }
+        .arr-gear:hover { color: var(--text); }
         .side-add { margin-top: 10px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 6px 14px; cursor: pointer; }
         .arr-title-row { display: flex; align-items: center; gap: 10px; }
         .arr-title { font-size: 22px; font-weight: 600; margin: 0; }
@@ -565,6 +586,7 @@ function Ico({ name, size = 16 }) {
     lyrics: <><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h10" /></>,
     play: <><polygon points="6 3 20 12 6 21 6 3" /></>,
     file: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6" /></>,
+    gear: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></>,
   }[name] || null;
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
