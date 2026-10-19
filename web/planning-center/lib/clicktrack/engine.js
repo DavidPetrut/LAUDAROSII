@@ -25,19 +25,19 @@ export function accentPattern(meter) {
 
 // 9 presete de pad (synth Tone) — toate MOI/worship: doar sine/triangle (fără sawtooth gălăgios),
 // cutoff jos și atac lung → cald, airy, înfundat. Variază subtil timbrul.
-// dezacord FOARTE mic (ca să nu bâzâie) + cutoff mai deschis (prezență). Strat principal + bază sinus (vezi _buildPad).
+// oscilatoare SIMPLE (fără dezacord → ZERO beating/bâzâit). Variază doar timbrul/cutoff/atac.
 export const PADS = [
-  { label: "Air", osc: "fatsine", count: 3, spread: 6, cutoff: 2000, attack: 1.4 },
-  { label: "Warm", osc: "fatsine", count: 3, spread: 5, cutoff: 1700, attack: 1.0 },
-  { label: "Halo", osc: "fatsine", count: 3, spread: 8, cutoff: 2600, attack: 1.6 },
-  { label: "Choir", osc: "fattriangle", count: 3, spread: 7, cutoff: 2100, attack: 1.1 },
-  { label: "Soft Strings", osc: "fattriangle", count: 3, spread: 8, cutoff: 1900, attack: 1.3 },
-  { label: "Glass", osc: "fattriangle", count: 3, spread: 6, cutoff: 2400, attack: 1.2 },
-  { label: "Deep", osc: "fatsine", count: 3, spread: 4, cutoff: 1400, attack: 1.2 },
-  { label: "Breath", osc: "fattriangle", count: 3, spread: 6, cutoff: 2300, attack: 1.5 },
-  { label: "Dream", osc: "fatsine", count: 3, spread: 7, cutoff: 2200, attack: 1.8 },
+  { label: "Air", osc: "sine", cutoff: 2000, attack: 1.4 },
+  { label: "Warm", osc: "sine", cutoff: 1700, attack: 1.0 },
+  { label: "Halo", osc: "sine", cutoff: 2600, attack: 1.6 },
+  { label: "Choir", osc: "triangle", cutoff: 2100, attack: 1.1 },
+  { label: "Soft Strings", osc: "triangle", cutoff: 1900, attack: 1.3 },
+  { label: "Glass", osc: "triangle", cutoff: 2400, attack: 1.2 },
+  { label: "Deep", osc: "sine", cutoff: 1400, attack: 1.2 },
+  { label: "Breath", osc: "triangle", cutoff: 2300, attack: 1.5 },
+  { label: "Dream", osc: "sine", cutoff: 2200, attack: 1.8 },
 ];
-const PAD_VOL = 1;
+const PAD_VOL = 0.8;
 const AUTO_STOP_MS = 30 * 60 * 1000;
 
 export class ClickTrackEngine {
@@ -71,19 +71,19 @@ export class ClickTrackEngine {
     // mișcare foarte lentă și discretă pe filtru (nu pulsație)
     this.filterLfo = new Tone.LFO({ frequency: 0.05, min: p.cutoff - 250, max: p.cutoff + 250 }).start();
     this.filterLfo.connect(this.filter.frequency);
-    // STRAT 1 — vocea principală (timbrul presetului)
+    // STRAT 1 — vocea principală (oscilator SIMPLU, fără dezacord → fără bâzâit)
     this.pad = new Tone.PolySynth(Tone.Synth, {
-      maxPolyphony: 16,
-      oscillator: { type: p.osc, count: p.count, spread: p.spread },
+      maxPolyphony: 12,
+      oscillator: { type: p.osc },
       envelope: { attack: p.attack, decay: 0.4, sustain: 1, release: 3 },
-      volume: -8,
+      volume: -7,
     }).connect(this.filter);
-    // STRAT 2 — bază curată de sinus (fără dezacord) → „plin" fără bâzâit
+    // STRAT 2 — bază curată de sinus (corp/„plin")
     this.padSub = new Tone.PolySynth(Tone.Synth, {
-      maxPolyphony: 8,
+      maxPolyphony: 6,
       oscillator: { type: "sine" },
       envelope: { attack: Math.max(0.6, p.attack * 0.8), decay: 0.4, sustain: 1, release: 3 },
-      volume: -10,
+      volume: -12,
     }).connect(this.filter);
     this.padReady = true;
   }
@@ -134,8 +134,7 @@ export class ClickTrackEngine {
 
   _padNotes() {
     const r = 48 + this.state.keyPc; const th = this.state.mode === "minor" ? 3 : 4;
-    // + r+19 (cvinta cu o octavă peste) = puțin „air"/plinătate, fără bas
-    return [r, r + th, r + 7, r + 12, r + 19].map((m) => Tone.Frequency(m, "midi").toNote());
+    return [r, r + th, r + 7, r + 12].map((m) => Tone.Frequency(m, "midi").toNote());
   }
   _subNotes() { // bază curată (root + cvintă) pt. corp
     const r = 48 + this.state.keyPc;
