@@ -35,6 +35,9 @@ export default function SongDetail() {
   const [err, setErr] = useState("");
   const [modal, setModal] = useState(null); // 'seq'|'key'|'arr'|'file'|'info'
   const [manageArr, setManageArr] = useState(null); // aranjamentul de gestionat (modal)
+  const [selKeys, setSelKeys] = useState(() => new Set()); // filtru game (gol = toate); reset la refresh
+  const colsRef = useRef(null);
+  const [scroll, setScroll] = useState({ left: false, right: false });
   const [editField, setEditField] = useState(null); // 'bpm'|'length'|'name'
   const [preview, setPreview] = useState(null); // { mode, targetKey } pt. ChartPreviewModal
   const [transposeFor, setTransposeFor] = useState(null); // fișierul de transpus
@@ -217,6 +220,21 @@ export default function SongDetail() {
     } else { await loadSong(); }
   };
 
+  // ── Carusel game + filtru multi-select ──
+  const updateScroll = useCallback(() => {
+    const el = colsRef.current; if (!el) return;
+    setScroll({ left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
+  }, []);
+  const scrollCols = (dir) => { const el = colsRef.current; if (el) el.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: "smooth" }); };
+  const toggleKey = (kid) => setSelKeys((cur) => { const n = new Set(cur); n.has(kid) ? n.delete(kid) : n.add(kid); return n; });
+  useEffect(() => { setSelKeys(new Set()); }, [arrId]); // filtrele sunt per-aranjament
+  useEffect(() => {
+    const raf = requestAnimationFrame(updateScroll);
+    const on = () => updateScroll();
+    window.addEventListener("resize", on);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", on); };
+  }, [updateScroll, arr, selKeys]);
+
   // ── AI surface ──
   useAiSurface({
     id: "songs.detail",
@@ -318,23 +336,29 @@ export default function SongDetail() {
                 <button className="lyrics-chip" onClick={() => router.push(`/chords/${id}/${arrId}`)} title="Editează Lyrics & Chords">Lyrics &amp; Chords</button>
               </div>
 
-              <div className="file-cols">
-                <div className="fcol">
-                  <div className="fcol-h">Arrangement</div>
-                  {(arr.arrangementFiles || []).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onHover={openFileMenu} onLeave={closeFileMenuSoon} onInfo={openInfo} />)}
-                  {(arr.arrangementFiles || []).length === 0 && <div className="fcol-empty" />}
-                </div>
-                {(arr.keys || []).map((k) => (
-                  <div key={k.id} className="fcol">
-                    <div className="fcol-h">{k.label || k.startKey}</div>
-                    {(k.files || []).filter((f) => !f.derived).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onHover={openFileMenu} onLeave={closeFileMenuSoon} onInfo={openInfo} />)}
+              <div className="file-cols-wrap">
+                {scroll.left && <button className="car-arrow left" onClick={() => scrollCols(-1)} aria-label="Înapoi"><Ico name="chevL" size={18} /></button>}
+                <div className="file-cols" ref={colsRef} onScroll={updateScroll}>
+                  <div className="fcol">
+                    <div className="fcol-h">Arrangement</div>
+                    {(arr.arrangementFiles || []).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onHover={openFileMenu} onLeave={closeFileMenuSoon} onInfo={openInfo} />)}
+                    {(arr.arrangementFiles || []).length === 0 && <div className="fcol-empty" />}
                   </div>
-                ))}
+                  {(arr.keys || []).filter((k) => selKeys.size === 0 || selKeys.has(k.id)).map((k) => (
+                    <div key={k.id} className="fcol">
+                      <div className="fcol-h">{k.label || k.startKey}</div>
+                      {(k.files || []).filter((f) => !f.derived).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onHover={openFileMenu} onLeave={closeFileMenuSoon} onInfo={openInfo} />)}
+                    </div>
+                  ))}
+                </div>
+                {scroll.right && <button className="car-arrow right" onClick={() => scrollCols(1)} aria-label="Înainte"><Ico name="chevR" size={18} /></button>}
               </div>
 
               <div className="file-tabs">
-                <span className="ftab active">Arrangement</span>
-                {(arr.keys || []).map((k) => <span key={k.id} className="ftab">{k.label || k.startKey}</span>)}
+                <span className={`ftab ${selKeys.size === 0 ? "active" : ""}`} onClick={() => setSelKeys(new Set())} title="Arată toate gamele">Arrangement</span>
+                {(arr.keys || []).map((k) => (
+                  <span key={k.id} className={`ftab key ${selKeys.has(k.id) ? "sel" : ""}`} onClick={() => toggleKey(k.id)} title="Filtrează după această gamă (click din nou = scoate)">{k.label || k.startKey}</span>
+                ))}
                 <button className="addkey" onClick={() => setModal("key")}>Add key</button>
               </div>
 
@@ -528,14 +552,22 @@ export default function SongDetail() {
         .fh-title { font-size: 18px; font-weight: 600; }
         .lyrics-chip { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--primary); border-radius: 5px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; }
         .lyrics-chip:hover { border-color: var(--primary); }
-        .file-cols { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px 8px 0 0; padding: 14px; overflow-x: auto; }
+        .file-cols-wrap { position: relative; }
+        .file-cols { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px 8px 0 0; padding: 14px; overflow-x: auto; scroll-behavior: smooth; scrollbar-width: none; }
+        .file-cols::-webkit-scrollbar { height: 0; }
         .fcol { flex: 1; min-width: 220px; border-right: 1px solid var(--border); padding: 0 14px; }
         .fcol:last-child { border-right: none; }
         .fcol-h { color: var(--text-dim); font-size: 14px; margin-bottom: 12px; }
         .fcol-empty { min-height: 120px; }
-        .file-tabs { display: flex; align-items: center; gap: 18px; background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; padding: 10px 16px; margin-bottom: 26px; }
-        .ftab { font-size: 13px; color: var(--text-dim); }
+        .car-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; border-radius: 50%; background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; z-index: 15; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
+        .car-arrow.left { left: 6px; } .car-arrow.right { right: 6px; }
+        .car-arrow:hover { border-color: var(--primary); color: var(--primary); }
+        .file-tabs { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; padding: 10px 16px; margin-bottom: 26px; flex-wrap: wrap; }
+        .ftab { font-size: 13px; color: var(--text-dim); cursor: pointer; }
         .ftab.active { color: var(--primary); border-bottom: 2px solid var(--primary); padding-bottom: 3px; }
+        .ftab.key { padding: 3px 11px; border-radius: 999px; border: 1px solid transparent; transition: color .15s, border-color .15s, background .15s; }
+        .ftab.key:hover { color: var(--text); }
+        .ftab.key.sel { color: var(--primary); border-color: var(--primary); background: rgba(47,129,247,.12); }
         .addkey { margin-left: 4px; background: transparent; border: none; color: var(--primary); cursor: pointer; font-size: 13px; }
         .three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
         .panel { border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 90px; }
@@ -587,6 +619,8 @@ function Ico({ name, size = 16 }) {
     play: <><polygon points="6 3 20 12 6 21 6 3" /></>,
     file: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6" /></>,
     gear: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></>,
+    chevL: <><path d="m15 18-6-6 6-6" /></>,
+    chevR: <><path d="m9 18 6-6-6-6" /></>,
   }[name] || null;
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
