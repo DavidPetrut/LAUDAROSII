@@ -1,9 +1,10 @@
 /**
  * Motor Click Track.
- *  - PLAY = PAD worship SOFT (Soundfont pad deschis → lowpass + reverb + swell lin) + METRONOM.
- *    Pad-ul susține acordul CONTINUU (re-trigger cu overlap, nu se mai oprește); auto-stop la 30 min.
- *  - BUTON „Tonalitate" = pianul samplat (SplendidGrandPiano): acord → arpegiu → acord, o singură dată.
- *  - MUTE separat: pad (gamă) și metronom (BPM), live. Editabil live fără a atinge setările salvate.
+ *  - PLAY = PAD worship SOFT (Soundfont, la alegere din 12 pad-uri) + METRONOM.
+ *    Pad-ul e lovit O SINGURĂ DATĂ și ținut la infinit (note cu loop:true + duration:null),
+ *    prin lowpass + reverb + swell lin. NU se re-atacă (fără pulsație). Auto-stop la 30 min.
+ *  - BUTON „Tonalitate" = pianul samplat (SplendidGrandPiano): acord → arpegiu → acord, o dată.
+ *  - MUTE separat: pad (sunet) și metronom (BPM), live. Editabil live fără a atinge setările salvate.
  */
 import { SplendidGrandPiano, Soundfont } from "smplr";
 
@@ -20,31 +21,40 @@ export function accentPattern(meter) {
   const p = new Array(num).fill(0); p[0] = 2; return p;
 }
 
-const PAD_INSTRUMENT = "pad_1_new_age"; // pad deschis/airy de worship (nu „orgă")
+// 12 pad-uri worship (soft/airy/faded — trec prin lowpass + reverb). Afișate „Pad 1..12".
+export const PADS = [
+  { instr: "pad_1_new_age", label: "New Age" },
+  { instr: "pad_7_halo", label: "Halo" },
+  { instr: "pad_8_sweep", label: "Sweep" },
+  { instr: "pad_5_bowed", label: "Bowed" },
+  { instr: "pad_2_warm", label: "Warm" },
+  { instr: "pad_4_choir", label: "Choir" },
+  { instr: "string_ensemble_1", label: "Strings" },
+  { instr: "string_ensemble_2", label: "Strings 2" },
+  { instr: "synth_strings_1", label: "Synth Strings" },
+  { instr: "synth_strings_2", label: "Synth Strings 2" },
+  { instr: "choir_aahs", label: "Choir Aahs" },
+  { instr: "voice_oohs", label: "Voices" },
+];
 const PAD_VOL = 0.85;
-const PAD_RETRIGGER = 2.8;   // sec între re-loviri (overlap → sunet continuu)
-const PAD_NOTE_DUR = 3.3;    // sec durata unei note (se suprapune cu următoarea)
-const AUTO_STOP_MS = 30 * 60 * 1000; // oprire automată după 30 min
+const AUTO_STOP_MS = 30 * 60 * 1000;
 
 export class ClickTrackEngine {
   constructor() {
     this.ctx = null; this.pad = null; this.piano = null;
     this.padGain = null; this.clickGain = null; this.pianoGain = null; this.lp = null;
     this.padReady = false; this.loadingPad = false; this.pianoReady = false; this.loadingPiano = false;
-    this.state = { keyPc: 0, keyName: "C", mode: "major", bpm: 72, meter: "4/4", playing: false, padMuted: false, clickMuted: false };
-    this.timer = null; this.padLoop = null; this.autoStop = null; this.nextTime = 0; this.beat = 0;
+    this.state = { keyPc: 0, keyName: "C", mode: "major", bpm: 72, meter: "4/4", playing: false, padMuted: false, clickMuted: false, padIndex: 0 };
+    this.timer = null; this.autoStop = null; this.nextTime = 0; this.beat = 0;
     this.onBeat = null; this.onState = null;
   }
 
   _emit() { this.onState && this.onState({ ...this.state, padReady: this.padReady, loadingPad: this.loadingPad }); }
 
-  _makeIR(seconds = 2.6, decay = 2.2) {
+  _makeIR(seconds = 2.8, decay = 2.2) {
     const rate = this.ctx.sampleRate, len = Math.floor(rate * seconds);
     const ir = this.ctx.createBuffer(2, len, rate);
-    for (let ch = 0; ch < 2; ch++) {
-      const d = ir.getChannelData(ch);
-      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
-    }
+    for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay); }
     return ir;
   }
 
@@ -52,7 +62,6 @@ export class ClickTrackEngine {
     if (this.ctx) { if (this.ctx.state === "suspended") this.ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     this.ctx = new AC();
-    // lanț pad: pad → lowpass → (dry + reverb) → padGain(fade/mute) → out  (cald, deschis, spațios)
     this.padGain = this.ctx.createGain(); this.padGain.gain.value = 0; this.padGain.connect(this.ctx.destination);
     const dry = this.ctx.createGain(); dry.gain.value = 0.7; dry.connect(this.padGain);
     const wet = this.ctx.createGain(); wet.gain.value = 0.55; wet.connect(this.padGain);
@@ -66,9 +75,10 @@ export class ClickTrackEngine {
   _loadPad() {
     if (this.pad || this.loadingPad) return;
     this.loadingPad = true; this._emit();
+    const instr = (PADS[this.state.padIndex] || PADS[0]).instr;
     try {
-      this.pad = new Soundfont(this.ctx, { instrument: PAD_INSTRUMENT, kit: "MusyngKite", loadLoopData: true, destination: this.lp });
-      this.pad.load.then(() => { this.padReady = true; this.loadingPad = false; this._emit(); if (this.state.playing && !this.state.padMuted) this._startPadLoop(true); })
+      this.pad = new Soundfont(this.ctx, { instrument: instr, kit: "MusyngKite", loadLoopData: true, destination: this.lp });
+      this.pad.load.then(() => { this.padReady = true; this.loadingPad = false; this._emit(); if (this.state.playing && !this.state.padMuted) this._startPadChord(true); })
         .catch(() => { this.loadingPad = false; this._emit(); });
     } catch { this.loadingPad = false; this._emit(); }
   }
@@ -93,15 +103,26 @@ export class ClickTrackEngine {
   setBpm(b) { this.state.bpm = Math.max(30, Math.min(300, Number(b) || 72)); this._emit(); }
   setMeter(m) { this.state.meter = m; this.beat = 0; this._emit(); }
 
+  setPadIndex(i) {
+    if (i === this.state.padIndex) return;
+    this.state.padIndex = i; this._emit();
+    if (!this.ctx) return;
+    // reîncarcă instrumentul de pad
+    this._stopPadVoices();
+    this.pad = null; this.padReady = false; this.loadingPad = false;
+    this._rampPad(0, 0.15);
+    this._loadPad(); // la load, dacă e playing & nu e mut → pornește acordul nou
+  }
+
   setPadMuted(b) {
     this.state.padMuted = b; this._emit();
     if (!this.ctx) return;
-    if (b) { this._stopPadLoop(); this._rampPad(0, 0.25); setTimeout(() => this._stopPadVoices(), 300); }
-    else if (this.state.playing) { this._startPadLoop(false); }
+    if (b) { this._rampPad(0, 0.3); setTimeout(() => this._stopPadVoices(), 350); }
+    else if (this.state.playing) { this._startPadChord(false); }
   }
   setClickMuted(b) { this.state.clickMuted = b; this._emit(); }
 
-  _retriggerPadIfPlaying() { if (this.state.playing && !this.state.padMuted && this.padReady && this.ctx) this._strikePadOnce(this.ctx.currentTime + 0.02); }
+  _retriggerPadIfPlaying() { if (this.state.playing && !this.state.padMuted && this.padReady && this.ctx) this._startPadChord(false); }
 
   _padChord() { const r = 48 + this.state.keyPc; const th = this.state.mode === "minor" ? 3 : 4; return [r, r + th, r + 7, r + 12]; }
   _pianoChord() { const r = 60 + this.state.keyPc; const th = this.state.mode === "minor" ? 3 : 4; return [r, r + th, r + 7, r + 12]; }
@@ -114,18 +135,13 @@ export class ClickTrackEngine {
     this.padGain.gain.linearRampToValueAtTime(Math.max(0.0001, target), t + dur);
   }
   _stopPadVoices() { if (this.pad) { try { this.pad.stop(); } catch {} } }
-  _strikePadOnce(time) {
+  // o SINGURĂ lovire, ținută la infinit (loop + fără durată) — fără re-atac/pulsație
+  _startPadChord(fadeIn) {
     if (!this.pad || !this.padReady) return;
-    for (const n of this._padChord()) { try { this.pad.start({ note: n, velocity: 68, time, duration: PAD_NOTE_DUR, ampRelease: 1.8 }); } catch {} }
+    this._stopPadVoices();
+    for (const n of this._padChord()) { try { this.pad.start({ note: n, velocity: 70, duration: null, loop: true }); } catch {} }
+    this._rampPad(PAD_VOL, fadeIn ? 2 : 0.4);
   }
-  _startPadLoop(fadeIn) {
-    if (!this.padReady) return;
-    this._stopPadLoop();
-    this._strikePadOnce(this.ctx.currentTime + 0.05);
-    this._rampPad(PAD_VOL, fadeIn ? 2 : 0.3); // swell lin la pornire
-    this.padLoop = setInterval(() => { if (this.state.playing && !this.state.padMuted) this._strikePadOnce(this.ctx.currentTime + 0.05); }, PAD_RETRIGGER * 1000);
-  }
-  _stopPadLoop() { if (this.padLoop) { clearInterval(this.padLoop); this.padLoop = null; } }
 
   _tick(beat, time) {
     const acc = accentPattern(this.state.meter)[beat] || 0;
@@ -159,11 +175,11 @@ export class ClickTrackEngine {
     if (this.ctx.state === "suspended") { try { await this.ctx.resume(); } catch {} }
     this.state.playing = true; this.beat = 0; this.nextTime = this.ctx.currentTime + 0.1;
     this._loadPad();
-    if (this.padReady && !this.state.padMuted) this._startPadLoop(true);
+    if (this.padReady && !this.state.padMuted) this._startPadChord(true);
     clearInterval(this.timer);
     this.timer = setInterval(() => this._schedule(), 25);
     clearTimeout(this.autoStop);
-    this.autoStop = setTimeout(() => this.stop(), AUTO_STOP_MS); // default: se oprește după 30 min
+    this.autoStop = setTimeout(() => this.stop(), AUTO_STOP_MS);
     this._emit();
   }
 
@@ -171,7 +187,6 @@ export class ClickTrackEngine {
     this.state.playing = false;
     if (this.timer) { clearInterval(this.timer); this.timer = null; }
     clearTimeout(this.autoStop); this.autoStop = null;
-    this._stopPadLoop();
     this._rampPad(0, 0.6);
     setTimeout(() => this._stopPadVoices(), 650);
     this._emit();

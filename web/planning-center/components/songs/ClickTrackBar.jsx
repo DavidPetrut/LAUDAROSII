@@ -6,7 +6,7 @@
  * Controale LIVE care NU modifică setările salvate ale aranjamentului.
  */
 import { useEffect, useRef, useState } from "react";
-import { ClickTrackEngine, accentPattern, KEYS, METERS } from "@/lib/clicktrack/engine";
+import { ClickTrackEngine, accentPattern, KEYS, METERS, PADS } from "@/lib/clicktrack/engine";
 
 function NoteMute({ muted, onClick, title }) {
   return (
@@ -26,9 +26,10 @@ function NoteMute({ muted, onClick, title }) {
 
 export default function ClickTrackBar({ defaults, playerActive, onClose }) {
   const engineRef = useRef(null);
-  const [st, setSt] = useState({ keyName: "C", mode: "major", bpm: 72, meter: "4/4", playing: false, padReady: false, loadingPad: false, padMuted: false, clickMuted: false });
+  const [st, setSt] = useState({ keyName: "C", mode: "major", bpm: 72, meter: "4/4", playing: false, padReady: false, loadingPad: false, padMuted: false, clickMuted: false, padIndex: 0 });
   const [beat, setBeat] = useState(-1);
   const [keyOpen, setKeyOpen] = useState(false);
+  const [padOpen, setPadOpen] = useState(false);
 
   useEffect(() => {
     const eng = new ClickTrackEngine();
@@ -52,12 +53,30 @@ export default function ClickTrackBar({ defaults, playerActive, onClose }) {
           <div className="ct-sub">{st.loadingPad ? "se încarcă pad-ul…" : st.padReady ? "pad + metronom" : "metronom"}</div>
         </div>
 
-        {/* Board 1 — Gamă */}
+        {/* Board 1 — Pad (sunet + gamă) */}
         <div className="board">
-          <div className="board-h"><span>Gamă</span><NoteMute muted={st.padMuted} onClick={() => eng().setPadMuted(!st.padMuted)} title="Mut pad (gamă)" /></div>
+          <div className="board-h"><span>Pad</span><NoteMute muted={st.padMuted} onClick={() => eng().setPadMuted(!st.padMuted)} title="Mut pad" /></div>
           <div className="row">
+            {/* selector SUNET de pad (Pad 1..12) */}
             <div className="keywrap">
-              <button className="keybtn" onClick={() => setKeyOpen((o) => !o)} title="Alege gama">
+              <button className="keybtn wide" onClick={() => { setPadOpen((o) => !o); setKeyOpen(false); }} title="Alege sunetul de pad">
+                <span>Pad {st.padIndex + 1}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+              </button>
+              {padOpen && (
+                <>
+                  <div className="keybackdrop" onClick={() => setPadOpen(false)} />
+                  <div className="keygrid">
+                    {PADS.map((p, i) => (
+                      <button key={i} className={`keyopt ${i === st.padIndex ? "on" : ""}`} title={p.label} onClick={() => { eng().setPadIndex(i); setPadOpen(false); }}>Pad {i + 1}</button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            {/* selector GAMĂ */}
+            <div className="keywrap">
+              <button className="keybtn" onClick={() => { setKeyOpen((o) => !o); setPadOpen(false); }} title="Alege gama">
                 <span>{st.keyName}</span>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
               </button>
@@ -127,6 +146,7 @@ export default function ClickTrackBar({ defaults, playerActive, onClose }) {
         select, input { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; padding: 7px 9px; font-size: 13px; }
         .keywrap { position: relative; }
         .keybtn { display: inline-flex; align-items: center; justify-content: space-between; gap: 5px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; padding: 7px 9px; cursor: pointer; font-size: 13px; min-width: 54px; }
+        .keybtn.wide { min-width: 74px; }
         .keybtn svg { color: var(--text-dim); }
         .keybackdrop { position: fixed; inset: 0; z-index: 90; }
         .keygrid { position: absolute; left: 100%; bottom: 0; margin-left: 8px; z-index: 91; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 10px; padding: 10px; box-shadow: 0 12px 34px rgba(0,0,0,.55); }
