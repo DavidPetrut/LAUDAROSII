@@ -14,7 +14,8 @@ import { renderChordPro } from "@/lib/songs/chordpro";
 import { generateChartPdf } from "@/lib/songs/pdf";
 import { detectKey, fetchAudioBuffer } from "@/lib/songs/keyDetect";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
-import { usePlayer, isAudioUrl, isYouTube } from "@/lib/player/PlayerProvider";
+import { usePlayer, isAudioUrl, isYouTube, youtubeId } from "@/lib/player/PlayerProvider";
+import { captureYouTube } from "@/lib/youtube/capture";
 import EditSequenceModal from "@/components/songs/EditSequenceModal";
 import AddKeyModal from "@/components/songs/AddKeyModal";
 import AddArrangementModal from "@/components/songs/AddArrangementModal";
@@ -156,13 +157,39 @@ export default function SongDetail() {
     setTransposeFor(f);
   };
 
+  const baseName = (name) => String(name || "Audio")
+    .replace(/\s*in\s+\S+\s*$/i, "").replace(/(\.(mp3|mpeg|mpga|m4a|aac|wav|ogg|flac|opus|webm))+$/i, "").replace(/-[A-G][b#]?m?$/i, "").trim();
+
   const startAudioTranspose = async (f, targetKey, sourceKey) => {
+    if (isYouTube(f.url)) return startYoutubeCapture(f, targetKey, sourceKey);
     try {
       let fromKey = sourceKey || "";
       if (!fromKey) { try { const cc = await api.get(`/songs/${id}/arrangements/${arrId}/chordchart`); fromKey = cc.originalKey || "C"; } catch { fromKey = "C"; } }
       const r = await songsApi.transposeAudio(id, arrId, { sourceFileId: f.id, fromKey, toKey: targetKey });
-      setJobs((js) => [...js, { jobId: r.jobId, name: r.name || `${f.name}-${targetKey}`, phase: "start", percent: 0, done: false, error: "" }]);
+      setJobs((js) => [...js, { localId: `m${Date.now()}`, jobId: r.jobId, name: r.name || `${f.name}-${targetKey}`, phase: "start", percent: 0, done: false, error: "" }]);
     } catch (e) { setToast("Nu pot porni transpunerea: " + (e?.message || e)); setTimeout(() => setToast(""), 4000); }
+  };
+
+  // YouTube: capturăm audio în browser (fundal) → upload → transpose pe server. Job cu 3 faze.
+  const startYoutubeCapture = (f, targetKey, sourceKey) => {
+    const vid = youtubeId(f.url);
+    if (!vid) { setToast("Link YouTube invalid."); setTimeout(() => setToast(""), 3000); return; }
+    const localId = `yt${Date.now()}`;
+    const name = `${baseName(f.name)}-${targetKey}`;
+    const upd = (patch) => setJobs((cur) => cur.map((x) => (x.localId === localId ? { ...x, ...patch } : x)));
+    setJobs((js) => [...js, { localId, yt: true, name, phase: "capture", percent: 0, done: false, error: "" }]);
+    (async () => {
+      let blob;
+      try { blob = await captureYouTube(vid, { onProgress: (p) => upd({ phase: "capture", percent: p }) }); }
+      catch (e) { upd({ error: e?.message || "Captură eșuată." }); return; }
+      try {
+        upd({ phase: "generare", percent: 0 });
+        const up = await songsApi.uploadBlob(blob, `${baseName(f.name)}.webm`, "video");
+        const fromKey = sourceKey || "C";
+        const r = await songsApi.transposeAudio(id, arrId, { sourceUrl: up.url, name: baseName(f.name), fromKey, toKey: targetKey });
+        upd({ jobId: r.jobId, phase: "download", percent: 0, name: r.name || name });
+      } catch (e) { upd({ error: e?.message || "Eroare la transpunere." }); }
+    })();
   };
 
   const doTranspose = async (targetKey, sourceKey) => {
@@ -210,7 +237,7 @@ export default function SongDetail() {
 
   // Poller pt. joburile de transpose audio (fază + procent în timp real).
   useEffect(() => {
-    const active = jobs.filter((j) => !j.done && !j.error);
+    const active = jobs.filter((j) => j.jobId && !j.done && !j.error); // doar joburi pornite pe server
     if (!active.length) return;
     const iv = setInterval(async () => {
       for (const j of active) {
@@ -518,16 +545,20 @@ export default function SongDetail() {
         <div className="job-stack" style={{ bottom: player.bottomInset + 18 }}>
           {jobs.map((j) => {
             const ytBlocked = j.error && /(sign in|bot|confirm)/i.test(j.error);
-            const label = j.error ? (ytBlocked ? "YouTube a blocat descărcarea" : "Eroare") : { start: "Se pornește…", download: "Descărcare", transpose: "Transpunere", upload: "Încărcare", done: "Gata ✓" }[j.phase] || j.phase;
+            // 3 faze pt. YouTube: Creare mp3 (captură) · Generare (upload+download server) · Transpose
+            const ytLabels = { capture: "Creare mp3", generare: "Generare", download: "Generare", transpose: "Transpose", upload: "Transpose", done: "Gata ✓", start: "Se pornește…" };
+            const mp3Labels = { start: "Se pornește…", download: "Descărcare", transpose: "Transpunere", upload: "Încărcare", done: "Gata ✓" };
+            const label = j.error ? (ytBlocked ? "YouTube a blocat descărcarea" : "Eroare") : (j.yt ? ytLabels : mp3Labels)[j.phase] || j.phase;
             const errDetail = ytBlocked ? "anti-bot YouTube — încearcă să încarci mp3-ul și transpune-l pe el" : j.error;
             const pct = Math.max(0, Math.min(100, j.percent || 0));
+            const showPct = !j.done && !j.error && j.phase !== "start" && j.phase !== "generare";
             return (
-              <div key={j.jobId} className={`job-card${j.error ? " err" : ""}${j.done ? " ok" : ""}`}>
+              <div key={j.localId || j.jobId} className={`job-card${j.error ? " err" : ""}${j.done ? " ok" : ""}`}>
                 <div className="job-top">
                   <span className="job-name" title={j.name}>{j.name}</span>
-                  <button className="job-x" onClick={() => setJobs((cur) => cur.filter((x) => x.jobId !== j.jobId))} aria-label="Închide">✕</button>
+                  <button className="job-x" onClick={() => setJobs((cur) => cur.filter((x) => (x.localId || x.jobId) !== (j.localId || j.jobId)))} aria-label="Închide">✕</button>
                 </div>
-                <div className="job-lbl">{label}{!j.done && !j.error && j.phase !== "start" ? ` · ${pct}%` : ""}{j.error ? ` · ${errDetail}` : ""}</div>
+                <div className="job-lbl">{label}{showPct ? ` · ${pct}%` : ""}{j.error ? ` · ${errDetail}` : ""}</div>
                 {!j.error && <div className="job-bar"><div className="job-fill" style={{ width: `${j.done ? 100 : pct}%` }} /></div>}
               </div>
             );

@@ -363,8 +363,14 @@ router.post("/:id/arrangements/:aid/transpose-audio", requireCan("songs.edit"), 
     if (!audioTranspose.configured()) return res.status(503).json({ error: "Cloudinary neconfigurat pe server (upload indisponibil)." });
     const songId = OID(req.params.id), aid = OID(req.params.aid);
     const b = req.body || {};
-    const src = await PcSongFile.findOne(scoped(req, { _id: OID(b.sourceFileId), arrangementId: aid })).lean();
-    if (!src || !src.url) return res.status(400).json({ error: "Fișier sursă inexistent (fără URL)." });
+    // Sursa: fie URL direct (ex. înregistrare capturată din YouTube, deja pe Cloudinary), fie un fișier existent.
+    let sourceUrl = b.sourceUrl ? String(b.sourceUrl) : "";
+    let srcName = b.name ? String(b.name) : "";
+    if (!sourceUrl) {
+      const src = await PcSongFile.findOne(scoped(req, { _id: OID(b.sourceFileId), arrangementId: aid })).lean();
+      if (!src || !src.url) return res.status(400).json({ error: "Fișier sursă inexistent (fără URL)." });
+      sourceUrl = src.url; srcName = srcName || src.name;
+    }
     const fromKey = String(b.fromKey || "C");
     const toKey = String(b.toKey || "");
     if (!toKey) return res.status(400).json({ error: "Alege gama țintă." });
@@ -375,13 +381,13 @@ router.post("/:id/arrangements/:aid/transpose-audio", requireCan("songs.edit"), 
       key = await PcKey.create(stamp(req, { arrangementId: aid, songId, startKey: toKey, endKey: "", sortOrder: count }));
     }
     // Nume: „{titlu}-{gama}.mp3" — gama ÎNAINTE de extensie (ieșirea e mereu mp3).
-    const base = String(src.name || "Audio")
+    const base = String(srcName || "Audio")
       .replace(/\s*in\s+\S+\s*$/i, "")                               // scoate „ in X"
-      .replace(/(\.(mp3|mpeg|mpga|m4a|aac|wav|ogg|flac|opus))+$/i, "") // scoate extensii audio (si duble)
+      .replace(/(\.(mp3|mpeg|mpga|m4a|aac|wav|ogg|flac|opus|webm))+$/i, "") // scoate extensii audio (si duble)
       .replace(/-[A-G][b#]?m?$/i, "")                                 // scoate un „-Gama" anterior
       .trim();
     const name = `${base}-${toKey}.mp3`;
-    const jobId = audioTranspose.start({ orgId: req.pcOrgId, songId, arrId: aid, keyId: key._id, sourceUrl: src.url, fromKey, toKey, name });
+    const jobId = audioTranspose.start({ orgId: req.pcOrgId, songId, arrId: aid, keyId: key._id, sourceUrl, fromKey, toKey, name });
     res.status(202).json({ ok: true, jobId, name });
   } catch (err) { console.error("[pc] transpose-audio:", err.message); res.status(500).json({ error: "Eroare: " + err.message }); }
 });
