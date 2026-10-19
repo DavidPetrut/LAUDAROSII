@@ -6,6 +6,7 @@
  * Date reale din /api/pc/v1/songs/:id (+ /arrangements/:aid). Toate scrierile trec prin API.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import { api, songsApi } from "@/lib/api/client";
 import { abbreviateSequence } from "@/lib/songs/sequence";
@@ -18,6 +19,7 @@ import EditSequenceModal from "@/components/songs/EditSequenceModal";
 import AddKeyModal from "@/components/songs/AddKeyModal";
 import AddArrangementModal from "@/components/songs/AddArrangementModal";
 import ArrangementModal from "@/components/songs/ArrangementModal";
+const ClickTrackBar = dynamic(() => import("@/components/songs/ClickTrackBar"), { ssr: false });
 import AddFileModal from "@/components/songs/AddFileModal";
 import SongInfoModal from "@/components/songs/SongInfoModal";
 import ChartPreviewModal from "@/components/songs/ChartPreviewModal";
@@ -36,6 +38,8 @@ export default function SongDetail() {
   const [modal, setModal] = useState(null); // 'seq'|'key'|'arr'|'file'|'info'
   const [manageArr, setManageArr] = useState(null); // aranjamentul de gestionat (modal)
   const [selKeys, setSelKeys] = useState(() => new Set()); // filtru game (gol = toate); reset la refresh
+  const [showCT, setShowCT] = useState(false); // container Click Track
+  const [ctDefaults, setCtDefaults] = useState(null);
   const colsRef = useRef(null);
   const [scroll, setScroll] = useState({ left: false, right: false });
   const [editField, setEditField] = useState(null); // 'bpm'|'length'|'name'
@@ -220,6 +224,17 @@ export default function SongDetail() {
     } else { await loadSong(); }
   };
 
+  // Deschide Click Track preluând implicit gama (din chord chart), BPM-ul și măsura aranjamentului.
+  const openClickTrack = () => {
+    const ok = String(arr?.chordChart?.originalKey || "").trim();
+    const isMinor = /m(in)?$/i.test(ok) && !/maj/i.test(ok);
+    let key = ok.replace(/m(in)?$/i, "").replace(/maj$/i, "").trim() || "C";
+    const sharp = { "C#": "Db", "D#": "Eb", "F#": "Gb", "G#": "Ab", "A#": "Bb" };
+    if (sharp[key]) key = sharp[key];
+    setCtDefaults({ key, mode: isMinor ? "minor" : "major", bpm: arr?.bpm || 72, meter: arr?.meter || "4/4" });
+    setShowCT(true);
+  };
+
   // ── Carusel game + filtru multi-select ──
   const updateScroll = useCallback(() => {
     const el = colsRef.current; if (!el) return;
@@ -301,6 +316,7 @@ export default function SongDetail() {
                 <button className="ic" title="Redenumește" onClick={async () => {
                   const name = prompt("Nume aranjament:", arr.name); if (name && name.trim()) await patchArr({ name: name.trim() });
                 }}>✎</button>
+                <button className="ct-open" onClick={openClickTrack} title="Pad de pian + metronom live">Click Track</button>
               </div>
 
               <div className="specs">
@@ -391,6 +407,7 @@ export default function SongDetail() {
         <ArrangementModal songId={id} arrangement={manageArr} arrangements={song.arrangements || []}
           onClose={() => setManageArr(null)} onDone={onManageDone} />
       )}
+      {showCT && <ClickTrackBar defaults={ctDefaults} playerActive={!!player.track} onClose={() => setShowCT(false)} />}
       {preview && <ChartPreviewModal songId={id} arrId={arrId} song={song} arr={arr} mode={preview.mode} targetKey={preview.targetKey} onClose={() => setPreview(null)} />}
       {transposeFor && <TransposeModal file={transposeFor} onClose={() => setTransposeFor(null)} onPick={doTranspose} />}
       {renameFor && (
@@ -539,6 +556,8 @@ export default function SongDetail() {
         .arr-title-row { display: flex; align-items: center; gap: 10px; }
         .arr-title { font-size: 22px; font-weight: 600; margin: 0; }
         .ic { background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px; }
+        .ct-open { margin-left: auto; background: var(--surface-2); border: 1px solid var(--primary); color: var(--primary); border-radius: 999px; padding: 6px 16px; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .ct-open:hover { background: rgba(47,129,247,.14); }
         .specs { display: flex; gap: 26px; color: var(--text-dim); font-size: 15px; margin: 14px 0 10px; align-items: center; }
         .specs b { color: var(--text); cursor: pointer; }
         .mini { width: 70px; height: 26px; background: var(--surface-2); border: 1px solid var(--primary); border-radius: 4px; color: var(--text); padding: 0 6px; }
