@@ -42,7 +42,7 @@ const AUTO_STOP_MS = 30 * 60 * 1000;
 export class ClickTrackEngine {
   constructor() {
     this.ctx = null; this.piano = null; this.clickGain = null; this.pianoGain = null;
-    this.pad = null; this.padOut = null; this.filter = null; this.chorus = null; this.reverb = null; this.filterLfo = null;
+    this.pad = null; this.padOut = null; this.filter = null; this.chorus = null; this.reverb = null; this.filterLfo = null; this.limiter = null;
     this.padReady = false; this.pianoReady = false; this.loadingPiano = false; this.held = []; this.disposed = false;
     this.state = { keyPc: 0, keyName: "C", mode: "major", bpm: 72, meter: "4/4", playing: false, padMuted: false, clickMuted: false, padIndex: 0 };
     this.timer = null; this.autoStop = null; this.nextTime = 0; this.beat = 0;
@@ -62,7 +62,8 @@ export class ClickTrackEngine {
   _buildPad() {
     const p = PADS[this.state.padIndex] || PADS[0];
     this.padOut = new Tone.Gain(0).toDestination();
-    this.reverb = new Tone.Reverb({ decay: 7, preDelay: 0.02, wet: 0.38 }).connect(this.padOut);
+    this.limiter = new Tone.Limiter(-1).connect(this.padOut); // previne clipping/pocnit
+    this.reverb = new Tone.Reverb({ decay: 7, preDelay: 0.02, wet: 0.38 }).connect(this.limiter);
     // chorus discret (shimmer), NU throb — altfel se aude ca o pulsație la ~2s
     this.chorus = new Tone.Chorus({ frequency: 0.25, delayTime: 3, depth: 0.2, spread: 160, wet: 0.18 }).connect(this.reverb).start();
     this.filter = new Tone.Filter({ type: "lowpass", frequency: p.cutoff, rolloff: -12, Q: 0.2 }).connect(this.chorus);
@@ -73,13 +74,13 @@ export class ClickTrackEngine {
       maxPolyphony: 16,
       oscillator: { type: p.osc, count: p.count, spread: p.spread },
       envelope: { attack: p.attack, decay: 0.4, sustain: 1, release: 3 },
-      volume: -5,
+      volume: -9,
     }).connect(this.filter);
     this.padReady = true;
   }
   _disposePad() {
     this.held = [];
-    for (const n of ["pad", "filterLfo", "filter", "chorus", "reverb", "padOut"]) { try { this[n] && this[n].dispose(); } catch {} this[n] = null; }
+    for (const n of ["pad", "filterLfo", "filter", "chorus", "reverb", "limiter", "padOut"]) { try { this[n] && this[n].dispose(); } catch {} this[n] = null; }
     this.padReady = false;
   }
 
