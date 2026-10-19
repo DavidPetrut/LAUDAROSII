@@ -39,6 +39,7 @@ export default function SongDetail() {
   const [renameVal, setRenameVal] = useState("");
   const [deleteFor, setDeleteFor] = useState(null); // fișierul de șters (confirmare)
   const [toast, setToast] = useState("");
+  const [jobs, setJobs] = useState([]); // joburi de transpose audio (progres)
 
   const isChart = (f) => ["chordChart", "lyrics", "numbers", "numerals"].includes(f.kind);
 
@@ -72,15 +73,26 @@ export default function SongDetail() {
     setDeleteFor(null); await loadArr();
   };
 
-  // Transpose: doar chart-urile generate (derivate din ChordPro). Audio/YouTube = în curând.
+  // Transpose: chart-uri generate (PDF din ChordPro) SAU audio/YouTube (job de pitch-shift).
   const transposeFile = (f) => {
-    if (isAudioUrl(f.url, f.kind) || isYouTube(f.url)) { setToast("Transpose audio/YouTube vine în curând."); setTimeout(() => setToast(""), 3000); return; }
-    if (f.source !== "generated" || !isChart(f)) { setToast("Transpose merge doar la chart-urile generate (din Lyrics & Chords)."); setTimeout(() => setToast(""), 3500); return; }
+    if (isAudioUrl(f.url, f.kind) || isYouTube(f.url)) { setTransposeFor(f); return; }
+    if (f.source !== "generated" || !isChart(f)) { setToast("Transpose merge la chart-urile generate (din Lyrics & Chords) sau la audio/YouTube."); setTimeout(() => setToast(""), 3800); return; }
     setTransposeFor(f);
   };
+
+  const startAudioTranspose = async (f, targetKey) => {
+    try {
+      let fromKey = "C";
+      try { const cc = await api.get(`/songs/${id}/arrangements/${arrId}/chordchart`); fromKey = cc.originalKey || "C"; } catch {}
+      const r = await songsApi.transposeAudio(id, arrId, { sourceFileId: f.id, fromKey, toKey: targetKey });
+      setJobs((js) => [...js, { jobId: r.jobId, name: r.name || `${f.name}-${targetKey}`, phase: "start", percent: 0, done: false, error: "" }]);
+    } catch (e) { setToast("Nu pot porni transpunerea: " + (e?.message || e)); setTimeout(() => setToast(""), 4000); }
+  };
+
   const doTranspose = async (targetKey) => {
     const f = transposeFor; if (!f) { return; }
     setTransposeFor(null);
+    if (isAudioUrl(f.url, f.kind) || isYouTube(f.url)) { return startAudioTranspose(f, targetKey); }
     try {
       const cc = await api.get(`/songs/${id}/arrangements/${arrId}/chordchart`);
       const originalKey = cc.originalKey || "C";
@@ -119,6 +131,22 @@ export default function SongDetail() {
 
   useEffect(() => { loadSong(); }, [loadSong]);
   useEffect(() => { loadArr(); }, [loadArr]);
+
+  // Poller pt. joburile de transpose audio (fază + procent în timp real).
+  useEffect(() => {
+    const active = jobs.filter((j) => !j.done && !j.error);
+    if (!active.length) return;
+    const iv = setInterval(async () => {
+      for (const j of active) {
+        try {
+          const s = await songsApi.transposeAudioStatus(id, arrId, j.jobId);
+          setJobs((cur) => cur.map((x) => (x.jobId === j.jobId ? { ...x, ...s } : x)));
+          if (s.done) loadArr();
+        } catch { setJobs((cur) => cur.map((x) => (x.jobId === j.jobId ? { ...x, error: "status indisponibil" } : x))); }
+      }
+    }, 1800);
+    return () => clearInterval(iv);
+  }, [jobs, id, arrId, loadArr]);
 
   // ── edits ──
   const patchArr = async (payload) => { await songsApi.updateArrangement(id, arrId, payload); await loadArr(); await loadSong(); };
@@ -291,6 +319,38 @@ export default function SongDetail() {
         </div>
       )}
       {toast && <div className="song-toast">{toast}</div>}
+      {jobs.length > 0 && (
+        <div className="job-stack">
+          {jobs.map((j) => {
+            const label = j.error ? "Eroare" : { start: "Se pornește…", download: "Descărcare", transpose: "Transpunere", upload: "Încărcare", done: "Gata ✓" }[j.phase] || j.phase;
+            const pct = Math.max(0, Math.min(100, j.percent || 0));
+            return (
+              <div key={j.jobId} className={`job-card${j.error ? " err" : ""}${j.done ? " ok" : ""}`}>
+                <div className="job-top">
+                  <span className="job-name" title={j.name}>{j.name}</span>
+                  <button className="job-x" onClick={() => setJobs((cur) => cur.filter((x) => x.jobId !== j.jobId))} aria-label="Închide">✕</button>
+                </div>
+                <div className="job-lbl">{label}{!j.done && !j.error && j.phase !== "start" ? ` · ${pct}%` : ""}{j.error ? ` · ${j.error}` : ""}</div>
+                {!j.error && <div className="job-bar"><div className="job-fill" style={{ width: `${j.done ? 100 : pct}%` }} /></div>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <style jsx>{`
+        .job-stack { position: fixed; right: 18px; bottom: 86px; z-index: 76; display: flex; flex-direction: column; gap: 10px; width: 300px; max-width: calc(100vw - 36px); }
+        .job-card { background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 10px; padding: 11px 12px; box-shadow: 0 10px 28px rgba(0,0,0,.5); }
+        .job-card.ok { border-color: #1f8a4c; }
+        .job-card.err { border-color: var(--danger); }
+        .job-top { display: flex; align-items: center; gap: 8px; }
+        .job-name { font-size: 12.5px; color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+        .job-x { background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; padding: 0 2px; }
+        .job-x:hover { color: var(--text); }
+        .job-lbl { font-size: 11.5px; color: var(--text-dim); margin: 4px 0 7px; }
+        .job-bar { height: 5px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+        .job-fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width .3s ease; }
+        .job-card.ok .job-fill { background: #1f8a4c; }
+      `}</style>
       <style jsx>{`
         .ov-min { position: fixed; inset: 0; z-index: 65; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
         .mini { background: var(--modal-bg); border: 1px solid var(--border-strong); border-radius: 10px; padding: 20px; width: 400px; max-width: 100%; }

@@ -335,35 +335,39 @@ router.put("/:id/arrangements/:aid/chordchart", requireCan("songs.edit"), async 
   } catch (err) { console.error("[pc] PUT chordchart:", err.message); res.status(500).json({ error: "Eroare: " + err.message }); }
 });
 
-/* ═════════════════════ TRANSPOSE AUDIO (DSP = seam) ═════════════════════ */
+/* ═════════════════════ TRANSPOSE AUDIO (mp3 / YouTube) — job real ═════════════════════ */
 
-/* POST transpunere audio: pune în coadă un job/cheie-țintă. Fetch/DSP real = seam (§8). */
+/* POST: pornește un job de transpunere audio (download → pitch-shift → upload → fișier în gama țintă). */
 router.post("/:id/arrangements/:aid/transpose-audio", requireCan("songs.edit"), async (req, res) => {
   try {
+    const audioTranspose = require("../services/audioTranspose");
+    if (!audioTranspose.configured()) return res.status(503).json({ error: "Cloudinary neconfigurat pe server (upload indisponibil)." });
     const songId = OID(req.params.id), aid = OID(req.params.aid);
     const b = req.body || {};
     const src = await PcSongFile.findOne(scoped(req, { _id: OID(b.sourceFileId), arrangementId: aid })).lean();
-    if (!src) return res.status(400).json({ error: "Fișier sursă inexistent." });
-    const fromKey = String(b.fromKey || "");
-    const toKeys = Array.isArray(b.toKeys) ? b.toKeys.filter(Boolean) : [];
-    if (!fromKey || toKeys.length === 0) return res.status(400).json({ error: "Alege cheia sursă și cel puțin o cheie țintă." });
-    const base = String(b.baseName || src.name.replace(/\.[^.]+$/, ""));
-    const created = [];
-    for (const toKey of toKeys) {
-      // ensure key exists pe aranjament (PCO o creează dacă lipsește)
-      let key = await PcKey.findOne(scoped(req, { arrangementId: aid, startKey: toKey })).lean();
-      if (!key) {
-        const count = await PcKey.countDocuments(scoped(req, { arrangementId: aid }));
-        key = await PcKey.create(stamp(req, { arrangementId: aid, songId, startKey: toKey, endKey: "", sortOrder: count }));
-      }
-      const file = await PcSongFile.create(stamp(req, {
-        songId, arrangementId: aid, keyId: key._id, scope: "key", kind: "audio",
-        name: `${base}-${toKey}`, source: "transpose", transposeStatus: "pending", fromKey, toKey, url: "",
-      }));
-      created.push({ id: file._id, toKey });
+    if (!src || !src.url) return res.status(400).json({ error: "Fișier sursă inexistent (fără URL)." });
+    const fromKey = String(b.fromKey || "C");
+    const toKey = String(b.toKey || "");
+    if (!toKey) return res.status(400).json({ error: "Alege gama țintă." });
+    // asigură cardul gamei țintă
+    let key = await PcKey.findOne(scoped(req, { arrangementId: aid, startKey: toKey })).lean();
+    if (!key) {
+      const count = await PcKey.countDocuments(scoped(req, { arrangementId: aid }));
+      key = await PcKey.create(stamp(req, { arrangementId: aid, songId, startKey: toKey, endKey: "", sortOrder: count }));
     }
-    res.status(201).json({ ok: true, created, note: "În coadă. Transpunerea audio reală (DSP, ~1-5 min) = seam — depinde de motorul de pitch-shift (server/queue)." });
+    const base = String(src.name || "Audio").replace(/\s*in\s+\S+$/i, "").replace(/-\S+$/, "").replace(/\.[^.]+$/, "");
+    const name = `${base}-${toKey}`;
+    const jobId = audioTranspose.start({ orgId: req.pcOrgId, songId, arrId: aid, keyId: key._id, sourceUrl: src.url, fromKey, toKey, name });
+    res.status(202).json({ ok: true, jobId, name });
   } catch (err) { console.error("[pc] transpose-audio:", err.message); res.status(500).json({ error: "Eroare: " + err.message }); }
+});
+
+/* GET: statusul unui job de transpunere audio (fază + procent). */
+router.get("/:id/arrangements/:aid/transpose-audio/:jobId", requireCan("people.view"), (req, res) => {
+  const audioTranspose = require("../services/audioTranspose");
+  const job = audioTranspose.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job inexistent sau expirat." });
+  res.json(job);
 });
 
 /* ═════════════════════ TAGS (Song & Arrangement) ═════════════════════ */
