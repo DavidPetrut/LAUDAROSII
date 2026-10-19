@@ -336,10 +336,10 @@ export default function SongDetail() {
         <div className="fr-actions" style={{ top: fileMenu.top, left: fileMenu.left }}
           onMouseEnter={() => { if (fileMenuT.current) { clearTimeout(fileMenuT.current); fileMenuT.current = null; } }}
           onMouseLeave={closeFileMenuSoon}>
-          <button onClick={(e) => { e.stopPropagation(); editFile(fileMenu.f); }} title="Editează">✎</button>
-          <button onClick={(e) => { e.stopPropagation(); transposeFile(fileMenu.f); }} title="Transpune">⇅</button>
-          <button onClick={(e) => { e.stopPropagation(); downloadFile(fileMenu.f); }} title="Descarcă">↓</button>
-          <button className="trash" onClick={(e) => { e.stopPropagation(); setDeleteFor(fileMenu.f); }} title="Șterge definitiv">🗑</button>
+          <button onClick={(e) => { e.stopPropagation(); editFile(fileMenu.f); }} title="Editează"><Ico name="edit" /></button>
+          <button onClick={(e) => { e.stopPropagation(); transposeFile(fileMenu.f); }} title="Transpune"><Ico name="transpose" /></button>
+          <button onClick={(e) => { e.stopPropagation(); downloadFile(fileMenu.f); }} title="Descarcă"><Ico name="download" /></button>
+          <button className="trash" onClick={(e) => { e.stopPropagation(); setDeleteFor(fileMenu.f); }} title="Șterge definitiv"><Ico name="trash" /></button>
         </div>
       )}
       {toast && <div className="song-toast">{toast}</div>}
@@ -386,7 +386,7 @@ export default function SongDetail() {
         .song-toast { position: fixed; bottom: 86px; left: 50%; transform: translateX(-50%); z-index: 75; background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text); padding: 10px 16px; border-radius: 8px; font-size: 13px; box-shadow: 0 10px 28px rgba(0,0,0,.5); }
         /* Panou de acțiuni fișier — în STÂNGA rândului; position:fixed => nu e tăiat de overflow. */
         .fr-actions { position: fixed; transform: translate(-100%, -50%); margin-left: -10px; display: flex; gap: 2px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; padding: 3px; box-shadow: 0 6px 18px rgba(0,0,0,.45); white-space: nowrap; z-index: 80; }
-        .fr-actions button { background: transparent; border: none; color: var(--text-dim); width: 26px; height: 26px; border-radius: 5px; cursor: pointer; font-size: 13px; }
+        .fr-actions button { background: transparent; border: none; color: var(--text-dim); width: 28px; height: 28px; border-radius: 5px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
         .fr-actions button:hover { background: var(--surface-2); color: var(--text); }
         .fr-actions .trash:hover { background: rgba(229,83,75,.18); color: #f0a7a2; }
       `}</style>
@@ -441,11 +441,12 @@ export default function SongDetail() {
 }
 
 function FileRow({ f, onOpen, onHover, onLeave }) {
-  const icon = f.kind === "audio" ? "♪" : f.kind === "chordChart" ? "♯" : f.kind === "lyrics" ? "¶" : f.kind === "link" ? "▶" : "▦";
+  const iconName = f.kind === "audio" ? "audio" : f.kind === "lyrics" ? "lyrics" : f.kind === "link" ? "play"
+    : (f.kind === "chordChart" || f.kind === "numbers" || f.kind === "numerals") ? "chart" : "file";
   return (
     <div className="frow" onMouseEnter={(e) => onHover(f, e.currentTarget)} onMouseLeave={onLeave}>
       <button className="fl fl-btn" onClick={onOpen} title="Deschide / rulează">
-        <span className="fi">{icon}</span>
+        <span className="fi"><Ico name={iconName} size={15} /></span>
         <span className="fn">{f.name}</span>
       </button>
       <style jsx>{`
@@ -453,9 +454,30 @@ function FileRow({ f, onOpen, onHover, onLeave }) {
         .fl { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 13px; }
         .fl:hover { color: var(--text-link); }
         .fl-btn { background: transparent; border: none; cursor: pointer; padding: 0; text-align: left; width: 100%; }
-        .fi { color: var(--text-dim); }
+        .fi { color: var(--text-dim); display: inline-flex; align-items: center; }
         .fn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       `}</style>
     </div>
+  );
+}
+
+/* Set de iconițe SVG (stil Lucide) — curate și sugestive, nu glife „cheap". */
+function Ico({ name, size = 16 }) {
+  const paths = {
+    edit: <><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" /></>,
+    transpose: <><path d="m3 8 4-4 4 4" /><path d="M7 4v16" /><path d="m21 16-4 4-4-4" /><path d="M17 20V4" /></>,
+    download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" /><path d="M12 15V3" /></>,
+    trash: <><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M10 11v6" /><path d="M14 11v6" /></>,
+    info: <><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></>,
+    audio: <><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></>,
+    chart: <><path d="M3 3v18h18" /><path d="m7 14 3-3 3 3 5-5" /></>,
+    lyrics: <><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h10" /></>,
+    play: <><polygon points="6 3 20 12 6 21 6 3" /></>,
+    file: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6" /></>,
+  }[name] || null;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {paths}
+    </svg>
   );
 }
