@@ -35,6 +35,7 @@ export const PADS = [
   { instr: "synth_strings_1", label: "Synth Strings" },
 ];
 const PAD_VOL = 0.85;
+const PAD_SKIP = 1.5; // sec tăiate de la începutul pad-ului (atacul) — nu se aud niciodată
 const AUTO_STOP_MS = 30 * 60 * 1000;
 
 export class ClickTrackEngine {
@@ -134,12 +135,17 @@ export class ClickTrackEngine {
   }
   _stopPadVoices() { if (this.pad) { try { this.pad.stop(); } catch {} } }
   // o SINGURĂ lovire, ținută la infinit (loop + fără durată) — fără re-atac/pulsație.
-  // Volum CONSTANT de la început (ramp foarte scurt doar ca să nu dea click), fără swell.
+  // Taie primele PAD_SKIP sec (atacul): nota rulează, dar o ținem MUTĂ 1.5s, apoi o aducem instant.
+  // Bucla soundfont-ului e în zona de sustain, deci atacul nu se mai aude niciodată la reluări.
   _startPadChord() {
-    if (!this.pad || !this.padReady) return;
+    if (!this.pad || !this.padReady || !this.padGain) return;
     this._stopPadVoices();
     for (const n of this._padChord()) { try { this.pad.start({ note: n, velocity: 72, duration: null, loop: true }); } catch {} }
-    this._rampPad(PAD_VOL, 0.12);
+    const t = this.ctx.currentTime;
+    this.padGain.gain.cancelScheduledValues(t);
+    this.padGain.gain.setValueAtTime(0.0001, t);
+    this.padGain.gain.setValueAtTime(0.0001, t + PAD_SKIP);          // mut cât durează atacul
+    this.padGain.gain.linearRampToValueAtTime(PAD_VOL, t + PAD_SKIP + 0.12); // intră la volum constant
   }
 
   _tick(beat, time) {
