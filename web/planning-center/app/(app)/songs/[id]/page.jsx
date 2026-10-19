@@ -281,7 +281,7 @@ export default function SongDetail() {
     const el = colsRef.current; if (!el) return;
     setScroll({ left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
   }, []);
-  const scrollCols = (dir) => { const el = colsRef.current; if (el) el.scrollBy({ left: dir * 260, behavior: "smooth" }); }; // o coloană o dată
+  const scrollCols = (dir) => { const el = colsRef.current; if (el) el.scrollBy({ left: dir * (el.clientWidth / 3), behavior: "smooth" }); }; // o coloană (1/3) o dată
   // drag-to-scroll (doar pe spațiul gol al coloanelor, nu pe butoane)
   const drag = useRef({ down: false, x: 0, left: 0, moved: false });
   const onColsDown = (e) => {
@@ -653,7 +653,8 @@ export default function SongDetail() {
         .file-cols-wrap { position: relative; }
         .file-cols { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px 8px 0 0; padding: 14px; overflow-x: auto; scroll-behavior: smooth; scrollbar-width: none; }
         .file-cols::-webkit-scrollbar { height: 0; }
-        .fcol { flex: 0 0 258px; width: 258px; border-right: 1px solid var(--border); padding: 0 14px; }
+        /* exact 3 coloane vizibile care umplu containerul (fiecare = 1/3); restul = carusel */
+        .fcol { flex: 0 0 calc((100% - 4px) / 3); box-sizing: border-box; border-right: 1px solid var(--border); padding: 0 14px; }
         .fcol:last-child { border-right: none; }
         .fcol-h { color: var(--text-dim); font-size: 14px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 20px; }
         .fcol-del { display: none; background: transparent; border: none; color: var(--text-faint); cursor: pointer; padding: 2px; align-items: center; }
