@@ -47,7 +47,7 @@ async function callMessages(model, system, user) {
   const res = await fetch(`${BASE}/messages`, {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({ model, max_tokens: 1500, system, messages: [{ role: "user", content: user }] }),
+    body: JSON.stringify({ model, max_tokens: 8192, system, messages: [{ role: "user", content: user }] }),
   });
   const data = await res.json().catch(() => ({}));
   return { res, data };
