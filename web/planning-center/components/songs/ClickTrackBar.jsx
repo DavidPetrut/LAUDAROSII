@@ -55,18 +55,16 @@ export default function ClickTrackBar({ defaults, playerActive, onClose }) {
 
         {/* Board 1 — Pad (sunet + gamă) */}
         <div className="board">
-          <div className="board-h"><span>Pad</span><NoteMute muted={st.padMuted} onClick={() => eng().setPadMuted(!st.padMuted)} title="Mut pad" /></div>
-          <div className="row">
-            {/* selector SUNET de pad (Pad 1..12) */}
-            <div className="keywrap">
-              <button className="keybtn wide" onClick={() => { setPadOpen((o) => !o); setKeyOpen(false); }} title="Alege sunetul de pad">
-                <span>Pad {st.padIndex + 1}</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+          <div className="board-h">
+            <div className="padwrap">
+              <button className="pad-title" onClick={() => { setPadOpen((o) => !o); setKeyOpen(false); }} title="Alege sunetul de pad">
+                PAD <span className="pt-dash">—</span> <b>Pad {st.padIndex + 1}</b>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
               </button>
               {padOpen && (
                 <>
                   <div className="keybackdrop" onClick={() => setPadOpen(false)} />
-                  <div className="keygrid">
+                  <div className="padgrid">
                     {PADS.map((p, i) => (
                       <button key={i} className={`keyopt ${i === st.padIndex ? "on" : ""}`} title={p.label} onClick={() => { eng().setPadIndex(i); setPadOpen(false); }}>Pad {i + 1}</button>
                     ))}
@@ -74,6 +72,9 @@ export default function ClickTrackBar({ defaults, playerActive, onClose }) {
                 </>
               )}
             </div>
+            <NoteMute muted={st.padMuted} onClick={() => eng().setPadMuted(!st.padMuted)} title="Mut pad" />
+          </div>
+          <div className="row">
             {/* selector GAMĂ */}
             <div className="keywrap">
               <button className="keybtn" onClick={() => { setKeyOpen((o) => !o); setPadOpen(false); }} title="Alege gama">
@@ -150,9 +151,18 @@ export default function ClickTrackBar({ defaults, playerActive, onClose }) {
         .keybtn svg { color: var(--text-dim); }
         .keybackdrop { position: fixed; inset: 0; z-index: 90; }
         .keygrid { position: absolute; left: 100%; bottom: 0; margin-left: 8px; z-index: 91; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 10px; padding: 10px; box-shadow: 0 12px 34px rgba(0,0,0,.55); }
-        .keyopt { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; padding: 8px 10px; cursor: pointer; font-size: 13px; min-width: 42px; }
+        .keyopt { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; padding: 8px 10px; cursor: pointer; font-size: 13px; min-width: 42px; white-space: nowrap; }
         .keyopt:hover { border-color: var(--primary); }
         .keyopt.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .padwrap { position: relative; }
+        .pad-title { display: inline-flex; align-items: center; gap: 5px; background: transparent; border: none; cursor: pointer; color: var(--text-faint); font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase; padding: 2px 4px; border-radius: 5px; }
+        .pad-title b { color: var(--text); font-size: 12.5px; text-transform: none; letter-spacing: 0; }
+        .pad-title svg { color: var(--text-dim); }
+        .pad-title:hover { background: var(--surface-2); }
+        .pad-title:hover b { text-decoration: underline; }
+        .pt-dash { color: var(--text-faint); }
+        .padgrid { position: absolute; left: 0; bottom: 100%; margin-bottom: 8px; z-index: 91; display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 10px; padding: 11px; box-shadow: 0 12px 34px rgba(0,0,0,.55); }
+        .padgrid .keyopt { min-width: 60px; padding: 10px 14px; text-align: center; }
         input[type="number"] { width: 58px; text-align: center; }
         .seg { display: flex; border: 1px solid var(--border-strong); border-radius: 6px; overflow: hidden; }
         .seg button { background: var(--surface-2); border: none; color: var(--text-dim); padding: 7px 12px; cursor: pointer; font-size: 12.5px; }

@@ -21,20 +21,18 @@ export function accentPattern(meter) {
   const p = new Array(num).fill(0); p[0] = 2; return p;
 }
 
-// 12 pad-uri worship (soft/airy/faded — trec prin lowpass + reverb). Afișate „Pad 1..12".
+// 9 pad-uri worship (soft/airy/faded — trec prin lowpass + reverb). Afișate „Pad 1..9".
+// Ordine cerută: default = fostul Strings 2, apoi Halo, apoi Synth Strings 2; restul liber.
 export const PADS = [
-  { instr: "pad_1_new_age", label: "New Age" },
-  { instr: "pad_7_halo", label: "Halo" },
+  { instr: "string_ensemble_2", label: "Strings 2" },   // Pad 1 (default)
+  { instr: "pad_7_halo", label: "Halo" },               // Pad 2
+  { instr: "synth_strings_2", label: "Synth Strings 2" }, // Pad 3
   { instr: "pad_8_sweep", label: "Sweep" },
   { instr: "pad_5_bowed", label: "Bowed" },
   { instr: "pad_2_warm", label: "Warm" },
   { instr: "pad_4_choir", label: "Choir" },
   { instr: "string_ensemble_1", label: "Strings" },
-  { instr: "string_ensemble_2", label: "Strings 2" },
   { instr: "synth_strings_1", label: "Synth Strings" },
-  { instr: "synth_strings_2", label: "Synth Strings 2" },
-  { instr: "choir_aahs", label: "Choir Aahs" },
-  { instr: "voice_oohs", label: "Voices" },
 ];
 const PAD_VOL = 0.85;
 const AUTO_STOP_MS = 30 * 60 * 1000;
@@ -78,7 +76,7 @@ export class ClickTrackEngine {
     const instr = (PADS[this.state.padIndex] || PADS[0]).instr;
     try {
       this.pad = new Soundfont(this.ctx, { instrument: instr, kit: "MusyngKite", loadLoopData: true, destination: this.lp });
-      this.pad.load.then(() => { this.padReady = true; this.loadingPad = false; this._emit(); if (this.state.playing && !this.state.padMuted) this._startPadChord(true); })
+      this.pad.load.then(() => { this.padReady = true; this.loadingPad = false; this._emit(); if (this.state.playing && !this.state.padMuted) this._startPadChord(); })
         .catch(() => { this.loadingPad = false; this._emit(); });
     } catch { this.loadingPad = false; this._emit(); }
   }
@@ -118,11 +116,11 @@ export class ClickTrackEngine {
     this.state.padMuted = b; this._emit();
     if (!this.ctx) return;
     if (b) { this._rampPad(0, 0.3); setTimeout(() => this._stopPadVoices(), 350); }
-    else if (this.state.playing) { this._startPadChord(false); }
+    else if (this.state.playing) { this._startPadChord(); }
   }
   setClickMuted(b) { this.state.clickMuted = b; this._emit(); }
 
-  _retriggerPadIfPlaying() { if (this.state.playing && !this.state.padMuted && this.padReady && this.ctx) this._startPadChord(false); }
+  _retriggerPadIfPlaying() { if (this.state.playing && !this.state.padMuted && this.padReady && this.ctx) this._startPadChord(); }
 
   _padChord() { const r = 48 + this.state.keyPc; const th = this.state.mode === "minor" ? 3 : 4; return [r, r + th, r + 7, r + 12]; }
   _pianoChord() { const r = 60 + this.state.keyPc; const th = this.state.mode === "minor" ? 3 : 4; return [r, r + th, r + 7, r + 12]; }
@@ -135,12 +133,13 @@ export class ClickTrackEngine {
     this.padGain.gain.linearRampToValueAtTime(Math.max(0.0001, target), t + dur);
   }
   _stopPadVoices() { if (this.pad) { try { this.pad.stop(); } catch {} } }
-  // o SINGURĂ lovire, ținută la infinit (loop + fără durată) — fără re-atac/pulsație
-  _startPadChord(fadeIn) {
+  // o SINGURĂ lovire, ținută la infinit (loop + fără durată) — fără re-atac/pulsație.
+  // Volum CONSTANT de la început (ramp foarte scurt doar ca să nu dea click), fără swell.
+  _startPadChord() {
     if (!this.pad || !this.padReady) return;
     this._stopPadVoices();
-    for (const n of this._padChord()) { try { this.pad.start({ note: n, velocity: 70, duration: null, loop: true }); } catch {} }
-    this._rampPad(PAD_VOL, fadeIn ? 2 : 0.4);
+    for (const n of this._padChord()) { try { this.pad.start({ note: n, velocity: 72, duration: null, loop: true }); } catch {} }
+    this._rampPad(PAD_VOL, 0.12);
   }
 
   _tick(beat, time) {
@@ -175,7 +174,7 @@ export class ClickTrackEngine {
     if (this.ctx.state === "suspended") { try { await this.ctx.resume(); } catch {} }
     this.state.playing = true; this.beat = 0; this.nextTime = this.ctx.currentTime + 0.1;
     this._loadPad();
-    if (this.padReady && !this.state.padMuted) this._startPadChord(true);
+    if (this.padReady && !this.state.padMuted) this._startPadChord();
     clearInterval(this.timer);
     this.timer = setInterval(() => this._schedule(), 25);
     clearTimeout(this.autoStop);
