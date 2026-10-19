@@ -121,7 +121,7 @@ router.get("/:id/arrangements/:aid", requireCan("people.view"), async (req, res)
       PcKey.find(scoped(req, { arrangementId: aid })).sort({ sortOrder: 1, createdAt: 1 }).lean(),
       PcSongFile.find(scoped(req, { arrangementId: aid })).sort({ sortOrder: 1 }).lean(),
     ]);
-    const fileDto = (f) => ({ id: f._id, kind: f.kind, name: f.name, url: f.url, source: f.source, pending: f.transposeStatus === "pending" || (!f.url && f.source === "multitracks"), transposeStatus: f.transposeStatus || "" });
+    const fileDto = (f) => ({ id: f._id, kind: f.kind, name: f.name, url: f.url, source: f.source, pending: f.transposeStatus === "pending" || (!f.url && f.source === "multitracks"), transposeStatus: f.transposeStatus || "", detectedKey: f.detectedKey || "", detectedLabel: f.detectedLabel || "", detectedConf: f.detectedConf || 0 });
     // Master ChordPro (Lyrics & Chords) → charturile per cheie sunt DERIVATE la randare din el.
     const master = files.find((f) => f.scope === "arrangement" && f.kind === "chordChart" && f.source === "chordpro");
     const hasChordChart = !!(master && (master.chordpro || "").trim());
@@ -238,6 +238,7 @@ router.post("/:id/arrangements/:aid/files", requireCan("songs.edit"), async (req
     const file = await PcSongFile.create(stamp(req, {
       songId, arrangementId: aid, keyId: OID(b.keyId) || null, scope: b.keyId ? "key" : "arrangement",
       kind: b.kind || "link", name: String(b.name), url: b.url || "", source: b.source || "link",
+      detectedKey: b.detectedKey || "", detectedLabel: b.detectedLabel || "", detectedConf: Number(b.detectedConf) || 0,
     }));
     res.status(201).json({ id: file._id });
   } catch (err) { console.error("[pc] POST song file:", err.message); res.status(500).json({ error: "Eroare." }); }
@@ -248,6 +249,9 @@ router.patch("/:id/arrangements/:aid/files/:fid", requireCan("songs.edit"), asyn
   try {
     const set = {};
     if (req.body?.name !== undefined) set.name = String(req.body.name).trim();
+    if (req.body?.detectedKey !== undefined) set.detectedKey = String(req.body.detectedKey);
+    if (req.body?.detectedLabel !== undefined) set.detectedLabel = String(req.body.detectedLabel);
+    if (req.body?.detectedConf !== undefined) set.detectedConf = Number(req.body.detectedConf) || 0;
     if (!Object.keys(set).length) return res.status(400).json({ error: "Nimic de schimbat." });
     const f = await PcSongFile.findOneAndUpdate(
       scoped(req, { _id: OID(req.params.fid), arrangementId: OID(req.params.aid) }),

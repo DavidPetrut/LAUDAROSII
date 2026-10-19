@@ -11,6 +11,7 @@ import { api, songsApi } from "@/lib/api/client";
 import { abbreviateSequence } from "@/lib/songs/sequence";
 import { renderChordPro } from "@/lib/songs/chordpro";
 import { generateChartPdf } from "@/lib/songs/pdf";
+import { detectKey, fetchAudioBuffer } from "@/lib/songs/keyDetect";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 import { usePlayer, isAudioUrl, isYouTube } from "@/lib/player/PlayerProvider";
 import EditSequenceModal from "@/components/songs/EditSequenceModal";
@@ -53,6 +54,45 @@ export default function SongDetail() {
     fileMenuT.current = setTimeout(() => setFileMenu(null), 70); // punte scurtă (10px gap)
   };
   useEffect(() => () => { if (fileMenuT.current) clearTimeout(fileMenuT.current); }, []);
+
+  // Popover „info / opțiuni rapide" (gama detectată + redenumire) — un singur popover.
+  const [infoFor, setInfoFor] = useState(null); // { f, top, left }
+  const [infoName, setInfoName] = useState("");
+  const [detBusy, setDetBusy] = useState(false);
+  const openInfo = (f, el) => {
+    const r = el.getBoundingClientRect();
+    setInfoFor({ f, top: r.bottom + 6, left: Math.min(r.right, (typeof window !== "undefined" ? window.innerWidth : 9999) - 16) });
+    setInfoName(f.name || "");
+  };
+  const closeInfo = () => setInfoFor(null);
+  const fileIsAudio = (f) => isAudioUrl(f?.url, f?.kind) || isYouTube(f?.url);
+  const saveInfoName = async () => {
+    const f = infoFor?.f; if (!f) return;
+    const nm = infoName.trim(); if (!nm || nm === f.name) { closeInfo(); return; }
+    try { await songsApi.patchFile(id, arrId, f.id, { name: nm }); await loadArr(); setToast("Nume actualizat ✓"); setTimeout(() => setToast(""), 2000); }
+    catch (e) { setToast("Eroare: " + (e?.message || e)); setTimeout(() => setToast(""), 3000); }
+    closeInfo();
+  };
+  const detectNow = async () => {
+    const f = infoFor?.f; if (!f || !f.url || isYouTube(f.url)) return;
+    setDetBusy(true);
+    try {
+      const ab = await fetchAudioBuffer(f.url);
+      const d = await detectKey(ab);
+      if (!d) { setToast("Nu am putut detecta gama."); setTimeout(() => setToast(""), 3000); return; }
+      await songsApi.patchFile(id, arrId, f.id, { detectedKey: d.display, detectedLabel: d.label, detectedConf: d.conf });
+      await loadArr();
+      setInfoFor((cur) => (cur ? { ...cur, f: { ...cur.f, detectedKey: d.display, detectedLabel: d.label, detectedConf: d.conf } } : cur));
+    } catch (e) { setToast("Detecție eșuată (CORS/format?): " + (e?.message || e)); setTimeout(() => setToast(""), 3500); }
+    finally { setDetBusy(false); }
+  };
+  const applyLabelToName = async () => {
+    const f = infoFor?.f; if (!f || !f.detectedLabel) return;
+    const nm = `${(f.name || "").replace(/\s+in\s+\S+\s*$/i, "").trim()} in ${f.detectedLabel}`;
+    try { await songsApi.patchFile(id, arrId, f.id, { name: nm }); await loadArr(); setToast(`„in ${f.detectedLabel}" adăugat ✓`); setTimeout(() => setToast(""), 2000); }
+    catch (e) { setToast("Eroare: " + (e?.message || e)); setTimeout(() => setToast(""), 3000); }
+    closeInfo();
+  };
 
   const isChart = (f) => ["chordChart", "lyrics", "numbers", "numerals"].includes(f.kind);
 
@@ -269,13 +309,13 @@ export default function SongDetail() {
               <div className="file-cols">
                 <div className="fcol">
                   <div className="fcol-h">Arrangement</div>
-                  {(arr.arrangementFiles || []).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onHover={openFileMenu} onLeave={closeFileMenuSoon} />)}
+                  {(arr.arrangementFiles || []).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onHover={openFileMenu} onLeave={closeFileMenuSoon} onInfo={openInfo} />)}
                   {(arr.arrangementFiles || []).length === 0 && <div className="fcol-empty" />}
                 </div>
                 {(arr.keys || []).map((k) => (
                   <div key={k.id} className="fcol">
                     <div className="fcol-h">{k.label || k.startKey}</div>
-                    {(k.files || []).filter((f) => !f.derived).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onHover={openFileMenu} onLeave={closeFileMenuSoon} />)}
+                    {(k.files || []).filter((f) => !f.derived).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onHover={openFileMenu} onLeave={closeFileMenuSoon} onInfo={openInfo} />)}
                   </div>
                 ))}
               </div>
@@ -342,6 +382,34 @@ export default function SongDetail() {
           <button className="trash" onClick={(e) => { e.stopPropagation(); setDeleteFor(fileMenu.f); }} title="Șterge definitiv"><Ico name="trash" /></button>
         </div>
       )}
+      {infoFor && (
+        <div className="info-wrap" onClick={closeInfo}>
+          <div className="info-pop" style={{ top: infoFor.top, left: infoFor.left }} onClick={(e) => e.stopPropagation()}>
+            <div className="info-top">
+              <span className="info-h">Opțiuni rapide</span>
+              <button className="info-x" onClick={closeInfo} aria-label="Închide">✕</button>
+            </div>
+            <div className="info-det">
+              {infoFor.f.detectedKey ? (
+                <>Gama detectată: <b>{infoFor.f.detectedKey}</b> <span className="info-conf">· {Math.round((infoFor.f.detectedConf || 0) * 100)}% (estimare)</span></>
+              ) : fileIsAudio(infoFor.f) && !isYouTube(infoFor.f.url) ? (
+                <button className="info-btn" onClick={detectNow} disabled={detBusy}>{detBusy ? "Detectez…" : "Detectează gama (estimare)"}</button>
+              ) : (
+                <span className="info-conf">Gama detectată: — (doar pentru fișiere audio)</span>
+              )}
+            </div>
+            {infoFor.f.detectedLabel && !/\s+in\s+\S+\s*$/i.test(infoFor.f.name || "") && (
+              <button className="info-btn sub" onClick={applyLabelToName}>Adaugă „in {infoFor.f.detectedLabel}" la nume</button>
+            )}
+            <label className="info-lbl">Nume fișier</label>
+            <div className="info-row">
+              <input className="info-in" value={infoName} onChange={(e) => setInfoName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") saveInfoName(); if (e.key === "Escape") closeInfo(); }} autoFocus />
+              <button className="info-save" onClick={saveInfoName}>Salvează</button>
+            </div>
+          </div>
+        </div>
+      )}
       {toast && <div className="song-toast">{toast}</div>}
       {jobs.length > 0 && (
         <div className="job-stack">
@@ -389,6 +457,23 @@ export default function SongDetail() {
         .fr-actions button { background: transparent; border: none; color: var(--text-dim); width: 28px; height: 28px; border-radius: 5px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
         .fr-actions button:hover { background: var(--surface-2); color: var(--text); }
         .fr-actions .trash:hover { background: rgba(229,83,75,.18); color: #f0a7a2; }
+        /* Popover info / opțiuni rapide */
+        .info-wrap { position: fixed; inset: 0; z-index: 82; }
+        .info-pop { position: fixed; transform: translateX(-100%); width: 280px; max-width: calc(100vw - 24px); background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 10px; padding: 12px; box-shadow: 0 14px 40px rgba(0,0,0,.55); }
+        .info-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .info-h { font-size: 12px; letter-spacing: .4px; color: var(--text-faint); text-transform: uppercase; }
+        .info-x { background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; }
+        .info-x:hover { color: var(--text); }
+        .info-det { font-size: 13px; color: var(--text-dim); margin-bottom: 10px; }
+        .info-det b { color: var(--text); }
+        .info-conf { color: var(--text-faint); }
+        .info-btn { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; padding: 7px 10px; cursor: pointer; font-size: 12.5px; width: 100%; }
+        .info-btn:hover { border-color: var(--primary); }
+        .info-btn.sub { margin-bottom: 10px; color: var(--primary); }
+        .info-lbl { display: block; font-size: 11.5px; color: var(--text-faint); margin: 0 0 5px; }
+        .info-row { display: flex; gap: 6px; }
+        .info-in { flex: 1; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; padding: 7px 9px; font-size: 13px; min-width: 0; }
+        .info-save { background: var(--primary); border: none; color: #fff; border-radius: 6px; padding: 0 12px; cursor: pointer; font-size: 12.5px; }
       `}</style>
 
       <style jsx>{`
@@ -440,7 +525,7 @@ export default function SongDetail() {
   );
 }
 
-function FileRow({ f, onOpen, onHover, onLeave }) {
+function FileRow({ f, onOpen, onHover, onLeave, onInfo }) {
   const iconName = f.kind === "audio" ? "audio" : f.kind === "lyrics" ? "lyrics" : f.kind === "link" ? "play"
     : (f.kind === "chordChart" || f.kind === "numbers" || f.kind === "numerals") ? "chart" : "file";
   return (
@@ -449,6 +534,9 @@ function FileRow({ f, onOpen, onHover, onLeave }) {
         <span className="fi"><Ico name={iconName} size={15} /></span>
         <span className="fn">{f.name}</span>
       </button>
+      <button className="fr-info" title="Info / opțiuni rapide" onClick={(e) => { e.stopPropagation(); onInfo(f, e.currentTarget); }}>
+        <Ico name="info" size={15} />
+      </button>
       <style jsx>{`
         .frow { position: relative; padding: 6px 0; }
         .fl { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 13px; }
@@ -456,6 +544,9 @@ function FileRow({ f, onOpen, onHover, onLeave }) {
         .fl-btn { background: transparent; border: none; cursor: pointer; padding: 0; text-align: left; width: 100%; }
         .fi { color: var(--text-dim); display: inline-flex; align-items: center; }
         .fn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .fr-info { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); display: none; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text-dim); cursor: pointer; z-index: 20; }
+        .frow:hover .fr-info { display: inline-flex; }
+        .fr-info:hover { color: var(--text); border-color: var(--primary); }
       `}</style>
     </div>
   );

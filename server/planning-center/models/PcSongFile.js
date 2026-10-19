@@ -25,6 +25,10 @@ const schema = pcSchema({
   transposeStatus: { type: String, enum: ["", "pending", "done", "error"], default: "" },
   fromKey: { type: String, default: "" },
   toKey: { type: String, default: "" },
+  // Detecție gamă din audio (estimare pe cromă, în browser la upload):
+  detectedKey: { type: String, default: "" }, // ex. „D major" / „E minor"
+  detectedLabel: { type: String, default: "" }, // etichetă scurtă, ex. „D" / „Em"
+  detectedConf: { type: Number, default: 0 }, // 0..1 încredere estimare
   sortOrder: { type: Number, default: 0 },
 });
 

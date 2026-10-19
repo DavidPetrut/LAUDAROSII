@@ -10,6 +10,7 @@
 import { useState, useRef } from "react";
 import Modal from "@/components/ui/Modal";
 import { api, songsApi } from "@/lib/api/client";
+import { detectKey } from "@/lib/songs/keyDetect";
 
 const STREAMS = ["YouTube", "Vimeo", "Apple Music", "Spotify", "Amazon Music"];
 const TAGS = [
@@ -29,16 +30,25 @@ export default function AddFileModal({ songId, arrangementId, keys = [], onClose
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [uploaded, setUploaded] = useState(null); // {url,name}
+  const [detected, setDetected] = useState(null); // { display, label, conf }
+  const [detecting, setDetecting] = useState(false);
   const fileRef = useRef(null);
 
   async function doUpload(file) {
     if (!file) return;
-    setBusy(true); setErr("");
+    setBusy(true); setErr(""); setDetected(null);
     try {
       const fd = new FormData(); fd.append("file", file);
       const r = await api.post("/uploads", fd);
       setUploaded({ url: r.url, name: r.name || file.name, resourceType: r.resourceType });
       if (!name) setName(r.name || file.name);
+      // Detecție gamă (doar audio) — estimare în browser, în fundal.
+      const isAudio = /^audio\//.test(file.type) || /\.(mp3|m4a|aac|wav|ogg|flac|opus)$/i.test(file.name);
+      if (isAudio) {
+        setDetecting(true);
+        try { const ab = await file.arrayBuffer(); const d = await detectKey(ab); if (d) setDetected(d); }
+        catch {} finally { setDetecting(false); }
+      }
     } catch (e) { setErr(e?.message || "Upload eșuat."); }
     finally { setBusy(false); }
   }
@@ -55,10 +65,15 @@ export default function AddFileModal({ songId, arrangementId, keys = [], onClose
       if (!url) { setErr("Pune un link."); return; }
       source = mode === "streaming" ? stream.toLowerCase().replace(/\s+/g, "") : "link";
     }
-    const finalName = (name.trim() || url.split("/").pop() || "Fișier");
+    let finalName = (name.trim() || url.split("/").pop() || "Fișier");
+    // Dacă estimarea e sigură, pune eticheta „in X" direct în nume (varianta preferată).
+    if (detected && detected.conf >= 0.6 && !/\bin\s+\S+\s*$/i.test(finalName)) finalName = `${finalName} in ${detected.label}`;
     setBusy(true);
     try {
-      await songsApi.addFile(songId, arrangementId, { name: finalName, url, kind, source, keyId: attachKey || undefined });
+      await songsApi.addFile(songId, arrangementId, {
+        name: finalName, url, kind, source, keyId: attachKey || undefined,
+        detectedKey: detected?.display || "", detectedLabel: detected?.label || "", detectedConf: detected?.conf || 0,
+      });
       onDone?.();
     } catch (e) { setErr(e?.message || "Eroare la salvare."); setBusy(false); }
   }
@@ -83,6 +98,15 @@ export default function AddFileModal({ songId, arrangementId, keys = [], onClose
           onDrop={(e) => { e.preventDefault(); doUpload(e.dataTransfer.files?.[0]); }}>
           <input ref={fileRef} type="file" hidden onChange={(e) => doUpload(e.target.files?.[0])} />
           {busy ? "Se încarcă…" : uploaded ? `✓ ${uploaded.name}` : "Drag & drop un fișier, sau click pentru browse"}
+        </div>
+      )}
+      {mode === "upload" && (detecting || detected) && (
+        <div className="detk">
+          {detecting ? "Detectez gama…" : (
+            <>Gamă detectată: <b>{detected.display}</b> · estimare {Math.round(detected.conf * 100)}%
+              {detected.conf >= 0.6 ? <span className="ok"> — se adaugă „in {detected.label}" la nume</span>
+                : <span className="dim"> — nesigur, o găsești la „info" pe fișier</span>}</>
+          )}
         </div>
       )}
 
@@ -128,6 +152,10 @@ export default function AddFileModal({ songId, arrangementId, keys = [], onClose
         .tabs button.on { color: var(--primary); background: rgba(47,129,247,.12); }
         .drop { border: 1px dashed var(--border-strong); border-radius: 8px; padding: 26px; text-align: center; color: var(--text-dim); cursor: pointer; }
         .drop:hover { border-color: var(--primary); }
+        .detk { margin-top: 10px; font-size: 12.5px; color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+        .detk b { color: var(--text); }
+        .detk .ok { color: #7bd88f; }
+        .detk .dim { color: var(--text-faint); }
         .streams { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
         .streams button { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 12.5px; }
         .streams button.on { color: var(--primary); border-color: var(--primary); }
