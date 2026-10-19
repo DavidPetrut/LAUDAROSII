@@ -48,6 +48,7 @@ export default function SongDetail() {
   const [renameFor, setRenameFor] = useState(null); // fișierul de redenumit
   const [renameVal, setRenameVal] = useState("");
   const [deleteFor, setDeleteFor] = useState(null); // fișierul de șters (confirmare)
+  const [deleteKeyFor, setDeleteKeyFor] = useState(null); // gama (cheia) de șters cu tot cu fișiere
   const [toast, setToast] = useState("");
   const [jobs, setJobs] = useState([]); // joburi de transpose audio (progres)
   const [fileMenu, setFileMenu] = useState(null); // UN SINGUR panou de acțiuni: { f, top, left }
@@ -133,6 +134,11 @@ export default function SongDetail() {
     if (!deleteFor) return;
     await songsApi.deleteFile(id, arrId, deleteFor.id);
     setDeleteFor(null); await loadArr();
+  };
+  const confirmDeleteKey = async () => {
+    if (!deleteKeyFor) return;
+    try { await songsApi.deleteKey(id, arrId, deleteKeyFor.id); setDeleteKeyFor(null); await loadArr(); setToast("Gamă ștearsă ✓"); setTimeout(() => setToast(""), 2000); }
+    catch (e) { setToast("Eroare: " + (e?.message || e)); setTimeout(() => setToast(""), 3000); }
   };
 
   // Transpose: chart-uri generate (PDF din ChordPro) SAU audio/YouTube (job de pitch-shift).
@@ -316,17 +322,18 @@ export default function SongDetail() {
                 <button className="ic" title="Redenumește" onClick={async () => {
                   const name = prompt("Nume aranjament:", arr.name); if (name && name.trim()) await patchArr({ name: name.trim() });
                 }}>✎</button>
+                <button className="ic" title="Gestionează aranjamentul (prioritate, ștergere)" onClick={() => { const a = (song.arrangements || []).find((x) => x.id === arrId); if (a) setManageArr(a); }}><Ico name="gear" size={15} /></button>
                 <button className="ct-open" onClick={openClickTrack} title="Pad de pian + metronom live">Click Track</button>
               </div>
 
               <div className="specs">
                 <span>Length: {editField === "length" ? (
-                  <input className="mini" defaultValue={arr.lengthLabel} autoFocus
+                  <input className="spec-in" defaultValue={arr.lengthLabel} autoFocus
                     onBlur={async (e) => { const [m, s] = e.target.value.split(":").map(Number); await patchArr({ lengthSec: (m || 0) * 60 + (s || 0) }); setEditField(null); }}
                     onKeyDown={(e) => e.key === "Enter" && e.target.blur()} />
                 ) : <b onClick={() => setEditField("length")}>{arr.lengthLabel || "0:00"}</b>}</span>
                 <span>BPM: {editField === "bpm" ? (
-                  <input className="mini" type="number" defaultValue={arr.bpm || ""} autoFocus
+                  <input className="spec-in" type="number" defaultValue={arr.bpm || ""} autoFocus
                     onBlur={async (e) => { await patchArr({ bpm: Number(e.target.value) || null }); setEditField(null); }}
                     onKeyDown={(e) => e.key === "Enter" && e.target.blur()} />
                 ) : <b onClick={() => setEditField("bpm")}>{arr.bpm || "—"}</b>}</span>
@@ -362,7 +369,10 @@ export default function SongDetail() {
                   </div>
                   {(arr.keys || []).filter((k) => selKeys.size === 0 || selKeys.has(k.id)).map((k) => (
                     <div key={k.id} className="fcol">
-                      <div className="fcol-h">{k.label || k.startKey}</div>
+                      <div className="fcol-h">
+                        <span>{k.label || k.startKey}</span>
+                        <button className="fcol-del" title="Șterge gama (cu toate fișierele ei)" onClick={() => setDeleteKeyFor(k)}><Ico name="trash" size={13} /></button>
+                      </div>
                       {(k.files || []).filter((f) => !f.derived).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onHover={openFileMenu} onLeave={closeFileMenuSoon} onInfo={openInfo} />)}
                     </div>
                   ))}
@@ -425,6 +435,15 @@ export default function SongDetail() {
             <h3>Ștergi definitiv?</h3>
             <p className="mini-p">„{deleteFor.name}" va fi șters <b>definitiv</b> din baza de date. Ireversibil.</p>
             <div className="mini-foot"><button className="btn btn-link" onClick={() => setDeleteFor(null)}>Anulează</button><button className="btn btn-danger" onClick={confirmDelete}>Șterge definitiv</button></div>
+          </div>
+        </div>
+      )}
+      {deleteKeyFor && (
+        <div className="ov-min" onMouseDown={(e) => e.target === e.currentTarget && setDeleteKeyFor(null)}>
+          <div className="mini">
+            <h3>Ștergi gama?</h3>
+            <p className="mini-p">Gama „{deleteKeyFor.label || deleteKeyFor.startKey}" și <b>toate fișierele</b> din ea se șterg <b>definitiv</b>. Ireversibil.</p>
+            <div className="mini-foot"><button className="btn btn-link" onClick={() => setDeleteKeyFor(null)}>Anulează</button><button className="btn btn-danger" onClick={confirmDeleteKey}>Șterge definitiv</button></div>
           </div>
         </div>
       )}
@@ -560,7 +579,7 @@ export default function SongDetail() {
         .ct-open:hover { background: rgba(47,129,247,.14); }
         .specs { display: flex; gap: 26px; color: var(--text-dim); font-size: 15px; margin: 14px 0 10px; align-items: center; }
         .specs b { color: var(--text); cursor: pointer; }
-        .mini { width: 70px; height: 26px; background: var(--surface-2); border: 1px solid var(--primary); border-radius: 4px; color: var(--text); padding: 0 6px; }
+        .spec-in { width: 70px; height: 26px; background: var(--surface-2); border: 1px solid var(--primary); border-radius: 4px; color: var(--text); padding: 0 6px; }
         .meter { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 4px; height: 28px; }
         .seq-row { display: flex; align-items: center; gap: 10px; margin: 6px 0 24px; color: var(--text-dim); }
         .seq-label { }
@@ -576,7 +595,10 @@ export default function SongDetail() {
         .file-cols::-webkit-scrollbar { height: 0; }
         .fcol { flex: 1; min-width: 220px; border-right: 1px solid var(--border); padding: 0 14px; }
         .fcol:last-child { border-right: none; }
-        .fcol-h { color: var(--text-dim); font-size: 14px; margin-bottom: 12px; }
+        .fcol-h { color: var(--text-dim); font-size: 14px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 20px; }
+        .fcol-del { display: none; background: transparent; border: none; color: var(--text-faint); cursor: pointer; padding: 2px; align-items: center; }
+        .fcol:hover .fcol-del { display: inline-flex; }
+        .fcol-del:hover { color: #f0a7a2; }
         .fcol-empty { min-height: 120px; }
         .car-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; border-radius: 50%; background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; z-index: 15; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
         .car-arrow.left { left: 6px; } .car-arrow.right { right: 6px; }

@@ -374,8 +374,13 @@ router.post("/:id/arrangements/:aid/transpose-audio", requireCan("songs.edit"), 
       const count = await PcKey.countDocuments(scoped(req, { arrangementId: aid }));
       key = await PcKey.create(stamp(req, { arrangementId: aid, songId, startKey: toKey, endKey: "", sortOrder: count }));
     }
-    const base = String(src.name || "Audio").replace(/\s*in\s+\S+$/i, "").replace(/-\S+$/, "").replace(/\.[^.]+$/, "");
-    const name = `${base}-${toKey}`;
+    // Nume: „{titlu}-{gama}.mp3" — gama ÎNAINTE de extensie (ieșirea e mereu mp3).
+    const base = String(src.name || "Audio")
+      .replace(/\s*in\s+\S+\s*$/i, "")                               // scoate „ in X"
+      .replace(/(\.(mp3|mpeg|mpga|m4a|aac|wav|ogg|flac|opus))+$/i, "") // scoate extensii audio (si duble)
+      .replace(/-[A-G][b#]?m?$/i, "")                                 // scoate un „-Gama" anterior
+      .trim();
+    const name = `${base}-${toKey}.mp3`;
     const jobId = audioTranspose.start({ orgId: req.pcOrgId, songId, arrId: aid, keyId: key._id, sourceUrl: src.url, fromKey, toKey, name });
     res.status(202).json({ ok: true, jobId, name });
   } catch (err) { console.error("[pc] transpose-audio:", err.message); res.status(500).json({ error: "Eroare: " + err.message }); }
