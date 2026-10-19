@@ -10,9 +10,11 @@
  */
 import { useRef, useState } from "react";
 import { useAi } from "@/lib/ai/AiProvider";
+import { usePlayer } from "@/lib/player/PlayerProvider";
 
 export default function AiCommandBar() {
   const { ask, runAction } = useAi();
+  const { anyBottomBar } = usePlayer();
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
@@ -46,6 +48,9 @@ export default function AiCommandBar() {
     rec.onend = () => { recRef.current = null; };
     rec.start(); recRef.current = rec;
   }
+
+  // Când e deschisă o bară jos (player sau click track), ascundem butonul AI — ar sta urât peste ele.
+  if (anyBottomBar) return null;
 
   return (
     <>

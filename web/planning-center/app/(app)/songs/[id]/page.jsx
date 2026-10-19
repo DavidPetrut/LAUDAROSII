@@ -490,9 +490,9 @@ export default function SongDetail() {
           </div>
         </div>
       )}
-      {toast && <div className="song-toast">{toast}</div>}
+      {toast && <div className="song-toast" style={{ bottom: player.bottomInset + 14 }}>{toast}</div>}
       {jobs.length > 0 && (
-        <div className="job-stack">
+        <div className="job-stack" style={{ bottom: player.bottomInset + 14 }}>
           {jobs.map((j) => {
             const label = j.error ? "Eroare" : { start: "Se pornește…", download: "Descărcare", transpose: "Transpunere", upload: "Încărcare", done: "Gata ✓" }[j.phase] || j.phase;
             const pct = Math.max(0, Math.min(100, j.percent || 0));

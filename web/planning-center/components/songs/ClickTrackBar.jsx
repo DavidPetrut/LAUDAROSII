@@ -7,6 +7,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { ClickTrackEngine, accentPattern, KEYS, METERS, PADS } from "@/lib/clicktrack/engine";
+import { usePlayer } from "@/lib/player/PlayerProvider";
 
 function NoteMute({ muted, onClick, title }) {
   return (
@@ -30,6 +31,10 @@ export default function ClickTrackBar({ defaults, playerActive, onClose }) {
   const [beat, setBeat] = useState(-1);
   const [keyOpen, setKeyOpen] = useState(false);
   const [padOpen, setPadOpen] = useState(false);
+  const { registerBar, unregisterBar } = usePlayer();
+
+  // înregistrează bara click track (înălțime ~92px) ca toast-urile/AI să știe de ea
+  useEffect(() => { registerBar("clicktrack", 92); return () => unregisterBar("clicktrack"); }, [registerBar, unregisterBar]);
 
   useEffect(() => {
     const eng = new ClickTrackEngine();

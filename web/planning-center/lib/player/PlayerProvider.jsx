@@ -39,6 +39,7 @@ export function PlayerProvider({ children }) {
   const [time, setTime] = useState(0);
   const [dur, setDur] = useState(0);
   const [volume, setVol] = useState(1);
+  const [bars, setBars] = useState({}); // bare de jos extra (ex. click track) -> înălțime px
   const audioRef = useRef(null);
   const ytRef = useRef(null);
   const ytTimer = useRef(null);
@@ -123,7 +124,15 @@ export function PlayerProvider({ children }) {
     setTrack(null); setPlaying(false); setTime(0); setDur(0);
   }, []);
 
-  const value = { track, playing, time, dur, volume, play, toggle, seek, changeVol, close };
+  // Registru bare de jos: PlayerBar (64px, când e track) + oricare alta (ex. ClickTrackBar).
+  const registerBar = useCallback((id, h) => setBars((b) => (b[id] === h ? b : { ...b, [id]: h })), []);
+  const unregisterBar = useCallback((id) => setBars((b) => { if (!(id in b)) return b; const n = { ...b }; delete n[id]; return n; }), []);
+  const playerOpen = !!track;
+  const extraBars = Object.values(bars).reduce((a, h) => a + h, 0);
+  const bottomInset = (playerOpen ? 64 : 0) + extraBars; // cât ocupă barele jos
+  const anyBottomBar = playerOpen || Object.keys(bars).length > 0;
+
+  const value = { track, playing, time, dur, volume, play, toggle, seek, changeVol, close, registerBar, unregisterBar, bottomInset, anyBottomBar, playerOpen };
 
   return (
     <Ctx.Provider value={value}>

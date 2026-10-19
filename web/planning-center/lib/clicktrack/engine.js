@@ -23,17 +23,18 @@ export function accentPattern(meter) {
   const p = new Array(num).fill(0); p[0] = 2; return p;
 }
 
-// 9 presete de pad (synth Tone) — toate soft/worship, variază timbrul (osc/dezacord/filtru/atac).
+// 9 presete de pad (synth Tone) — toate MOI/worship: doar sine/triangle (fără sawtooth gălăgios),
+// cutoff jos și atac lung → cald, airy, înfundat. Variază subtil timbrul.
 export const PADS = [
-  { label: "Strings 2", osc: "fatsawtooth", count: 4, spread: 40, cutoff: 1700, attack: 1.0 },
-  { label: "Halo", osc: "fatsine", count: 3, spread: 32, cutoff: 2300, attack: 1.3 },
-  { label: "Synth Strings 2", osc: "fatsawtooth", count: 3, spread: 26, cutoff: 1600, attack: 0.9 },
-  { label: "Sweep", osc: "fatsawtooth", count: 2, spread: 22, cutoff: 1500, attack: 1.5 },
-  { label: "Bowed", osc: "fattriangle", count: 3, spread: 30, cutoff: 1500, attack: 1.1 },
-  { label: "Warm", osc: "fatsine", count: 4, spread: 22, cutoff: 1300, attack: 0.8 },
-  { label: "Choir", osc: "fattriangle", count: 4, spread: 42, cutoff: 2000, attack: 1.0 },
-  { label: "Strings", osc: "fatsawtooth", count: 3, spread: 34, cutoff: 1800, attack: 1.0 },
-  { label: "Synth Strings", osc: "fatsawtooth", count: 2, spread: 16, cutoff: 1700, attack: 0.9 },
+  { label: "Air", osc: "fatsine", count: 3, spread: 18, cutoff: 1400, attack: 1.4 },
+  { label: "Warm", osc: "fatsine", count: 4, spread: 16, cutoff: 1100, attack: 1.0 },
+  { label: "Halo", osc: "fatsine", count: 3, spread: 24, cutoff: 2000, attack: 1.6 },
+  { label: "Choir", osc: "fattriangle", count: 4, spread: 26, cutoff: 1500, attack: 1.1 },
+  { label: "Soft Strings", osc: "fattriangle", count: 4, spread: 30, cutoff: 1300, attack: 1.3 },
+  { label: "Glass", osc: "fattriangle", count: 3, spread: 20, cutoff: 1800, attack: 1.2 },
+  { label: "Deep", osc: "fatsine", count: 4, spread: 14, cutoff: 900, attack: 1.2 },
+  { label: "Breath", osc: "fattriangle", count: 3, spread: 18, cutoff: 1700, attack: 1.5 },
+  { label: "Dream", osc: "fatsine", count: 4, spread: 22, cutoff: 1600, attack: 1.8 },
 ];
 const PAD_VOL = 0.9;
 const AUTO_STOP_MS = 30 * 60 * 1000;
