@@ -734,7 +734,7 @@ export default function SongDetail() {
         .file-cols::-webkit-scrollbar { height: 0; }
         /* exact 3 coloane vizibile care umplu containerul (fiecare = 1/3); restul = carusel */
         .fcol { flex: 0 0 calc((100% - 4px) / 3); box-sizing: border-box; border-right: 1px solid var(--border); padding: 0 14px; }
-        .fcol:last-child { border-right: none; }
+        /* păstrăm border-right și pe ultima coloană (se vede delimitarea chiar dacă e o singură gamă) */
         .fcol-h { color: var(--text-dim); font-size: 14px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 20px; }
         .fcol-del { display: none; background: transparent; border: none; color: var(--text-faint); cursor: pointer; padding: 2px; align-items: center; }
         .fcol:hover .fcol-del { display: inline-flex; }
