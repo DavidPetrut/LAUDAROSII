@@ -37,13 +37,13 @@ export const PADS = [
   { label: "Breath", osc: "triangle", cutoff: 2300, attack: 1.5 },
   { label: "Dream", osc: "sine", cutoff: 2200, attack: 1.8 },
 ];
-const PAD_VOL = 0.8;
+const PAD_VOL = 0.7;
 const AUTO_STOP_MS = 30 * 60 * 1000;
 
 export class ClickTrackEngine {
   constructor() {
     this.ctx = null; this.piano = null; this.clickGain = null; this.pianoGain = null;
-    this.pad = null; this.padSub = null; this.padOut = null; this.filter = null; this.chorus = null; this.reverb = null; this.filterLfo = null; this.limiter = null;
+    this.pad = null; this.padSub = null; this.padOut = null; this.filter = null; this.reverb = null;
     this.padReady = false; this.pianoReady = false; this.loadingPiano = false; this.held = []; this.disposed = false;
     this.state = { keyPc: 0, keyName: "C", mode: "major", bpm: 72, meter: "4/4", playing: false, padMuted: false, clickMuted: false, padIndex: 0 };
     this.timer = null; this.autoStop = null; this.nextTime = 0; this.beat = 0;
@@ -62,34 +62,29 @@ export class ClickTrackEngine {
 
   _buildPad() {
     const p = PADS[this.state.padIndex] || PADS[0];
+    // Lanț MINIM și curat: synth → lowpass → reverb → gain → out. Fără limiter/chorus/LFO (surse de distorsiune).
     this.padOut = new Tone.Gain(0).toDestination();
-    this.limiter = new Tone.Limiter(-2).connect(this.padOut); // doar plasă de siguranță (nu „slam")
-    this.reverb = new Tone.Reverb({ decay: 8, preDelay: 0.02, wet: 0.44 }).connect(this.limiter);
-    // chorus foarte discret (doar lățime, fără throb/bâzâit)
-    this.chorus = new Tone.Chorus({ frequency: 0.2, delayTime: 3, depth: 0.15, spread: 160, wet: 0.12 }).connect(this.reverb).start();
-    this.filter = new Tone.Filter({ type: "lowpass", frequency: p.cutoff, rolloff: -12, Q: 0.2 }).connect(this.chorus);
-    // mișcare foarte lentă și discretă pe filtru (nu pulsație)
-    this.filterLfo = new Tone.LFO({ frequency: 0.05, min: p.cutoff - 250, max: p.cutoff + 250 }).start();
-    this.filterLfo.connect(this.filter.frequency);
+    this.reverb = new Tone.Reverb({ decay: 4, preDelay: 0.02, wet: 0.3 }).connect(this.padOut);
+    this.filter = new Tone.Filter({ type: "lowpass", frequency: p.cutoff, rolloff: -12, Q: 0.1 }).connect(this.reverb);
     // STRAT 1 — vocea principală (oscilator SIMPLU, fără dezacord → fără bâzâit)
     this.pad = new Tone.PolySynth(Tone.Synth, {
       maxPolyphony: 12,
       oscillator: { type: p.osc },
       envelope: { attack: p.attack, decay: 0.4, sustain: 1, release: 3 },
-      volume: -7,
+      volume: -9,
     }).connect(this.filter);
     // STRAT 2 — bază curată de sinus (corp/„plin")
     this.padSub = new Tone.PolySynth(Tone.Synth, {
       maxPolyphony: 6,
       oscillator: { type: "sine" },
       envelope: { attack: Math.max(0.6, p.attack * 0.8), decay: 0.4, sustain: 1, release: 3 },
-      volume: -12,
+      volume: -13,
     }).connect(this.filter);
     this.padReady = true;
   }
   _disposePad() {
     this.held = [];
-    for (const n of ["pad", "padSub", "filterLfo", "filter", "chorus", "reverb", "limiter", "padOut"]) { try { this[n] && this[n].dispose(); } catch {} this[n] = null; }
+    for (const n of ["pad", "padSub", "filter", "reverb", "padOut"]) { try { this[n] && this[n].dispose(); } catch {} this[n] = null; }
     this.padReady = false;
   }
 
