@@ -510,7 +510,7 @@ export default function SongDetail() {
         </div>
       )}
       <style jsx>{`
-        .job-stack { position: fixed; right: 18px; bottom: 86px; z-index: 76; display: flex; flex-direction: column; gap: 10px; width: 300px; max-width: calc(100vw - 36px); }
+        .job-stack { position: fixed; right: 24px; bottom: 86px; z-index: 76; display: flex; flex-direction: column; gap: 10px; width: 300px; max-width: calc(100vw - 48px); }
         .job-card { background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 10px; padding: 11px 12px; box-shadow: 0 10px 28px rgba(0,0,0,.5); }
         .job-card.ok { border-color: #1f8a4c; }
         .job-card.err { border-color: var(--danger); }

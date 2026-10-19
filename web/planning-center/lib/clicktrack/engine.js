@@ -74,7 +74,7 @@ export class ClickTrackEngine {
       maxPolyphony: 16,
       oscillator: { type: p.osc, count: p.count, spread: p.spread },
       envelope: { attack: p.attack, decay: 0.4, sustain: 1, release: 3 },
-      volume: -9,
+      volume: -7,
     }).connect(this.filter);
     this.padReady = true;
   }
@@ -125,7 +125,8 @@ export class ClickTrackEngine {
 
   _padNotes() {
     const r = 48 + this.state.keyPc; const th = this.state.mode === "minor" ? 3 : 4;
-    return [r, r + th, r + 7, r + 12].map((m) => Tone.Frequency(m, "midi").toNote());
+    // octava joasă (r-12) dă corp/„plin"; restul = acordul
+    return [r - 12, r, r + th, r + 7, r + 12].map((m) => Tone.Frequency(m, "midi").toNote());
   }
   _pianoChord() { const r = 60 + this.state.keyPc; const th = this.state.mode === "minor" ? 3 : 4; return [r, r + th, r + 7, r + 12]; }
 
