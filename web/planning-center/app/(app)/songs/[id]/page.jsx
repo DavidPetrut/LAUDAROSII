@@ -5,7 +5,7 @@
  *  main (nume aranjament · Length/BPM/Meter · Sequence · Files[Arrangement + coloane chei] · Schedule/Tags/Notes).
  * Date reale din /api/pc/v1/songs/:id (+ /arrangements/:aid). Toate scrierile trec prin API.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api, songsApi } from "@/lib/api/client";
 import { abbreviateSequence } from "@/lib/songs/sequence";
@@ -40,6 +40,19 @@ export default function SongDetail() {
   const [deleteFor, setDeleteFor] = useState(null); // fișierul de șters (confirmare)
   const [toast, setToast] = useState("");
   const [jobs, setJobs] = useState([]); // joburi de transpose audio (progres)
+  const [fileMenu, setFileMenu] = useState(null); // UN SINGUR panou de acțiuni: { f, top, left }
+  const fileMenuT = useRef(null);
+  const openFileMenu = (f, el) => {
+    if (fileMenuT.current) { clearTimeout(fileMenuT.current); fileMenuT.current = null; }
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setFileMenu({ f, top: r.top + r.height / 2, left: r.left });
+  };
+  const closeFileMenuSoon = () => {
+    if (fileMenuT.current) clearTimeout(fileMenuT.current);
+    fileMenuT.current = setTimeout(() => setFileMenu(null), 70); // punte scurtă (10px gap)
+  };
+  useEffect(() => () => { if (fileMenuT.current) clearTimeout(fileMenuT.current); }, []);
 
   const isChart = (f) => ["chordChart", "lyrics", "numbers", "numerals"].includes(f.kind);
 
@@ -256,13 +269,13 @@ export default function SongDetail() {
               <div className="file-cols">
                 <div className="fcol">
                   <div className="fcol-h">Arrangement</div>
-                  {(arr.arrangementFiles || []).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onEdit={() => editFile(f)} onTranspose={() => transposeFile(f)} onDownload={() => downloadFile(f)} onDelete={() => setDeleteFor(f)} />)}
+                  {(arr.arrangementFiles || []).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onHover={openFileMenu} onLeave={closeFileMenuSoon} />)}
                   {(arr.arrangementFiles || []).length === 0 && <div className="fcol-empty" />}
                 </div>
                 {(arr.keys || []).map((k) => (
                   <div key={k.id} className="fcol">
                     <div className="fcol-h">{k.label || k.startKey}</div>
-                    {(k.files || []).filter((f) => !f.derived).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onEdit={() => editFile(f)} onTranspose={() => transposeFile(f)} onDownload={() => downloadFile(f)} onDelete={() => setDeleteFor(f)} />)}
+                    {(k.files || []).filter((f) => !f.derived).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onHover={openFileMenu} onLeave={closeFileMenuSoon} />)}
                   </div>
                 ))}
               </div>
@@ -318,6 +331,17 @@ export default function SongDetail() {
           </div>
         </div>
       )}
+      {fileMenu && (
+        /* UN SINGUR panou, position:fixed (scapă de overflow), în stânga rândului; se repoziționează, nu se stivuiește */
+        <div className="fr-actions" style={{ top: fileMenu.top, left: fileMenu.left }}
+          onMouseEnter={() => { if (fileMenuT.current) { clearTimeout(fileMenuT.current); fileMenuT.current = null; } }}
+          onMouseLeave={closeFileMenuSoon}>
+          <button onClick={(e) => { e.stopPropagation(); editFile(fileMenu.f); }} title="Editează">✎</button>
+          <button onClick={(e) => { e.stopPropagation(); transposeFile(fileMenu.f); }} title="Transpune">⇅</button>
+          <button onClick={(e) => { e.stopPropagation(); downloadFile(fileMenu.f); }} title="Descarcă">↓</button>
+          <button className="trash" onClick={(e) => { e.stopPropagation(); setDeleteFor(fileMenu.f); }} title="Șterge definitiv">🗑</button>
+        </div>
+      )}
       {toast && <div className="song-toast">{toast}</div>}
       {jobs.length > 0 && (
         <div className="job-stack">
@@ -360,6 +384,11 @@ export default function SongDetail() {
         :global(.btn-danger) { background: var(--danger); color: #fff; border-color: var(--danger); }
         :global(.btn-danger:hover) { filter: brightness(1.1); }
         .song-toast { position: fixed; bottom: 86px; left: 50%; transform: translateX(-50%); z-index: 75; background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text); padding: 10px 16px; border-radius: 8px; font-size: 13px; box-shadow: 0 10px 28px rgba(0,0,0,.5); }
+        /* Panou de acțiuni fișier — în STÂNGA rândului; position:fixed => nu e tăiat de overflow. */
+        .fr-actions { position: fixed; transform: translate(-100%, -50%); margin-left: -10px; display: flex; gap: 2px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; padding: 3px; box-shadow: 0 6px 18px rgba(0,0,0,.45); white-space: nowrap; z-index: 80; }
+        .fr-actions button { background: transparent; border: none; color: var(--text-dim); width: 26px; height: 26px; border-radius: 5px; cursor: pointer; font-size: 13px; }
+        .fr-actions button:hover { background: var(--surface-2); color: var(--text); }
+        .fr-actions .trash:hover { background: rgba(229,83,75,.18); color: #f0a7a2; }
       `}</style>
 
       <style jsx>{`
@@ -411,28 +440,16 @@ export default function SongDetail() {
   );
 }
 
-function FileRow({ f, onOpen, onEdit, onTranspose, onDownload, onDelete }) {
+function FileRow({ f, onOpen, onHover, onLeave }) {
   const icon = f.kind === "audio" ? "♪" : f.kind === "chordChart" ? "♯" : f.kind === "lyrics" ? "¶" : f.kind === "link" ? "▶" : "▦";
-  const act = (fn) => (e) => { e.stopPropagation(); fn && fn(); };
   return (
-    <div className="frow">
-      <div className="fr-actions">
-        <button onClick={act(onEdit)} title="Editează">✎</button>
-        <button onClick={act(onTranspose)} title="Transpune">⇅</button>
-        <button onClick={act(onDownload)} title="Descarcă">↓</button>
-        <button className="trash" onClick={act(onDelete)} title="Șterge definitiv">🗑</button>
-      </div>
+    <div className="frow" onMouseEnter={(e) => onHover(f, e.currentTarget)} onMouseLeave={onLeave}>
       <button className="fl fl-btn" onClick={onOpen} title="Deschide / rulează">
         <span className="fi">{icon}</span>
         <span className="fn">{f.name}</span>
       </button>
       <style jsx>{`
         .frow { position: relative; padding: 6px 0; }
-        .fr-actions { position: absolute; right: 100%; top: 50%; transform: translateY(-50%); margin-right: 8px; display: none; gap: 2px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; padding: 3px; box-shadow: 0 6px 18px rgba(0,0,0,.4); white-space: nowrap; z-index: 5; }
-        .frow:hover .fr-actions { display: flex; }
-        .fr-actions button { background: transparent; border: none; color: var(--text-dim); width: 26px; height: 26px; border-radius: 5px; cursor: pointer; font-size: 13px; }
-        .fr-actions button:hover { background: var(--surface-2); color: var(--text); }
-        .fr-actions .trash:hover { background: rgba(229,83,75,.18); color: #f0a7a2; }
         .fl { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 13px; }
         .fl:hover { color: var(--text-link); }
         .fl-btn { background: transparent; border: none; cursor: pointer; padding: 0; text-align: left; width: 100%; }
