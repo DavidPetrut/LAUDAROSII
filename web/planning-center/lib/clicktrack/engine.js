@@ -1,12 +1,14 @@
 /**
  * Motor Click Track.
- *  - PLAY = PAD worship SOFT (Soundfont, la alegere din 12 pad-uri) + METRONOM.
- *    Pad-ul e lovit O SINGURĂ DATĂ și ținut la infinit (note cu loop:true + duration:null),
- *    prin lowpass + reverb + swell lin. NU se re-atacă (fără pulsație). Auto-stop la 30 min.
- *  - BUTON „Tonalitate" = pianul samplat (SplendidGrandPiano): acord → arpegiu → acord, o dată.
- *  - MUTE separat: pad (sunet) și metronom (BPM), live. Editabil live fără a atinge setările salvate.
+ *  - PAD = synth Tone.js (oscilatoare dezacordate → lowpass cu LFO lent → chorus → reverb).
+ *    Acordul e ținut CONTINUU (triggerAttack, fără release) → fără pulsație, sunet lin worship.
+ *    9 presete („Pad 1..9"). Auto-stop la 30 min.
+ *  - METRONOM = Web Audio (scheduler lookahead, accente pe măsură).
+ *  - „Tonalitate" = pian samplat (smplr SplendidGrandPiano): acord → arpegiu → acord, o dată.
+ *  - MUTE separat pad/metronom, live. Gamă/mod/BPM/măsură editabile live, fără a atinge melodia.
  */
-import { SplendidGrandPiano, Soundfont } from "smplr";
+import * as Tone from "tone";
+import { SplendidGrandPiano } from "smplr";
 
 const PC = { C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, F: 5, "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11 };
 
@@ -21,66 +23,63 @@ export function accentPattern(meter) {
   const p = new Array(num).fill(0); p[0] = 2; return p;
 }
 
-// 9 pad-uri worship (soft/airy/faded — trec prin lowpass + reverb). Afișate „Pad 1..9".
-// Ordine cerută: default = fostul Strings 2, apoi Halo, apoi Synth Strings 2; restul liber.
+// 9 presete de pad (synth Tone) — toate soft/worship, variază timbrul (osc/dezacord/filtru/atac).
 export const PADS = [
-  { instr: "string_ensemble_2", label: "Strings 2" },   // Pad 1 (default)
-  { instr: "pad_7_halo", label: "Halo" },               // Pad 2
-  { instr: "synth_strings_2", label: "Synth Strings 2" }, // Pad 3
-  { instr: "pad_8_sweep", label: "Sweep" },
-  { instr: "pad_5_bowed", label: "Bowed" },
-  { instr: "pad_2_warm", label: "Warm" },
-  { instr: "pad_4_choir", label: "Choir" },
-  { instr: "string_ensemble_1", label: "Strings" },
-  { instr: "synth_strings_1", label: "Synth Strings" },
+  { label: "Strings 2", osc: "fatsawtooth", count: 4, spread: 40, cutoff: 1700, attack: 1.0 },
+  { label: "Halo", osc: "fatsine", count: 3, spread: 32, cutoff: 2300, attack: 1.3 },
+  { label: "Synth Strings 2", osc: "fatsawtooth", count: 3, spread: 26, cutoff: 1600, attack: 0.9 },
+  { label: "Sweep", osc: "fatsawtooth", count: 2, spread: 22, cutoff: 1500, attack: 1.5 },
+  { label: "Bowed", osc: "fattriangle", count: 3, spread: 30, cutoff: 1500, attack: 1.1 },
+  { label: "Warm", osc: "fatsine", count: 4, spread: 22, cutoff: 1300, attack: 0.8 },
+  { label: "Choir", osc: "fattriangle", count: 4, spread: 42, cutoff: 2000, attack: 1.0 },
+  { label: "Strings", osc: "fatsawtooth", count: 3, spread: 34, cutoff: 1800, attack: 1.0 },
+  { label: "Synth Strings", osc: "fatsawtooth", count: 2, spread: 16, cutoff: 1700, attack: 0.9 },
 ];
-const PAD_VOL = 0.85;
-const PAD_SKIP = 0; // fără tăiere: pad-ul se aude de la început
+const PAD_VOL = 0.9;
 const AUTO_STOP_MS = 30 * 60 * 1000;
 
 export class ClickTrackEngine {
   constructor() {
-    this.ctx = null; this.pad = null; this.piano = null;
-    this.padGain = null; this.clickGain = null; this.pianoGain = null; this.lp = null;
-    this.padReady = false; this.loadingPad = false; this.pianoReady = false; this.loadingPiano = false;
+    this.ctx = null; this.piano = null; this.clickGain = null; this.pianoGain = null;
+    this.pad = null; this.padOut = null; this.filter = null; this.chorus = null; this.reverb = null; this.filterLfo = null;
+    this.padReady = false; this.pianoReady = false; this.loadingPiano = false; this.held = [];
     this.state = { keyPc: 0, keyName: "C", mode: "major", bpm: 72, meter: "4/4", playing: false, padMuted: false, clickMuted: false, padIndex: 0 };
     this.timer = null; this.autoStop = null; this.nextTime = 0; this.beat = 0;
     this.onBeat = null; this.onState = null;
   }
 
-  _emit() { this.onState && this.onState({ ...this.state, padReady: this.padReady, loadingPad: this.loadingPad }); }
-
-  _makeIR(seconds = 2.8, decay = 2.2) {
-    const rate = this.ctx.sampleRate, len = Math.floor(rate * seconds);
-    const ir = this.ctx.createBuffer(2, len, rate);
-    for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay); }
-    return ir;
-  }
+  _emit() { this.onState && this.onState({ ...this.state, padReady: this.padReady, loadingPad: false }); }
 
   _ensureCtx() {
-    if (this.ctx) { if (this.ctx.state === "suspended") this.ctx.resume(); return; }
-    const AC = window.AudioContext || window.webkitAudioContext;
-    this.ctx = new AC();
-    this.padGain = this.ctx.createGain(); this.padGain.gain.value = 0; this.padGain.connect(this.ctx.destination);
-    const dry = this.ctx.createGain(); dry.gain.value = 0.7; dry.connect(this.padGain);
-    const wet = this.ctx.createGain(); wet.gain.value = 0.55; wet.connect(this.padGain);
-    const conv = this.ctx.createConvolver(); conv.buffer = this._makeIR(); conv.connect(wet);
-    this.lp = this.ctx.createBiquadFilter(); this.lp.type = "lowpass"; this.lp.frequency.value = 2100; this.lp.Q.value = 0.5;
-    this.lp.connect(dry); this.lp.connect(conv);
+    if (this.ctx) return;
+    this.ctx = Tone.getContext().rawContext; // o singură bază audio pt. tot
     this.clickGain = this.ctx.createGain(); this.clickGain.gain.value = 0.9; this.clickGain.connect(this.ctx.destination);
     this.pianoGain = this.ctx.createGain(); this.pianoGain.gain.value = 1; this.pianoGain.connect(this.ctx.destination);
+    this._buildPad();
   }
 
-  _loadPad() {
-    if (this.pad || this.loadingPad) return;
-    this.loadingPad = true; this._emit();
-    const instr = (PADS[this.state.padIndex] || PADS[0]).instr;
-    try {
-      this.pad = new Soundfont(this.ctx, { instrument: instr, kit: "MusyngKite", loadLoopData: true, destination: this.lp });
-      this.pad.load.then(() => { this.padReady = true; this.loadingPad = false; this._emit(); if (this.state.playing && !this.state.padMuted) this._startPadChord(); })
-        .catch(() => { this.loadingPad = false; this._emit(); });
-    } catch { this.loadingPad = false; this._emit(); }
+  _buildPad() {
+    const p = PADS[this.state.padIndex] || PADS[0];
+    this.padOut = new Tone.Gain(0).toDestination();
+    this.reverb = new Tone.Reverb({ decay: 7, preDelay: 0.02, wet: 0.45 }).connect(this.padOut);
+    this.chorus = new Tone.Chorus({ frequency: 0.5, delayTime: 3.5, depth: 0.6, spread: 180, wet: 0.35 }).connect(this.reverb).start();
+    this.filter = new Tone.Filter({ type: "lowpass", frequency: p.cutoff, rolloff: -12, Q: 0.3 }).connect(this.chorus);
+    this.filterLfo = new Tone.LFO({ frequency: 0.06, min: p.cutoff - 500, max: p.cutoff + 400 }).start();
+    this.filterLfo.connect(this.filter.frequency);
+    this.pad = new Tone.PolySynth(Tone.Synth, {
+      maxPolyphony: 16,
+      oscillator: { type: p.osc, count: p.count, spread: p.spread },
+      envelope: { attack: p.attack, decay: 0.4, sustain: 1, release: 3 },
+      volume: -12,
+    }).connect(this.filter);
+    this.padReady = true;
   }
+  _disposePad() {
+    this.held = [];
+    for (const n of ["pad", "filterLfo", "filter", "chorus", "reverb", "padOut"]) { try { this[n] && this[n].dispose(); } catch {} this[n] = null; }
+    this.padReady = false;
+  }
+
   _loadPiano() {
     if (this.piano || this.loadingPiano) return Promise.resolve();
     this.loadingPiano = true;
@@ -106,47 +105,36 @@ export class ClickTrackEngine {
     if (i === this.state.padIndex) return;
     this.state.padIndex = i; this._emit();
     if (!this.ctx) return;
-    // reîncarcă instrumentul de pad
-    this._stopPadVoices();
-    this.pad = null; this.padReady = false; this.loadingPad = false;
-    this._rampPad(0, 0.15);
-    this._loadPad(); // la load, dacă e playing & nu e mut → pornește acordul nou
+    this._disposePad(); this._buildPad();
+    if (this.state.playing && !this.state.padMuted) this._startPadChord();
   }
 
   setPadMuted(b) {
     this.state.padMuted = b; this._emit();
-    if (!this.ctx) return;
-    if (b) { this._rampPad(0, 0.3); setTimeout(() => this._stopPadVoices(), 350); }
-    else if (this.state.playing) { this._startPadChord(); }
+    if (!this.padOut) return;
+    if (b) this.padOut.gain.rampTo(0, 0.25);
+    else if (this.state.playing) { if (!this.held.length) this._startPadChord(); else this.padOut.gain.rampTo(PAD_VOL, 0.25); }
   }
   setClickMuted(b) { this.state.clickMuted = b; this._emit(); }
 
-  _retriggerPadIfPlaying() { if (this.state.playing && !this.state.padMuted && this.padReady && this.ctx) this._startPadChord(); }
+  _retriggerPadIfPlaying() { if (this.state.playing && !this.state.padMuted && this.pad) this._startPadChord(); }
 
-  _padChord() { const r = 48 + this.state.keyPc; const th = this.state.mode === "minor" ? 3 : 4; return [r, r + th, r + 7, r + 12]; }
+  _padNotes() {
+    const r = 48 + this.state.keyPc; const th = this.state.mode === "minor" ? 3 : 4;
+    return [r, r + th, r + 7, r + 12].map((m) => Tone.Frequency(m, "midi").toNote());
+  }
   _pianoChord() { const r = 60 + this.state.keyPc; const th = this.state.mode === "minor" ? 3 : 4; return [r, r + th, r + 7, r + 12]; }
 
-  _rampPad(target, dur = 0.3) {
-    if (!this.padGain || !this.ctx) return;
-    const t = this.ctx.currentTime;
-    this.padGain.gain.cancelScheduledValues(t);
-    this.padGain.gain.setValueAtTime(Math.max(0.0001, this.padGain.gain.value), t);
-    this.padGain.gain.linearRampToValueAtTime(Math.max(0.0001, target), t + dur);
-  }
-  _stopPadVoices() { if (this.pad) { try { this.pad.stop(); } catch {} } }
-  // o SINGURĂ lovire, ținută la infinit (loop + fără durată) — fără re-atac/pulsație.
-  // Taie primele PAD_SKIP sec (atacul): nota rulează, dar o ținem MUTĂ 1.5s, apoi o aducem instant.
-  // Bucla soundfont-ului e în zona de sustain, deci atacul nu se mai aude niciodată la reluări.
+  // Acord ținut CONTINUU (fără release) → sunet lin, fără pulsație. Schimbarea gamei face crossfade.
   _startPadChord() {
-    if (!this.pad || !this.padReady || !this.padGain) return;
-    this._stopPadVoices();
-    for (const n of this._padChord()) { try { this.pad.start({ note: n, velocity: 72, duration: null, loop: true }); } catch {} }
-    const t = this.ctx.currentTime;
-    this.padGain.gain.cancelScheduledValues(t);
-    this.padGain.gain.setValueAtTime(0.0001, t);
-    this.padGain.gain.setValueAtTime(0.0001, t + PAD_SKIP);          // mut cât durează atacul
-    this.padGain.gain.linearRampToValueAtTime(PAD_VOL, t + PAD_SKIP + 0.12); // intră la volum constant
+    if (!this.pad) return;
+    try { this.pad.releaseAll(); } catch {}
+    const notes = this._padNotes();
+    try { this.pad.triggerAttack(notes); } catch {}
+    this.held = notes;
+    this.padOut.gain.rampTo(this.state.padMuted ? 0 : PAD_VOL, 0.3);
   }
+  _releasePad() { if (this.pad) { try { this.pad.releaseAll(); } catch {} } this.held = []; }
 
   _tick(beat, time) {
     const acc = accentPattern(this.state.meter)[beat] || 0;
@@ -176,11 +164,11 @@ export class ClickTrackEngine {
   }
 
   async start() {
+    try { await Tone.start(); } catch {}
     this._ensureCtx();
     if (this.ctx.state === "suspended") { try { await this.ctx.resume(); } catch {} }
     this.state.playing = true; this.beat = 0; this.nextTime = this.ctx.currentTime + 0.1;
-    this._loadPad();
-    if (this.padReady && !this.state.padMuted) this._startPadChord();
+    if (!this.state.padMuted) this._startPadChord();
     clearInterval(this.timer);
     this.timer = setInterval(() => this._schedule(), 25);
     clearTimeout(this.autoStop);
@@ -192,13 +180,13 @@ export class ClickTrackEngine {
     this.state.playing = false;
     if (this.timer) { clearInterval(this.timer); this.timer = null; }
     clearTimeout(this.autoStop); this.autoStop = null;
-    this._rampPad(0, 0.6);
-    setTimeout(() => this._stopPadVoices(), 650);
+    this._releasePad();
     this._emit();
   }
   toggle() { this.state.playing ? this.stop() : this.start(); }
 
   async playTonalitate() {
+    try { await Tone.start(); } catch {}
     this._ensureCtx();
     if (this.ctx.state === "suspended") { try { await this.ctx.resume(); } catch {} }
     if (!this.pianoReady) await this._loadPiano();
@@ -214,10 +202,9 @@ export class ClickTrackEngine {
 
   dispose() {
     try { this.stop(); } catch {}
-    try { this._stopPadVoices(); } catch {}
+    try { this._disposePad(); } catch {}
     if (this.piano) { try { this.piano.stop(); } catch {} }
-    if (this.ctx) { try { this.ctx.close(); } catch {} }
-    this.ctx = null; this.pad = null; this.piano = null; this.padReady = false; this.pianoReady = false;
+    this.ctx = null; this.piano = null; this.pianoReady = false;
   }
 }
 
