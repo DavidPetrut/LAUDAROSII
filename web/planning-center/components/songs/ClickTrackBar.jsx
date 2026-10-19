@@ -34,7 +34,7 @@ export default function ClickTrackBar({ defaults, playerActive, onClose }) {
   const { registerBar, unregisterBar } = usePlayer();
 
   // înregistrează bara click track (înălțime ~92px) ca toast-urile/AI să știe de ea
-  useEffect(() => { registerBar("clicktrack", 92); return () => unregisterBar("clicktrack"); }, [registerBar, unregisterBar]);
+  useEffect(() => { registerBar("clicktrack", 104); return () => unregisterBar("clicktrack"); }, [registerBar, unregisterBar]);
 
   useEffect(() => {
     const eng = new ClickTrackEngine();

@@ -490,11 +490,13 @@ export default function SongDetail() {
           </div>
         </div>
       )}
-      {toast && <div className="song-toast" style={{ bottom: player.bottomInset + 14 }}>{toast}</div>}
+      {toast && <div className="song-toast" style={{ bottom: player.bottomInset + 18 }}>{toast}</div>}
       {jobs.length > 0 && (
-        <div className="job-stack" style={{ bottom: player.bottomInset + 14 }}>
+        <div className="job-stack" style={{ bottom: player.bottomInset + 18 }}>
           {jobs.map((j) => {
-            const label = j.error ? "Eroare" : { start: "Se pornește…", download: "Descărcare", transpose: "Transpunere", upload: "Încărcare", done: "Gata ✓" }[j.phase] || j.phase;
+            const ytBlocked = j.error && /(sign in|bot|confirm)/i.test(j.error);
+            const label = j.error ? (ytBlocked ? "YouTube a blocat descărcarea" : "Eroare") : { start: "Se pornește…", download: "Descărcare", transpose: "Transpunere", upload: "Încărcare", done: "Gata ✓" }[j.phase] || j.phase;
+            const errDetail = ytBlocked ? "anti-bot YouTube — încearcă să încarci mp3-ul și transpune-l pe el" : j.error;
             const pct = Math.max(0, Math.min(100, j.percent || 0));
             return (
               <div key={j.jobId} className={`job-card${j.error ? " err" : ""}${j.done ? " ok" : ""}`}>
@@ -502,7 +504,7 @@ export default function SongDetail() {
                   <span className="job-name" title={j.name}>{j.name}</span>
                   <button className="job-x" onClick={() => setJobs((cur) => cur.filter((x) => x.jobId !== j.jobId))} aria-label="Închide">✕</button>
                 </div>
-                <div className="job-lbl">{label}{!j.done && !j.error && j.phase !== "start" ? ` · ${pct}%` : ""}{j.error ? ` · ${j.error}` : ""}</div>
+                <div className="job-lbl">{label}{!j.done && !j.error && j.phase !== "start" ? ` · ${pct}%` : ""}{j.error ? ` · ${errDetail}` : ""}</div>
                 {!j.error && <div className="job-bar"><div className="job-fill" style={{ width: `${j.done ? 100 : pct}%` }} /></div>}
               </div>
             );
