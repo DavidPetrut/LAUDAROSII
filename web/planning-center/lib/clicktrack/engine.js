@@ -63,7 +63,7 @@ export class ClickTrackEngine {
   _buildPad() {
     const p = PADS[this.state.padIndex] || PADS[0];
     this.padOut = new Tone.Gain(0).toDestination();
-    this.limiter = new Tone.Limiter(-1).connect(this.padOut); // previne clipping/pocnit
+    this.limiter = new Tone.Limiter(-2).connect(this.padOut); // doar plasă de siguranță (nu „slam")
     this.reverb = new Tone.Reverb({ decay: 8, preDelay: 0.02, wet: 0.44 }).connect(this.limiter);
     // chorus foarte discret (doar lățime, fără throb/bâzâit)
     this.chorus = new Tone.Chorus({ frequency: 0.2, delayTime: 3, depth: 0.15, spread: 160, wet: 0.12 }).connect(this.reverb).start();
@@ -76,14 +76,14 @@ export class ClickTrackEngine {
       maxPolyphony: 16,
       oscillator: { type: p.osc, count: p.count, spread: p.spread },
       envelope: { attack: p.attack, decay: 0.4, sustain: 1, release: 3 },
-      volume: -5,
+      volume: -8,
     }).connect(this.filter);
     // STRAT 2 — bază curată de sinus (fără dezacord) → „plin" fără bâzâit
     this.padSub = new Tone.PolySynth(Tone.Synth, {
       maxPolyphony: 8,
       oscillator: { type: "sine" },
       envelope: { attack: Math.max(0.6, p.attack * 0.8), decay: 0.4, sustain: 1, release: 3 },
-      volume: -8,
+      volume: -10,
     }).connect(this.filter);
     this.padReady = true;
   }
@@ -134,7 +134,8 @@ export class ClickTrackEngine {
 
   _padNotes() {
     const r = 48 + this.state.keyPc; const th = this.state.mode === "minor" ? 3 : 4;
-    return [r, r + th, r + 7, r + 12].map((m) => Tone.Frequency(m, "midi").toNote());
+    // + r+19 (cvinta cu o octavă peste) = puțin „air"/plinătate, fără bas
+    return [r, r + th, r + 7, r + 12, r + 19].map((m) => Tone.Frequency(m, "midi").toNote());
   }
   _subNotes() { // bază curată (root + cvintă) pt. corp
     const r = 48 + this.state.keyPc;

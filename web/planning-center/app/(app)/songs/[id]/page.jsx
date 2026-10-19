@@ -105,6 +105,14 @@ export default function SongDetail() {
   };
 
   const isChart = (f) => ["chordChart", "lyrics", "numbers", "numerals"].includes(f.kind);
+  // Gama inițială implicită la transpose: audio → detectată/din nume; chart → gama aranjamentului (chord chart).
+  const keyFromName = (name) => { const m = /(?:in\s+|[-\s])([A-G][b#]?)m?\s*(?:\.[a-z0-9]+)?$/i.exec(String(name || "")); return m ? m[1] : ""; };
+  const ccKey = () => (arr?.chordChart?.originalKey || "").replace(/m(in)?$/i, "").replace(/maj$/i, "").trim();
+  const transposeDefaultSource = (f) => {
+    if (!f) return "";
+    if (isAudioUrl(f.url, f.kind) || isYouTube(f.url)) return (f.detectedLabel || "").replace(/m$/i, "") || keyFromName(f.name) || ccKey();
+    return ccKey() || keyFromName(f.name); // chart: gama aranjamentului
+  };
 
   // Click pe nume: audio/YouTube → player intern; chart generat → preview in-app; altfel url/editor.
   const openFile = (f) => {
@@ -163,7 +171,7 @@ export default function SongDetail() {
     if (isAudioUrl(f.url, f.kind) || isYouTube(f.url)) { return startAudioTranspose(f, targetKey, sourceKey); }
     try {
       const cc = await api.get(`/songs/${id}/arrangements/${arrId}/chordchart`);
-      const originalKey = cc.originalKey || "C";
+      const originalKey = sourceKey || cc.originalKey || "C";
       const mode = f.kind === "numbers" ? "numbers" : f.kind === "numerals" ? "numerals" : f.kind === "lyrics" ? "lyrics" : "chords";
       const lines = renderChordPro(cc.chordpro || "", { mode, originalKey, targetKey });
       const seqTokens = abbreviateSequence(arr?.sequence || []);
@@ -246,7 +254,22 @@ export default function SongDetail() {
     const el = colsRef.current; if (!el) return;
     setScroll({ left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
   }, []);
-  const scrollCols = (dir) => { const el = colsRef.current; if (el) el.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: "smooth" }); };
+  const scrollCols = (dir) => { const el = colsRef.current; if (el) el.scrollBy({ left: dir * 260, behavior: "smooth" }); }; // o coloană o dată
+  // drag-to-scroll (doar pe spațiul gol al coloanelor, nu pe butoane)
+  const drag = useRef({ down: false, x: 0, left: 0, moved: false });
+  const onColsDown = (e) => {
+    if (e.target.closest("button") || e.target.closest("input")) return; // lasă click-urile pe rânduri
+    const el = colsRef.current; if (!el) return;
+    drag.current = { down: true, x: e.clientX, left: el.scrollLeft, moved: false };
+  };
+  const onColsMove = (e) => {
+    if (!drag.current.down) return;
+    const el = colsRef.current; if (!el) return;
+    const dx = e.clientX - drag.current.x;
+    if (Math.abs(dx) > 4) drag.current.moved = true;
+    el.scrollLeft = drag.current.left - dx;
+  };
+  const onColsUp = () => { drag.current.down = false; };
   const toggleKey = (kid) => setSelKeys((cur) => { const n = new Set(cur); n.has(kid) ? n.delete(kid) : n.add(kid); return n; });
   useEffect(() => { setSelKeys(new Set()); }, [arrId]); // filtrele sunt per-aranjament
   useEffect(() => {
@@ -361,7 +384,8 @@ export default function SongDetail() {
 
               <div className="file-cols-wrap">
                 {scroll.left && <button className="car-arrow left" onClick={() => scrollCols(-1)} aria-label="Înapoi"><Ico name="chevL" size={18} /></button>}
-                <div className="file-cols" ref={colsRef} onScroll={updateScroll}>
+                <div className="file-cols" ref={colsRef} onScroll={updateScroll}
+                  onMouseDown={onColsDown} onMouseMove={onColsMove} onMouseUp={onColsUp} onMouseLeave={onColsUp}>
                   <div className="fcol">
                     <div className="fcol-h">Arrangement</div>
                     {(arr.arrangementFiles || []).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onHover={openFileMenu} onLeave={closeFileMenuSoon} onInfo={openInfo} />)}
@@ -421,8 +445,7 @@ export default function SongDetail() {
       {preview && <ChartPreviewModal songId={id} arrId={arrId} song={song} arr={arr} mode={preview.mode} targetKey={preview.targetKey} onClose={() => setPreview(null)} />}
       {transposeFor && (
         <TransposeModal file={transposeFor} onClose={() => setTransposeFor(null)} onPick={doTranspose}
-          askSource={isAudioUrl(transposeFor.url, transposeFor.kind) || isYouTube(transposeFor.url)}
-          defaultSource={(transposeFor.detectedLabel || "").replace(/m$/i, "") || (arr?.chordChart?.originalKey || "").replace(/m(in)?$/i, "").replace(/maj$/i, "").trim()} />
+          askSource defaultSource={transposeDefaultSource(transposeFor)} />
       )}
       {renameFor && (
         <div className="ov-min" onMouseDown={(e) => e.target === e.currentTarget && setRenameFor(null)}>
@@ -599,7 +622,7 @@ export default function SongDetail() {
         .file-cols-wrap { position: relative; }
         .file-cols { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px 8px 0 0; padding: 14px; overflow-x: auto; scroll-behavior: smooth; scrollbar-width: none; }
         .file-cols::-webkit-scrollbar { height: 0; }
-        .fcol { flex: 1; min-width: 220px; border-right: 1px solid var(--border); padding: 0 14px; }
+        .fcol { flex: 0 0 258px; width: 258px; border-right: 1px solid var(--border); padding: 0 14px; }
         .fcol:last-child { border-right: none; }
         .fcol-h { color: var(--text-dim); font-size: 14px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 20px; }
         .fcol-del { display: none; background: transparent; border: none; color: var(--text-faint); cursor: pointer; padding: 2px; align-items: center; }

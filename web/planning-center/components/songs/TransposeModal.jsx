@@ -43,7 +43,7 @@ export default function TransposeModal({ file, onClose, onPick, askSource = fals
       </div>
       <p className="hint">
         {askSource
-          ? <>Din <b>{src || "…"}</b> în <b>{key || "…"}</b>. Se creează „{(file?.name || "").replace(/\s*in\s+\S+\s*$/i, "").replace(/-[A-G][b#]?m?$/i, "").replace(/\.[^.]+$/, "")}-{key || "…"}.mp3" în cardul gamei {key || "alese"}.</>
+          ? <>Din <b>{src || "…"}</b> în <b>{key || "…"}</b>. Se creează „{(file?.name || "").replace(/\s*in\s+\S+\s*$/i, "").replace(/-[A-G][b#]?m?$/i, "").replace(/\.[^.]+$/, "")}-{key || "…"}" în cardul gamei {key || "alese"}.</>
           : <>Se creează „{(file?.name || "").replace(/\s*in\s+\S+$/i, "").replace(/-\S+$/, "")}-{key || "…"}" în cardul gamei {key || "alese"}.</>}
       </p>
       <style jsx>{`
