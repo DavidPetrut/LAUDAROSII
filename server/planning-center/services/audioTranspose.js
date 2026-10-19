@@ -88,7 +88,11 @@ async function run(jobId, { orgId, songId, arrId, keyId, sourceUrl, fromKey, toK
     const ratio = Math.pow(2, d / 12);
     await new Promise((resolve, reject) => {
       const cmd = ffmpeg(inFile).audioCodec("libmp3lame").audioBitrate("192k");
-      if (d !== 0) cmd.audioFilters([`aresample=44100`, `asetrate=44100*${ratio.toFixed(6)}`, `aresample=44100`, `atempo=${(1 / ratio).toFixed(6)}`]);
+      const filters = [];
+      if (d !== 0) filters.push(`aresample=44100`, `asetrate=44100*${ratio.toFixed(6)}`, `aresample=44100`, `atempo=${(1 / ratio).toFixed(6)}`);
+      // normalizare volum: chiar dacă înregistrarea din browser a fost încet, iese la nivel decent
+      filters.push(`dynaudnorm=f=250:g=15:p=0.9:m=10`);
+      cmd.audioFilters(filters);
       cmd.on("progress", (p) => { if (p.percent) job.percent = Math.min(99, Math.round(p.percent)); })
         .on("error", reject)
         .on("end", resolve)

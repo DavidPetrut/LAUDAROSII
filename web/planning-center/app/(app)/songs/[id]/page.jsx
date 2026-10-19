@@ -15,7 +15,7 @@ import { generateChartPdf } from "@/lib/songs/pdf";
 import { detectKey, fetchAudioBuffer } from "@/lib/songs/keyDetect";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 import { usePlayer, isAudioUrl, isYouTube, youtubeId } from "@/lib/player/PlayerProvider";
-import { captureYouTube } from "@/lib/youtube/capture";
+import { YoutubeRecorder } from "@/lib/youtube/capture";
 import EditSequenceModal from "@/components/songs/EditSequenceModal";
 import AddKeyModal from "@/components/songs/AddKeyModal";
 import AddArrangementModal from "@/components/songs/AddArrangementModal";
@@ -43,6 +43,8 @@ export default function SongDetail() {
   const [ctDefaults, setCtDefaults] = useState(null);
   const colsRef = useRef(null);
   const [scroll, setScroll] = useState({ left: false, right: false });
+  const recorders = useRef({}); // recordere YouTube active, cheie = job.localId
+  const mmss = (s) => { s = Math.max(0, Math.floor(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
   const [editField, setEditField] = useState(null); // 'bpm'|'length'|'name'
   const [preview, setPreview] = useState(null); // { mode, targetKey } pt. ChartPreviewModal
   const [transposeFor, setTransposeFor] = useState(null); // fișierul de transpus
@@ -170,27 +172,40 @@ export default function SongDetail() {
     } catch (e) { setToast("Nu pot porni transpunerea: " + (e?.message || e)); setTimeout(() => setToast(""), 4000); }
   };
 
-  // YouTube: capturăm audio în browser (fundal) → upload → transpose pe server. Job cu 3 faze.
+  // YouTube: recorder interactiv în browser (fundal) → upload → transpose pe server. Job cu faze.
   const startYoutubeCapture = (f, targetKey, sourceKey) => {
     const vid = youtubeId(f.url);
     if (!vid) { setToast("Link YouTube invalid."); setTimeout(() => setToast(""), 3000); return; }
     const localId = `yt${Date.now()}`;
-    const name = `${baseName(f.name)}-${targetKey}`;
+    const base = baseName(f.name);
     const upd = (patch) => setJobs((cur) => cur.map((x) => (x.localId === localId ? { ...x, ...patch } : x)));
-    setJobs((js) => [...js, { localId, yt: true, name, phase: "capture", percent: 0, done: false, error: "" }]);
-    (async () => {
-      let blob;
-      try { blob = await captureYouTube(vid, { onProgress: (p) => upd({ phase: "capture", percent: p }) }); }
-      catch (e) { upd({ error: e?.message || "Captură eșuată." }); return; }
+    setJobs((js) => [...js, { localId, yt: true, name: `${base}-${targetKey}`, phase: "arm", percent: 0, done: false, error: "", duration: 0, startFrom: 0, curSec: 0 }]);
+
+    const rec = new YoutubeRecorder(vid);
+    recorders.current[localId] = rec;
+    rec.onProgress = ({ cur, elapsed }) => upd({ curSec: cur, percent: rec.duration ? Math.min(99, Math.round((cur / rec.duration) * 100)) : 0, elapsedSec: elapsed });
+    rec.onEnded = async ({ unexpected, cancelled } = {}) => {
+      if (cancelled) { upd({ error: "Partajarea s-a oprit înainte de Start." }); delete recorders.current[localId]; return; }
+      const blob = await rec.blobPromise;
+      delete recorders.current[localId];
+      if (!blob || blob.size < 2000) { upd({ error: "Înregistrare goală (n-a pornit sunetul?)." }); return; }
+      const suffix = unexpected ? " (neterminat)" : "";
+      upd({ phase: "generare", percent: 0, neterminat: unexpected });
       try {
-        upd({ phase: "generare", percent: 0 });
-        const up = await songsApi.uploadBlob(blob, `${baseName(f.name)}.webm`, "video");
-        const fromKey = sourceKey || "C";
-        const r = await songsApi.transposeAudio(id, arrId, { sourceUrl: up.url, name: baseName(f.name), fromKey, toKey: targetKey });
-        upd({ jobId: r.jobId, phase: "download", percent: 0, name: r.name || name });
+        const up = await songsApi.uploadBlob(blob, `${base}${suffix}.webm`, "video");
+        const r = await songsApi.transposeAudio(id, arrId, { sourceUrl: up.url, name: `${base}${suffix}`, fromKey: sourceKey || "C", toKey: targetKey });
+        upd({ jobId: r.jobId, phase: "download", percent: 0, name: r.name || `${base}${suffix}-${targetKey}` });
       } catch (e) { upd({ error: e?.message || "Eroare la transpunere." }); }
+    };
+
+    (async () => {
+      try { const { duration } = await rec.arm(); upd({ duration }); }
+      catch (e) { upd({ error: e?.message || "Nu pot porni captura." }); delete recorders.current[localId]; }
     })();
   };
+  const ytStart = (j) => { const r = recorders.current[j.localId]; if (r) { r.start(j.startFrom || 0); setJobs((cur) => cur.map((x) => (x.localId === j.localId ? { ...x, phase: "recording" } : x))); } };
+  const ytStop = (j) => { const r = recorders.current[j.localId]; if (r) r.stop(); };
+  const ytSetFrom = (j, sec) => setJobs((cur) => cur.map((x) => (x.localId === j.localId ? { ...x, startFrom: Math.max(0, Math.min(sec, x.duration || sec)) } : x)));
 
   const doTranspose = async (targetKey, sourceKey) => {
     const f = transposeFor; if (!f) { return; }
@@ -551,15 +566,38 @@ export default function SongDetail() {
             const label = j.error ? (ytBlocked ? "YouTube a blocat descărcarea" : "Eroare") : (j.yt ? ytLabels : mp3Labels)[j.phase] || j.phase;
             const errDetail = ytBlocked ? "anti-bot YouTube — încearcă să încarci mp3-ul și transpune-l pe el" : j.error;
             const pct = Math.max(0, Math.min(100, j.percent || 0));
-            const showPct = !j.done && !j.error && j.phase !== "start" && j.phase !== "generare";
+            const showPct = !j.done && !j.error && j.phase !== "start" && j.phase !== "generare" && j.phase !== "arm" && j.phase !== "recording";
+            const closeJob = () => { const r = recorders.current[j.localId]; if (r) { try { r.cancel(); } catch {} delete recorders.current[j.localId]; } setJobs((cur) => cur.filter((x) => (x.localId || x.jobId) !== (j.localId || j.jobId))); };
             return (
               <div key={j.localId || j.jobId} className={`job-card${j.error ? " err" : ""}${j.done ? " ok" : ""}`}>
                 <div className="job-top">
                   <span className="job-name" title={j.name}>{j.name}</span>
-                  <button className="job-x" onClick={() => setJobs((cur) => cur.filter((x) => (x.localId || x.jobId) !== (j.localId || j.jobId)))} aria-label="Închide">✕</button>
+                  <button className="job-x" onClick={closeJob} aria-label="Închide">✕</button>
                 </div>
-                <div className="job-lbl">{label}{showPct ? ` · ${pct}%` : ""}{j.error ? ` · ${errDetail}` : ""}</div>
-                {!j.error && <div className="job-bar"><div className="job-fill" style={{ width: `${j.done ? 100 : pct}%` }} /></div>}
+
+                {j.phase === "arm" && !j.error ? (
+                  <div className="yt-arm">
+                    <div className="yt-sub">Alege de unde începe înregistrarea (sau lasă de la 0) și apasă Start.</div>
+                    <div className="yt-range">
+                      <input type="range" min={0} max={Math.max(1, Math.floor(j.duration || 0))} step={1} value={j.startFrom || 0}
+                        onChange={(e) => ytSetFrom(j, Number(e.target.value))} disabled={!j.duration} />
+                      <span className="yt-t">{mmss(j.startFrom || 0)}{j.duration ? ` / ${mmss(j.duration)}` : " …"}</span>
+                    </div>
+                    <button className="yt-start" onClick={() => ytStart(j)} disabled={!j.duration}>▶ Start</button>
+                    <div className="yt-note">Nu închide bara Chrome de partajare — oprește înregistrarea.</div>
+                  </div>
+                ) : j.phase === "recording" && !j.error ? (
+                  <div className="yt-rec">
+                    <div className="yt-lbl"><span className="rec-dot" /> Înregistrez · {mmss(j.elapsedSec || 0)}{j.duration ? ` (din ${mmss((j.duration || 0) - (j.startFrom || 0))})` : ""}</div>
+                    <div className="job-bar"><div className="job-fill" style={{ width: `${pct}%` }} /></div>
+                    <button className="yt-stop" onClick={() => ytStop(j)}>■ Stop &amp; generează</button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="job-lbl">{label}{showPct ? ` · ${pct}%` : ""}{j.neterminat && !j.error ? " · neterminat" : ""}{j.error ? ` · ${errDetail}` : ""}</div>
+                    {!j.error && <div className="job-bar"><div className="job-fill" style={{ width: `${j.done ? 100 : pct}%` }} /></div>}
+                  </>
+                )}
               </div>
             );
           })}
@@ -578,6 +616,20 @@ export default function SongDetail() {
         .job-bar { height: 5px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
         .job-fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width .3s ease; }
         .job-card.ok .job-fill { background: #1f8a4c; }
+        /* Recorder YouTube interactiv */
+        .yt-arm, .yt-rec { margin-top: 6px; }
+        .yt-sub { font-size: 11.5px; color: var(--text-dim); margin-bottom: 8px; line-height: 1.4; }
+        .yt-range { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .yt-range input[type="range"] { flex: 1; accent-color: var(--primary); }
+        .yt-t { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+        .yt-start { width: 100%; background: var(--primary); border: none; color: #fff; border-radius: 7px; padding: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .yt-start:disabled { opacity: .5; cursor: default; }
+        .yt-note { font-size: 10.5px; color: var(--text-faint); margin-top: 7px; line-height: 1.35; }
+        .yt-lbl { font-size: 12px; color: var(--text); margin-bottom: 7px; display: flex; align-items: center; gap: 7px; }
+        .rec-dot { width: 9px; height: 9px; border-radius: 50%; background: #e8554b; box-shadow: 0 0 8px #e8554b; animation: recpulse 1s infinite; }
+        @keyframes recpulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+        .yt-stop { width: 100%; margin-top: 9px; background: var(--surface-2); border: 1px solid var(--danger); color: #f0a7a2; border-radius: 7px; padding: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .yt-stop:hover { background: rgba(229,83,75,.14); }
       `}</style>
       <style jsx>{`
         .ov-min { position: fixed; inset: 0; z-index: 65; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }

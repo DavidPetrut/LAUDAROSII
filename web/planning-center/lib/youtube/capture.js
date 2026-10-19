@@ -1,10 +1,10 @@
 /**
- * Captură audio YouTube în BROWSER (nu pe server → scapă de blocajul anti-bot YouTube).
- * Redă videoul într-un iframe ascuns în pagina noastră și capturează sunetul FILEI cu
- * getDisplayMedia({audio}) → MediaRecorder → Blob (webm/opus). Rulează în fundal, non-blocant.
- * Sunetul SE AUDE cât se înregistrează (nu există captură silențioasă în browser) + o aprobare unică.
+ * Captură audio YouTube în BROWSER (scapă de blocajul anti-bot YouTube de pe server).
+ * Recorder interactiv: „armezi" (cere sunetul filei + pregătește playerul ascuns), alegi de unde
+ * începi, dai START (seek+play+record) și STOP când vrei → Blob. Dacă partajarea e oprită din bara
+ * Chrome, detectăm și finalizăm cu ce s-a înregistrat (marcat „neterminat").
  *
- * getDisplayMedia TREBUIE apelat într-un gest al utilizatorului (de aceea îl apelăm imediat la click).
+ * NB: bara Chrome de partajare NU poate fi ascunsă (securitate browser). getDisplayMedia cere un gest.
  */
 
 let ytApiPromise = null;
@@ -28,80 +28,84 @@ function pickMime() {
   return "";
 }
 
-/**
- * @param {string} videoId
- * @param {{ onProgress?: (pct:number)=>void }} opts
- * @returns {Promise<Blob>}
- */
-export async function captureYouTube(videoId, { onProgress } = {}) {
-  if (typeof navigator === "undefined" || !navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-    throw new Error("Browserul nu suportă captura de tab.");
+export class YoutubeRecorder {
+  constructor(videoId) {
+    this.videoId = videoId;
+    this.stream = null; this.audioStream = null; this.player = null; this.container = null;
+    this.rec = null; this.chunks = []; this.iv = null;
+    this.duration = 0; this.recording = false; this.finished = false; this.from = 0;
+    this.onProgress = null; this.onEnded = null; // onEnded({ unexpected?:bool, cancelled?:bool })
+    this.blobPromise = new Promise((r) => { this._resolveBlob = r; });
   }
-  // 1) Captura sunetului filei (gest utilizator). Chrome: alege fila + bifează „Partajează sunetul filei".
-  const stream = await navigator.mediaDevices.getDisplayMedia({
-    video: true, audio: true, preferCurrentTab: true, selfBrowserSurface: "include",
-  });
-  const audioTracks = stream.getAudioTracks();
-  if (!audioTracks.length) {
-    stream.getTracks().forEach((t) => t.stop());
-    throw new Error("Nu s-a partajat sunetul filei — bifează «Partajează sunetul filei».");
-  }
-  stream.getVideoTracks().forEach((t) => t.stop()); // ne trebuie doar audio
-  const audioStream = new MediaStream(audioTracks);
 
-  let container, player, rec, iv;
-  const cleanup = () => {
-    try { clearInterval(iv); } catch {}
-    try { player && player.stopVideo && player.stopVideo(); } catch {}
-    try { audioStream.getTracks().forEach((t) => t.stop()); } catch {}
-    try { stream.getTracks().forEach((t) => t.stop()); } catch {}
-    setTimeout(() => { try { container && container.remove(); } catch {} }, 400);
-  };
-
-  try {
-    // 2) Player YouTube ascuns în pagina noastră (audio-ul lui intră în sunetul filei → se capturează)
-    const YT = await loadYT();
-    if (!YT) throw new Error("Nu s-a putut încărca YouTube.");
-    container = document.createElement("div");
-    container.style.cssText = "position:fixed;left:-9999px;bottom:0;width:320px;height:180px;overflow:hidden;";
-    const el = document.createElement("div");
-    container.appendChild(el);
-    document.body.appendChild(container);
-    player = await new Promise((resolve, reject) => {
-      const p = new YT.Player(el, {
-        videoId,
-        playerVars: { autoplay: 0, controls: 0, disablekb: 1 },
-        events: { onReady: () => resolve(p), onError: () => reject(new Error("Video indisponibil.")) },
-      });
+  // Cere sunetul filei (gest!) + pregătește playerul ascuns. Întoarce { duration }.
+  async arm() {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getDisplayMedia) throw new Error("Browserul nu suportă captura de tab.");
+    this.stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true, preferCurrentTab: true, selfBrowserSurface: "include" });
+    const at = this.stream.getAudioTracks();
+    if (!at.length) { this._stopStream(); throw new Error("Nu s-a partajat sunetul filei — bifează «Partajează sunetul filei»."); }
+    this.stream.getVideoTracks().forEach((t) => t.stop());
+    this.audioStream = new MediaStream(at);
+    // bara Chrome oprită / partajare terminată:
+    at[0].addEventListener("ended", () => {
+      if (this.finished) return;
+      if (this.recording) this._finalize(true);            // s-a oprit în timpul înregistrării → finalizăm (neterminat)
+      else { this.onEnded && this.onEnded({ cancelled: true }); this._cleanup(); } // oprit înainte de Start
     });
 
-    // 3) Înregistrare
+    const YT = await loadYT(); if (!YT) throw new Error("Nu s-a putut încărca YouTube.");
+    this.container = document.createElement("div");
+    this.container.style.cssText = "position:fixed;left:-9999px;bottom:0;width:320px;height:180px;overflow:hidden;";
+    const el = document.createElement("div"); this.container.appendChild(el); document.body.appendChild(this.container);
+    this.player = await new Promise((resolve, reject) => {
+      const p = new YT.Player(el, { videoId: this.videoId, playerVars: { autoplay: 0, controls: 0, disablekb: 1 },
+        events: { onReady: () => resolve(p), onError: () => reject(new Error("Video indisponibil.")) } });
+    });
+    this.duration = Math.max(0, this.player.getDuration() || 0);
+    return { duration: this.duration };
+  }
+
+  // Pornește înregistrarea de la fromSec.
+  start(fromSec = 0) {
+    if (this.recording || this.finished) return;
     const mimeType = pickMime();
-    rec = new MediaRecorder(audioStream, mimeType ? { mimeType } : undefined);
-    const chunks = [];
-    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
-    const done = new Promise((resolve) => { rec.onstop = () => resolve(new Blob(chunks, { type: rec.mimeType || "audio/webm" })); });
+    this.rec = new MediaRecorder(this.audioStream, mimeType ? { mimeType } : undefined);
+    this.chunks = [];
+    this.rec.ondataavailable = (e) => { if (e.data && e.data.size) this.chunks.push(e.data); };
+    this.rec.onstop = () => this._resolveBlob(new Blob(this.chunks, { type: (this.rec && this.rec.mimeType) || "audio/webm" }));
+    try { this.player.unMute(); this.player.setVolume(100); } catch {}
+    this.from = Math.max(0, Math.min(fromSec, this.duration || fromSec));
+    this.player.seekTo(this.from, true); this.player.playVideo(); this.rec.start(500);
+    this.recording = true;
+    this.iv = setInterval(() => {
+      let cur = 0; try { cur = this.player.getCurrentTime() || 0; } catch {}
+      let state = -1; try { state = this.player.getPlayerState(); } catch {}
+      this.onProgress && this.onProgress({ cur, from: this.from, duration: this.duration, elapsed: Math.max(0, cur - this.from) });
+      if (state === 0 || (this.duration > 1 && cur >= this.duration - 0.4)) this._finalize(false); // s-a terminat videoul
+    }, 300);
+  }
 
-    try { player.unMute(); player.setVolume(100); } catch {}
-    player.seekTo(0, true); player.playVideo();
-    rec.start(500);
+  stop() { this._finalize(false); return this.blobPromise; }   // STOP manual = complet
+  cancel() { this.finished = true; this._cleanup(); }           // renunțare înainte de start
 
-    const dur = Math.max(1, player.getDuration() || 0);
-    iv = setInterval(() => {
-      let cur = 0; try { cur = player.getCurrentTime() || 0; } catch {}
-      const state = (() => { try { return player.getPlayerState(); } catch { return -1; } })();
-      if (onProgress && dur) onProgress(Math.min(99, Math.round((cur / dur) * 100)));
-      // oprește la final (ENDED=0) sau când ajunge la durată
-      if (state === 0 || (dur > 1 && cur >= dur - 0.4)) { try { rec.state !== "inactive" && rec.stop(); } catch {} }
-    }, 400);
-
-    const blob = await done;
-    onProgress && onProgress(100);
-    cleanup();
-    if (!blob || blob.size < 1000) throw new Error("Înregistrare goală (n-a pornit sunetul?).");
-    return blob;
-  } catch (e) {
-    cleanup();
-    throw e;
+  _finalize(unexpected) {
+    if (this.finished) return;
+    this.finished = true; this.recording = false;
+    try { clearInterval(this.iv); } catch {}
+    try { this.rec && this.rec.state !== "inactive" && this.rec.stop(); } catch {}
+    try { this.player && this.player.stopVideo && this.player.stopVideo(); } catch {}
+    this._stopStream();
+    setTimeout(() => { try { this.container && this.container.remove(); } catch {} }, 400);
+    this.onEnded && this.onEnded({ unexpected });
+  }
+  _cleanup() {
+    try { clearInterval(this.iv); } catch {}
+    try { this.player && this.player.stopVideo && this.player.stopVideo(); } catch {}
+    this._stopStream();
+    setTimeout(() => { try { this.container && this.container.remove(); } catch {} }, 400);
+  }
+  _stopStream() {
+    try { this.audioStream && this.audioStream.getTracks().forEach((t) => t.stop()); } catch {}
+    try { this.stream && this.stream.getTracks().forEach((t) => t.stop()); } catch {}
   }
 }
