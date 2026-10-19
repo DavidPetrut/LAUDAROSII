@@ -95,11 +95,18 @@ async function run(jobId, { orgId, songId, arrId, keyId, sourceUrl, fromKey, toK
         .save(outFile);
     });
 
-    // 3) UPLOAD
+    // 3) UPLOAD — audio ca "video" (Cloudinary tratează audio sub video): limită ~100MB,
+    // nu 10MB ca la "raw". upload_large urcă în bucăți (robust pt. fișiere mari).
     job.phase = "upload"; job.percent = 0;
     const folder = `pc/${orgId || "org"}`;
-    const publicId = `${name.replace(/[^\w-]+/g, "_").slice(0, 60)}_${Date.now().toString(36)}.mp3`;
-    const up = await cloudinary.uploader.upload(outFile, { resource_type: "raw", folder, public_id: publicId, use_filename: false, unique_filename: false });
+    const publicId = `${name.replace(/[^\w-]+/g, "_").slice(0, 60)}_${Date.now().toString(36)}`;
+    const up = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_large(
+        outFile,
+        { resource_type: "video", format: "mp3", folder, public_id: publicId, use_filename: false, unique_filename: false, chunk_size: 6 * 1024 * 1024 },
+        (err, result) => (err ? reject(err) : resolve(result))
+      );
+    });
 
     // 4) CREATE FILE
     const { PcSongFile } = require("../models");
