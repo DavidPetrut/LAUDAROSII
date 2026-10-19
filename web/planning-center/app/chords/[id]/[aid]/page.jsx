@@ -101,7 +101,7 @@ export default function ChordEditor() {
   const aiTransform = useCallback(async (selected, prompt) => {
     const r = await runAi({ feature: "editor", action: "transform-lyrics", prompt, context: { selected } });
     if (r?.raw?.text) return r.raw.text;
-    return { error: r?.message || "Gateway AI inactiv." };
+    return { error: r?.message || r?.raw?.message || "AI indisponibil (verifică deploy-ul Render / cheia)." };
   }, []);
 
   // Modul + gama țintă pentru preview.

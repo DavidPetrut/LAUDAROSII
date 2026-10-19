@@ -21,7 +21,7 @@ export async function runAi({ feature = "web", action = "command", prompt, conte
     try {
       const res = await api.raw("/api/pc/v1/ai/run", { method: "POST", body: { feature, action, prompt, context, actions }, raw: true });
       if (res.status === 404 || res.status === 502 || res.status === 503 || res.status === 504) {
-        last = { ok: false, message: "Serverul AI pornește (cold-start) — reîncerc…", proposedActions: [] };
+        last = { ok: false, message: `Serverul AI nu răspunde (HTTP ${res.status} — deploy/cold-start Render). Așteaptă ~1 min și reîncearcă.`, proposedActions: [] };
         continue; // retry
       }
       const data = await res.json().catch(() => ({}));

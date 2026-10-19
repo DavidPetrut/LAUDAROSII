@@ -90,10 +90,14 @@ async function run({ feature = "web", action = "generic", prompt = "", context =
 
     if (!res.ok) {
       console.error("[pc] ai error:", res.status, data?.error?.message || "");
-      return { ok: false, message: `AI: ${data?.error?.message || res.status}`, text: "" };
+      return { ok: false, message: `AI (${res.status}): ${data?.error?.message || data?.error?.type || "necunoscut"} [model ${model}]`, text: "" };
     }
     const text = Array.isArray(data?.content) ? data.content.map((b) => b.text || "").join("").trim() : "";
-    console.log(`[pc] ai run feature=${feature} action=${action} model=${model} ok`);
+    if (!text) {
+      console.error("[pc] ai empty content:", JSON.stringify(data).slice(0, 300));
+      return { ok: false, message: `AI a răspuns gol (model ${model}, stop: ${data?.stop_reason || "?"}). Reîncearcă.`, text: "" };
+    }
+    console.log(`[pc] ai run feature=${feature} action=${action} model=${model} ok (${text.length} chars)`);
     return { ok: true, text, message: "", model };
   } catch (err) {
     console.error("[pc] ai run exception:", err.message);
