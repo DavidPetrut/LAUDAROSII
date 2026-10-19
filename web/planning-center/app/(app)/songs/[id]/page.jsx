@@ -575,8 +575,8 @@ export default function SongDetail() {
         .arr-title-row { display: flex; align-items: center; gap: 10px; }
         .arr-title { font-size: 22px; font-weight: 600; margin: 0; }
         .ic { background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px; }
-        .ct-open { margin-left: auto; background: var(--surface-2); border: 1px solid var(--primary); color: var(--primary); border-radius: 999px; padding: 6px 16px; cursor: pointer; font-size: 13px; font-weight: 600; }
-        .ct-open:hover { background: rgba(47,129,247,.14); }
+        .ct-open { margin-left: auto; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 999px; padding: 6px 16px; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .ct-open:hover { background: var(--surface-3); border-color: var(--text-faint); }
         .specs { display: flex; gap: 26px; color: var(--text-dim); font-size: 15px; margin: 14px 0 10px; align-items: center; }
         .specs b { color: var(--text); cursor: pointer; }
         .spec-in { width: 70px; height: 26px; background: var(--surface-2); border: 1px solid var(--primary); border-radius: 4px; color: var(--text); padding: 0 6px; }

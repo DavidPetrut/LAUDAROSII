@@ -28,6 +28,7 @@ export default function ClickTrackBar({ defaults, playerActive, onClose }) {
   const engineRef = useRef(null);
   const [st, setSt] = useState({ keyName: "C", mode: "major", bpm: 72, meter: "4/4", playing: false, padReady: false, loadingPad: false, padMuted: false, clickMuted: false });
   const [beat, setBeat] = useState(-1);
+  const [keyOpen, setKeyOpen] = useState(false);
 
   useEffect(() => {
     const eng = new ClickTrackEngine();
@@ -55,9 +56,22 @@ export default function ClickTrackBar({ defaults, playerActive, onClose }) {
         <div className="board">
           <div className="board-h"><span>Gamă</span><NoteMute muted={st.padMuted} onClick={() => eng().setPadMuted(!st.padMuted)} title="Mut pad (gamă)" /></div>
           <div className="row">
-            <select value={st.keyName} onChange={(e) => eng().setKey(e.target.value)}>
-              {KEYS.map((k) => <option key={k} value={k}>{k}</option>)}
-            </select>
+            <div className="keywrap">
+              <button className="keybtn" onClick={() => setKeyOpen((o) => !o)} title="Alege gama">
+                <span>{st.keyName}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+              </button>
+              {keyOpen && (
+                <>
+                  <div className="keybackdrop" onClick={() => setKeyOpen(false)} />
+                  <div className="keygrid">
+                    {KEYS.map((k) => (
+                      <button key={k} className={`keyopt ${k === st.keyName ? "on" : ""}`} onClick={() => { eng().setKey(k); setKeyOpen(false); }}>{k}</button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
             <div className="seg">
               <button className={st.mode === "major" ? "on" : ""} onClick={() => eng().setMode("major")}>Major</button>
               <button className={st.mode === "minor" ? "on" : ""} onClick={() => eng().setMode("minor")}>Minor</button>
@@ -111,6 +125,14 @@ export default function ClickTrackBar({ defaults, playerActive, onClose }) {
         .board-h > span { font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase; color: var(--text-faint); }
         .row { display: flex; align-items: center; gap: 6px; }
         select, input { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; padding: 7px 9px; font-size: 13px; }
+        .keywrap { position: relative; }
+        .keybtn { display: inline-flex; align-items: center; justify-content: space-between; gap: 5px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; padding: 7px 9px; cursor: pointer; font-size: 13px; min-width: 54px; }
+        .keybtn svg { color: var(--text-dim); }
+        .keybackdrop { position: fixed; inset: 0; z-index: 90; }
+        .keygrid { position: absolute; left: 100%; bottom: 0; margin-left: 8px; z-index: 91; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 10px; padding: 10px; box-shadow: 0 12px 34px rgba(0,0,0,.55); }
+        .keyopt { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; padding: 8px 10px; cursor: pointer; font-size: 13px; min-width: 42px; }
+        .keyopt:hover { border-color: var(--primary); }
+        .keyopt.on { background: var(--primary); color: #fff; border-color: var(--primary); }
         input[type="number"] { width: 58px; text-align: center; }
         .seg { display: flex; border: 1px solid var(--border-strong); border-radius: 6px; overflow: hidden; }
         .seg button { background: var(--surface-2); border: none; color: var(--text-dim); padding: 7px 12px; cursor: pointer; font-size: 12.5px; }
@@ -125,8 +147,8 @@ export default function ClickTrackBar({ defaults, playerActive, onClose }) {
         .dot.on { background: var(--primary); border-color: var(--primary); transform: scale(1.25); box-shadow: 0 0 10px var(--primary); }
         .dot.strong.on { background: #7bd0ff; border-color: #7bd0ff; box-shadow: 0 0 12px #7bd0ff; }
         .transport { margin-left: auto; display: flex; align-items: center; gap: 12px; }
-        .tonal { background: var(--surface-2); border: 1px solid var(--primary); color: var(--primary); border-radius: 999px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-        .tonal:hover { background: rgba(47,129,247,.14); }
+        .tonal { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 999px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+        .tonal:hover { background: var(--surface-3); border-color: var(--text-faint); }
         .play { width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--primary); color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
         .play:hover { filter: brightness(1.08); }
         .ct-x { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text-dim); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
