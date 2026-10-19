@@ -62,12 +62,31 @@ export class YoutubeRecorder {
         events: { onReady: () => resolve(p), onError: () => reject(new Error("Video indisponibil.")) } });
     });
     this.duration = Math.max(0, this.player.getDuration() || 0);
+    this._startPreviewTicker();
     return { duration: this.duration };
   }
+
+  // ── Preview înainte de înregistrare (mini-player: play/pauză + seek) ──
+  _startPreviewTicker() {
+    this.onPreview = this.onPreview || null;
+    this.previewIv = setInterval(() => {
+      if (this.recording || this.finished) return;
+      let cur = 0, playing = false;
+      try { cur = this.player.getCurrentTime() || 0; playing = this.player.getPlayerState() === 1; } catch {}
+      this.onPreview && this.onPreview({ cur, duration: this.duration, playing });
+    }, 250);
+  }
+  previewToggle() {
+    try { if (this.player.getPlayerState() === 1) this.player.pauseVideo(); else { this.player.unMute(); this.player.setVolume(100); this.player.playVideo(); } } catch {}
+  }
+  previewPause() { try { this.player.pauseVideo(); } catch {} }
+  seek(sec) { try { this.player.seekTo(Math.max(0, sec), true); } catch {} }
+  getTime() { try { return this.player.getCurrentTime() || 0; } catch { return 0; } }
 
   // Pornește înregistrarea de la fromSec.
   start(fromSec = 0) {
     if (this.recording || this.finished) return;
+    try { clearInterval(this.previewIv); } catch {}
     const mimeType = pickMime();
     this.rec = new MediaRecorder(this.audioStream, mimeType ? { mimeType } : undefined);
     this.chunks = [];
@@ -92,6 +111,7 @@ export class YoutubeRecorder {
     if (this.finished) return;
     this.finished = true; this.recording = false;
     try { clearInterval(this.iv); } catch {}
+    try { clearInterval(this.previewIv); } catch {}
     try { this.rec && this.rec.state !== "inactive" && this.rec.stop(); } catch {}
     try { this.player && this.player.stopVideo && this.player.stopVideo(); } catch {}
     this._stopStream();
@@ -100,6 +120,7 @@ export class YoutubeRecorder {
   }
   _cleanup() {
     try { clearInterval(this.iv); } catch {}
+    try { clearInterval(this.previewIv); } catch {}
     try { this.player && this.player.stopVideo && this.player.stopVideo(); } catch {}
     this._stopStream();
     setTimeout(() => { try { this.container && this.container.remove(); } catch {} }, 400);

@@ -26,24 +26,29 @@ export function accentPattern(meter) {
 // 9 presete de pad (synth Tone) — toate MOI/worship: doar sine/triangle (fără sawtooth gălăgios),
 // cutoff jos și atac lung → cald, airy, înfundat. Variază subtil timbrul.
 // oscilatoare SIMPLE (fără dezacord → ZERO beating/bâzâit). Variază doar timbrul/cutoff/atac.
+// 12 presete — oscilatoare simple (sine/triangle), cu mișcare lentă tip „whale" (LFO pe filtru).
+// move = cât de mult mișcă filtrul (anvergura în Hz); attack lung = intrare moale, worship.
 export const PADS = [
-  { label: "Air", osc: "sine", cutoff: 2000, attack: 1.4 },
-  { label: "Warm", osc: "sine", cutoff: 1700, attack: 1.0 },
-  { label: "Halo", osc: "sine", cutoff: 2600, attack: 1.6 },
-  { label: "Choir", osc: "triangle", cutoff: 2100, attack: 1.1 },
-  { label: "Soft Strings", osc: "triangle", cutoff: 1900, attack: 1.3 },
-  { label: "Glass", osc: "triangle", cutoff: 2400, attack: 1.2 },
-  { label: "Deep", osc: "sine", cutoff: 1400, attack: 1.2 },
-  { label: "Breath", osc: "triangle", cutoff: 2300, attack: 1.5 },
-  { label: "Dream", osc: "sine", cutoff: 2200, attack: 1.8 },
+  { label: "Air", osc: "sine", cutoff: 2000, attack: 1.6, move: 500 },
+  { label: "Warm", osc: "sine", cutoff: 1600, attack: 1.2, move: 350 },
+  { label: "Halo", osc: "sine", cutoff: 2600, attack: 1.8, move: 700 },
+  { label: "Whale", osc: "sine", cutoff: 1300, attack: 2.2, move: 800 },
+  { label: "Choir", osc: "triangle", cutoff: 2000, attack: 1.3, move: 450 },
+  { label: "Soft Strings", osc: "triangle", cutoff: 1800, attack: 1.5, move: 500 },
+  { label: "Glass", osc: "triangle", cutoff: 2400, attack: 1.2, move: 600 },
+  { label: "Deep", osc: "sine", cutoff: 1200, attack: 1.4, move: 300 },
+  { label: "Breath", osc: "triangle", cutoff: 2200, attack: 1.7, move: 650 },
+  { label: "Dream", osc: "sine", cutoff: 2100, attack: 2.0, move: 750 },
+  { label: "Ocean", osc: "sine", cutoff: 1500, attack: 2.4, move: 900 },
+  { label: "Velvet", osc: "triangle", cutoff: 1700, attack: 1.6, move: 400 },
 ];
-const PAD_VOL = 0.7;
+const PAD_VOL = 0.68;
 const AUTO_STOP_MS = 30 * 60 * 1000;
 
 export class ClickTrackEngine {
   constructor() {
     this.ctx = null; this.piano = null; this.clickGain = null; this.pianoGain = null;
-    this.pad = null; this.padSub = null; this.padOut = null; this.filter = null; this.reverb = null;
+    this.pad = null; this.padSub = null; this.padOut = null; this.filter = null; this.hpf = null; this.filterLfo = null; this.reverb = null;
     this.padReady = false; this.pianoReady = false; this.loadingPiano = false; this.held = []; this.disposed = false;
     this.state = { keyPc: 0, keyName: "C", mode: "major", bpm: 72, meter: "4/4", playing: false, padMuted: false, clickMuted: false, padIndex: 0 };
     this.timer = null; this.autoStop = null; this.nextTime = 0; this.beat = 0;
@@ -62,29 +67,33 @@ export class ClickTrackEngine {
 
   _buildPad() {
     const p = PADS[this.state.padIndex] || PADS[0];
-    // Lanț MINIM și curat: synth → lowpass → reverb → gain → out. Fără limiter/chorus/LFO (surse de distorsiune).
+    // Lanț: synth → HIGH-PASS (taie basul care „explodează") → LOW-PASS (cu mișcare lentă „whale") → reverb → out.
     this.padOut = new Tone.Gain(0).toDestination();
-    this.reverb = new Tone.Reverb({ decay: 4, preDelay: 0.02, wet: 0.3 }).connect(this.padOut);
+    this.reverb = new Tone.Reverb({ decay: 3.5, preDelay: 0.02, wet: 0.26 }).connect(this.padOut);
     this.filter = new Tone.Filter({ type: "lowpass", frequency: p.cutoff, rolloff: -12, Q: 0.1 }).connect(this.reverb);
-    // STRAT 1 — vocea principală (oscilator SIMPLU, fără dezacord → fără bâzâit)
+    this.hpf = new Tone.Filter({ type: "highpass", frequency: 130, rolloff: -12, Q: 0.3 }).connect(this.filter); // fără sub-bas = fără „explozie" pe boxele laptopului
+    // mișcare foarte lentă pe lowpass → „whale"/evolutiv (nu wobble)
+    this.filterLfo = new Tone.LFO({ frequency: 0.07, min: Math.max(600, p.cutoff - (p.move || 400)), max: p.cutoff + (p.move || 400) * 0.4 }).start();
+    this.filterLfo.connect(this.filter.frequency);
+    // STRAT 1 — voce principală
     this.pad = new Tone.PolySynth(Tone.Synth, {
-      maxPolyphony: 12,
+      maxPolyphony: 14,
       oscillator: { type: p.osc },
-      envelope: { attack: p.attack, decay: 0.4, sustain: 1, release: 3 },
-      volume: -9,
-    }).connect(this.filter);
-    // STRAT 2 — bază curată de sinus (corp/„plin")
+      envelope: { attack: p.attack, decay: 0.5, sustain: 1, release: 3.5 },
+      volume: -10,
+    }).connect(this.hpf);
+    // STRAT 2 — octavă peste, sinus (adaugă „plin"/air fără bas)
     this.padSub = new Tone.PolySynth(Tone.Synth, {
-      maxPolyphony: 6,
+      maxPolyphony: 8,
       oscillator: { type: "sine" },
-      envelope: { attack: Math.max(0.6, p.attack * 0.8), decay: 0.4, sustain: 1, release: 3 },
-      volume: -13,
-    }).connect(this.filter);
+      envelope: { attack: Math.max(0.8, p.attack * 0.9), decay: 0.5, sustain: 1, release: 3.5 },
+      volume: -14,
+    }).connect(this.hpf);
     this.padReady = true;
   }
   _disposePad() {
     this.held = [];
-    for (const n of ["pad", "padSub", "filter", "reverb", "padOut"]) { try { this[n] && this[n].dispose(); } catch {} this[n] = null; }
+    for (const n of ["pad", "padSub", "filterLfo", "hpf", "filter", "reverb", "padOut"]) { try { this[n] && this[n].dispose(); } catch {} this[n] = null; }
     this.padReady = false;
   }
 
@@ -131,9 +140,9 @@ export class ClickTrackEngine {
     const r = 48 + this.state.keyPc; const th = this.state.mode === "minor" ? 3 : 4;
     return [r, r + th, r + 7, r + 12].map((m) => Tone.Frequency(m, "midi").toNote());
   }
-  _subNotes() { // bază curată (root + cvintă) pt. corp
+  _subNotes() { // strat de „air" o octavă peste (root + cvintă) — plinătate fără bas
     const r = 48 + this.state.keyPc;
-    return [r, r + 7].map((m) => Tone.Frequency(m, "midi").toNote());
+    return [r + 12, r + 19].map((m) => Tone.Frequency(m, "midi").toNote());
   }
   _pianoChord() { const r = 60 + this.state.keyPc; const th = this.state.mode === "minor" ? 3 : 4; return [r, r + th, r + 7, r + 12]; }
 
