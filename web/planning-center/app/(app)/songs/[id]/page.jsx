@@ -148,19 +148,19 @@ export default function SongDetail() {
     setTransposeFor(f);
   };
 
-  const startAudioTranspose = async (f, targetKey) => {
+  const startAudioTranspose = async (f, targetKey, sourceKey) => {
     try {
-      let fromKey = "C";
-      try { const cc = await api.get(`/songs/${id}/arrangements/${arrId}/chordchart`); fromKey = cc.originalKey || "C"; } catch {}
+      let fromKey = sourceKey || "";
+      if (!fromKey) { try { const cc = await api.get(`/songs/${id}/arrangements/${arrId}/chordchart`); fromKey = cc.originalKey || "C"; } catch { fromKey = "C"; } }
       const r = await songsApi.transposeAudio(id, arrId, { sourceFileId: f.id, fromKey, toKey: targetKey });
       setJobs((js) => [...js, { jobId: r.jobId, name: r.name || `${f.name}-${targetKey}`, phase: "start", percent: 0, done: false, error: "" }]);
     } catch (e) { setToast("Nu pot porni transpunerea: " + (e?.message || e)); setTimeout(() => setToast(""), 4000); }
   };
 
-  const doTranspose = async (targetKey) => {
+  const doTranspose = async (targetKey, sourceKey) => {
     const f = transposeFor; if (!f) { return; }
     setTransposeFor(null);
-    if (isAudioUrl(f.url, f.kind) || isYouTube(f.url)) { return startAudioTranspose(f, targetKey); }
+    if (isAudioUrl(f.url, f.kind) || isYouTube(f.url)) { return startAudioTranspose(f, targetKey, sourceKey); }
     try {
       const cc = await api.get(`/songs/${id}/arrangements/${arrId}/chordchart`);
       const originalKey = cc.originalKey || "C";
@@ -419,7 +419,11 @@ export default function SongDetail() {
       )}
       {showCT && <ClickTrackBar defaults={ctDefaults} playerActive={!!player.track} onClose={() => setShowCT(false)} />}
       {preview && <ChartPreviewModal songId={id} arrId={arrId} song={song} arr={arr} mode={preview.mode} targetKey={preview.targetKey} onClose={() => setPreview(null)} />}
-      {transposeFor && <TransposeModal file={transposeFor} onClose={() => setTransposeFor(null)} onPick={doTranspose} />}
+      {transposeFor && (
+        <TransposeModal file={transposeFor} onClose={() => setTransposeFor(null)} onPick={doTranspose}
+          askSource={isAudioUrl(transposeFor.url, transposeFor.kind) || isYouTube(transposeFor.url)}
+          defaultSource={(transposeFor.detectedLabel || "").replace(/m$/i, "") || (arr?.chordChart?.originalKey || "").replace(/m(in)?$/i, "").replace(/maj$/i, "").trim()} />
+      )}
       {renameFor && (
         <div className="ov-min" onMouseDown={(e) => e.target === e.currentTarget && setRenameFor(null)}>
           <div className="mini">

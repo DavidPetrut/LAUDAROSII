@@ -61,10 +61,12 @@ export class ClickTrackEngine {
   _buildPad() {
     const p = PADS[this.state.padIndex] || PADS[0];
     this.padOut = new Tone.Gain(0).toDestination();
-    this.reverb = new Tone.Reverb({ decay: 7, preDelay: 0.02, wet: 0.45 }).connect(this.padOut);
-    this.chorus = new Tone.Chorus({ frequency: 0.5, delayTime: 3.5, depth: 0.6, spread: 180, wet: 0.35 }).connect(this.reverb).start();
-    this.filter = new Tone.Filter({ type: "lowpass", frequency: p.cutoff, rolloff: -12, Q: 0.3 }).connect(this.chorus);
-    this.filterLfo = new Tone.LFO({ frequency: 0.06, min: p.cutoff - 500, max: p.cutoff + 400 }).start();
+    this.reverb = new Tone.Reverb({ decay: 7, preDelay: 0.02, wet: 0.5 }).connect(this.padOut);
+    // chorus discret (shimmer), NU throb — altfel se aude ca o pulsație la ~2s
+    this.chorus = new Tone.Chorus({ frequency: 0.25, delayTime: 3, depth: 0.2, spread: 160, wet: 0.18 }).connect(this.reverb).start();
+    this.filter = new Tone.Filter({ type: "lowpass", frequency: p.cutoff, rolloff: -12, Q: 0.2 }).connect(this.chorus);
+    // mișcare foarte lentă și discretă pe filtru (nu pulsație)
+    this.filterLfo = new Tone.LFO({ frequency: 0.05, min: p.cutoff - 250, max: p.cutoff + 250 }).start();
     this.filterLfo.connect(this.filter.frequency);
     this.pad = new Tone.PolySynth(Tone.Synth, {
       maxPolyphony: 16,
