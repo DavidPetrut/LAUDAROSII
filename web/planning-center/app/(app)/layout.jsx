@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 import { isAuthed } from "@/lib/auth/auth";
 import TopNav from "@/components/shell/TopNav";
 import AiCommandBar from "@/components/ai/AiCommandBar";
+import { PlayerProvider } from "@/lib/player/PlayerProvider";
+import PlayerBar from "@/components/player/PlayerBar";
 
 export default function AppLayout({ children }) {
   const router = useRouter();
@@ -21,12 +23,13 @@ export default function AppLayout({ children }) {
   if (!ready) return null;
 
   return (
-    <>
+    <PlayerProvider>
       <TopNav />
       <main style={{ maxWidth: "var(--content-max)", margin: "0 auto", padding: "0 var(--gutter)" }}>
         {children}
       </main>
       <AiCommandBar />
-    </>
+      <PlayerBar />
+    </PlayerProvider>
   );
 }

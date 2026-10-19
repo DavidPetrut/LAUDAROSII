@@ -7,21 +7,26 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { songsApi } from "@/lib/api/client";
+import { api, songsApi } from "@/lib/api/client";
 import { abbreviateSequence } from "@/lib/songs/sequence";
+import { renderChordPro } from "@/lib/songs/chordpro";
+import { generateChartPdf } from "@/lib/songs/pdf";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
+import { usePlayer, isAudioUrl, isYouTube } from "@/lib/player/PlayerProvider";
 import EditSequenceModal from "@/components/songs/EditSequenceModal";
 import AddKeyModal from "@/components/songs/AddKeyModal";
 import AddArrangementModal from "@/components/songs/AddArrangementModal";
 import AddFileModal from "@/components/songs/AddFileModal";
 import SongInfoModal from "@/components/songs/SongInfoModal";
 import ChartPreviewModal from "@/components/songs/ChartPreviewModal";
+import TransposeModal from "@/components/songs/TransposeModal";
 
 const METERS = ["none", "2/2", "2/4", "3/2", "3/4", "4/2", "4/4", "5/4", "6/4", "3/8", "6/8", "7/4", "7/8", "9/8", "12/4", "12/8"];
 
 export default function SongDetail() {
   const { id } = useParams();
   const router = useRouter();
+  const player = usePlayer();
   const [song, setSong] = useState(null);
   const [arrId, setArrId] = useState(null);
   const [arr, setArr] = useState(null);
@@ -29,10 +34,18 @@ export default function SongDetail() {
   const [modal, setModal] = useState(null); // 'seq'|'key'|'arr'|'file'|'info'
   const [editField, setEditField] = useState(null); // 'bpm'|'length'|'name'
   const [preview, setPreview] = useState(null); // { mode, targetKey } pt. ChartPreviewModal
+  const [transposeFor, setTransposeFor] = useState(null); // fișierul de transpus
+  const [renameFor, setRenameFor] = useState(null); // fișierul de redenumit
+  const [renameVal, setRenameVal] = useState("");
+  const [deleteFor, setDeleteFor] = useState(null); // fișierul de șters (confirmare)
+  const [toast, setToast] = useState("");
 
-  // Click pe un fișier: chart-urile generate → preview in-app; audio/link → tab nou; derivat → editor.
+  const isChart = (f) => ["chordChart", "lyrics", "numbers", "numerals"].includes(f.kind);
+
+  // Click pe nume: audio/YouTube → player intern; chart generat → preview in-app; altfel url/editor.
   const openFile = (f) => {
-    if (f.source === "generated") {
+    if (isAudioUrl(f.url, f.kind) || isYouTube(f.url)) { player.play(f); return; }
+    if (f.source === "generated" && isChart(f)) {
       let mode = "chords", targetKey = "";
       if (f.kind === "numbers") mode = "numbers";
       else if (f.kind === "numerals") mode = "numerals";
@@ -41,6 +54,54 @@ export default function SongDetail() {
       setPreview({ mode, targetKey });
     } else if (f.url) window.open(f.url, "_blank", "noopener");
     else router.push(`/chords/${id}/${arrId}`);
+  };
+
+  const editFile = (f) => {
+    if (f.source === "generated" && isChart(f)) { router.push(`/chords/${id}/${arrId}`); return; }
+    setRenameVal(f.name || ""); setRenameFor(f);
+  };
+  const doRename = async () => {
+    if (!renameFor || !renameVal.trim()) return;
+    await songsApi.patchFile(id, arrId, renameFor.id, { name: renameVal.trim() });
+    setRenameFor(null); await loadArr();
+  };
+  const downloadFile = (f) => { if (f.url) window.open(f.url, "_blank", "noopener"); };
+  const confirmDelete = async () => {
+    if (!deleteFor) return;
+    await songsApi.deleteFile(id, arrId, deleteFor.id);
+    setDeleteFor(null); await loadArr();
+  };
+
+  // Transpose: doar chart-urile generate (derivate din ChordPro). Audio/YouTube = în curând.
+  const transposeFile = (f) => {
+    if (isAudioUrl(f.url, f.kind) || isYouTube(f.url)) { setToast("Transpose audio/YouTube vine în curând."); setTimeout(() => setToast(""), 3000); return; }
+    if (f.source !== "generated" || !isChart(f)) { setToast("Transpose merge doar la chart-urile generate (din Lyrics & Chords)."); setTimeout(() => setToast(""), 3500); return; }
+    setTransposeFor(f);
+  };
+  const doTranspose = async (targetKey) => {
+    const f = transposeFor; if (!f) { return; }
+    setTransposeFor(null);
+    try {
+      const cc = await api.get(`/songs/${id}/arrangements/${arrId}/chordchart`);
+      const originalKey = cc.originalKey || "C";
+      const mode = f.kind === "numbers" ? "numbers" : f.kind === "numerals" ? "numerals" : f.kind === "lyrics" ? "lyrics" : "chords";
+      const lines = renderChordPro(cc.chordpro || "", { mode, originalKey, targetKey });
+      const seqTokens = abbreviateSequence(arr?.sequence || []);
+      const blob = await generateChartPdf({ title: song?.title, keyLabel: mode === "chords" ? targetKey : (mode[0].toUpperCase() + mode.slice(1)), bpm: arr?.bpm, meter: arr?.meter, arrName: arr?.name, author: song?.author, seqTokens, lines, chordColorHex: "#0921ff", fontSize: 16 });
+      const base = (f.name || "Chart").replace(/\s*in\s+\S+$/i, "").replace(/-\S+$/, "").trim();
+      const name = `${base}-${targetKey}`;
+      // asigură cardul gamei țintă
+      let key = (arr?.keys || []).find((k) => k.startKey === targetKey);
+      if (!key) { const r = await songsApi.addKey(id, arrId, { startKey: targetKey }); key = { id: r.id, startKey: targetKey }; }
+      // înlocuiește un transpose anterior cu același nume în acea cheie
+      const fresh = await songsApi.arrangement(id, arrId);
+      const fk = (fresh.keys || []).find((k) => k.startKey === targetKey);
+      for (const o of ((fk?.files) || []).filter((x) => x.source === "generated" && x.name === name)) { try { await songsApi.deleteFile(id, arrId, o.id); } catch {} }
+      const up = await songsApi.uploadBlob(blob, `${name}.pdf`, "raw");
+      await songsApi.addFile(id, arrId, { name, url: up.url, kind: f.kind, source: "generated", keyId: key.id });
+      await loadArr();
+      setToast(`Transpus în ${targetKey} ✓`); setTimeout(() => setToast(""), 2500);
+    } catch (e) { setToast("Eroare la transpose: " + (e?.message || e)); setTimeout(() => setToast(""), 3500); }
   };
 
   const loadSong = useCallback(async () => {
@@ -167,13 +228,13 @@ export default function SongDetail() {
               <div className="file-cols">
                 <div className="fcol">
                   <div className="fcol-h">Arrangement</div>
-                  {(arr.arrangementFiles || []).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} />)}
+                  {(arr.arrangementFiles || []).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onEdit={() => editFile(f)} onTranspose={() => transposeFile(f)} onDownload={() => downloadFile(f)} onDelete={() => setDeleteFor(f)} />)}
                   {(arr.arrangementFiles || []).length === 0 && <div className="fcol-empty" />}
                 </div>
                 {(arr.keys || []).map((k) => (
                   <div key={k.id} className="fcol">
                     <div className="fcol-h">{k.label || k.startKey}</div>
-                    {(k.files || []).filter((f) => !f.derived).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} />)}
+                    {(k.files || []).filter((f) => !f.derived).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onEdit={() => editFile(f)} onTranspose={() => transposeFile(f)} onDownload={() => downloadFile(f)} onDelete={() => setDeleteFor(f)} />)}
                   </div>
                 ))}
               </div>
@@ -210,6 +271,36 @@ export default function SongDetail() {
       {modal === "file" && <AddFileModal songId={id} arrangementId={arrId} keys={arr?.keys || []} onClose={() => setModal(null)} onDone={() => { setModal(null); loadArr(); }} />}
       {modal === "info" && <SongInfoModal song={song} onClose={() => setModal(null)} onSubmit={saveInfo} />}
       {preview && <ChartPreviewModal songId={id} arrId={arrId} song={song} arr={arr} mode={preview.mode} targetKey={preview.targetKey} onClose={() => setPreview(null)} />}
+      {transposeFor && <TransposeModal file={transposeFor} onClose={() => setTransposeFor(null)} onPick={doTranspose} />}
+      {renameFor && (
+        <div className="ov-min" onMouseDown={(e) => e.target === e.currentTarget && setRenameFor(null)}>
+          <div className="mini">
+            <h3>Redenumește fișier</h3>
+            <input className="input" value={renameVal} autoFocus onChange={(e) => setRenameVal(e.target.value)} onKeyDown={(e) => e.key === "Enter" && doRename()} />
+            <div className="mini-foot"><button className="btn btn-link" onClick={() => setRenameFor(null)}>Anulează</button><button className="btn btn-primary" onClick={doRename}>Salvează</button></div>
+          </div>
+        </div>
+      )}
+      {deleteFor && (
+        <div className="ov-min" onMouseDown={(e) => e.target === e.currentTarget && setDeleteFor(null)}>
+          <div className="mini">
+            <h3>Ștergi definitiv?</h3>
+            <p className="mini-p">„{deleteFor.name}" va fi șters <b>definitiv</b> din baza de date. Ireversibil.</p>
+            <div className="mini-foot"><button className="btn btn-link" onClick={() => setDeleteFor(null)}>Anulează</button><button className="btn btn-danger" onClick={confirmDelete}>Șterge definitiv</button></div>
+          </div>
+        </div>
+      )}
+      {toast && <div className="song-toast">{toast}</div>}
+      <style jsx>{`
+        .ov-min { position: fixed; inset: 0; z-index: 65; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+        .mini { background: var(--modal-bg); border: 1px solid var(--border-strong); border-radius: 10px; padding: 20px; width: 400px; max-width: 100%; }
+        .mini h3 { margin: 0 0 12px; font-size: 17px; }
+        .mini-p { color: var(--text-dim); font-size: 13px; line-height: 1.5; margin: 0 0 16px; }
+        .mini-foot { display: flex; justify-content: flex-end; gap: 14px; margin-top: 16px; }
+        :global(.btn-danger) { background: var(--danger); color: #fff; border-color: var(--danger); }
+        :global(.btn-danger:hover) { filter: brightness(1.1); }
+        .song-toast { position: fixed; bottom: 86px; left: 50%; transform: translateX(-50%); z-index: 75; background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text); padding: 10px 16px; border-radius: 8px; font-size: 13px; box-shadow: 0 10px 28px rgba(0,0,0,.5); }
+      `}</style>
 
       <style jsx>{`
         .detail { padding: 22px 0 90px; }
@@ -260,18 +351,28 @@ export default function SongDetail() {
   );
 }
 
-function FileRow({ f, onOpen }) {
-  const inner = (
-    <>
-      <span className="fi">{f.kind === "audio" ? "♪" : f.kind === "chordChart" ? "♯" : f.kind === "lyrics" ? "¶" : "▦"}</span>
-      <span className="fn">{f.name}</span>
-    </>
-  );
+function FileRow({ f, onOpen, onEdit, onTranspose, onDownload, onDelete }) {
+  const icon = f.kind === "audio" ? "♪" : f.kind === "chordChart" ? "♯" : f.kind === "lyrics" ? "¶" : f.kind === "link" ? "▶" : "▦";
+  const act = (fn) => (e) => { e.stopPropagation(); fn && fn(); };
   return (
     <div className="frow">
-      <button className="fl fl-btn" onClick={onOpen} title="Deschide">{inner}</button>
+      <div className="fr-actions">
+        <button onClick={act(onEdit)} title="Editează">✎</button>
+        <button onClick={act(onTranspose)} title="Transpune">⇅</button>
+        <button onClick={act(onDownload)} title="Descarcă">↓</button>
+        <button className="trash" onClick={act(onDelete)} title="Șterge definitiv">🗑</button>
+      </div>
+      <button className="fl fl-btn" onClick={onOpen} title="Deschide / rulează">
+        <span className="fi">{icon}</span>
+        <span className="fn">{f.name}</span>
+      </button>
       <style jsx>{`
-        .frow { padding: 6px 0; }
+        .frow { position: relative; padding: 6px 0; }
+        .fr-actions { position: absolute; right: 100%; top: 50%; transform: translateY(-50%); margin-right: 8px; display: none; gap: 2px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; padding: 3px; box-shadow: 0 6px 18px rgba(0,0,0,.4); white-space: nowrap; z-index: 5; }
+        .frow:hover .fr-actions { display: flex; }
+        .fr-actions button { background: transparent; border: none; color: var(--text-dim); width: 26px; height: 26px; border-radius: 5px; cursor: pointer; font-size: 13px; }
+        .fr-actions button:hover { background: var(--surface-2); color: var(--text); }
+        .fr-actions .trash:hover { background: rgba(229,83,75,.18); color: #f0a7a2; }
         .fl { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 13px; }
         .fl:hover { color: var(--text-link); }
         .fl-btn { background: transparent; border: none; cursor: pointer; padding: 0; text-align: left; width: 100%; }

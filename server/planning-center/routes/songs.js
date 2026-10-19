@@ -243,6 +243,21 @@ router.post("/:id/arrangements/:aid/files", requireCan("songs.edit"), async (req
   } catch (err) { console.error("[pc] POST song file:", err.message); res.status(500).json({ error: "Eroare." }); }
 });
 
+/* ───────── PATCH /:id/arrangements/:aid/files/:fid — redenumește un fișier ───────── */
+router.patch("/:id/arrangements/:aid/files/:fid", requireCan("songs.edit"), async (req, res) => {
+  try {
+    const set = {};
+    if (req.body?.name !== undefined) set.name = String(req.body.name).trim();
+    if (!Object.keys(set).length) return res.status(400).json({ error: "Nimic de schimbat." });
+    const f = await PcSongFile.findOneAndUpdate(
+      scoped(req, { _id: OID(req.params.fid), arrangementId: OID(req.params.aid) }),
+      { $set: set }, { new: true }
+    ).select("_id").lean();
+    if (!f) return res.status(404).json({ error: "Fișier inexistent." });
+    res.json({ ok: true });
+  } catch (err) { console.error("[pc] PATCH song file:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
 /* ───────── DELETE /:id/arrangements/:aid/files/:fid — șterge un fișier (ex. la regenerare PDF) ───────── */
 router.delete("/:id/arrangements/:aid/files/:fid", requireCan("songs.edit"), async (req, res) => {
   try {

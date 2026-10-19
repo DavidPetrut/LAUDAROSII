@@ -62,6 +62,7 @@ export const songsApi = {
   deleteKey: (id, aid, kid) => api.del(`/songs/${id}/arrangements/${aid}/keys/${kid}`),
   addFile: (id, aid, payload) => api.post(`/songs/${id}/arrangements/${aid}/files`, payload),
   deleteFile: (id, aid, fid) => api.del(`/songs/${id}/arrangements/${aid}/files/${fid}`),
+  patchFile: (id, aid, fid, payload) => api.patch(`/songs/${id}/arrangements/${aid}/files/${fid}`, payload),
   uploadBlob: async (blob, filename, rt) => { const fd = new FormData(); fd.append("file", blob, filename); fd.append("name", filename); return api.post(`/uploads${rt ? `?rt=${rt}` : ""}`, fd); },
   tags: (domain = "song") => api.get(`/songs/meta/tags?domain=${domain}`),
 };
