@@ -35,7 +35,7 @@ export const PADS = [
   { instr: "synth_strings_1", label: "Synth Strings" },
 ];
 const PAD_VOL = 0.85;
-const PAD_SKIP = 1.5; // sec tăiate de la începutul pad-ului (atacul) — nu se aud niciodată
+const PAD_SKIP = 2.5; // sec tăiate de la începutul pad-ului (atacul) — nu se aud niciodată
 const AUTO_STOP_MS = 30 * 60 * 1000;
 
 export class ClickTrackEngine {
