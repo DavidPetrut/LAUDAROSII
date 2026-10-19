@@ -114,7 +114,7 @@ export default function SongDetail() {
   const transposeDefaultSource = (f) => {
     if (!f) return "";
     if (isAudioUrl(f.url, f.kind) || isYouTube(f.url)) return (f.detectedLabel || "").replace(/m$/i, "") || keyFromName(f.name) || ccKey();
-    return ccKey() || keyFromName(f.name); // chart: gama aranjamentului
+    return keyFromName(f.name) || ccKey(); // chart: gama FIȘIERULUI (din nume), apoi a aranjamentului
   };
 
   // Click pe nume: audio/YouTube → player intern; chart generat → preview in-app; altfel url/editor.
@@ -213,7 +213,9 @@ export default function SongDetail() {
     if (isAudioUrl(f.url, f.kind) || isYouTube(f.url)) { return startAudioTranspose(f, targetKey, sourceKey); }
     try {
       const cc = await api.get(`/songs/${id}/arrangements/${arrId}/chordchart`);
-      const originalKey = sourceKey || cc.originalKey || "C";
+      // Chart-ul se randează MEREU din ChordPro-ul real (cc.originalKey) spre gama țintă ABSOLUTĂ.
+      // „Gama actuală" aleasă e doar informativă aici (un chart în Bb e absolut, oricum l-ai numi sursa).
+      const originalKey = cc.originalKey || "C";
       const mode = f.kind === "numbers" ? "numbers" : f.kind === "numerals" ? "numerals" : f.kind === "lyrics" ? "lyrics" : "chords";
       const lines = renderChordPro(cc.chordpro || "", { mode, originalKey, targetKey });
       const seqTokens = abbreviateSequence(arr?.sequence || []);
