@@ -42,7 +42,7 @@ export class ClickTrackEngine {
   constructor() {
     this.ctx = null; this.piano = null; this.clickGain = null; this.pianoGain = null;
     this.pad = null; this.padOut = null; this.filter = null; this.chorus = null; this.reverb = null; this.filterLfo = null;
-    this.padReady = false; this.pianoReady = false; this.loadingPiano = false; this.held = [];
+    this.padReady = false; this.pianoReady = false; this.loadingPiano = false; this.held = []; this.disposed = false;
     this.state = { keyPc: 0, keyName: "C", mode: "major", bpm: 72, meter: "4/4", playing: false, padMuted: false, clickMuted: false, padIndex: 0 };
     this.timer = null; this.autoStop = null; this.nextTime = 0; this.beat = 0;
     this.onBeat = null; this.onState = null;
@@ -164,9 +164,12 @@ export class ClickTrackEngine {
   }
 
   async start() {
+    if (this.disposed) return;
     try { await Tone.start(); } catch {}
+    if (this.disposed) return; // a fost oprit cât am așteptat (StrictMode / remount)
     this._ensureCtx();
     if (this.ctx.state === "suspended") { try { await this.ctx.resume(); } catch {} }
+    if (this.disposed) return;
     this.state.playing = true; this.beat = 0; this.nextTime = this.ctx.currentTime + 0.1;
     if (!this.state.padMuted) this._startPadChord();
     clearInterval(this.timer);
@@ -201,6 +204,7 @@ export class ClickTrackEngine {
   }
 
   dispose() {
+    this.disposed = true;
     try { this.stop(); } catch {}
     try { this._disposePad(); } catch {}
     if (this.piano) { try { this.piano.stop(); } catch {} }
