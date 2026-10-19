@@ -26,17 +26,17 @@ export function accentPattern(meter) {
 // 9 presete de pad (synth Tone) — toate MOI/worship: doar sine/triangle (fără sawtooth gălăgios),
 // cutoff jos și atac lung → cald, airy, înfundat. Variază subtil timbrul.
 export const PADS = [
-  { label: "Air", osc: "fatsine", count: 3, spread: 18, cutoff: 1400, attack: 1.4 },
-  { label: "Warm", osc: "fatsine", count: 4, spread: 16, cutoff: 1100, attack: 1.0 },
-  { label: "Halo", osc: "fatsine", count: 3, spread: 24, cutoff: 2000, attack: 1.6 },
-  { label: "Choir", osc: "fattriangle", count: 4, spread: 26, cutoff: 1500, attack: 1.1 },
-  { label: "Soft Strings", osc: "fattriangle", count: 4, spread: 30, cutoff: 1300, attack: 1.3 },
-  { label: "Glass", osc: "fattriangle", count: 3, spread: 20, cutoff: 1800, attack: 1.2 },
-  { label: "Deep", osc: "fatsine", count: 4, spread: 14, cutoff: 900, attack: 1.2 },
-  { label: "Breath", osc: "fattriangle", count: 3, spread: 18, cutoff: 1700, attack: 1.5 },
-  { label: "Dream", osc: "fatsine", count: 4, spread: 22, cutoff: 1600, attack: 1.8 },
+  { label: "Air", osc: "fatsine", count: 3, spread: 18, cutoff: 1900, attack: 1.4 },
+  { label: "Warm", osc: "fatsine", count: 4, spread: 16, cutoff: 1600, attack: 1.0 },
+  { label: "Halo", osc: "fatsine", count: 3, spread: 24, cutoff: 2500, attack: 1.6 },
+  { label: "Choir", osc: "fattriangle", count: 4, spread: 26, cutoff: 2000, attack: 1.1 },
+  { label: "Soft Strings", osc: "fattriangle", count: 4, spread: 30, cutoff: 1800, attack: 1.3 },
+  { label: "Glass", osc: "fattriangle", count: 3, spread: 20, cutoff: 2300, attack: 1.2 },
+  { label: "Deep", osc: "fatsine", count: 4, spread: 14, cutoff: 1300, attack: 1.2 },
+  { label: "Breath", osc: "fattriangle", count: 3, spread: 18, cutoff: 2200, attack: 1.5 },
+  { label: "Dream", osc: "fatsine", count: 4, spread: 22, cutoff: 2100, attack: 1.8 },
 ];
-const PAD_VOL = 0.9;
+const PAD_VOL = 1;
 const AUTO_STOP_MS = 30 * 60 * 1000;
 
 export class ClickTrackEngine {
@@ -62,7 +62,7 @@ export class ClickTrackEngine {
   _buildPad() {
     const p = PADS[this.state.padIndex] || PADS[0];
     this.padOut = new Tone.Gain(0).toDestination();
-    this.reverb = new Tone.Reverb({ decay: 7, preDelay: 0.02, wet: 0.5 }).connect(this.padOut);
+    this.reverb = new Tone.Reverb({ decay: 7, preDelay: 0.02, wet: 0.38 }).connect(this.padOut);
     // chorus discret (shimmer), NU throb — altfel se aude ca o pulsație la ~2s
     this.chorus = new Tone.Chorus({ frequency: 0.25, delayTime: 3, depth: 0.2, spread: 160, wet: 0.18 }).connect(this.reverb).start();
     this.filter = new Tone.Filter({ type: "lowpass", frequency: p.cutoff, rolloff: -12, Q: 0.2 }).connect(this.chorus);
@@ -73,7 +73,7 @@ export class ClickTrackEngine {
       maxPolyphony: 16,
       oscillator: { type: p.osc, count: p.count, spread: p.spread },
       envelope: { attack: p.attack, decay: 0.4, sustain: 1, release: 3 },
-      volume: -12,
+      volume: -5,
     }).connect(this.filter);
     this.padReady = true;
   }
