@@ -9,6 +9,7 @@
  */
 import { useState, useRef } from "react";
 import Modal from "@/components/ui/Modal";
+import ImportPcoPdf from "@/components/songs/ImportPcoPdf";
 import { api, songsApi } from "@/lib/api/client";
 import { detectKey } from "@/lib/songs/keyDetect";
 
@@ -21,7 +22,8 @@ const TAGS = [
 ];
 
 export default function AddFileModal({ songId, arrangementId, keys = [], onClose, onDone }) {
-  const [mode, setMode] = useState("upload"); // upload | streaming | link
+  const [mode, setMode] = useState("upload"); // upload | streaming | link | pcopdf
+  const [pco, setPco] = useState(null); // rezultat parse PCO PDF
   const [link, setLink] = useState("");
   const [name, setName] = useState("");
   const [attachKey, setAttachKey] = useState(""); // "" = Arrangement (global), altfel keyId
@@ -55,6 +57,20 @@ export default function AddFileModal({ songId, arrangementId, keys = [], onClose
 
   async function submit() {
     setErr("");
+    // PCO PDF: parsează → setează ChordPro-ul (Lyrics & Chords) al aranjamentului + meta.
+    if (mode === "pcopdf") {
+      if (!pco) { setErr("Încarcă un PDF întâi."); return; }
+      setBusy(true);
+      try {
+        await songsApi.saveChordChart(songId, arrangementId, { chordpro: pco.chordpro || "", originalKey: pco.key || "" });
+        const seqArr = String(pco.sequence || "").split(",").map((s) => s.trim()).filter(Boolean);
+        await songsApi.updateArrangement(songId, arrangementId, {
+          bpm: pco.bpm || undefined, meter: pco.meter || undefined, sequence: seqArr,
+        });
+        onDone?.();
+      } catch (e) { setErr(e?.message || "Eroare la import."); setBusy(false); }
+      return;
+    }
     let url = "", kind = tag || "link", source = "link";
     if (mode === "upload") {
       if (!uploaded) { setErr("Încarcă un fișier întâi."); return; }
@@ -90,7 +106,10 @@ export default function AddFileModal({ songId, arrangementId, keys = [], onClose
         <button className={mode === "upload" ? "on" : ""} onClick={() => setMode("upload")}>Upload</button>
         <button className={mode === "streaming" ? "on" : ""} onClick={() => setMode("streaming")}>Streaming Services</button>
         <button className={mode === "link" ? "on" : ""} onClick={() => setMode("link")}>File Link</button>
+        <button className={mode === "pcopdf" ? "on" : ""} onClick={() => setMode("pcopdf")}>PCO PDF</button>
       </div>
+
+      {mode === "pcopdf" && <ImportPcoPdf value={pco} onChange={setPco} />}
 
       {mode === "upload" && (
         <div className="drop" onClick={() => fileRef.current?.click()}
@@ -127,24 +146,28 @@ export default function AddFileModal({ songId, arrangementId, keys = [], onClose
         </>
       )}
 
-      <label className="lbl">Name</label>
-      <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nume fișier" />
+      {mode !== "pcopdf" && (
+        <>
+          <label className="lbl">Name</label>
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nume fișier" />
 
-      <div className="two">
-        <div>
-          <label className="lbl">Attach to</label>
-          <select className="input" value={attachKey} onChange={(e) => setAttachKey(e.target.value)}>
-            <option value="">Arrangement (toate cheile)</option>
-            {keys.map((k) => <option key={k.id} value={k.id}>Key [{k.label || k.startKey}]</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="lbl">Tags</label>
-          <select className="input" value={tag} onChange={(e) => setTag(e.target.value)}>
-            {TAGS.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
-          </select>
-        </div>
-      </div>
+          <div className="two">
+            <div>
+              <label className="lbl">Attach to</label>
+              <select className="input" value={attachKey} onChange={(e) => setAttachKey(e.target.value)}>
+                <option value="">Arrangement (toate cheile)</option>
+                {keys.map((k) => <option key={k.id} value={k.id}>Key [{k.label || k.startKey}]</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="lbl">Tags</label>
+              <select className="input" value={tag} onChange={(e) => setTag(e.target.value)}>
+                {TAGS.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
+              </select>
+            </div>
+          </div>
+        </>
+      )}
 
       <style jsx>{`
         .tabs { display: flex; gap: 6px; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }

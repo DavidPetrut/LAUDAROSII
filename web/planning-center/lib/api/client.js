@@ -72,4 +72,8 @@ export const songsApi = {
   setArrangementTags: (id, aid, tagIds) => api.patch(`/songs/${id}/arrangements/${aid}/tags`, { tagIds }),
   transposeAudio: (id, aid, payload) => api.post(`/songs/${id}/arrangements/${aid}/transpose-audio`, payload),
   transposeAudioStatus: (id, aid, jobId) => api.get(`/songs/${id}/arrangements/${aid}/transpose-audio/${jobId}`),
+  // Import PCO PDF: parse (preview, fără scriere) + commit (creează song + aranjament + ChordPro).
+  importPcoParse: (file) => { const fd = new FormData(); fd.append("file", file); return api.post("/songs/import-pco-pdf/parse", fd); },
+  importPcoCommit: (payload) => api.post("/songs/import-pco-pdf/commit", payload),
+  saveChordChart: (id, aid, payload) => api.put(`/songs/${id}/arrangements/${aid}/chordchart`, payload),
 };

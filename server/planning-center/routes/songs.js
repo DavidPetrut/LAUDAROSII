@@ -14,6 +14,11 @@ const { scoped, stamp } = require("../core/orgScope");
 const { requireCan } = require("../core/permissions");
 
 const router = express.Router();
+
+// Upload PDF în memorie (import PCO). Lazy: dacă multer lipsește → feature 503.
+let _multer = null;
+try { const multer = require("multer"); _multer = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } }); } catch (e) { /* 503 */ }
+
 const OID = (v) => (mongoose.Types.ObjectId.isValid(v) ? new mongoose.Types.ObjectId(v) : null);
 const fmtLen = (s) => { const x = Math.max(0, Math.floor(s || 0)); return `${Math.floor(x / 60)}:${String(x % 60).padStart(2, "0")}`; };
 const keyLabel = (k) => (k.endKey && k.endKey !== "Same" && k.endKey !== k.startKey ? `${k.startKey} → ${k.endKey}` : k.startKey);
@@ -77,6 +82,53 @@ router.post("/", requireCan("songs.edit"), async (req, res) => {
     }));
     res.status(201).json({ id: song._id, title: song.title });
   } catch (err) { console.error("[pc] POST /songs:", err.message); res.status(500).json({ error: "Eroare la creare." }); }
+});
+
+/* ═══════════ IMPORT PCO PDF → ChordPro (acorduri peste silabe + metadata) ═══════════ */
+const seqToArr = (s) => String(s || "").split(",").map((x) => x.trim()).filter(Boolean);
+
+/* POST /import-pco-pdf/parse — urcă un PDF PCO, întoarce {title,key,bpm,meter,sequence,chordpro,warnings}. NU scrie în DB. */
+router.post("/import-pco-pdf/parse", requireCan("songs.edit"), (req, res) => {
+  if (!_multer) return res.status(503).json({ error: "Import PDF indisponibil: rulează `npm install multer pdfjs-dist` în server/." });
+  _multer.single("file")(req, res, async (err) => {
+    try {
+      if (err) return res.status(400).json({ error: "Fișier invalid: " + err.message });
+      if (!req.file) return res.status(400).json({ error: "Niciun fișier primit (câmpul file)." });
+      const { parsePcoPdf } = require("../services/pcoPdf");
+      const out = await parsePcoPdf(req.file.buffer);
+      if (!out.chordpro || !out.chordpro.trim()) return res.status(422).json({ error: "N-am găsit text în PDF (posibil scanat/imagine, nu text selectabil)." });
+      res.json(out);
+    } catch (e) { console.error("[pc] import-pco parse:", e.message); res.status(500).json({ error: "Eroare la citirea PDF-ului: " + e.message }); }
+  });
+});
+
+/* POST /import-pco-pdf/commit — creează song + aranjament + ChordPro din datele (confirmate) de preview. */
+router.post("/import-pco-pdf/commit", requireCan("songs.edit"), async (req, res) => {
+  try {
+    const b = req.body || {};
+    const title = String(b.title || "").trim();
+    if (!title) return res.status(400).json({ error: "Titlul e obligatoriu." });
+    const chordpro = String(b.chordpro || "");
+    if (!chordpro.trim()) return res.status(400).json({ error: "Lipsește conținutul ChordPro." });
+    const key = String(b.key || "").trim();
+    const bpm = Number(b.bpm) || null;
+    const meter = String(b.meter || "");
+    const sequence = Array.isArray(b.sequence) ? b.sequence.map(String) : seqToArr(b.sequence);
+
+    const song = await PcSong.create(stamp(req, { title, defaultKey: key, bpm }));
+    const arr = await PcArrangement.create(stamp(req, {
+      songId: song._id, name: String(b.arrName || "").trim() || "Default Arrangement",
+      bpm, meter, sequence, sortOrder: 0,
+    }));
+    if (key) await PcKey.create(stamp(req, { arrangementId: arr._id, songId: song._id, startKey: key }));
+    await PcSongFile.findOneAndUpdate(
+      scoped(req, { arrangementId: arr._id, scope: "arrangement", kind: "chordChart", source: "chordpro" }),
+      { $set: { chordpro, originalKey: key, name: "Lyrics & Chords", kind: "chordChart", source: "chordpro", scope: "arrangement" },
+        $setOnInsert: stamp(req, { songId: song._id, arrangementId: arr._id }) },
+      { upsert: true, new: true }
+    );
+    res.status(201).json({ songId: song._id, arrangementId: arr._id });
+  } catch (err) { console.error("[pc] import-pco commit:", err.message); res.status(500).json({ error: "Eroare: " + err.message }); }
 });
 
 /* ───────── PATCH /:id — editează „Song Information" (title/ccli/author/copyright/admin/notes/themes) ───────── */
