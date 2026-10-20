@@ -184,7 +184,7 @@ export default function SongDetail() {
     const rec = new YoutubeRecorder(vid);
     recorders.current[localId] = rec;
     rec.onPreview = ({ cur, duration, playing }) => upd({ curSec: cur, duration: duration || 0, previewPlaying: playing });
-    rec.onProgress = ({ cur, elapsed }) => upd({ curSec: cur, percent: rec.duration ? Math.min(99, Math.round((cur / rec.duration) * 100)) : 0, elapsedSec: elapsed });
+    rec.onProgress = ({ cur, recSec, paused }) => upd({ curSec: cur, recSec, recPaused: paused, percent: rec.duration ? Math.min(99, Math.round((cur / rec.duration) * 100)) : 0 });
     rec.onEnded = async ({ unexpected, cancelled } = {}) => {
       if (cancelled) { upd({ error: "Partajarea s-a oprit înainte de Start." }); delete recorders.current[localId]; return; }
       const blob = await rec.blobPromise;
@@ -208,6 +208,8 @@ export default function SongDetail() {
   const ytPreview = (j) => { const r = recorders.current[j.localId]; if (r) r.previewToggle(); };
   const ytSeek = (j, sec) => { const r = recorders.current[j.localId]; if (r) { r.seek(sec); ytUpd(j.localId, { curSec: sec }); } };
   const ytStop = (j) => { const r = recorders.current[j.localId]; if (r) r.stop(); };
+  const ytRecToggle = (j) => { const r = recorders.current[j.localId]; if (r) r.recTogglePlay(); };
+  const ytRecSeek = (j, sec) => { const r = recorders.current[j.localId]; if (r) { r.seek(sec); ytUpd(j.localId, { curSec: sec }); } };
   const ytStart = (j) => { // countdown 3-2-1, apoi înregistrează de la poziția curentă
     const r = recorders.current[j.localId]; if (!r) return;
     const from = r.getTime(); r.previewPause();
@@ -602,16 +604,27 @@ export default function SongDetail() {
                         onChange={(e) => ytSeek(j, Number(e.target.value))} disabled={!j.duration} />
                     </div>
                     <div className="yt-trow"><span className="yt-t">{mmss(j.curSec || 0)}</span><span className="yt-t">{j.duration ? mmss(j.duration) : "…"}</span></div>
-                    <button className="yt-start" onClick={() => ytStart(j)} disabled={!j.duration}>● Înregistrează de aici</button>
-                    <div className="yt-note">Nu închide bara Chrome de partajare — oprește înregistrarea.</div>
+                    <button className="yt-start" onClick={() => ytStart(j)} disabled={!j.duration}>
+                      <span className="rec-ico" /> RECORD
+                    </button>
+                    <div className="yt-note">Nu închide bara Chrome de partajare.</div>
                   </div>
                 ) : j.phase === "count" && !j.error ? (
-                  <div className="yt-count"><span className="yt-num">{j.count || 0}</span><span className="yt-csub">pornește înregistrarea…</span></div>
+                  <div className="yt-count"><span className="yt-num">{j.count || 0}</span><span className="yt-csub">RECORD în…</span></div>
                 ) : j.phase === "recording" && !j.error ? (
                   <div className="yt-rec">
-                    <div className="yt-lbl"><span className="rec-dot" /> Înregistrez · {mmss(j.elapsedSec || 0)}{j.duration ? ` (din ${mmss((j.duration || 0) - (j.startFrom || 0))})` : ""}</div>
-                    <div className="job-bar"><div className="job-fill" style={{ width: `${pct}%` }} /></div>
-                    <button className="yt-stop" onClick={() => ytStop(j)}>■ Stop &amp; generează</button>
+                    <div className="yt-lbl"><span className={`rec-dot${j.recPaused ? " paused" : ""}`} />{j.recPaused ? "Pauză" : "REC"} · {mmss(j.recSec || 0)}</div>
+                    <div className="yt-mini">
+                      <button className="yt-pp" onClick={() => ytRecToggle(j)} aria-label={j.recPaused ? "Reia" : "Pauză"}>
+                        {j.recPaused
+                          ? <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                          : <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>}
+                      </button>
+                      <input className="yt-seek" type="range" min={0} max={Math.max(1, Math.floor(j.duration || 0))} step={1} value={Math.floor(j.curSec || 0)} onChange={(e) => ytRecSeek(j, Number(e.target.value))} />
+                    </div>
+                    <div className="yt-trow"><span className="yt-t">{mmss(j.curSec || 0)}</span><span className="yt-t">{j.duration ? mmss(j.duration) : "…"}</span></div>
+                    <div className="yt-hint">Pauză → sari la altă porțiune → reia. Stop leagă tot într-un mp3.</div>
+                    <button className="yt-stop" onClick={() => ytStop(j)}><span className="stop-sq" /> Stop &amp; generează</button>
                   </div>
                 ) : (
                   <>
@@ -625,8 +638,9 @@ export default function SongDetail() {
         </div>
       )}
       <style jsx>{`
-        .job-stack { position: fixed; right: 24px; bottom: 86px; z-index: 76; display: flex; flex-direction: column; gap: 10px; width: 300px; max-width: calc(100vw - 48px); }
-        .job-card { background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 10px; padding: 11px 12px; box-shadow: 0 10px 28px rgba(0,0,0,.5); }
+        .job-stack { position: fixed; right: 24px; bottom: 86px; z-index: 76; display: flex; flex-direction: column; gap: 10px; width: 330px; max-width: calc(100vw - 48px); }
+        .job-card { background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 12px; padding: 13px 14px; box-shadow: 0 12px 34px rgba(0,0,0,.55); animation: jobin .22s ease; }
+        @keyframes jobin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
         .job-card.ok { border-color: #1f8a4c; }
         .job-card.err { border-color: var(--danger); }
         .job-top { display: flex; align-items: center; gap: 8px; }
@@ -646,16 +660,22 @@ export default function SongDetail() {
         .yt-seek { flex: 1; accent-color: var(--primary); min-width: 0; }
         .yt-trow { display: flex; justify-content: space-between; margin: 3px 2px 9px; }
         .yt-t { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
-        .yt-start { width: 100%; background: var(--primary); border: none; color: #fff; border-radius: 7px; padding: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .yt-start { width: 100%; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 8px; padding: 9px; cursor: pointer; font-size: 12.5px; font-weight: 700; letter-spacing: .6px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: border-color .15s, background .15s; }
+        .yt-start:hover:not(:disabled) { border-color: #e8554b; background: rgba(229,83,75,.08); }
         .yt-start:disabled { opacity: .5; cursor: default; }
-        .yt-count { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 0 6px; }
-        .yt-num { font-size: 34px; font-weight: 700; color: var(--primary); line-height: 1; }
-        .yt-csub { font-size: 11px; color: var(--text-dim); }
+        .rec-ico { width: 11px; height: 11px; border-radius: 50%; background: #e8554b; box-shadow: 0 0 7px #e8554b; }
+        .yt-count { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 12px 0 8px; }
+        .yt-num { font-size: 38px; font-weight: 800; color: #e8554b; line-height: 1; animation: pop .7s ease; }
+        @keyframes pop { from { transform: scale(.6); opacity: .4; } to { transform: scale(1); opacity: 1; } }
+        .yt-csub { font-size: 10.5px; letter-spacing: .8px; color: var(--text-dim); text-transform: uppercase; }
+        .rec-dot.paused { background: var(--text-faint); box-shadow: none; animation: none; }
+        .yt-hint { font-size: 10.5px; color: var(--text-faint); margin: 8px 0 2px; line-height: 1.35; }
+        .stop-sq { width: 9px; height: 9px; border-radius: 2px; background: #f0a7a2; display: inline-block; margin-right: 2px; }
         .yt-note { font-size: 10.5px; color: var(--text-faint); margin-top: 7px; line-height: 1.35; }
         .yt-lbl { font-size: 12px; color: var(--text); margin-bottom: 7px; display: flex; align-items: center; gap: 7px; }
         .rec-dot { width: 9px; height: 9px; border-radius: 50%; background: #e8554b; box-shadow: 0 0 8px #e8554b; animation: recpulse 1s infinite; }
         @keyframes recpulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
-        .yt-stop { width: 100%; margin-top: 9px; background: var(--surface-2); border: 1px solid var(--danger); color: #f0a7a2; border-radius: 7px; padding: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .yt-stop { width: 100%; margin-top: 9px; background: var(--surface-2); border: 1px solid var(--danger); color: #f0a7a2; border-radius: 8px; padding: 9px; cursor: pointer; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: background .15s; }
         .yt-stop:hover { background: rgba(229,83,75,.14); }
       `}</style>
       <style jsx>{`

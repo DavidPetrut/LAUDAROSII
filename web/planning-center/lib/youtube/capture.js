@@ -41,9 +41,15 @@ export class YoutubeRecorder {
   // Cere sunetul filei (gest!) + pregătește playerul ascuns. Întoarce { duration }.
   async arm() {
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getDisplayMedia) throw new Error("Browserul nu suportă captura de tab.");
-    this.stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true, preferCurrentTab: true, selfBrowserSurface: "include" });
+    this.stream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      // audio BRUT — fără AGC/noise/echo (astea comprimau/robotizau sunetul după câteva secunde)
+      audio: { autoGainControl: false, echoCancellation: false, noiseSuppression: false, channelCount: 2 },
+      preferCurrentTab: true, selfBrowserSurface: "include",
+    });
     const at = this.stream.getAudioTracks();
     if (!at.length) { this._stopStream(); throw new Error("Nu s-a partajat sunetul filei — bifează «Partajează sunetul filei»."); }
+    try { await at[0].applyConstraints({ autoGainControl: false, echoCancellation: false, noiseSuppression: false }); } catch {}
     this.stream.getVideoTracks().forEach((t) => t.stop());
     this.audioStream = new MediaStream(at);
     // bara Chrome oprită / partajare terminată:
@@ -95,14 +101,22 @@ export class YoutubeRecorder {
     try { this.player.unMute(); this.player.setVolume(100); } catch {}
     this.from = Math.max(0, Math.min(fromSec, this.duration || fromSec));
     this.player.seekTo(this.from, true); this.player.playVideo(); this.rec.start(500);
-    this.recording = true;
+    this.recording = true; this.paused = false; this.recMs = 0; this._lastTick = Date.now();
     this.iv = setInterval(() => {
       let cur = 0; try { cur = this.player.getCurrentTime() || 0; } catch {}
       let state = -1; try { state = this.player.getPlayerState(); } catch {}
-      this.onProgress && this.onProgress({ cur, from: this.from, duration: this.duration, elapsed: Math.max(0, cur - this.from) });
-      if (state === 0 || (this.duration > 1 && cur >= this.duration - 0.4)) this._finalize(false); // s-a terminat videoul
-    }, 300);
+      const now = Date.now();
+      if (!this.paused) this.recMs += now - this._lastTick; // timp efectiv înregistrat (fără pauze)
+      this._lastTick = now;
+      this.onProgress && this.onProgress({ cur, duration: this.duration, paused: this.paused, recSec: this.recMs / 1000 });
+      if (!this.paused && (state === 0 || (this.duration > 1 && cur >= this.duration - 0.4))) this._finalize(false); // s-a terminat videoul
+    }, 250);
   }
+
+  // Controale în timpul înregistrării (pt. a lega mai multe porțiuni într-un singur mp3).
+  recPause() { if (!this.recording || this.paused) return; this.paused = true; try { this.player.pauseVideo(); } catch {} try { this.rec && this.rec.state === "recording" && this.rec.pause(); } catch {} }
+  recResume() { if (!this.recording || !this.paused) return; this.paused = false; this._lastTick = Date.now(); try { this.player.unMute(); this.player.playVideo(); } catch {} try { this.rec && this.rec.state === "paused" && this.rec.resume(); } catch {} }
+  recTogglePlay() { this.paused ? this.recResume() : this.recPause(); }
 
   stop() { this._finalize(false); return this.blobPromise; }   // STOP manual = complet
   cancel() { this.finished = true; this._cleanup(); }           // renunțare înainte de start
