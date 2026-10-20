@@ -120,12 +120,12 @@ export default function SongDetail() {
   // Click pe nume: audio/YouTube → player intern; chart generat → preview in-app; altfel url/editor.
   const openFile = (f) => {
     if (isAudioUrl(f.url, f.kind) || isYouTube(f.url)) { player.play(f); return; }
-    if (f.source === "generated" && isChart(f)) {
+    if (isChart(f) && (f.source === "generated" || f.source === "chordpro" || f.derived)) {
       let mode = "chords", targetKey = "";
       if (f.kind === "numbers") mode = "numbers";
       else if (f.kind === "numerals") mode = "numerals";
       else if (f.kind === "lyrics") mode = "lyrics";
-      else { mode = "chords"; const m = /in\s+(\S+)/i.exec(f.name || ""); targetKey = m ? m[1] : ""; }
+      else { mode = "chords"; targetKey = f.displayKey || (/(?:in\s+|-)([A-G][b#]?)m?\b/i.exec(f.name || "") || [])[1] || ""; }
       setPreview({ mode, targetKey });
     } else if (f.url) window.open(f.url, "_blank", "noopener");
     else router.push(`/chords/${id}/${arrId}`);
@@ -155,7 +155,9 @@ export default function SongDetail() {
   // Transpose: chart-uri generate (PDF din ChordPro) SAU audio/YouTube (job de pitch-shift).
   const transposeFile = (f) => {
     if (isAudioUrl(f.url, f.kind) || isYouTube(f.url)) { setTransposeFor(f); return; }
-    if (f.source !== "generated" || !isChart(f)) { setToast("Transpose merge la chart-urile generate (din Lyrics & Chords) sau la audio/YouTube."); setTimeout(() => setToast(""), 3800); return; }
+    // chart transpozabil: generat (PDF) SAU derivat din ChordPro (ex. „Chord Chart in F" din Arrangement)
+    const chartOk = (f.source === "generated" || f.source === "chordpro" || f.derived) && isChart(f);
+    if (!chartOk) { setToast("Transpose merge la chart-uri (din Lyrics & Chords) sau la audio/YouTube."); setTimeout(() => setToast(""), 3800); return; }
     setTransposeFor(f);
   };
 
@@ -411,10 +413,7 @@ export default function SongDetail() {
             <>
               <div className="arr-title-row">
                 <h2 className="arr-title">{arr.name}</h2>
-                <button className="ic" title="Redenumește" onClick={async () => {
-                  const name = prompt("Nume aranjament:", arr.name); if (name && name.trim()) await patchArr({ name: name.trim() });
-                }}>✎</button>
-                <button className="ic" title="Gestionează aranjamentul (prioritate, ștergere)" onClick={() => { const a = (song.arrangements || []).find((x) => x.id === arrId); if (a) setManageArr(a); }}><Ico name="gear" size={15} /></button>
+                <button className="ic" title="Gestionează aranjamentul (redenumire, prioritate, ștergere)" onClick={() => { const a = (song.arrangements || []).find((x) => x.id === arrId); if (a) setManageArr(a); }}><Ico name="gear" size={15} /></button>
                 <button className="ct-open" onClick={openClickTrack} title="Pad de pian + metronom live">Click Track</button>
               </div>
 
@@ -456,7 +455,7 @@ export default function SongDetail() {
                 <div className="file-cols" ref={colsRef} onScroll={updateScroll}
                   onMouseDown={onColsDown} onMouseMove={onColsMove} onMouseUp={onColsUp} onMouseLeave={onColsUp}>
                   <div className="fcol">
-                    <div className="fcol-h">Arrangement</div>
+                    <div className="fcol-h"><span>Arrangement{arr.chordChart?.originalKey ? ` · ${arr.chordChart.originalKey}` : ""}</span></div>
                     {(arr.arrangementFiles || []).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onHover={openFileMenu} onLeave={closeFileMenuSoon} onInfo={openInfo} />)}
                     {(arr.arrangementFiles || []).length === 0 && <div className="fcol-empty" />}
                   </div>
