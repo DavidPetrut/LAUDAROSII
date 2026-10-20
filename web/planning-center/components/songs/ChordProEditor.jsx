@@ -133,7 +133,9 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
     const rb = value.indexOf("]", pos);
     if (lb < 0 || rb < 0 || value.slice(lb, pos).includes("]") || value.slice(pos, rb).includes("[")) return false;
     const c = getCaretCoordinates(ta, lb + 1);
-    setPick(makePick(lb + 1, rb, value.slice(lb + 1, rb), c.x, c.y));
+    const cc = getCaretCoordinates(ta, Math.floor((lb + 1 + rb) / 2)); // centrul acordului
+    const cx = Math.max(56, Math.min(cc.x, ta.clientWidth - 56)); // centrat, dar fără overflow pe X
+    setPick(makePick(lb + 1, rb, value.slice(lb + 1, rb), cx, c.y));
     setAc(null); setTb(null);
     return true;
   }
@@ -154,7 +156,9 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
       ta.focus({ preventScroll: true }); ta.setSelectionRange(innerStart, innerEnd);
       if (scrollTop != null) ta.scrollTop = scrollTop;
       const c = getCaretCoordinates(ta, innerStart);
-      setPick(makePick(innerStart, innerEnd, chordText, c.x, c.y));
+      const cc = getCaretCoordinates(ta, Math.floor((innerStart + innerEnd) / 2));
+      const cx = Math.max(56, Math.min(cc.x, ta.clientWidth - 56));
+      setPick(makePick(innerStart, innerEnd, chordText, cx, c.y));
       setAc(null); setTb(null);
     });
   }
@@ -366,7 +370,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
       )}
 
       {pick && (
-        <div className="pop picker" style={{ left: pick.x, top: Math.max(4, pick.y - (pick.view === "more" ? 228 : pick.view === "deg" ? 60 : 52)) }}>
+        <div className="pop picker" style={{ left: pick.x, transform: "translateX(-50%)", top: Math.max(4, pick.y - (pick.view === "more" ? 228 : pick.view === "deg" ? 60 : 52)) }}>
           {pick.view === "bar" ? (
             <div className="pick-bar center">
               <button className="more" onMouseDown={(e) => { e.preventDefault(); setPick((p) => ({ ...p, view: "more" })); }} title="Mai multe variații">
@@ -464,6 +468,8 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
         .ac li { padding: 7px 10px; border-radius: 5px; color: #e7e9ec; cursor: pointer; font-size: 13px; display: flex; justify-content: space-between; gap: 10px; align-items: center; }
         .ac li.on, .ac li:hover { background: #2a3340; }
         .ac .hint { color: #6b7580; font-size: 11px; border: 1px solid #3a434e; border-radius: 3px; padding: 0 4px; }
+        .picker { animation: popfade .13s ease; }
+        @keyframes popfade { from { opacity: 0; } to { opacity: 1; } }
         .pick-bar { display: flex; align-items: center; gap: 4px; padding: 5px; }
         .pick-bar.center { justify-content: center; }
         .pick-bar button { background: #2a3340; border: 1px solid #343e4a; color: #e7e9ec; border-radius: 6px; padding: 7px 12px; cursor: pointer; font-size: 13px; font-weight: 600; }

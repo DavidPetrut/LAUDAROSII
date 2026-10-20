@@ -73,12 +73,16 @@ export function simplifyChordContent(content) {
   const minor = /^m(?![a])/.test(rest); // „m" (minor), nu „ma"/„maj" (major)
   return root + (minor ? "m" : "");
 }
-// Rescrie toate [acordurile] la forma simplă (păstrează diezii/bemolii — sunt gamele în sine).
+// Rescrie toate [acordurile] la forma simplă (păstrează diezii/bemolii — sunt gamele în sine)
+// + colapsează acordurile identice consecutive pe ACELAȘI rând (păstrează pe cel din stânga).
 export function simplifyBrackets(text) {
-  return String(text).replace(/\[([^\]]*)\]/g, (mm, inner) => {
+  let out = String(text).replace(/\[([^\]]*)\]/g, (mm, inner) => {
     const t = inner.trim(); if (!t) return mm;
     return `[${simplifyChordContent(t)}]`;
   });
+  // ex. „[G] [G] [G] [G] [D]" → „[G] [D]" (doar separate prin spații/tab, nu peste rânduri).
+  out = out.replace(/(\[([^\]]*)\])(?:[ \t]+\[\2\])+/g, "$1");
+  return out;
 }
 
 // Secțiuni cunoscute (orice capitalizare, număr opțional, „:" opțional).
