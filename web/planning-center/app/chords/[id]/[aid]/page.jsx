@@ -10,7 +10,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useParams, useRouter } from "next/navigation";
 import { api, songsApi } from "@/lib/api/client";
 import { isAuthed } from "@/lib/auth/auth";
-import { renderChordPro, ALL_KEYS, lyricToHtml, isSection, convertBrackets } from "@/lib/songs/chordpro";
+import { renderChordPro, ALL_KEYS, lyricToHtml, isSection, convertBrackets, simplifyBrackets } from "@/lib/songs/chordpro";
 import { runAi } from "@/lib/ai/client";
 import { abbreviateSequence } from "@/lib/songs/sequence";
 import { paginateLines } from "@/lib/songs/paginate";
@@ -93,6 +93,7 @@ export default function ChordEditor() {
   const [fmtOpen, setFmtOpen] = useState(false);
   const [keyOpen, setKeyOpen] = useState(false); // grila pt. Original Key
   const [chordMode, setChordMode] = useState("chords"); // "chords" | "numbers" (afișare acorduri în editor)
+  const [resetAsk, setResetAsk] = useState(false); // confirmare reset la game simple
   const [previewOpen, setPreviewOpen] = useState(false);
   const [status, setStatus] = useState(""); // "Typing…" | "Saved"
   const [gen, setGen] = useState(""); // mesaj generare PDF
@@ -163,6 +164,7 @@ export default function ChordEditor() {
     const nt = convertBrackets(text, m, originalKey);
     if (nt !== text) onTextTracked(nt);
   };
+  const doResetChords = () => { const nt = simplifyBrackets(text); if (nt !== text) onTextTracked(nt); setResetAsk(false); };
 
   // „Aranjează" (Ctrl+S): scoate rândurile goale inutile + pune un rând gol înainte de fiecare secțiune.
   // NU atinge liniile cu acorduri (le lasă verbatim) — case/space sensitive.
@@ -329,6 +331,9 @@ export default function ChordEditor() {
             </div>
           </div>
           <button className="options" onClick={() => setFmtOpen(true)}>Options ▾</button>
+          <button className="reset-ch" onClick={() => setResetAsk(true)} title="Resetează acordurile la forma simplă (păstrează diez/bemol)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.7-3L3 16" /><path d="M8 16H3v5" /></svg>
+          </button>
         </div>
         <div className="c-right">
           <div className="ctrl mid">
@@ -392,6 +397,15 @@ export default function ChordEditor() {
         </div>
       </div>
 
+      {resetAsk && (
+        <Modal title="Resetează acordurile" width={420} onClose={() => setResetAsk(false)}>
+          <p className="reset-p">Toate acordurile (nume sau cifre) care au extensii — <b>7, 9, sus, add, (4), ma, dim</b> etc. — devin forma simplă (rădăcină + major/minor). <b>Diezii și bemolii se păstrează.</b> Sigur?</p>
+          <div className="reset-foot">
+            <button className="btn btn-link" onClick={() => setResetAsk(false)}>Anulează</button>
+            <button className="btn btn-primary" onClick={doResetChords}>Resetează</button>
+          </div>
+        </Modal>
+      )}
       {fmtOpen && (
         <Modal title="Options" width={580}
           onClose={() => { setFmtOpen(false); cancelCapture(); setAddingHk(false); }}>
@@ -489,6 +503,11 @@ export default function ChordEditor() {
         .ctrl-sel { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 5px; height: 30px; padding: 0 10px; cursor: pointer; min-width: 110px; text-align: left; }
         .ctrl-sel.wide { min-width: 150px; }
         .options { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 5px; height: 30px; padding: 0 12px; cursor: pointer; }
+        .reset-ch { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 5px; height: 30px; width: 34px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+        .reset-ch:hover { color: var(--text); border-color: var(--primary); }
+        .reset-p { font-size: 13.5px; color: var(--text-dim); line-height: 1.55; margin: 0 0 18px; }
+        .reset-p b { color: var(--text); }
+        .reset-foot { display: flex; justify-content: flex-end; gap: 12px; }
         .mid { position: relative; }
         .preview-menu { position: absolute; top: 36px; left: 0; z-index: 10; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 8px; padding: 8px; width: 240px; }
         .pm-row { padding: 6px 8px; color: var(--text); cursor: pointer; border-radius: 5px; text-align: center; background: var(--surface-2); }

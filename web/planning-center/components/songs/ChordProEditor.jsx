@@ -368,10 +368,10 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
       {pick && (
         <div className="pop picker" style={{ left: pick.x, top: Math.max(4, pick.y - (pick.view === "more" ? 228 : pick.view === "deg" ? 60 : 52)) }}>
           {pick.view === "bar" ? (
-            <div className="pick-bar">
-              <button className={!pick.minor ? "on" : ""} onMouseDown={(e) => { e.preventDefault(); pickChord(pick.major); }} title="Acord major (activ)">{pick.major}</button>
-              <button className={pick.minor ? "on" : ""} onMouseDown={(e) => { e.preventDefault(); pickChord(pick.minorForm); }} title="Acord minor">{pick.minorForm}</button>
-              <button className="more" onMouseDown={(e) => { e.preventDefault(); setPick((p) => ({ ...p, view: "more" })); }} title="Mai multe variații">⋯</button>
+            <div className="pick-bar center">
+              <button className="more" onMouseDown={(e) => { e.preventDefault(); setPick((p) => ({ ...p, view: "more" })); }} title="Mai multe variații">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="12" cy="19" r="1.7" /></svg>
+              </button>
               <button className="more" onMouseDown={(e) => { e.preventDefault(); setPick((p) => ({ ...p, view: "deg" })); }} title="Game diatonice (1-7)">
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="18" r="2.3" /><circle cx="17" cy="16" r="2.3" /><path d="M8.3 18V6.5l10.7-2.3V16" /><path d="M8.3 9.2l10.7-2.3" /></svg>
               </button>
@@ -465,6 +465,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
         .ac li.on, .ac li:hover { background: #2a3340; }
         .ac .hint { color: #6b7580; font-size: 11px; border: 1px solid #3a434e; border-radius: 3px; padding: 0 4px; }
         .pick-bar { display: flex; align-items: center; gap: 4px; padding: 5px; }
+        .pick-bar.center { justify-content: center; }
         .pick-bar button { background: #2a3340; border: 1px solid #343e4a; color: #e7e9ec; border-radius: 6px; padding: 7px 12px; cursor: pointer; font-size: 13px; font-weight: 600; }
         .pick-bar button:hover { background: #34506e; border-color: #5aa2ff; }
         .pick-bar button.on { background: #34506e; border-color: #5aa2ff; box-shadow: inset 0 0 0 1px #5aa2ff; }

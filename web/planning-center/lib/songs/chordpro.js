@@ -63,6 +63,24 @@ export function isNumericBracket(content) {
   return /^[1-7]/.test(String(content || "").trim());
 }
 
+// Reduce un acord la forma SIMPLĂ: rădăcină + accidental (#/b) + minor (dacă e), scoate 7/9/sus/add/(4)/ma/dim/bas.
+export function simplifyChordContent(content) {
+  const t = String(content || "").trim();
+  const m = /^([A-G][#b]?|[1-7][#b]?)/.exec(t);
+  if (!m) return content; // nu e acord (ex. UNISON) → neatins
+  const root = m[1];
+  const rest = t.slice(root.length);
+  const minor = /^m(?![a])/.test(rest); // „m" (minor), nu „ma"/„maj" (major)
+  return root + (minor ? "m" : "");
+}
+// Rescrie toate [acordurile] la forma simplă (păstrează diezii/bemolii — sunt gamele în sine).
+export function simplifyBrackets(text) {
+  return String(text).replace(/\[([^\]]*)\]/g, (mm, inner) => {
+    const t = inner.trim(); if (!t) return mm;
+    return `[${simplifyChordContent(t)}]`;
+  });
+}
+
 // Secțiuni cunoscute (orice capitalizare, număr opțional, „:" opțional).
 const SECTION_WORDS = "verse|chorus|pre-?chorus|post-?chorus|refrain|bridge|intro|outro|ending|instrumental|interlude|tag|turnaround|vamp|breakdown|solo|coda|strofa|refren|interludiu|final";
 const SECTION_RE = new RegExp(`^(?:${SECTION_WORDS})\\s*\\d*\\s*:?\\s*$`, "i");
