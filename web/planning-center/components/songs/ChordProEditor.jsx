@@ -133,9 +133,8 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
     const rb = value.indexOf("]", pos);
     if (lb < 0 || rb < 0 || value.slice(lb, pos).includes("]") || value.slice(pos, rb).includes("[")) return false;
     const c = getCaretCoordinates(ta, lb + 1);
-    const cc = getCaretCoordinates(ta, Math.floor((lb + 1 + rb) / 2)); // centrul acordului
-    const cx = Math.max(56, Math.min(cc.x, ta.clientWidth - 56)); // centrat, dar fără overflow pe X
-    setPick(makePick(lb + 1, rb, value.slice(lb + 1, rb), cx, c.y));
+    const cc = getCaretCoordinates(ta, Math.floor((lb + 1 + rb) / 2)); // centrul acordului (brut; clamp la randare după view)
+    setPick(makePick(lb + 1, rb, value.slice(lb + 1, rb), cc.x, c.y));
     setAc(null); setTb(null);
     return true;
   }
@@ -157,8 +156,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
       if (scrollTop != null) ta.scrollTop = scrollTop;
       const c = getCaretCoordinates(ta, innerStart);
       const cc = getCaretCoordinates(ta, Math.floor((innerStart + innerEnd) / 2));
-      const cx = Math.max(56, Math.min(cc.x, ta.clientWidth - 56));
-      setPick(makePick(innerStart, innerEnd, chordText, cx, c.y));
+      setPick(makePick(innerStart, innerEnd, chordText, cc.x, c.y));
       setAc(null); setTb(null);
     });
   }
@@ -370,7 +368,13 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
       )}
 
       {pick && (
-        <div className="pop picker" style={{ left: pick.x, transform: "translateX(-50%)", top: Math.max(4, pick.y - (pick.view === "more" ? 228 : pick.view === "deg" ? 60 : 52)) }}>
+        <div className="pop picker" style={(() => {
+          const w = pick.view === "more" ? 340 : pick.view === "deg" ? 380 : 110; // lățime aprox. după view
+          const taW = taRef.current ? taRef.current.clientWidth : 800;
+          const left = Math.max(w / 2 + 8, Math.min(pick.x, taW - w / 2 - 8)); // centrat, clamp pe X după view
+          const top = Math.max(4, pick.y - (pick.view === "more" ? 228 : pick.view === "deg" ? 60 : 52));
+          return { left, transform: "translateX(-50%)", top };
+        })()}>
           {pick.view === "bar" ? (
             <div className="pick-bar center">
               <button className="more" onMouseDown={(e) => { e.preventDefault(); setPick((p) => ({ ...p, view: "more" })); }} title="Mai multe variații">
