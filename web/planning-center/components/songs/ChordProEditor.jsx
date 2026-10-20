@@ -12,6 +12,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { getCaretCoordinates } from "@/lib/songs/caret";
 import { chordVariations, STANDARD_SECTIONS, sectionBaseName } from "@/lib/songs/chordVariations";
 import { MUSIC_SYMBOLS } from "@/lib/songs/symbols";
+import { diatonicDegrees, chordRootToken } from "@/lib/songs/chordpro";
 
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const SEC_RE = /^(?:verse|chorus|pre-?chorus|post-?chorus|refrain|bridge|intro|outro|ending|instrumental|interlude|tag|turnaround|vamp|breakdown|solo|coda)\s*\d*\s*:?\s*$/i;
@@ -30,8 +31,11 @@ function highlightLine(line) {
     .replace(/&lt;b&gt;([\s\S]*?)&lt;\/b&gt;/gi, '<span class="hl-fmt">&lt;b&gt;</span><span class="hl-b">$1</span><span class="hl-fmt">&lt;/b&gt;</span>')
     .replace(/&lt;i&gt;([\s\S]*?)&lt;\/i&gt;/gi, '<span class="hl-fmt">&lt;i&gt;</span><span class="hl-i">$1</span><span class="hl-fmt">&lt;/i&gt;</span>')
     .replace(/&lt;u&gt;([\s\S]*?)&lt;\/u&gt;/gi, '<span class="hl-fmt">&lt;u&gt;</span><span class="hl-u">$1</span><span class="hl-fmt">&lt;/u&gt;</span>');
-  // acorduri [..]
-  s = s.replace(/(\[)([^\]]*)(\])/g, '<span class="hl-bk">$1</span><span class="hl-ch">$2</span><span class="hl-bk">$3</span>');
+  // acorduri [..] — numeric (Nashville) → italic + mai mic (ca să nu se confunde cu numere obișnuite)
+  s = s.replace(/(\[)([^\]]*)(\])/g, (mm, b1, inner, b2) => {
+    const cls = /^\s*[1-7]/.test(inner) ? "hl-ch hl-num" : "hl-ch";
+    return `<span class="hl-bk">${b1}</span><span class="${cls}">${inner}</span><span class="hl-bk">${b2}</span>`;
+  });
   // orice tag rămas (nepereche) → dim
   s = s.replace(/(&lt;\/?[biu]&gt;)/gi, '<span class="hl-fmt">$1</span>');
   return s;
@@ -43,7 +47,7 @@ const isMod = (k) => k === "Control" || k === "Meta" || k === "Alt" || k === "Sh
 
 const PX_PER_MEASURE = 46; // cât drag = o măsură „----|"
 
-export default function ChordProEditor({ value, onChange, fontSize = 16, customLabels = [], onAi, defaultKey = "C", meter = "4/4", addChordCombo = "ctrl+d", precisePrefix = "ctrl+shift" }) {
+export default function ChordProEditor({ value, onChange, fontSize = 16, customLabels = [], onAi, defaultKey = "C", meter = "4/4", chordMode = "chords", addChordCombo = "ctrl+d", precisePrefix = "ctrl+shift" }) {
   const measureBeats = Math.max(1, Math.min(16, parseInt(String(meter).split("/")[0], 10) || 4)); // nr. liniuțe/măsură = numărătorul măsurii
   const measureUnit = "-".repeat(measureBeats) + "|";
   const lastChord = useRef(null); // { start, end, letter, minor } pt. „apasă din nou litera → minor"
@@ -106,6 +110,17 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
     requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(caret, caret); } });
   }
 
+  // Construiește obiectul picker (toolbar): 4 butoane (major/minor/⋯/game diatonice), dinamic după cifră/nume.
+  function makePick(innerStart, innerEnd, content, x, y) {
+    const { token, minor } = chordRootToken(content);
+    const numeric = /^[1-7]/.test(String(token).trim());
+    return {
+      x, y, bracket: [innerStart, innerEnd], content: String(content), minor, numeric,
+      major: token, minorForm: token + "m",
+      degrees: diatonicDegrees(defaultKey || "C", numeric),
+      items: chordVariations(content || "C"), view: "bar",
+    };
+  }
   function openPickerAtCaret() {
     const ta = taRef.current; if (!ta) return false;
     const pos = ta.selectionStart;
@@ -113,10 +128,8 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
     const lb = value.lastIndexOf("[", pos - 1);
     const rb = value.indexOf("]", pos);
     if (lb < 0 || rb < 0 || value.slice(lb, pos).includes("]") || value.slice(pos, rb).includes("[")) return false;
-    const content = value.slice(lb + 1, rb);
-    const root = (/^([A-G][#b]?)/.exec(content.trim()) || [, "C"])[1];
     const c = getCaretCoordinates(ta, lb + 1);
-    setPick({ x: c.x, y: c.y, bracket: [lb + 1, rb], root, items: chordVariations(content || "C"), more: false });
+    setPick(makePick(lb + 1, rb, value.slice(lb + 1, rb), c.x, c.y));
     setAc(null); setTb(null);
     return true;
   }
@@ -137,8 +150,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
       ta.focus({ preventScroll: true }); ta.setSelectionRange(innerStart, innerEnd);
       if (scrollTop != null) ta.scrollTop = scrollTop;
       const c = getCaretCoordinates(ta, innerStart);
-      const root = (/^([A-G][#b]?)/.exec(String(chordText).trim()) || [, "C"])[1];
-      setPick({ x: c.x, y: c.y, bracket: [innerStart, innerEnd], root, items: chordVariations(chordText || "C"), more: false });
+      setPick(makePick(innerStart, innerEnd, chordText, c.x, c.y));
       setAc(null); setTb(null);
     });
   }
@@ -294,7 +306,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
     const combo = [...mods, isMod(e.key) ? null : (e.key === " " ? "space" : keyLow)].filter(Boolean).join("+");
     const prefix = mods.join("+");
     // „Adaugă gamă" (default Ctrl+D): inserează gama originală [X] la cursor, selectată + picker.
-    if (combo === addChordCombo && !isMod(e.key)) { e.preventDefault(); insertChordAtCaret(defaultKey || "C"); return; }
+    if (combo === addChordCombo && !isMod(e.key)) { e.preventDefault(); insertChordAtCaret(chordMode === "numbers" ? "1" : (defaultKey || "C")); return; }
     // „Adaugă gamă precisă" (default prefix Ctrl+Shift + literă A-G): [Literă]; a 2-a apăsare → minor.
     if (precisePrefix && prefix === precisePrefix && /^[a-g]$/.test(keyLow)) {
       e.preventDefault();
@@ -321,7 +333,6 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
   }
 
   const fontStyle = { fontSize, lineHeight: 1.6, fontFamily: '"Courier New", monospace' };
-  const popularChords = pick ? POPULAR.map((q) => pick.root + q) : [];
 
   return (
     <div className="cpe">
@@ -334,7 +345,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
         onKeyUp={(e) => { if (!["ArrowUp", "ArrowDown", "Enter", "Tab", "Escape"].includes(e.key)) updateAutocomplete(); }}
         onMouseDown={onMouseDownTextarea}
         onMouseUp={onMouseUpTextarea}
-        onClick={(e) => { if (clickComboMatches(e)) { e.preventDefault(); insertChordAtCaret(defaultKey || "C"); } }}
+        onClick={(e) => { if (clickComboMatches(e)) { e.preventDefault(); insertChordAtCaret(chordMode === "numbers" ? "1" : (defaultKey || "C")); } }}
         onScroll={() => { syncScroll(); setAc(null); setPick(null); setTb(null); setSelHl(null); }}
         onBlur={() => { setTimeout(() => { setAc(null); setPick(null); if (!aiOpen) setTb(null); setSymOpen(false); }, 180); }}
         placeholder={"VERSE 1:\n[C]Cine-i ca [Am]Tine în uni[F]vers,\n..."}
@@ -351,13 +362,21 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
       )}
 
       {pick && (
-        <div className="pop picker" style={{ left: pick.x, top: Math.max(4, pick.y - (pick.more ? 228 : 52)) }}>
-          {!pick.more ? (
+        <div className="pop picker" style={{ left: pick.x, top: Math.max(4, pick.y - (pick.view !== "bar" ? 228 : 52)) }}>
+          {pick.view === "bar" ? (
             <div className="pick-bar">
-              {popularChords.map((ch) => (
-                <button key={ch} onMouseDown={(e) => { e.preventDefault(); pickChord(ch); }}>{ch}</button>
+              <button className={!pick.minor ? "on" : ""} onMouseDown={(e) => { e.preventDefault(); pickChord(pick.major); }} title="Acord major (activ)">{pick.major}</button>
+              <button className={pick.minor ? "on" : ""} onMouseDown={(e) => { e.preventDefault(); pickChord(pick.minorForm); }} title="Acord minor">{pick.minorForm}</button>
+              <button className="more" onMouseDown={(e) => { e.preventDefault(); setPick((p) => ({ ...p, view: "more" })); }} title="Mai multe variații">⋯</button>
+              <button className="more" onMouseDown={(e) => { e.preventDefault(); setPick((p) => ({ ...p, view: "deg" })); }} title="Game diatonice (1-7)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19V9" /><path d="M9 19V6" /><path d="M14 19v-9" /><path d="M19 19V5" /></svg>
+              </button>
+            </div>
+          ) : pick.view === "deg" ? (
+            <div className="pick-grid deg">
+              {pick.degrees.map((d) => (
+                <button key={d} onMouseDown={(e) => { e.preventDefault(); pickChord(d); }}>{d}</button>
               ))}
-              <button className="more" onMouseDown={(e) => { e.preventDefault(); setPick((p) => ({ ...p, more: true })); }} title="Mai multe">⋯</button>
             </div>
           ) : (
             <div className="pick-grid">
@@ -429,6 +448,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
         .ta::placeholder { color: #55606b; }
         .hl :global(.hl-bk) { color: #1f8a4c; font-weight: 700; }
         .hl :global(.hl-ch) { color: #5aa2ff; font-weight: 700; }
+        .hl :global(.hl-num) { font-style: italic; font-size: .9em; }
         .hl :global(.hl-sec) { color: #d6dae0; font-weight: 800; }
         .hl :global(.hl-fmt) { color: #55606b; }
         .hl :global(.hl-b) { font-weight: 800; color: #eef0f2; }
@@ -442,7 +462,9 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
         .pick-bar { display: flex; align-items: center; gap: 4px; padding: 5px; }
         .pick-bar button { background: #2a3340; border: 1px solid #343e4a; color: #e7e9ec; border-radius: 6px; padding: 7px 12px; cursor: pointer; font-size: 13px; font-weight: 600; }
         .pick-bar button:hover { background: #34506e; border-color: #5aa2ff; }
-        .pick-bar .more { font-weight: 700; padding: 7px 10px; }
+        .pick-bar button.on { background: #34506e; border-color: #5aa2ff; box-shadow: inset 0 0 0 1px #5aa2ff; }
+        .pick-bar .more { font-weight: 700; padding: 7px 10px; display: inline-flex; align-items: center; justify-content: center; }
+        .pick-grid.deg { grid-template-columns: repeat(7, 1fr); max-width: 360px; }
         .pick-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; max-width: 320px; padding: 8px; }
         .pick-grid button { background: #2a3340; border: 1px solid #343e4a; color: #e7e9ec; border-radius: 5px; padding: 6px 4px; cursor: pointer; font-size: 12.5px; }
         .pick-grid button:hover { background: #34506e; border-color: #5aa2ff; }

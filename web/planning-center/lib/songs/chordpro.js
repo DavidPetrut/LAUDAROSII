@@ -21,10 +21,46 @@ export function convertChord(raw, { mode, originalKey, delta }) {
   let chord; try { chord = Chord.parse(raw.trim()); } catch { chord = null; }
   if (!chord) return raw; // nu e acord (ex. [UNISON]) → literal
   try {
-    if (mode === "numbers") return chord.toNumeric(Key.parse(originalKey || "C")).toString();
-    if (mode === "numerals") return chord.toNumeral(Key.parse(originalKey || "C")).toString();
-    return (delta ? chord.transpose(delta) : chord).toString();
+    const keyObj = Key.parse(originalKey || "C");
+    // Interpretare DUALĂ: dacă în [ ] e o CIFRĂ (Nashville), o facem întâi acord absolut în Original Key.
+    const sym = chord.isChordSymbol() ? chord : chord.toChordSymbol(keyObj);
+    if (mode === "numbers") return sym.toNumeric(keyObj).toString();
+    if (mode === "numerals") return sym.toNumeral(keyObj).toString();
+    return (delta ? sym.transpose(delta) : sym).toString();
   } catch { return raw; }
+}
+
+// ── Conversie acord ↔ număr (Nashville) relativ la Original Key ──
+export function bracketToSymbol(content, key) {
+  try { const c = Chord.parse(String(content).trim()); if (!c) return content; const k = Key.parse(key || "C"); return (c.isChordSymbol() ? c : c.toChordSymbol(k)).toString(); } catch { return content; }
+}
+export function bracketToNumber(content, key) {
+  try { const c = Chord.parse(String(content).trim()); if (!c) return content; const k = Key.parse(key || "C"); const sym = c.isChordSymbol() ? c : c.toChordSymbol(k); return sym.toNumeric(k).toString(); } catch { return content; }
+}
+// Rescrie toate [acordurile] din text în modul cerut ("numbers" | "chords").
+export function convertBrackets(text, toMode, key) {
+  return String(text).replace(/\[([^\]]*)\]/g, (m, inner) => {
+    const t = inner.trim(); if (!t) return m;
+    const conv = toMode === "numbers" ? bracketToNumber(t, key) : bracketToSymbol(t, key);
+    return `[${conv}]`;
+  });
+}
+// Cele 7 game diatonice ale gamei (Nashville), ca cifre sau ca nume de acorduri.
+export const DIATONIC_NUMBERS = ["1", "2m", "3m", "4", "5", "6m", "7"];
+export function diatonicDegrees(key, asNumbers) {
+  return asNumbers ? DIATONIC_NUMBERS.slice() : DIATONIC_NUMBERS.map((n) => bracketToSymbol(n, key));
+}
+// Tokenul de bază al unui acord (literă sau cifră) + dacă e minor — pt. butoanele toolbar-ului.
+export function chordRootToken(content) {
+  const t = String(content || "").trim();
+  const m = /^([A-G][#b]?|[1-7][#b]?)/.exec(t);
+  const token = m ? m[1] : t;
+  const minor = new RegExp(`^${token.replace(/[#]/g, "\\$&")}m(?!aj)`).test(t);
+  return { token, minor };
+}
+// Un conținut de [ ] e numeric (Nashville)? → pt. stilizare italic/mic.
+export function isNumericBracket(content) {
+  return /^[1-7]/.test(String(content || "").trim());
 }
 
 // Secțiuni cunoscute (orice capitalizare, număr opțional, „:" opțional).

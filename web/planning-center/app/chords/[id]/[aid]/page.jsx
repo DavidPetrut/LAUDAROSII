@@ -10,7 +10,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useParams, useRouter } from "next/navigation";
 import { api, songsApi } from "@/lib/api/client";
 import { isAuthed } from "@/lib/auth/auth";
-import { renderChordPro, ALL_KEYS, lyricToHtml, isSection } from "@/lib/songs/chordpro";
+import { renderChordPro, ALL_KEYS, lyricToHtml, isSection, convertBrackets } from "@/lib/songs/chordpro";
 import { runAi } from "@/lib/ai/client";
 import { abbreviateSequence } from "@/lib/songs/sequence";
 import { paginateLines } from "@/lib/songs/paginate";
@@ -92,6 +92,7 @@ export default function ChordEditor() {
   const [formatting, setFormatting] = useState({ font: "Courier, Monospaced", size: 16, chordColor: "Blue", columns: 1 });
   const [fmtOpen, setFmtOpen] = useState(false);
   const [keyOpen, setKeyOpen] = useState(false); // grila pt. Original Key
+  const [chordMode, setChordMode] = useState("chords"); // "chords" | "numbers" (afișare acorduri în editor)
   const [previewOpen, setPreviewOpen] = useState(false);
   const [status, setStatus] = useState(""); // "Typing…" | "Saved"
   const [gen, setGen] = useState(""); // mesaj generare PDF
@@ -155,6 +156,13 @@ export default function ChordEditor() {
   }, [originalKey, formatting, scheduleSave]);
   const onKey = (v) => { setOriginalKey(v); scheduleSave(text, v, formatting); };
   const onFmt = (patch) => { const nf = { ...formatting, ...patch }; setFormatting(nf); scheduleSave(text, originalKey, nf); };
+  // Comută afișarea acordurilor în editor între nume (Chords) și cifre Nashville (Numbers) — rescrie textul.
+  const setChordModeAndConvert = (m) => {
+    if (m === chordMode) return;
+    setChordMode(m);
+    const nt = convertBrackets(text, m, originalKey);
+    if (nt !== text) onTextTracked(nt);
+  };
 
   // „Aranjează" (Ctrl+S): scoate rândurile goale inutile + pune un rând gol înainte de fiecare secțiune.
   // NU atinge liniile cu acorduri (le lasă verbatim) — case/space sensitive.
@@ -311,6 +319,10 @@ export default function ChordEditor() {
                     {ALL_KEYS.map((k) => (
                       <button key={k} className={k === originalKey ? "on" : ""} onClick={() => { onKey(k); setKeyOpen(false); }}>{k}</button>
                     ))}
+                    <div className="keymode">
+                      <button className={chordMode === "chords" ? "on" : ""} onClick={() => { setChordModeAndConvert("chords"); setKeyOpen(false); }}>Chords</button>
+                      <button className={chordMode === "numbers" ? "on" : ""} onClick={() => { setChordModeAndConvert("numbers"); setKeyOpen(false); }}>Numbers</button>
+                    </div>
                   </div>
                 </>
               )}
@@ -348,7 +360,7 @@ export default function ChordEditor() {
       {/* Two panes */}
       <div className="panes">
         <div className="code-pane">
-          <ChordProEditor value={text} onChange={onTextTracked} fontSize={formatting.size} customLabels={arr?.sequence || []} onAi={aiTransform} defaultKey={originalKey} meter={arr?.meter || "4/4"}
+          <ChordProEditor value={text} onChange={onTextTracked} fontSize={formatting.size} customLabels={arr?.sequence || []} onAi={aiTransform} defaultKey={originalKey} meter={arr?.meter || "4/4"} chordMode={chordMode}
             addChordCombo={(bindings.find((b) => b.action === "addChord") || {}).combo || "ctrl+d"}
             precisePrefix={(bindings.find((b) => b.action === "addChordPrecise") || {}).combo || "ctrl+shift"} />
         </div>
@@ -472,6 +484,8 @@ export default function ChordEditor() {
         .keygrid button { height: 36px; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 7px; cursor: pointer; font-size: 13px; }
         .keygrid button:hover { border-color: var(--primary); }
         .keygrid button.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .keymode { grid-column: 1 / -1; display: flex; gap: 6px; margin-top: 6px; padding-top: 9px; border-top: 1px solid var(--border); }
+        .keymode button { flex: 1; height: 32px; }
         .ctrl-sel { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 5px; height: 30px; padding: 0 10px; cursor: pointer; min-width: 110px; text-align: left; }
         .ctrl-sel.wide { min-width: 150px; }
         .options { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 5px; height: 30px; padding: 0 12px; cursor: pointer; }
