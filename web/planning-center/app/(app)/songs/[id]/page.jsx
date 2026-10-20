@@ -330,6 +330,17 @@ export default function SongDetail() {
   const onColsUp = () => { drag.current.down = false; };
   const toggleKey = (kid) => setSelKeys((cur) => { const n = new Set(cur); n.has(kid) ? n.delete(kid) : n.add(kid); return n; });
   useEffect(() => { setSelKeys(new Set()); }, [arrId]); // filtrele sunt per-aranjament
+  // scoate din filtru gamele care nu mai există (ex. ai șters o gamă cât era filtrată)
+  useEffect(() => {
+    if (!arr) return;
+    setSelKeys((cur) => {
+      if (!cur.size) return cur;
+      const valid = new Set((arr.keys || []).map((k) => k.id));
+      const n = new Set(); let changed = false;
+      cur.forEach((kid) => { if (valid.has(kid)) n.add(kid); else changed = true; });
+      return changed ? n : cur;
+    });
+  }, [arr]);
   useEffect(() => {
     const raf = requestAnimationFrame(updateScroll);
     const on = () => updateScroll();
