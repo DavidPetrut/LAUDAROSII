@@ -100,8 +100,14 @@ app.use("/api/pc", require("./planning-center"));
 // Endpoint PUBLIC (fără auth) pt. Accept/Decline din emailul de programare (token în link).
 app.use("/api/pc-respond", require("./planning-center/public"));
 
+const BOOT_AT = new Date().toISOString();
 app.get("/api/health", (req, res) => {
-  res.json({ status: "OK", message: "Laudarosii API funcționeaza" });
+  res.json({
+    status: "OK",
+    message: "Laudarosii API funcționeaza",
+    commit: (process.env.RENDER_GIT_COMMIT || "").slice(0, 7) || "local",
+    bootAt: BOOT_AT,
+  });
 });
 
 // Auth pe WebSocket: root namespace (game + mission) si namespace-ul /pray-rooms.
