@@ -75,14 +75,31 @@ export function simplifyChordContent(content) {
 }
 // Rescrie toate [acordurile] la forma simplă (păstrează diezii/bemolii — sunt gamele în sine)
 // + colapsează acordurile identice consecutive pe ACELAȘI rând (păstrează pe cel din stânga).
+//
+// Două comportamente, în funcție de rând:
+//  • Rând FĂRĂ versuri (doar acorduri) → duplicatul se înlocuiește cu SPAȚII de aceeași lățime,
+//    ca acordurile rămase (ex. [D]) să stea exact în coloana lor.
+//  • Rând CU versuri → duplicatul se ȘTERGE complet (doar paranteza; cuvintele rămân), se
+//    păstrează doar prima instanță din stânga.
 export function simplifyBrackets(text) {
-  let out = String(text).replace(/\[([^\]]*)\]/g, (mm, inner) => {
-    const t = inner.trim(); if (!t) return mm;
-    return `[${simplifyChordContent(t)}]`;
+  const lines = String(text).replace(/\r\n?/g, "\n").split("\n");
+  const out = lines.map((line) => {
+    // Rândul are versuri? = există caractere ne-spațiu în afara parantezelor.
+    const hasLyrics = /\S/.test(line.replace(/\[[^\]]*\]/g, ""));
+    let last = null; // ultimul acord (simplificat) întâlnit pe rând
+    return line.replace(/\[([^\]]*)\]/g, (mm, inner) => {
+      const t = inner.trim();
+      if (!t) { last = null; return mm; } // [ ] gol nu colapsează
+      const simple = simplifyChordContent(t);
+      if (simple === last) {
+        // duplicat consecutiv → scoate (spații pe rând-acorduri, nimic pe rând cu versuri)
+        return hasLyrics ? "" : " ".repeat(mm.length);
+      }
+      last = simple;
+      return `[${simple}]`;
+    });
   });
-  // ex. „[G] [G] [G] [G] [D]" → „[G] [D]" (doar separate prin spații/tab, nu peste rânduri).
-  out = out.replace(/(\[([^\]]*)\])(?:[ \t]+\[\2\])+/g, "$1");
-  return out;
+  return out.join("\n");
 }
 
 // Secțiuni cunoscute (orice capitalizare, număr opțional, „:" opțional).
