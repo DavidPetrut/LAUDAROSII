@@ -31,10 +31,14 @@ function highlightLine(line) {
     .replace(/&lt;b&gt;([\s\S]*?)&lt;\/b&gt;/gi, '<span class="hl-fmt">&lt;b&gt;</span><span class="hl-b">$1</span><span class="hl-fmt">&lt;/b&gt;</span>')
     .replace(/&lt;i&gt;([\s\S]*?)&lt;\/i&gt;/gi, '<span class="hl-fmt">&lt;i&gt;</span><span class="hl-i">$1</span><span class="hl-fmt">&lt;/i&gt;</span>')
     .replace(/&lt;u&gt;([\s\S]*?)&lt;\/u&gt;/gi, '<span class="hl-fmt">&lt;u&gt;</span><span class="hl-u">$1</span><span class="hl-fmt">&lt;/u&gt;</span>');
-  // acorduri [..] — numeric (Nashville) → italic + mai mic (ca să nu se confunde cu numere obișnuite)
+  // acorduri [..] — numeric (Nashville): cifra de bază normală, sufixul (7, m7, 2, /5…) ca EXPONENT (superscript)
   s = s.replace(/(\[)([^\]]*)(\])/g, (mm, b1, inner, b2) => {
-    const cls = /^\s*[1-7]/.test(inner) ? "hl-ch hl-num" : "hl-ch";
-    return `<span class="hl-bk">${b1}</span><span class="${cls}">${inner}</span><span class="hl-bk">${b2}</span>`;
+    const num = /^(\s*[1-7][#b]?)([\s\S]*)$/.exec(inner);
+    if (num && /^\s*[1-7]/.test(inner)) {
+      const sup = num[2] ? `<span class="hl-sup">${num[2]}</span>` : "";
+      return `<span class="hl-bk">${b1}</span><span class="hl-ch hl-num">${num[1]}${sup}</span><span class="hl-bk">${b2}</span>`;
+    }
+    return `<span class="hl-bk">${b1}</span><span class="hl-ch">${inner}</span><span class="hl-bk">${b2}</span>`;
   });
   // orice tag rămas (nepereche) → dim
   s = s.replace(/(&lt;\/?[biu]&gt;)/gi, '<span class="hl-fmt">$1</span>');
@@ -448,7 +452,8 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
         .ta::placeholder { color: #55606b; }
         .hl :global(.hl-bk) { color: #1f8a4c; font-weight: 700; }
         .hl :global(.hl-ch) { color: #5aa2ff; font-weight: 700; }
-        .hl :global(.hl-num) { font-style: italic; font-size: .9em; }
+        .hl :global(.hl-num) { font-style: italic; }
+        .hl :global(.hl-sup) { font-size: .55em; vertical-align: super; line-height: 0; font-style: italic; }
         .hl :global(.hl-sec) { color: #d6dae0; font-weight: 800; }
         .hl :global(.hl-fmt) { color: #55606b; }
         .hl :global(.hl-b) { font-weight: 800; color: #eef0f2; }
