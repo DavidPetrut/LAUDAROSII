@@ -181,8 +181,15 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
     requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(caret, caret); } });
   }
 
+  // Ctrl+Click (sau combinația configurată) = „Adaugă gamă" la locul click-ului.
+  function clickComboMatches(e) {
+    const mc = []; if (e.ctrlKey || e.metaKey) mc.push("ctrl"); if (e.altKey) mc.push("alt"); if (e.shiftKey) mc.push("shift"); mc.push("click");
+    return mc.join("+") === addChordCombo;
+  }
+
   function onMouseDownTextarea(e) {
     const ta = taRef.current; if (!ta) return;
+    if (clickComboMatches(e)) return; // lasă caret-ul la click; inserăm pe onClick
     setChoice(null); setSelHl(null); // o nouă apăsare închide chooser/highlight
     press.current.startX = e.clientX; press.current.startY = e.clientY; press.current.active = false;
     clearTimeout(press.current.timer);
@@ -212,7 +219,8 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
     document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
   }
 
-  function onMouseUpTextarea() {
+  function onMouseUpTextarea(e) {
+    if (e && clickComboMatches(e)) return; // Ctrl+Click → tratat pe onClick
     if (press.current.active) return; // a fost un draw de măsuri
     const ta = taRef.current; if (!ta) return;
     if (ta.selectionStart !== ta.selectionEnd) {
@@ -323,6 +331,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
         onKeyUp={(e) => { if (!["ArrowUp", "ArrowDown", "Enter", "Tab", "Escape"].includes(e.key)) updateAutocomplete(); }}
         onMouseDown={onMouseDownTextarea}
         onMouseUp={onMouseUpTextarea}
+        onClick={(e) => { if (clickComboMatches(e)) { e.preventDefault(); insertChordAtCaret(defaultKey || "C"); } }}
         onScroll={() => { syncScroll(); setAc(null); setPick(null); setTb(null); setSelHl(null); }}
         onBlur={() => { setTimeout(() => { setAc(null); setPick(null); if (!aiOpen) setTb(null); setSymOpen(false); }, 180); }}
         placeholder={"VERSE 1:\n[C]Cine-i ca [Am]Tine în uni[F]vers,\n..."}

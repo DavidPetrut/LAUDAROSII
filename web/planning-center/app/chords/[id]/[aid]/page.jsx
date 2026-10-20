@@ -26,17 +26,17 @@ const CHORD_COLORS = { Blue: "#0921ff", Orange: "#d98a2b", Black: "#111", Green:
 // Structură extensibilă: adaugi aici acțiuni noi + un fn în handler-ul global.
 const HOTKEY_ACTIONS = [
   { id: "beautify", label: "Aranjează", hint: "Formatează versurile și acordurile (ChordPro)" },
-  { id: "addChord", label: "Adaugă gamă", hint: "Inserează gama originală [X] la cursor, selectată + picker" },
+  { id: "addChord", label: "Adaugă gamă", hint: "Ctrl+Click în editor → inserează gama originală [X] acolo, selectată + picker" },
   { id: "addChordPrecise", label: "Adaugă gamă precisă", hint: "Prefix + literă (A-G) = [Literă]; apasă litera din nou = minor. Se schimbă doar prefixul." },
   { id: "undo", label: "Undo", hint: "Anulează ultima acțiune (istoric de sesiune)" },
 ];
 const DEFAULT_BINDINGS = [
   { id: "def-beautify", action: "beautify", combo: "ctrl+s", removable: false },
-  { id: "def-addchord", action: "addChord", combo: "ctrl+d", removable: false },
+  { id: "def-addchord", action: "addChord", combo: "ctrl+click", removable: false },
   { id: "def-precise", action: "addChordPrecise", combo: "ctrl+shift", removable: false },
   { id: "def-undo", action: "undo", combo: "ctrl+z", removable: false },
 ];
-const HK_LS_KEY = "pc.chordEditor.hotkeys.v1";
+const HK_LS_KEY = "pc.chordEditor.hotkeys.v2"; // v2: addChord = ctrl+click (re-seed defaults)
 
 const isModifierKey = (k) => k === "Control" || k === "Meta" || k === "Alt" || k === "Shift";
 
