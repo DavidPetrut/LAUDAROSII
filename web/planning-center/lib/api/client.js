@@ -66,6 +66,10 @@ export const songsApi = {
   patchFile: (id, aid, fid, payload) => api.patch(`/songs/${id}/arrangements/${aid}/files/${fid}`, payload),
   uploadBlob: async (blob, filename, rt) => { const fd = new FormData(); fd.append("file", blob, filename); fd.append("name", filename); return api.post(`/uploads${rt ? `?rt=${rt}` : ""}`, fd); },
   tags: (domain = "song") => api.get(`/songs/meta/tags?domain=${domain}`),
+  createTagGroup: (data) => api.post("/songs/meta/tag-groups", data),
+  createTag: (data) => api.post("/songs/meta/tags", data),
+  setSongTags: (id, tagIds) => api.patch(`/songs/${id}/tags`, { tagIds }),
+  setArrangementTags: (id, aid, tagIds) => api.patch(`/songs/${id}/arrangements/${aid}/tags`, { tagIds }),
   transposeAudio: (id, aid, payload) => api.post(`/songs/${id}/arrangements/${aid}/transpose-audio`, payload),
   transposeAudioStatus: (id, aid, jobId) => api.get(`/songs/${id}/arrangements/${aid}/transpose-audio/${jobId}`),
 };

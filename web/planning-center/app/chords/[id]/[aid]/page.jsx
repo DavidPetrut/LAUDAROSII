@@ -6,7 +6,7 @@
  * Sus-dreapta: „Create PDFs: Numerals | Numbers | Lyrics" + auto-refresh/auto-save.
  * Salvare auto în /chordchart (există pe producție). Generarea PDF-urilor stocate = pasul următor.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api, songsApi } from "@/lib/api/client";
 import { isAuthed } from "@/lib/auth/auth";
@@ -21,6 +21,57 @@ import Modal from "@/components/ui/Modal";
 const PDF_NAMES = { numerals: "Numerals Chart", numbers: "Numbers Chart", lyrics: "Lyrics" };
 
 const CHORD_COLORS = { Blue: "#0921ff", Orange: "#d98a2b", Black: "#111", Green: "#2f9e5b", Red: "#d14b43" };
+
+// ── Hotkeys configurabile (persistate în localStorage ≈ „forever") ────────────
+// Structură extensibilă: adaugi aici acțiuni noi + un fn în handler-ul global.
+const HOTKEY_ACTIONS = [
+  { id: "beautify", label: "Aranjează", hint: "Formatează versurile și acordurile (ChordPro)" },
+];
+const DEFAULT_BINDINGS = [
+  { id: "def-beautify", action: "beautify", combo: "ctrl+s", removable: false },
+];
+const HK_LS_KEY = "pc.chordEditor.hotkeys.v1";
+
+const isModifierKey = (k) => k === "Control" || k === "Meta" || k === "Alt" || k === "Shift";
+
+function comboFromEvent(e) {
+  const parts = [];
+  if (e.ctrlKey || e.metaKey) parts.push("ctrl");
+  if (e.altKey) parts.push("alt");
+  if (e.shiftKey) parts.push("shift");
+  if (!isModifierKey(e.key)) parts.push(e.key === " " ? "space" : e.key.toLowerCase());
+  return parts.join("+");
+}
+function comboLabel(combo) {
+  if (!combo) return "";
+  const cap = (p) => (p.length === 1 ? p.toUpperCase() : p[0].toUpperCase() + p.slice(1));
+  return combo.split("+").map(cap).join(" + ");
+}
+const actionLabel = (id) => HOTKEY_ACTIONS.find((a) => a.id === id)?.label || id;
+const actionHint = (id) => HOTKEY_ACTIONS.find((a) => a.id === id)?.hint || "";
+const hkUid = () => Math.random().toString(36).slice(2, 9);
+
+function loadHotkeys() {
+  try {
+    const raw = localStorage.getItem(HK_LS_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    return Array.isArray(p?.bindings) ? p.bindings : null;
+  } catch { return null; }
+}
+function saveHotkeys(bindings) {
+  // localStorage nu expiră (≈ „forever"); salvăm și un savedAt informativ.
+  try { localStorage.setItem(HK_LS_KEY, JSON.stringify({ v: 1, savedAt: Date.now(), bindings })); } catch {}
+}
+function initBindings() {
+  if (typeof window === "undefined") return DEFAULT_BINDINGS.slice();
+  const stored = loadHotkeys();
+  if (!stored || !stored.length) return DEFAULT_BINDINGS.slice();
+  const out = stored.slice();
+  // Asigură că acțiunile default (ne-ștergibile) există mereu (ex. versiuni noi de cod).
+  for (const d of DEFAULT_BINDINGS) if (!out.some((b) => b.id === d.id)) out.unshift(d);
+  return out;
+}
 
 export default function ChordEditor() {
   const { id, aid } = useParams();
@@ -39,6 +90,14 @@ export default function ChordEditor() {
   const [gen, setGen] = useState(""); // mesaj generare PDF
   const saveTimer = useRef(null);
   const loaded = useRef(false);
+  // Options modal (taburi) + hotkeys
+  const [optTab, setOptTab] = useState("fmt"); // "fmt" | "hk"
+  const [bindings, setBindings] = useState(initBindings);
+  const [capturingId, setCapturingId] = useState(null); // id binding | "__add__" | null
+  const [capturePreview, setCapturePreview] = useState("");
+  const [addingHk, setAddingHk] = useState(false);
+  const [addAction, setAddAction] = useState(HOTKEY_ACTIONS[0].id);
+  const capturingRef = useRef(false);
 
   useEffect(() => { if (!isAuthed()) { router.replace("/login"); return; } setReady(true); }, [router]);
 
@@ -91,11 +150,48 @@ export default function ChordEditor() {
     if (next !== text) onText(next);
   }, [text]);
 
+  // Persistă hotkeys (localStorage ≈ „forever"). Merge și fără (try/catch în save).
+  useEffect(() => { saveHotkeys(bindings); }, [bindings]);
+  useEffect(() => { capturingRef.current = capturingId != null; }, [capturingId]);
+
+  // Un singur handler global: mapează combinația tastată → acțiune (din bindings).
   useEffect(() => {
-    const h = (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); beautify(); } };
+    const fns = { beautify };
+    const h = (e) => {
+      if (capturingRef.current) return; // suntem în modul de reasignare
+      const combo = comboFromEvent(e);
+      if (!combo) return;
+      const hit = bindings.find((b) => b.combo === combo);
+      const fn = hit && fns[hit.action];
+      if (fn) { e.preventDefault(); fn(); }
+    };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [beautify]);
+  }, [bindings, beautify]);
+
+  // ── Capturare combinații (rebind / add) ─────────────────────────────────────
+  const startCapture = (id) => { setCapturePreview(""); setCapturingId(id); };
+  const cancelCapture = () => { setCapturingId(null); setCapturePreview(""); };
+  const onCaptureKey = (e, id) => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.key === "Escape") { cancelCapture(); return; }
+    if (isModifierKey(e.key)) { setCapturePreview(comboLabel(comboFromEvent(e))); return; }
+    const combo = comboFromEvent(e);
+    if (!combo) return;
+    setBindings((bs) => bs.map((b) => (b.id === id ? { ...b, combo } : b)));
+    cancelCapture();
+  };
+  const onAddCaptureKey = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.key === "Escape") { cancelCapture(); setAddingHk(false); return; }
+    if (isModifierKey(e.key)) { setCapturePreview(comboLabel(comboFromEvent(e))); return; }
+    const combo = comboFromEvent(e);
+    if (!combo) return;
+    setBindings((bs) => (bs.some((b) => b.action === addAction && b.combo === combo)
+      ? bs : [...bs, { id: hkUid(), action: addAction, combo, removable: true }]));
+    cancelCapture(); setAddingHk(false);
+  };
+  const removeBinding = (id) => setBindings((bs) => bs.filter((b) => b.id !== id));
 
   // AI pe selecție (din bara editorului). Gateway-ul server (§10) se activează la deploy.
   const aiTransform = useCallback(async (selected, prompt) => {
@@ -187,7 +283,6 @@ export default function ChordEditor() {
             </select>
           </div>
           <button className="options" onClick={() => setFmtOpen(true)}>Options ▾</button>
-          <button className="options" onClick={beautify} title="Aranjează versurile (Ctrl+S)">Aranjează</button>
         </div>
         <div className="c-right">
           <div className="ctrl mid">
@@ -250,19 +345,70 @@ export default function ChordEditor() {
       </div>
 
       {fmtOpen && (
-        <Modal title="Formatting" onClose={() => setFmtOpen(false)} width={420}
-          footer={<><button className="btn btn-link" onClick={() => setFmtOpen(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={() => setFmtOpen(false)}>Save This Chart</button></>}>
-          <div className="fmt-sec">Text</div>
-          <FmtRow label="Font"><select className="input" value={formatting.font} onChange={(e) => onFmt({ font: e.target.value })}>
-            <option>Courier, Monospaced</option><option>Arial, Helvetica</option><option>Georgia, Serif</option></select></FmtRow>
-          <FmtRow label="Size"><select className="input" value={formatting.size} onChange={(e) => onFmt({ size: Number(e.target.value) })}>
-            {[10,11,12,13,14,15,16,18,20,22,24,26,28,32,36,42,48].map((s) => <option key={s} value={s}>{s}</option>)}</select></FmtRow>
-          <FmtRow label="Chord Color"><select className="input" value={formatting.chordColor} onChange={(e) => onFmt({ chordColor: e.target.value })}>
-            {Object.keys(CHORD_COLORS).map((c) => <option key={c} value={c}>{c}</option>)}</select></FmtRow>
-          <div className="fmt-sec">Layout</div>
-          <FmtRow label="Columns"><select className="input" value={formatting.columns} onChange={(e) => onFmt({ columns: Number(e.target.value) })}>
-            <option value={1}>Default: 1</option><option value={2}>2</option></select></FmtRow>
+        <Modal title="Options" width={580}
+          onClose={() => { setFmtOpen(false); cancelCapture(); setAddingHk(false); }}>
+          <div className="opt">
+            <div className="opt-tabs">
+              <button className={`opt-tab ${optTab === "fmt" ? "on" : ""}`} onClick={() => setOptTab("fmt")}>Formatare</button>
+              <button className={`opt-tab ${optTab === "hk" ? "on" : ""}`} onClick={() => setOptTab("hk")}>Hotkeys</button>
+            </div>
+            <div className="opt-panel">
+              {optTab === "fmt" ? (
+                <div className="opt-fade">
+                  <div className="fmt-sec">Text</div>
+                  <FmtRow label="Font"><select className="input" value={formatting.font} onChange={(e) => onFmt({ font: e.target.value })}>
+                    <option>Courier, Monospaced</option><option>Arial, Helvetica</option><option>Georgia, Serif</option></select></FmtRow>
+                  <FmtRow label="Size"><select className="input" value={formatting.size} onChange={(e) => onFmt({ size: Number(e.target.value) })}>
+                    {[10,11,12,13,14,15,16,18,20,22,24,26,28,32,36,42,48].map((s) => <option key={s} value={s}>{s}</option>)}</select></FmtRow>
+                  <FmtRow label="Chord Color"><select className="input" value={formatting.chordColor} onChange={(e) => onFmt({ chordColor: e.target.value })}>
+                    {Object.keys(CHORD_COLORS).map((c) => <option key={c} value={c}>{c}</option>)}</select></FmtRow>
+                  <div className="fmt-sec">Layout</div>
+                  <FmtRow label="Columns"><select className="input" value={formatting.columns} onChange={(e) => onFmt({ columns: Number(e.target.value) })}>
+                    <option value={1}>Default: 1</option><option value={2}>2</option></select></FmtRow>
+                </div>
+              ) : (
+                <div className="opt-fade">
+                  <div className="hk-grid">
+                    <div className="hk-h">Acțiune</div>
+                    <div className="hk-h">Combinație</div>
+                    {bindings.map((b) => (
+                      <Fragment key={b.id}>
+                        <div className="hk-act" title={actionHint(b.action)}>{actionLabel(b.action)}</div>
+                        <div className="hk-combo">
+                          <input readOnly
+                            className={`hk-in ${capturingId === b.id ? "cap" : ""}`}
+                            value={capturingId === b.id ? (capturePreview || "Apasă tastele…") : comboLabel(b.combo)}
+                            onDoubleClick={() => startCapture(b.id)}
+                            onKeyDown={(e) => capturingId === b.id && onCaptureKey(e, b.id)}
+                            onBlur={() => { if (capturingId === b.id) cancelCapture(); }}
+                            title="Dublu-click pentru a reasigna" />
+                          {b.removable && <button className="hk-del" onClick={() => removeBinding(b.id)} title="Șterge">✕</button>}
+                        </div>
+                      </Fragment>
+                    ))}
+                  </div>
+
+                  {addingHk ? (
+                    <div className="hk-add-row">
+                      <select className="input" value={addAction} onChange={(e) => setAddAction(e.target.value)}>
+                        {HOTKEY_ACTIONS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+                      </select>
+                      <input readOnly autoFocus
+                        className={`hk-in ${capturingId === "__add__" ? "cap" : ""}`}
+                        value={capturingId === "__add__" ? (capturePreview || "Apasă tastele…") : "Dublu-click pentru combinație"}
+                        onDoubleClick={() => startCapture("__add__")}
+                        onKeyDown={(e) => capturingId === "__add__" && onAddCaptureKey(e)}
+                        onBlur={() => { if (capturingId === "__add__") cancelCapture(); }} />
+                      <button className="hk-del" onClick={() => { cancelCapture(); setAddingHk(false); }} title="Renunță">✕</button>
+                    </div>
+                  ) : (
+                    <button className="hk-add" onClick={() => { setAddingHk(true); setAddAction(HOTKEY_ACTIONS[0].id); }}>+ Adaugă hotkey</button>
+                  )}
+                  <div className="hk-tip">Dublu-click pe o combinație pentru a o reasigna.</div>
+                </div>
+              )}
+            </div>
+          </div>
         </Modal>
       )}
 
@@ -312,6 +458,32 @@ export default function ChordEditor() {
         .pch { font-weight: 700; }
         .pl { height: .7em; }
         .fmt-sec { font-size: 12px; color: var(--text-dim); margin: 6px 0 10px; }
+
+        /* Options: taburi verticale (stânga) + conținut (dreapta) */
+        .opt { display: grid; grid-template-columns: 128px 1fr; gap: 20px; min-height: 240px; }
+        .opt-tabs { display: flex; flex-direction: column; gap: 4px; border-right: 1px solid var(--border); padding-right: 14px; }
+        .opt-tab { background: transparent; border: none; color: var(--text-dim); text-align: left; padding: 9px 12px; border-radius: 7px; cursor: pointer; font-size: 13.5px; transition: background .18s ease, color .18s ease; }
+        .opt-tab:hover { background: var(--surface-2); color: var(--text); }
+        .opt-tab.on { background: var(--surface-2); color: var(--text); font-weight: 600; }
+        .opt-panel { min-width: 0; }
+        .opt-fade { animation: optfade .22s ease; }
+        @keyframes optfade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+        /* Hotkeys */
+        .hk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 14px; align-items: center; }
+        .hk-h { font-size: 10.5px; text-transform: uppercase; letter-spacing: .6px; color: var(--text-faint); padding-bottom: 2px; }
+        .hk-act { color: var(--text); font-size: 13.5px; }
+        .hk-combo { display: flex; align-items: center; gap: 6px; }
+        .hk-in { flex: 1; min-width: 0; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; height: 32px; padding: 0 10px; font-size: 13px; cursor: pointer; transition: border-color .18s ease, box-shadow .18s ease; }
+        .hk-in:hover { border-color: var(--primary); }
+        .hk-in.cap { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent); animation: capblink 1s ease infinite; }
+        @keyframes capblink { 50% { opacity: .65; } }
+        .hk-del { flex: 0 0 auto; background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 12px; width: 24px; height: 24px; border-radius: 6px; transition: background .15s ease, color .15s ease; }
+        .hk-del:hover { background: var(--surface-3); color: var(--text); }
+        .hk-add-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: center; margin-top: 12px; animation: optfade .2s ease; }
+        .hk-add { margin-top: 14px; width: 100%; height: 34px; background: transparent; border: 1px dashed var(--border-strong); color: var(--text-dim); border-radius: 7px; cursor: pointer; font-size: 13px; transition: border-color .18s ease, color .18s ease, background .18s ease; }
+        .hk-add:hover { border-color: var(--primary); color: var(--text); background: var(--surface-2); }
+        .hk-tip { margin-top: 12px; color: var(--text-faint); font-size: 11.5px; }
       `}</style>
     </div>
   );

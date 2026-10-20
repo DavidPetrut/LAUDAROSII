@@ -25,6 +25,7 @@ import AddFileModal from "@/components/songs/AddFileModal";
 import SongInfoModal from "@/components/songs/SongInfoModal";
 import ChartPreviewModal from "@/components/songs/ChartPreviewModal";
 import TransposeModal from "@/components/songs/TransposeModal";
+import TagsModal from "@/components/songs/TagsModal";
 
 const METERS = ["none", "2/2", "2/4", "3/2", "3/4", "4/2", "4/4", "5/4", "6/4", "3/8", "6/8", "7/4", "7/8", "9/8", "12/4", "12/8"];
 
@@ -53,6 +54,8 @@ export default function SongDetail() {
   const [deleteFor, setDeleteFor] = useState(null); // fișierul de șters (confirmare)
   const [deleteKeyFor, setDeleteKeyFor] = useState(null); // gama (cheia) de șters cu tot cu fișiere
   const [toast, setToast] = useState("");
+  const [tagModal, setTagModal] = useState(null); // null | 'song' | 'arrangement'
+  const [tagMap, setTagMap] = useState({}); // id → { name, color } (ambele domenii), pt. afișarea chip-urilor
   const [jobs, setJobs] = useState([]); // joburi de transpose audio (progres)
   const [fileMenu, setFileMenu] = useState(null); // UN SINGUR panou de acțiuni: { f, top, left }
   const fileMenuT = useRef(null);
@@ -265,8 +268,22 @@ export default function SongDetail() {
     try { setArr(await songsApi.arrangement(id, arrId)); } catch (e) { setErr(e?.message || "Eroare."); }
   }, [id, arrId]);
 
+  // Catalog de tag-uri (ambele domenii) → hartă id→{name,color} pt. chip-uri. Reîncărcat după salvări/creare.
+  const loadTags = useCallback(async () => {
+    try {
+      const [sg, ag] = await Promise.all([songsApi.tags("song").catch(() => ({ groups: [] })), songsApi.tags("arrangement").catch(() => ({ groups: [] }))]);
+      const map = {};
+      for (const cat of [sg, ag]) for (const g of (cat.groups || [])) for (const t of (g.tags || [])) map[String(t.id)] = { name: t.name, color: t.color || "" };
+      setTagMap(map);
+    } catch { /* non-critic */ }
+  }, []);
+
+  const saveSongTags = async (ids) => { await songsApi.setSongTags(id, ids); await loadTags(); await loadSong(); };
+  const saveArrTags = async (ids) => { await songsApi.setArrangementTags(id, arrId, ids); await loadTags(); await loadArr(); };
+
   useEffect(() => { loadSong(); }, [loadSong]);
   useEffect(() => { loadArr(); }, [loadArr]);
+  useEffect(() => { loadTags(); }, [loadTags]);
 
   // Poller pt. joburile de transpose audio (fază + procent în timp real).
   useEffect(() => {
@@ -488,7 +505,8 @@ export default function SongDetail() {
                 </div>
                 <div className="panel">
                   <div className="panel-h">Tags</div>
-                  <div className="panel-sub dim">{(arr.tagIds || []).length ? `${arr.tagIds.length} tag-uri` : "Fără tag-uri."}</div>
+                  <TagSet label="Aranjament" ids={arr.tagIds || []} tagMap={tagMap} onEdit={() => setTagModal("arrangement")} />
+                  <TagSet label="Cântec" ids={song.tagIds || []} tagMap={tagMap} onEdit={() => setTagModal("song")} />
                 </div>
                 <div className="panel">
                   <div className="panel-h">Notes</div>
@@ -514,6 +532,14 @@ export default function SongDetail() {
       {transposeFor && (
         <TransposeModal file={transposeFor} onClose={() => setTransposeFor(null)} onPick={doTranspose}
           askSource defaultSource={transposeDefaultSource(transposeFor)} />
+      )}
+      {tagModal && (
+        <TagsModal
+          domain={tagModal}
+          selectedIds={tagModal === "arrangement" ? (arr?.tagIds || []) : (song?.tagIds || [])}
+          onClose={() => setTagModal(null)}
+          onSave={tagModal === "arrangement" ? saveArrTags : saveSongTags}
+        />
       )}
       {renameFor && (
         <div className="ov-min" onMouseDown={(e) => e.target === e.currentTarget && setRenameFor(null)}>
@@ -784,6 +810,39 @@ export default function SongDetail() {
         .panel { border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 90px; }
         .panel-h { font-weight: 600; margin-bottom: 8px; }
         .panel-sub { font-size: 13px; }
+      `}</style>
+    </div>
+  );
+}
+
+/* Un set de tag-uri (Aranjament sau Cântec): chip-uri colorate + buton „+” care deschide pickerul. */
+function TagSet({ label, ids, tagMap, onEdit }) {
+  return (
+    <div className="tag-set">
+      <div className="ts-lbl">{label}</div>
+      <div className="ts-row">
+        {(ids || []).map((tid) => {
+          const t = tagMap[String(tid)];
+          return (
+            <span key={String(tid)} className="ts-chip">
+              <span className="ts-dot" style={{ background: t?.color || "var(--text-faint)" }} />
+              {t?.name || "…"}
+            </span>
+          );
+        })}
+        {(ids || []).length === 0 && <span className="ts-none">Fără tag-uri.</span>}
+        <button className="ts-edit" title={`Editează tag-uri (${label.toLowerCase()})`} onClick={onEdit}>＋</button>
+      </div>
+      <style jsx>{`
+        .tag-set { margin-top: 2px; }
+        .tag-set + .tag-set { margin-top: 12px; }
+        .ts-lbl { font-size: 11px; letter-spacing: .4px; text-transform: uppercase; color: var(--text-faint); margin-bottom: 6px; }
+        .ts-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+        .ts-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; }
+        .ts-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+        .ts-none { font-size: 12.5px; color: var(--text-dim); }
+        .ts-edit { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 999px; width: 24px; height: 24px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; }
+        .ts-edit:hover { border-color: var(--primary); color: var(--primary); }
       `}</style>
     </div>
   );
