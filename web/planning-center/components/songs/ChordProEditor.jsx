@@ -42,7 +42,9 @@ const POPULAR = ["", "m", "7", "sus4"];
 
 const PX_PER_MEASURE = 46; // cât drag = o măsură „----|"
 
-export default function ChordProEditor({ value, onChange, fontSize = 16, customLabels = [], onAi, defaultKey = "C" }) {
+export default function ChordProEditor({ value, onChange, fontSize = 16, customLabels = [], onAi, defaultKey = "C", meter = "4/4" }) {
+  const measureBeats = Math.max(1, Math.min(16, parseInt(String(meter).split("/")[0], 10) || 4)); // nr. liniuțe/măsură = numărătorul măsurii
+  const measureUnit = "-".repeat(measureBeats) + "|";
   const taRef = useRef(null);
   const preRef = useRef(null);
   const [ac, setAc] = useState(null);
@@ -130,15 +132,15 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
   function commitMeasures(n, mode, posArg) {
     const key = defaultKey || "C";
     const pos = Number.isInteger(posArg) ? posArg : (taRef.current ? taRef.current.selectionStart : 0);
-    // „single" = o singură gamă la început; „each" = o gamă pe fiecare măsură.
-    const body = mode === "single" ? `[${key}]` + "----|".repeat(n) : `[${key}]----|`.repeat(n);
+    // slash de început (|) înainte de primul acord; nr. liniuțe/măsură = numărătorul măsurii.
+    // „single" = o gamă la început; „each" = o gamă pe fiecare măsură.
+    const body = mode === "single" ? `|[${key}]` + measureUnit.repeat(n) : "|" + `[${key}]${measureUnit}`.repeat(n);
+    // Inserează pe ACELAȘI rând, la poziția cursorului, cu un spațiu dacă nu e deja la început/după spațiu.
     const lineStart = value.lastIndexOf("\n", pos - 1) + 1;
-    let lineEnd = value.indexOf("\n", pos); if (lineEnd < 0) lineEnd = value.length;
-    const curLine = value.slice(lineStart, lineEnd);
-    let next, caret;
-    if (/----\|/.test(curLine)) { next = value.slice(0, lineEnd) + body + value.slice(lineEnd); caret = lineEnd + body.length; } // ACEEAȘI linie
-    else if (!curLine.trim()) { next = value.slice(0, lineStart) + body + value.slice(lineEnd); caret = lineStart + body.length; }
-    else { next = value.slice(0, lineEnd) + "\n" + body + value.slice(lineEnd); caret = lineEnd + 1 + body.length; }
+    const needSpace = pos > lineStart && !/\s$/.test(value.slice(lineStart, pos));
+    const ins = (needSpace ? " " : "") + body;
+    const next = value.slice(0, pos) + ins + value.slice(pos);
+    const caret = pos + ins.length;
     onChange(next);
     setChoice(null);
     requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(caret, caret); } });
@@ -287,7 +289,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
       )}
 
       {pick && (
-        <div className="pop picker" style={{ left: pick.x, top: Math.max(4, pick.y - (pick.more ? 220 : 44)) }}>
+        <div className="pop picker" style={{ left: pick.x, top: Math.max(4, pick.y - (pick.more ? 228 : 52)) }}>
           {!pick.more ? (
             <div className="pick-bar">
               {popularChords.map((ch) => (
@@ -306,7 +308,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
       )}
 
       {tb && (
-        <div className="pop toolbar" style={{ left: tb.x, top: Math.max(4, tb.y - 44) }}>
+        <div className="pop toolbar" style={{ left: tb.x, top: Math.max(4, tb.y - 52) }}>
           <button onMouseDown={(e) => { e.preventDefault(); wrapSel("b"); }}><b>B</b></button>
           <button onMouseDown={(e) => { e.preventDefault(); wrapSel("i"); }}><i>I</i></button>
           <button onMouseDown={(e) => { e.preventDefault(); wrapSel("u"); }}><u>U</u></button>
@@ -333,13 +335,13 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
 
       {draw && (
         <div className="drawghost" style={{ left: draw.x + 12, top: draw.y - 8 }}>
-          <div className="dg-measures">{draw.n >= 1 ? "----|".repeat(draw.n) : "trage spre dreapta →"}</div>
+          <div className="dg-measures">{draw.n >= 1 ? measureUnit.repeat(draw.n) : "trage spre dreapta →"}</div>
           <div className="dg-label">{draw.n >= 1 ? `${draw.n} ${draw.n === 1 ? "măsură" : "măsuri"} · [${defaultKey}]` : "constructor măsuri"}</div>
         </div>
       )}
 
       {choice && (
-        <div className="pop choice" style={{ left: Math.min(choice.x, (typeof window !== "undefined" ? window.innerWidth - 240 : choice.x)), top: Math.max(6, choice.y - 50) }}>
+        <div className="pop choice" style={{ left: Math.min(choice.x, (typeof window !== "undefined" ? window.innerWidth - 240 : choice.x)), top: Math.max(6, choice.y - 64) }}>
           <span className="choice-n">{choice.n}🎵</span>
           <button className="choice-b" onClick={(e) => { e.stopPropagation(); commitMeasures(choice.n, "single", choice.pos); }} title="O singură gamă la început">1 gamă</button>
           <button className="choice-b" onClick={(e) => { e.stopPropagation(); commitMeasures(choice.n, "each", choice.pos); }} title="Gamă pe fiecare măsură">fiecare</button>
