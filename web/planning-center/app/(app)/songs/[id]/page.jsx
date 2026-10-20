@@ -232,8 +232,8 @@ export default function SongDetail() {
     if (isAudioUrl(f.url, f.kind) || isYouTube(f.url)) { return startAudioTranspose(f, targetKey, sourceKey); }
     try {
       const cc = await api.get(`/songs/${id}/arrangements/${arrId}/chordchart`);
+      if (!(cc.chordpro || "").trim()) { setToast("Aranjamentul n-are Lyrics & Chords — fă-l întâi din «Lyrics & Chords», apoi poți transpune."); setTimeout(() => setToast(""), 4500); return; }
       // Chart-ul se randează MEREU din ChordPro-ul real (cc.originalKey) spre gama țintă ABSOLUTĂ.
-      // „Gama actuală" aleasă e doar informativă aici (un chart în Bb e absolut, oricum l-ai numi sursa).
       const originalKey = cc.originalKey || "C";
       const mode = f.kind === "numbers" ? "numbers" : f.kind === "numerals" ? "numerals" : f.kind === "lyrics" ? "lyrics" : "chords";
       const lines = renderChordPro(cc.chordpro || "", { mode, originalKey, targetKey });
@@ -251,7 +251,10 @@ export default function SongDetail() {
       const up = await songsApi.uploadBlob(blob, `${name}.pdf`, "raw");
       await songsApi.addFile(id, arrId, { name, url: up.url, kind: f.kind, source: "generated", keyId: key.id });
       await loadArr();
-      setToast(`Transpus în ${targetKey} ✓`); setTimeout(() => setToast(""), 2500);
+      // arată rezultatul: filtrează pe gama țintă + derulează la ea
+      setSelKeys(new Set([key.id]));
+      requestAnimationFrame(() => { const el = colsRef.current; if (el) el.scrollTo({ left: el.scrollWidth, behavior: "smooth" }); });
+      setToast(`„${name}" creat în coloana ${targetKey} ✓`); setTimeout(() => setToast(""), 3000);
     } catch (e) { setToast("Eroare la transpose: " + (e?.message || e)); setTimeout(() => setToast(""), 3500); }
   };
 
@@ -529,10 +532,14 @@ export default function SongDetail() {
       )}
       {showCT && <ClickTrackBar defaults={ctDefaults} playerActive={!!player.track} onClose={() => setShowCT(false)} />}
       {preview && <ChartPreviewModal songId={id} arrId={arrId} song={song} arr={arr} mode={preview.mode} targetKey={preview.targetKey} onClose={() => setPreview(null)} />}
-      {transposeFor && (
-        <TransposeModal file={transposeFor} onClose={() => setTransposeFor(null)} onPick={doTranspose}
-          askSource defaultSource={transposeDefaultSource(transposeFor)} />
-      )}
+      {transposeFor && (() => {
+        const isAud = isAudioUrl(transposeFor.url, transposeFor.kind) || isYouTube(transposeFor.url);
+        return (
+          <TransposeModal file={transposeFor} onClose={() => setTransposeFor(null)} onPick={doTranspose}
+            askSource={isAud} defaultSource={isAud ? transposeDefaultSource(transposeFor) : ""}
+            fixedSource={!isAud ? (arr?.chordChart?.originalKey || "") : ""} />
+        );
+      })()}
       {tagModal && (
         <TagsModal
           domain={tagModal}

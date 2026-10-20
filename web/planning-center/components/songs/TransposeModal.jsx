@@ -7,7 +7,7 @@ import { useState } from "react";
 import Modal from "@/components/ui/Modal";
 import { ALL_KEYS } from "@/lib/songs/chordpro";
 
-export default function TransposeModal({ file, onClose, onPick, askSource = false, defaultSource = "" }) {
+export default function TransposeModal({ file, onClose, onPick, askSource = false, defaultSource = "", fixedSource = "" }) {
   const [key, setKey] = useState("");
   const [src, setSrc] = useState(defaultSource || "");
   const [busy, setBusy] = useState(false);
@@ -24,6 +24,9 @@ export default function TransposeModal({ file, onClose, onPick, askSource = fals
         <button className="btn btn-link" onClick={onClose}>Anulează</button>
         <button className="btn btn-primary" onClick={go} disabled={!key || busy || (askSource && !src)}>{busy ? "Se transpune…" : "Transpune"}</button>
       </>}>
+      {!askSource && fixedSource && (
+        <div className="fixsrc">Gama inițială: <b>{fixedSource}</b> <span className="sub">(din aranjament — chart-ul se transpune de aici)</span></div>
+      )}
       {askSource && (
         <>
           <div className="lbl">Gama actuală <span className="sub">(în ce gamă e fișierul acum)</span></div>
@@ -49,6 +52,9 @@ export default function TransposeModal({ file, onClose, onPick, askSource = fals
       <style jsx>{`
         .lbl { font-size: 12.5px; color: var(--text); margin-bottom: 10px; font-weight: 500; }
         .lbl .sub { color: var(--text-faint); font-weight: 400; }
+        .fixsrc { font-size: 12.5px; color: var(--text-dim); margin-bottom: 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 11px; }
+        .fixsrc b { color: var(--text); }
+        .fixsrc .sub { color: var(--text-faint); }
         .sep { height: 1px; background: var(--border); margin: 16px 0; }
         .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
         .k { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; height: 36px; cursor: pointer; font-size: 13px; }
