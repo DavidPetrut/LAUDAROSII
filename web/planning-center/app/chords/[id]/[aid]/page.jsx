@@ -91,6 +91,7 @@ export default function ChordEditor() {
   const [pdfs, setPdfs] = useState({ numerals: false, numbers: true, lyrics: true });
   const [formatting, setFormatting] = useState({ font: "Courier, Monospaced", size: 16, chordColor: "Blue", columns: 1 });
   const [fmtOpen, setFmtOpen] = useState(false);
+  const [keyOpen, setKeyOpen] = useState(false); // grila pt. Original Key
   const [previewOpen, setPreviewOpen] = useState(false);
   const [status, setStatus] = useState(""); // "Typing…" | "Saved"
   const [gen, setGen] = useState(""); // mesaj generare PDF
@@ -298,9 +299,22 @@ export default function ChordEditor() {
         <div className="c-left">
           <div className="ctrl">
             <span className="ctrl-l">Original Key</span>
-            <select className="ctrl-sel" value={originalKey} onChange={(e) => onKey(e.target.value)}>
-              {ALL_KEYS.map((k) => <option key={k} value={k}>{k}</option>)}
-            </select>
+            <div className="keywrap">
+              <button className="keybtn" onClick={() => setKeyOpen((o) => !o)} title="Alege gama originală">
+                <span>{originalKey}</span>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+              </button>
+              {keyOpen && (
+                <>
+                  <div className="keyback" onClick={() => setKeyOpen(false)} />
+                  <div className="keygrid">
+                    {ALL_KEYS.map((k) => (
+                      <button key={k} className={k === originalKey ? "on" : ""} onClick={() => { onKey(k); setKeyOpen(false); }}>{k}</button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
           <button className="options" onClick={() => setFmtOpen(true)}>Options ▾</button>
         </div>
@@ -449,6 +463,15 @@ export default function ChordEditor() {
         .c-right { display: flex; align-items: center; gap: 16px; }
         .ctrl { display: flex; align-items: center; gap: 8px; }
         .ctrl-l { color: var(--text-dim); font-size: 12.5px; }
+        .keywrap { position: relative; display: inline-block; }
+        .keybtn { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; height: 30px; padding: 0 9px; cursor: pointer; font-size: 13px; }
+        .keybtn svg { color: var(--text-dim); }
+        .keybtn:hover { border-color: var(--primary); }
+        .keyback { position: fixed; inset: 0; z-index: 40; }
+        .keygrid { position: absolute; top: calc(100% + 6px); left: 0; z-index: 41; display: grid; grid-template-columns: repeat(3, 44px); gap: 6px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 10px; padding: 10px; box-shadow: 0 14px 36px rgba(0,0,0,.55); }
+        .keygrid button { height: 36px; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 7px; cursor: pointer; font-size: 13px; }
+        .keygrid button:hover { border-color: var(--primary); }
+        .keygrid button.on { background: var(--primary); color: #fff; border-color: var(--primary); }
         .ctrl-sel { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 5px; height: 30px; padding: 0 10px; cursor: pointer; min-width: 110px; text-align: left; }
         .ctrl-sel.wide { min-width: 150px; }
         .options { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 5px; height: 30px; padding: 0 12px; cursor: pointer; }
