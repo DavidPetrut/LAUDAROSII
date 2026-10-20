@@ -366,14 +366,14 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
       )}
 
       {pick && (
-        <div className="pop picker" style={{ left: pick.x, top: Math.max(4, pick.y - (pick.view !== "bar" ? 228 : 52)) }}>
+        <div className="pop picker" style={{ left: pick.x, top: Math.max(4, pick.y - (pick.view === "more" ? 228 : pick.view === "deg" ? 60 : 52)) }}>
           {pick.view === "bar" ? (
             <div className="pick-bar">
               <button className={!pick.minor ? "on" : ""} onMouseDown={(e) => { e.preventDefault(); pickChord(pick.major); }} title="Acord major (activ)">{pick.major}</button>
               <button className={pick.minor ? "on" : ""} onMouseDown={(e) => { e.preventDefault(); pickChord(pick.minorForm); }} title="Acord minor">{pick.minorForm}</button>
               <button className="more" onMouseDown={(e) => { e.preventDefault(); setPick((p) => ({ ...p, view: "more" })); }} title="Mai multe variații">⋯</button>
               <button className="more" onMouseDown={(e) => { e.preventDefault(); setPick((p) => ({ ...p, view: "deg" })); }} title="Game diatonice (1-7)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19V9" /><path d="M9 19V6" /><path d="M14 19v-9" /><path d="M19 19V5" /></svg>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="18" r="2.3" /><circle cx="17" cy="16" r="2.3" /><path d="M8.3 18V6.5l10.7-2.3V16" /><path d="M8.3 9.2l10.7-2.3" /></svg>
               </button>
             </div>
           ) : pick.view === "deg" ? (
@@ -453,7 +453,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
         .hl :global(.hl-bk) { color: #1f8a4c; font-weight: 700; }
         .hl :global(.hl-ch) { color: #5aa2ff; font-weight: 700; }
         .hl :global(.hl-num) { font-style: italic; }
-        .hl :global(.hl-sup) { font-size: .55em; vertical-align: super; line-height: 0; font-style: italic; }
+        .hl :global(.hl-sup) { font-size: .72em; vertical-align: super; line-height: 0; font-style: italic; }
         .hl :global(.hl-sec) { color: #d6dae0; font-weight: 800; }
         .hl :global(.hl-fmt) { color: #55606b; }
         .hl :global(.hl-b) { font-weight: 800; color: #eef0f2; }
