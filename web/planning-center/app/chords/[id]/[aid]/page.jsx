@@ -26,9 +26,15 @@ const CHORD_COLORS = { Blue: "#0921ff", Orange: "#d98a2b", Black: "#111", Green:
 // Structură extensibilă: adaugi aici acțiuni noi + un fn în handler-ul global.
 const HOTKEY_ACTIONS = [
   { id: "beautify", label: "Aranjează", hint: "Formatează versurile și acordurile (ChordPro)" },
+  { id: "addChord", label: "Adaugă gamă", hint: "Inserează gama originală [X] la cursor, selectată + picker" },
+  { id: "addChordPrecise", label: "Adaugă gamă precisă", hint: "Prefix + literă (A-G) = [Literă]; apasă litera din nou = minor. Se schimbă doar prefixul." },
+  { id: "undo", label: "Undo", hint: "Anulează ultima acțiune (istoric de sesiune)" },
 ];
 const DEFAULT_BINDINGS = [
   { id: "def-beautify", action: "beautify", combo: "ctrl+s", removable: false },
+  { id: "def-addchord", action: "addChord", combo: "ctrl+d", removable: false },
+  { id: "def-precise", action: "addChordPrecise", combo: "ctrl+shift", removable: false },
+  { id: "def-undo", action: "undo", combo: "ctrl+z", removable: false },
 ];
 const HK_LS_KEY = "pc.chordEditor.hotkeys.v1";
 
@@ -132,7 +138,20 @@ export default function ChordEditor() {
     }, 900);
   }, [id, aid]);
 
+  // Undo de sesiune (în memorie, până la refresh): istoric al textului, max 200 pași.
+  const textRef = useRef(text); useEffect(() => { textRef.current = text; }, [text]);
+  const histRef = useRef([]);
   const onText = (v) => { setText(v); scheduleSave(v, originalKey, formatting); };
+  const onTextTracked = (v) => { // folosit de editor: salvează starea anterioară în istoric
+    const h = histRef.current;
+    if (h[h.length - 1] !== textRef.current) { h.push(textRef.current); if (h.length > 200) h.shift(); }
+    onText(v);
+  };
+  const undo = useCallback(() => {
+    const h = histRef.current; if (!h.length) return;
+    const prev = h.pop();
+    setText(prev); scheduleSave(prev, originalKey, formatting);
+  }, [originalKey, formatting, scheduleSave]);
   const onKey = (v) => { setOriginalKey(v); scheduleSave(text, v, formatting); };
   const onFmt = (patch) => { const nf = { ...formatting, ...patch }; setFormatting(nf); scheduleSave(text, originalKey, nf); };
 
@@ -147,7 +166,7 @@ export default function ChordEditor() {
       out.push(line);
     }
     const next = out.join("\n");
-    if (next !== text) onText(next);
+    if (next !== text) onTextTracked(next);
   }, [text]);
 
   // Persistă hotkeys (localStorage ≈ „forever"). Merge și fără (try/catch în save).
@@ -156,7 +175,8 @@ export default function ChordEditor() {
 
   // Un singur handler global: mapează combinația tastată → acțiune (din bindings).
   useEffect(() => {
-    const fns = { beautify };
+    // beautify + undo sunt la nivel de pagină; addChord/addChordPrecise le tratează editorul (are cursorul).
+    const fns = { beautify, undo };
     const h = (e) => {
       if (capturingRef.current) return; // suntem în modul de reasignare
       const combo = comboFromEvent(e);
@@ -167,7 +187,7 @@ export default function ChordEditor() {
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [bindings, beautify]);
+  }, [bindings, beautify, undo]);
 
   // ── Capturare combinații (rebind / add) ─────────────────────────────────────
   const startCapture = (id) => { setCapturePreview(""); setCapturingId(id); };
@@ -314,7 +334,9 @@ export default function ChordEditor() {
       {/* Two panes */}
       <div className="panes">
         <div className="code-pane">
-          <ChordProEditor value={text} onChange={onText} fontSize={formatting.size} customLabels={arr?.sequence || []} onAi={aiTransform} defaultKey={originalKey} meter={arr?.meter || "4/4"} />
+          <ChordProEditor value={text} onChange={onTextTracked} fontSize={formatting.size} customLabels={arr?.sequence || []} onAi={aiTransform} defaultKey={originalKey} meter={arr?.meter || "4/4"}
+            addChordCombo={(bindings.find((b) => b.action === "addChord") || {}).combo || "ctrl+d"}
+            precisePrefix={(bindings.find((b) => b.action === "addChordPrecise") || {}).combo || "ctrl+shift"} />
         </div>
         <div className="preview-wrap">
           {pages.map((pageLines, pi) => (

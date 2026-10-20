@@ -39,12 +39,14 @@ function highlightLine(line) {
 const highlight = (value) => value.split("\n").map(highlightLine).join("\n") + "\n";
 
 const POPULAR = ["", "m", "7", "sus4"];
+const isMod = (k) => k === "Control" || k === "Meta" || k === "Alt" || k === "Shift";
 
 const PX_PER_MEASURE = 46; // cât drag = o măsură „----|"
 
-export default function ChordProEditor({ value, onChange, fontSize = 16, customLabels = [], onAi, defaultKey = "C", meter = "4/4" }) {
+export default function ChordProEditor({ value, onChange, fontSize = 16, customLabels = [], onAi, defaultKey = "C", meter = "4/4", addChordCombo = "ctrl+d", precisePrefix = "ctrl+shift" }) {
   const measureBeats = Math.max(1, Math.min(16, parseInt(String(meter).split("/")[0], 10) || 4)); // nr. liniuțe/măsură = numărătorul măsurii
   const measureUnit = "-".repeat(measureBeats) + "|";
+  const lastChord = useRef(null); // { start, end, letter, minor } pt. „apasă din nou litera → minor"
   const taRef = useRef(null);
   const preRef = useRef(null);
   const [ac, setAc] = useState(null);
@@ -126,6 +128,39 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
     const caret = s + ch.length;
     setPick(null);
     requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(caret, caret); } });
+  }
+
+  // Selectează acordul dinăuntru + deschide picker-ul (toolbar) deasupra lui.
+  function selectAndPick(innerStart, innerEnd, chordText) {
+    requestAnimationFrame(() => {
+      const ta = taRef.current; if (!ta) return;
+      ta.focus(); ta.setSelectionRange(innerStart, innerEnd);
+      const c = getCaretCoordinates(ta, innerStart);
+      const root = (/^([A-G][#b]?)/.exec(String(chordText).trim()) || [, "C"])[1];
+      setPick({ x: c.x, y: c.y, bracket: [innerStart, innerEnd], root, items: chordVariations(chordText || "C"), more: false });
+      setAc(null); setTb(null);
+    });
+  }
+  // Inserează [chordText] FIX la cursor (fără spațiu) → acordul selectat + picker deschis.
+  function insertChordAtCaret(chordText) {
+    const ta = taRef.current; if (!ta) return;
+    const pos = ta.selectionStart;
+    const str = `[${chordText}]`;
+    onChange(value.slice(0, pos) + str + value.slice(pos));
+    const innerStart = pos + 1, innerEnd = pos + 1 + String(chordText).length;
+    lastChord.current = { start: innerStart, end: innerEnd, letter: String(chordText).replace(/m$/, ""), minor: /m$/.test(chordText) };
+    selectAndPick(innerStart, innerEnd, chordText);
+  }
+  // A doua apăsare a literei (prefix ținut) → transformă acordul tocmai pus în minor.
+  function makeLastMinor() {
+    const lc = lastChord.current; if (!lc || lc.minor) return false;
+    const ta = taRef.current; if (!ta) return false;
+    if (ta.selectionStart !== lc.start || ta.selectionEnd !== lc.end) return false; // trebuie să fie încă selectat
+    onChange(value.slice(0, lc.start) + lc.letter + "m" + value.slice(lc.end));
+    const ns = lc.start, ne = lc.start + (lc.letter + "m").length;
+    lastChord.current = { start: ns, end: ne, letter: lc.letter, minor: true };
+    selectAndPick(ns, ne, lc.letter + "m");
+    return true;
   }
 
   // ── Constructor de măsuri: long-press (~0.5s) + drag dreapta → măsuri; la release alegi modul ──
@@ -242,6 +277,21 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
   }
 
   function onKeyDown(e) {
+    // ── Hotkeys acorduri (configurabile din pagină) ──
+    const mods = []; if (e.ctrlKey || e.metaKey) mods.push("ctrl"); if (e.altKey) mods.push("alt"); if (e.shiftKey) mods.push("shift");
+    const keyLow = e.key && e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    const combo = [...mods, isMod(e.key) ? null : (e.key === " " ? "space" : keyLow)].filter(Boolean).join("+");
+    const prefix = mods.join("+");
+    // „Adaugă gamă" (default Ctrl+D): inserează gama originală [X] la cursor, selectată + picker.
+    if (combo === addChordCombo && !isMod(e.key)) { e.preventDefault(); insertChordAtCaret(defaultKey || "C"); return; }
+    // „Adaugă gamă precisă" (default prefix Ctrl+Shift + literă A-G): [Literă]; a 2-a apăsare → minor.
+    if (precisePrefix && prefix === precisePrefix && /^[a-g]$/.test(keyLow)) {
+      e.preventDefault();
+      const L = keyLow.toUpperCase();
+      if (lastChord.current && lastChord.current.letter === L && makeLastMinor()) return;
+      insertChordAtCaret(L);
+      return;
+    }
     if (ac) {
       if (e.key === "ArrowDown") { e.preventDefault(); setAc((a) => ({ ...a, idx: (a.idx + 1) % a.items.length })); return; }
       if (e.key === "ArrowUp") { e.preventDefault(); setAc((a) => ({ ...a, idx: (a.idx - 1 + a.items.length) % a.items.length })); return; }
