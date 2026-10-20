@@ -130,11 +130,12 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
     requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(caret, caret); } });
   }
 
-  // Selectează acordul dinăuntru + deschide picker-ul (toolbar) deasupra lui.
-  function selectAndPick(innerStart, innerEnd, chordText) {
+  // Selectează acordul dinăuntru + deschide picker-ul (toolbar) deasupra lui. Păstrează scroll-ul.
+  function selectAndPick(innerStart, innerEnd, chordText, scrollTop) {
     requestAnimationFrame(() => {
       const ta = taRef.current; if (!ta) return;
-      ta.focus(); ta.setSelectionRange(innerStart, innerEnd);
+      ta.focus({ preventScroll: true }); ta.setSelectionRange(innerStart, innerEnd);
+      if (scrollTop != null) ta.scrollTop = scrollTop;
       const c = getCaretCoordinates(ta, innerStart);
       const root = (/^([A-G][#b]?)/.exec(String(chordText).trim()) || [, "C"])[1];
       setPick({ x: c.x, y: c.y, bracket: [innerStart, innerEnd], root, items: chordVariations(chordText || "C"), more: false });
@@ -144,22 +145,23 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
   // Inserează [chordText] FIX la cursor (fără spațiu) → acordul selectat + picker deschis.
   function insertChordAtCaret(chordText) {
     const ta = taRef.current; if (!ta) return;
-    const pos = ta.selectionStart;
+    const pos = ta.selectionStart; const st = ta.scrollTop;
     const str = `[${chordText}]`;
     onChange(value.slice(0, pos) + str + value.slice(pos));
     const innerStart = pos + 1, innerEnd = pos + 1 + String(chordText).length;
     lastChord.current = { start: innerStart, end: innerEnd, letter: String(chordText).replace(/m$/, ""), minor: /m$/.test(chordText) };
-    selectAndPick(innerStart, innerEnd, chordText);
+    selectAndPick(innerStart, innerEnd, chordText, st);
   }
   // A doua apăsare a literei (prefix ținut) → transformă acordul tocmai pus în minor.
   function makeLastMinor() {
     const lc = lastChord.current; if (!lc || lc.minor) return false;
     const ta = taRef.current; if (!ta) return false;
     if (ta.selectionStart !== lc.start || ta.selectionEnd !== lc.end) return false; // trebuie să fie încă selectat
+    const st = ta.scrollTop;
     onChange(value.slice(0, lc.start) + lc.letter + "m" + value.slice(lc.end));
     const ns = lc.start, ne = lc.start + (lc.letter + "m").length;
     lastChord.current = { start: ns, end: ne, letter: lc.letter, minor: true };
-    selectAndPick(ns, ne, lc.letter + "m");
+    selectAndPick(ns, ne, lc.letter + "m", st);
     return true;
   }
 
@@ -176,9 +178,10 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
     const ins = (needSpace ? " " : "") + body;
     const next = value.slice(0, pos) + ins + value.slice(pos);
     const caret = pos + ins.length;
+    const st = taRef.current ? taRef.current.scrollTop : 0;
     onChange(next);
     setChoice(null);
-    requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(caret, caret); } });
+    requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus({ preventScroll: true }); ta.setSelectionRange(caret, caret); ta.scrollTop = st; } });
   }
 
   // Ctrl+Click (sau combinația configurată) = „Adaugă gamă" la locul click-ului.
@@ -393,14 +396,14 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
       )}
 
       {draw && (
-        <div className="drawghost" style={{ left: draw.x + 12, top: draw.y - 8 }}>
+        <div className="drawghost" style={{ left: draw.x + 12, top: draw.y - 44 }}>
           <div className="dg-measures">{draw.n >= 1 ? measureUnit.repeat(draw.n) : "trage spre dreapta →"}</div>
           <div className="dg-label">{draw.n >= 1 ? `${draw.n} ${draw.n === 1 ? "măsură" : "măsuri"} · [${defaultKey}]` : "constructor măsuri"}</div>
         </div>
       )}
 
       {choice && (
-        <div className="pop choice" style={{ left: Math.min(choice.x, (typeof window !== "undefined" ? window.innerWidth - 240 : choice.x)), top: Math.max(6, choice.y - 64) }}>
+        <div className="pop choice" style={{ left: Math.min(choice.x, (typeof window !== "undefined" ? window.innerWidth - 240 : choice.x)), top: Math.max(6, choice.y - 78) }}>
           <span className="choice-n">{choice.n}🎵</span>
           <button className="choice-b" onClick={(e) => { e.stopPropagation(); commitMeasures(choice.n, "single", choice.pos); }} title="O singură gamă la început">1 gamă</button>
           <button className="choice-b" onClick={(e) => { e.stopPropagation(); commitMeasures(choice.n, "each", choice.pos); }} title="Gamă pe fiecare măsură">fiecare</button>
