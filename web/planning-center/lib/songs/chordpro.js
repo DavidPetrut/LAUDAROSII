@@ -187,32 +187,47 @@ export function buildWords(text, { translate = true } = {}) {
     processed.push({ ro, bodyLines, bodyKey: bodyLines.map((l) => (l.kind === "row" ? l.lyricRow.trim() : "")).join("\n") });
   }
 
-  // 3) colapsare: secțiuni consecutive cu aceeași etichetă RO ȘI același conținut → una, cu ×N.
-  const collapsed = [];
+  // 3) secțiuni finale + marcaj de repetiție (bis) pe SUFIXUL care se repetă (nu pe toată secțiunea decât dacă e cazul).
+  const norm = (r) => String(r).replace(/\s+/g, " ").trim();
+  const sections = [];
   for (const p of processed) {
-    const last = collapsed[collapsed.length - 1];
-    // Colapsare: același text ca secțiunea de deasupra → bis ×N. Fie aceeași etichetă (Refren/Refren),
-    // fie un „Repetare" care repetă fix versul de deasupra (atunci se pliază ÎN acea secțiune, cerința).
-    if (last && last.bodyKey && last.bodyKey === p.bodyKey && (last.ro === p.ro || p.ro === "Repetare")) last.count++;
-    else collapsed.push({ ...p, count: 1 });
+    const rows = p.bodyLines.filter((l) => l.kind === "row").map((l) => l.lyricRow);
+    const last = sections[sections.length - 1];
+    // a) „Repetare" care repetă un SUFIX al secțiunii de deasupra (ultimele k rânduri identice) → bis DOAR pe acel sufix.
+    if (last && p.ro === "Repetare" && rows.length && rows.length <= last.rows.length) {
+      const start = last.rows.length - rows.length;
+      if (rows.every((r, i) => norm(r) === norm(last.rows[start + i]))) {
+        if (last.wrap && last.wrap.start === start) last.wrap.count++;
+        else last.wrap = { start, count: 2 };
+        continue;
+      }
+    }
+    // b) secțiune identică consecutivă (Refren=Refren etc.) → bis pe toată secțiunea.
+    if (last && last.ro && p.ro && last.ro === p.ro && rows.length === last.rows.length && rows.every((r, i) => norm(r) === norm(last.rows[i]))) {
+      if (last.wrap && last.wrap.start === 0) last.wrap.count++;
+      else last.wrap = { start: 0, count: 2 };
+      continue;
+    }
+    sections.push({ ro: p.ro, rows, wrap: null });
   }
 
-  // 4) emite liniile (secțiune + bis dacă se repetă).
+  // 4) emite liniile. Bis pe TOATĂ secțiunea → „/:" și „:/ ×N" pe rânduri proprii; bis pe sufix → inline
+  //    („/: " înaintea primului rând repetat, „ :/ ×N" după ultimul; pt. un singur rând, tot inline).
   const out = [];
-  collapsed.forEach((c, i) => {
-    if (i > 0) out.push({ kind: "empty" });
-    if (c.ro) out.push({ kind: "section", label: c.ro });
-    if (c.count > 1) {
-      // „/: " ÎNAINTEA primului vers; „:/ ×N" pe rând separat dedesubt (regulă fixă).
-      let done = false;
-      for (const bl of c.bodyLines) {
-        if (!done && bl.kind === "row") { out.push({ ...bl, lyricRow: "/: " + bl.lyricRow }); done = true; }
-        else out.push(bl);
+  sections.forEach((s, si) => {
+    if (si > 0) out.push({ kind: "empty" });
+    if (s.ro) out.push({ kind: "section", label: s.ro });
+    const n = s.rows.length, w = s.wrap, whole = w && w.start === 0;
+    s.rows.forEach((row, i) => {
+      if (whole && i === 0) out.push({ kind: "row", chordRow: "", lyricRow: "/:" });
+      let lr = row;
+      if (w && !whole) {
+        if (i === w.start) lr = "/: " + lr;
+        if (i === n - 1) lr = `${lr}  :/  ×${w.count}`;
       }
-      out.push({ kind: "row", chordRow: "", lyricRow: `:/  ×${c.count}` });
-    } else {
-      for (const bl of c.bodyLines) out.push(bl);
-    }
+      out.push({ kind: "row", chordRow: "", lyricRow: lr });
+      if (whole && i === n - 1) out.push({ kind: "row", chordRow: "", lyricRow: `:/  ×${w.count}` });
+    });
   });
 
   return { lines: out, mapping: [...mapping.entries()].map(([en, ro]) => ({ en, ro })) };

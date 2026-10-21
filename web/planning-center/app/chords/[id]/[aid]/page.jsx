@@ -23,7 +23,9 @@ const PDF_NAMES = { numerals: "Numerals Chart", numbers: "Numbers Chart", lyrics
 
 // ── Words: pas AI cu reguli (goluri / repetare→bis / adnotări band) la generare ──
 const wordsLinesToText = (lines) => lines.map((l) => (l.kind === "section" ? l.label : l.kind === "empty" ? "" : l.lyricRow)).join("\n");
-const WORDS_AI_PROMPT = "Primești versurile unui cântec creștin, pregătite pentru public (secțiuni + versuri, fără acorduri). NU schimba literele cuvintelor (fără prefixe/sufixe noi), ordinea sau etichetele secțiunilor (Strofa/Refren/Refren 2/Pre-refren/Bridge/Repetare). Asigură-te DOAR de: 1) nu există rânduri goale în interiorul unei secțiuni; 2) dacă o secțiune «Repetare» conține exact versul secțiunii imediat de deasupra, elimin-o și adaugă repetiția la secțiunea de deasupra astfel: pune «/: » LIPIT înaintea primului vers al acelei secțiuni și un rând nou «:/ ×N» după ultimul vers (N = de câte ori se repetă); 3) elimină orice adnotare tehnică pentru instrumentiști (ex. «(cu stop pe timpul 4)») de pe liniile de secțiune sau de la capătul rândurilor. Păstrează marcajele /: :/ și ×N deja existente. Returnează DOAR textul rezultat, fără explicații.";
+// Pentru Words: corectăm DOAR spațierea cuvintelor pe SURSĂ (ca versurile repetate să iasă identice →
+// potrivirea „Repetare"→bis se face determinist după). Structura (bis, secțiuni) o face buildWords.
+const WORDS_SRC_AI_PROMPT = "Ești corector de SPAȚIERE pentru un text ChordPro. Ai voie să modifici DOAR spațiile albe dintre litere/cuvinte (elimină-le sau adaugă-le) și, dacă e nevoie, să adaugi o cratimă «-». REGULĂ ABSOLUTĂ: NU adăuga, șterge sau schimba NICIO literă — secvența de litere trebuie să rămână identică după ce ignori spațiile (ex. «Du m ne zeu»→«Dumnezeu» ✓; «cer un treg» rămâne «cer un treg»). Nu atinge acordurile dintre paranteze pătrate [..] și pozițiile lor, rândurile, secțiunile și punctuația. Nu traduce. Returnează DOAR textul rezultat.";
 
 const CHORD_COLORS = { Blue: "#0921ff", Orange: "#d98a2b", Black: "#111", Green: "#2f9e5b", Red: "#d14b43" };
 
@@ -295,10 +297,12 @@ export default function ChordEditor() {
       for (const t of types) {
         let lns, extra = {};
         if (t === "words") {
-          lns = buildWords(text, { translate: wordsTranslate }).lines;
+          // AI corectează DOAR spațierea pe SURSĂ (versuri identice → potrivirea bis merge); structura o face buildWords.
+          let src = text;
           if (wordsAiRules) {
-            try { const res = await aiTransform(wordsLinesToText(lns), WORDS_AI_PROMPT); if (typeof res === "string" && res.trim()) lns = wordsTextToLines(res); } catch { /* best-effort */ }
+            try { const res = await aiTransform(src, WORDS_SRC_AI_PROMPT); if (typeof res === "string" && res.trim()) src = res; } catch { /* best-effort */ }
           }
+          lns = buildWords(src, { translate: wordsTranslate }).lines;
           extra = { variant: "words", seqTokens: [], title: (wordsTitle.trim() || song?.title) };
           // Persistă textul + setările Words (pt. preview fidel și editare manuală ulterioară).
           try { await songsApi.updateArrangement(id, aid, { wordsText: wordsLinesToText(lns), wordsTitle: wordsTitle.trim(), wordsTranslate, wordsAiRules }); } catch { /* best-effort */ }
