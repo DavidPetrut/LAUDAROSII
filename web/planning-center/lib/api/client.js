@@ -77,6 +77,7 @@ export const songsApi = {
   importPcoCommit: (payload) => api.post("/songs/import-pco-pdf/commit", payload),
   saveChordChart: (id, aid, payload) => api.put(`/songs/${id}/arrangements/${aid}/chordchart`, payload),
   youtubeTitle: (url) => api.get(`/songs/meta/youtube-title?url=${encodeURIComponent(url)}`),
+  fixWordsAuto: (text) => api.post("/songs/meta/fix-words", { text }),
   deleteSong: (id) => api.del(`/songs/${id}`),
   deleteSongInfo: (id) => api.get(`/songs/${id}/delete-info`),
 };

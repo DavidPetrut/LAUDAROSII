@@ -12,6 +12,7 @@
     "bcryptjs": "^2.4.3",
     "cloudinary": "^2.5.1",
     "cors": "^2.8.5",
+    "dictionary-ro": "^3.0.0",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-mongo-sanitize": "^2.2.0",
@@ -22,6 +23,7 @@
     "mongoose": "^8.0.3",
     "multer": "^2.0.1",
     "nodemailer": "^10.0.10",
+    "nspell": "^2.1.5",
     "pdfjs-dist": "^4.2.67",
     "sharp": "^0.34.5",
     "socket.io": "^4.7.2"

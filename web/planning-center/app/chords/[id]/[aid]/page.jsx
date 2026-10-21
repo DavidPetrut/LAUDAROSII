@@ -168,11 +168,15 @@ export default function ChordEditor() {
     if (nt !== text) onTextTracked(nt);
   };
   // Update: aplică opțiunile bifate în ordine (simplifică → corectează cuvinte(AI) → elimină acorduri).
-  const doUpdateChords = async ({ simplify, fixWords, stripChords }) => {
+  const doUpdateChords = async ({ simplify, fixWordsAuto, fixWords, stripChords }) => {
     setRefreshBusy(true);
     try {
       let t = text;
       if (simplify) t = simplifyBrackets(t);
+      if (fixWordsAuto) {
+        try { const r = await songsApi.fixWordsAuto(t); if (r?.text) t = r.text; }
+        catch (e) { setToast("Reîntregire indisponibilă: " + (e?.message || "")); setTimeout(() => setToast(""), 4000); }
+      }
       if (fixWords) {
         const res = await aiTransform(t, "Ești corector. În textul ChordPro de mai jos corectează DOAR cuvintele rupte și spațierea greșită dintre litere/cuvinte (ex. «Du m ne zeu» → «Dumnezeu»). Păstrează EXACT acordurile dintre paranteze pătrate [..] și pozițiile lor relativ la silabe, rândurile, secțiunile (VERSE/CHORUS etc.) și punctuația. Nu adăuga, nu șterge și nu muta acorduri. Nu traduce. Returnează DOAR textul rezultat, fără explicații.");
         if (typeof res === "string" && res.trim()) t = res;

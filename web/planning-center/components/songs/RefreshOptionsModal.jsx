@@ -9,13 +9,14 @@ import Modal from "@/components/ui/Modal";
 
 const OPTS = [
   { id: "simplify", title: "Simplifică acordurile", desc: "Scoate extensiile (7, 9, sus, add, dim…) și păstrează doar forma simplă (rădăcină + major/minor). Diezii/bemolii rămân. Acordurile identice consecutive se unesc." },
-  { id: "fixWords", title: "Corectează cuvintele și spațierea", desc: "Repară cuvintele rupte și spațiile greșite (ex. «Du m ne zeu» → «Dumnezeu»), prin AI. Nu atinge acordurile dintre paranteze, nici pozițiile lor." },
+  { id: "fixWordsAuto", title: "Reîntregește cuvintele (automat)", desc: "Lipește la loc cuvintele rupte folosind un dicționar românesc (ex. «Du m ne zeu» → «Dumnezeu»), păstrând acordurile exact unde erau. Rapid, fără AI; best-effort." },
+  { id: "fixWords", title: "Corectează cuvintele (AI)", desc: "Repară cuvintele rupte și spațierea prin AI, cu înțelegerea contextului (prinde și nume proprii). Nu atinge acordurile dintre paranteze, nici pozițiile lor." },
   { id: "stripChords", title: "Elimină toate acordurile", desc: "Șterge toate acordurile din paranteze pătrate împreună cu spațiul pe care-l ocupau, lăsând doar versurile curate." },
 ];
 
 export default function RefreshOptionsModal({ onClose, onApply, busy = false }) {
-  const [sel, setSel] = useState({ simplify: false, fixWords: false, stripChords: false });
-  const any = sel.simplify || sel.fixWords || sel.stripChords;
+  const [sel, setSel] = useState({ simplify: false, fixWordsAuto: false, fixWords: false, stripChords: false });
+  const any = sel.simplify || sel.fixWordsAuto || sel.fixWords || sel.stripChords;
   const toggle = (id) => setSel((s) => ({ ...s, [id]: !s[id] }));
 
   return (

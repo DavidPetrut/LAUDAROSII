@@ -165,6 +165,16 @@ router.get("/meta/youtube-title", requireCan("people.view"), async (req, res) =>
   } catch (e) { res.json({ title: "" }); }
 });
 
+/* POST /meta/fix-words — reîntregește cuvintele rupte (dicționar RO, fără AI), păstrând acordurile. */
+router.post("/meta/fix-words", requireCan("songs.edit"), async (req, res) => {
+  try {
+    const text = String(req.body?.text || "");
+    if (!text.trim()) return res.json({ text });
+    const { fixWords } = require("../services/wordFix");
+    res.json({ text: await fixWords(text) });
+  } catch (e) { console.error("[pc] fix-words:", e.message); res.status(500).json({ error: "Reîntregire indisponibilă: " + e.message }); }
+});
+
 /* ───────── PATCH /:id — editează „Song Information" (title/ccli/author/copyright/admin/notes/themes) ───────── */
 router.patch("/:id", requireCan("songs.edit"), async (req, res) => {
   try {
