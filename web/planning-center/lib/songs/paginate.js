@@ -13,13 +13,24 @@ export function lineCost(ln, fs) {
   return chord + lyric;
 }
 
-export function paginateLines(lines, { fontSize = 16 } = {}) {
+export function paginateLines(lines, { fontSize = 16, keepSections = false } = {}) {
   const pages = [];
   let cur = [];
   let h = 0;
-  for (const ln of lines) {
+  const trimTrailingEmpty = () => { while (cur.length && cur[cur.length - 1].kind === "empty") { h -= lineCost(cur[cur.length - 1], fontSize); cur.pop(); } };
+  const breakPage = () => { trimTrailingEmpty(); pages.push(cur); cur = []; h = 0; };
+
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i];
+    // keepSections (Words/Lyrics): o secțiune (cap + versurile ei) nu se rupe între pagini.
+    // Dacă blocul nu încape în restul paginii (și încape pe una întreagă), îl mutăm TOT pe pagina următoare.
+    if (keepSections && ln.kind === "section" && cur.length) {
+      let block = 0;
+      for (let j = i; j < lines.length && !(j > i && lines[j].kind === "section"); j++) block += lineCost(lines[j], fontSize);
+      if (h + block > PAGE_CONTENT_PT && block <= PAGE_CONTENT_PT) breakPage();
+    }
     const c = lineCost(ln, fontSize);
-    if (h + c > PAGE_CONTENT_PT && cur.length) { pages.push(cur); cur = []; h = 0; }
+    if (h + c > PAGE_CONTENT_PT && cur.length) breakPage(); // siguranță (și blocuri mai mari decât o pagină)
     cur.push(ln);
     h += c;
   }

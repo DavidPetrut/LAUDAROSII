@@ -40,14 +40,15 @@ export default function ChartPreviewModal({ songId, arrId, song, arr, mode = "ch
   const lines = useMemo(() => (isWords
     ? (storedWords ? wordsTextToLines(storedWords) : buildWords(text, { translate: arr?.wordsTranslate !== false }).lines)
     : renderChordPro(text, { mode, originalKey, targetKey: tk })), [text, isWords, storedWords, arr, mode, originalKey, tk]);
-  const pages = useMemo(() => paginateLines(lines, { fontSize: 18 * 0.9 }), [lines]);
+  const keepSections = isWords || mode === "lyrics"; // Words/Lyrics: secțiunile nu se rup între pagini
+  const pages = useMemo(() => paginateLines(lines, { fontSize: 18 * 0.9, keepSections }), [lines, keepSections]);
   const keyLabel = isWords ? "Words" : mode === "lyrics" ? "Lyrics" : mode === "numbers" ? "Numbers" : mode === "numerals" ? "Numerals" : (targetKey || originalKey);
   const seqTokens = isWords ? [] : sequenceFromChordpro(text);
 
   const buildPdf = useCallback(() => generateChartPdf({
     title: isWords ? wordsTitle : song?.title, keyLabel, bpm: arr?.bpm, meter: arr?.meter, arrName: arr?.name, author: song?.author,
-    seqTokens, lines, chordColorHex: CHORD, fontSize: 16, variant: isWords ? "words" : "chart",
-  }), [song, arr, keyLabel, seqTokens, lines, isWords, wordsTitle]);
+    seqTokens, lines, chordColorHex: CHORD, fontSize: 16, variant: isWords ? "words" : "chart", keepSections,
+  }), [song, arr, keyLabel, seqTokens, lines, isWords, wordsTitle, keepSections]);
 
   const download = async () => {
     const blob = await buildPdf();

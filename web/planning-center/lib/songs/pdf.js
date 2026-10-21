@@ -33,7 +33,7 @@ const stripFmt = (s) => String(s || "").replace(/<\/?[biu]>/gi, "");
 
 export async function generateChartPdf({
   title, keyLabel, bpm, meter, arrName, author, seqTokens = [], lines = [],
-  chordColorHex = "#2f6fe0", fontSize = 16, variant = "chart",
+  chordColorHex = "#2f6fe0", fontSize = 16, variant = "chart", keepSections = false,
 }) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "pt", format: "a4" });
@@ -78,7 +78,7 @@ export async function generateChartPdf({
     y = 16 + bh + 22;
   }
 
-  const pages = paginateLines(lines, { fontSize: fs });
+  const pages = paginateLines(lines, { fontSize: fs, keepSections });
   pages.forEach((pageLines, pi) => {
     if (pi > 0) doc.addPage();
     header(pi);

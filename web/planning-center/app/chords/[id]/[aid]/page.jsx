@@ -275,7 +275,8 @@ export default function ChordEditor() {
   const lines = useMemo(() => (isWords ? buildWords(text, { translate: wordsTranslate }).lines : renderChordPro(text, { mode, originalKey, targetKey })),
     [text, isWords, wordsTranslate, mode, originalKey, targetKey]);
   // Paginare în puncte (ca PDF) ca împărțirea pe pagini din preview să corespundă cu PDF-ul.
-  const pages = useMemo(() => paginateLines(lines, { fontSize: formatting.size * 0.9 }), [lines, formatting.size]);
+  const keepSections = isWords || mode === "lyrics"; // secțiunile nu se rup între pagini la Words/Lyrics
+  const pages = useMemo(() => paginateLines(lines, { fontSize: formatting.size * 0.9, keepSections }), [lines, formatting.size, keepSections]);
 
   const keyLabel = isWords ? "Words" : mode === "lyrics" ? "Lyrics" : mode === "numbers" ? "Numbers" : mode === "numerals" ? "Numerals" : targetKey;
   // Sequence DINAMIC: din secțiunile reale din chart (nu din sequence-ul standard al melodiei).
@@ -309,7 +310,7 @@ export default function ChordEditor() {
         } else {
           lns = renderChordPro(text, { mode: t, originalKey, targetKey: originalKey });
         }
-        const blob = await generateChartPdf({ ...common, keyLabel: t[0].toUpperCase() + t.slice(1), lines: lns, ...extra });
+        const blob = await generateChartPdf({ ...common, keyLabel: t[0].toUpperCase() + t.slice(1), lines: lns, keepSections: (t === "words" || t === "lyrics"), ...extra });
         const name = PDF_NAMES[t];
         for (const o of (fresh.arrangementFiles || []).filter((f) => f.source === "generated" && f.name === name)) {
           try { await songsApi.deleteFile(id, aid, o.id); } catch { /* endpoint nedeployat încă */ }

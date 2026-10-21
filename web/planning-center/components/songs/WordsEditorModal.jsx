@@ -38,7 +38,7 @@ export default function WordsEditorModal({ songId, arrId, song, arr, onClose, on
       await songsApi.updateArrangement(songId, arrId, { wordsText: text, wordsTitle: title.trim() });
       const blob = await generateChartPdf({
         title: pdfTitle, keyLabel: "Words", bpm: arr?.bpm, meter: arr?.meter, arrName: arr?.name, author: song?.author,
-        seqTokens: [], lines: wordsTextToLines(text), variant: "words", fontSize: 16,
+        seqTokens: [], lines: wordsTextToLines(text), variant: "words", fontSize: 16, keepSections: true,
       });
       for (const o of (arr?.arrangementFiles || []).filter((f) => f.source === "generated" && f.name === "Words")) {
         try { await songsApi.deleteFile(songId, arrId, o.id); } catch { /* ignore */ }
