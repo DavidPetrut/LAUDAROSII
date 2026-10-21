@@ -10,7 +10,8 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useParams, useRouter } from "next/navigation";
 import { api, songsApi } from "@/lib/api/client";
 import { isAuthed } from "@/lib/auth/auth";
-import { renderChordPro, ALL_KEYS, lyricToHtml, isSection, convertBrackets, simplifyBrackets } from "@/lib/songs/chordpro";
+import { renderChordPro, ALL_KEYS, lyricToHtml, isSection, convertBrackets, simplifyBrackets, stripAllBrackets } from "@/lib/songs/chordpro";
+import RefreshOptionsModal from "@/components/songs/RefreshOptionsModal";
 import { runAi } from "@/lib/ai/client";
 import { abbreviateSequence } from "@/lib/songs/sequence";
 import { paginateLines } from "@/lib/songs/paginate";
@@ -93,7 +94,8 @@ export default function ChordEditor() {
   const [fmtOpen, setFmtOpen] = useState(false);
   const [keyOpen, setKeyOpen] = useState(false); // grila pt. Original Key
   const [chordMode, setChordMode] = useState("chords"); // "chords" | "numbers" (afișare acorduri în editor)
-  const [resetAsk, setResetAsk] = useState(false); // confirmare reset la game simple
+  const [refreshOpen, setRefreshOpen] = useState(false); // modala Update (simplifică/corectează/elimină)
+  const [refreshBusy, setRefreshBusy] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [status, setStatus] = useState(""); // "Typing…" | "Saved"
   const [gen, setGen] = useState(""); // mesaj generare PDF
@@ -164,7 +166,22 @@ export default function ChordEditor() {
     const nt = convertBrackets(text, m, originalKey);
     if (nt !== text) onTextTracked(nt);
   };
-  const doResetChords = () => { const nt = simplifyBrackets(text); if (nt !== text) onTextTracked(nt); setResetAsk(false); };
+  // Update: aplică opțiunile bifate în ordine (simplifică → corectează cuvinte(AI) → elimină acorduri).
+  const doUpdateChords = async ({ simplify, fixWords, stripChords }) => {
+    setRefreshBusy(true);
+    try {
+      let t = text;
+      if (simplify) t = simplifyBrackets(t);
+      if (fixWords) {
+        const res = await aiTransform(t, "Ești corector. În textul ChordPro de mai jos corectează DOAR cuvintele rupte și spațierea greșită dintre litere/cuvinte (ex. «Du m ne zeu» → «Dumnezeu»). Păstrează EXACT acordurile dintre paranteze pătrate [..] și pozițiile lor relativ la silabe, rândurile, secțiunile (VERSE/CHORUS etc.) și punctuația. Nu adăuga, nu șterge și nu muta acorduri. Nu traduce. Returnează DOAR textul rezultat, fără explicații.");
+        if (typeof res === "string" && res.trim()) t = res;
+        else { setToast(typeof res === "object" ? (res.error || "AI indisponibil.") : "AI indisponibil."); setTimeout(() => setToast(""), 4000); }
+      }
+      if (stripChords) t = stripAllBrackets(t);
+      if (t !== text) onTextTracked(t);
+      setRefreshOpen(false);
+    } finally { setRefreshBusy(false); }
+  };
 
   // „Aranjează" (Ctrl+S): scoate rândurile goale inutile + pune un rând gol înainte de fiecare secțiune.
   // NU atinge liniile cu acorduri (le lasă verbatim) — case/space sensitive.
@@ -331,7 +348,7 @@ export default function ChordEditor() {
             </div>
           </div>
           <button className="options" onClick={() => setFmtOpen(true)}>Options ▾</button>
-          <button className="reset-ch" onClick={() => setResetAsk(true)} title="Resetează acordurile la forma simplă (păstrează diez/bemol)">
+          <button className="reset-ch" onClick={() => setRefreshOpen(true)} title="Update: simplifică acorduri / corectează cuvinte / elimină acorduri">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.7-3L3 16" /><path d="M8 16H3v5" /></svg>
           </button>
         </div>
@@ -397,14 +414,8 @@ export default function ChordEditor() {
         </div>
       </div>
 
-      {resetAsk && (
-        <Modal title="Resetează acordurile" width={420} onClose={() => setResetAsk(false)}>
-          <p className="reset-p">Toate acordurile (nume sau cifre) care au extensii — <b>7, 9, sus, add, (4), ma, dim</b> etc. — devin forma simplă (rădăcină + major/minor). <b>Diezii și bemolii se păstrează.</b> Sigur?</p>
-          <div className="reset-foot">
-            <button className="btn btn-link" onClick={() => setResetAsk(false)}>Anulează</button>
-            <button className="btn btn-primary" onClick={doResetChords}>Resetează</button>
-          </div>
-        </Modal>
+      {refreshOpen && (
+        <RefreshOptionsModal onClose={() => setRefreshOpen(false)} onApply={doUpdateChords} busy={refreshBusy} />
       )}
       {fmtOpen && (
         <Modal title="Options" width={580}

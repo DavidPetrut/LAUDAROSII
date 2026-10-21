@@ -102,6 +102,20 @@ export function simplifyBrackets(text) {
   return out.join("\n");
 }
 
+// Elimină TOATE acordurile [..] + spațiul pe care-l ocupau: rândurile rămase doar cu acorduri
+// (fără versuri) dispar complet, iar golurile dintre silabe (lăsate de acorduri) se colapsează.
+export function stripAllBrackets(text) {
+  const lines = String(text).replace(/\r\n?/g, "\n").split("\n");
+  const out = [];
+  for (const line of lines) {
+    const hadChords = /\[[^\]]*\]/.test(line);
+    const stripped = line.replace(/\[[^\]]*\]/g, "");
+    if (hadChords && !stripped.trim()) continue; // era rând doar de acorduri → scos cu tot cu spațiu
+    out.push(hadChords ? stripped.replace(/[ \t]{2,}/g, " ").replace(/[ \t]+$/g, "") : stripped);
+  }
+  return out.join("\n");
+}
+
 // Secțiuni cunoscute (orice capitalizare, număr opțional, „:" opțional).
 const SECTION_WORDS = "verse|chorus|pre-?chorus|post-?chorus|refrain|bridge|intro|outro|ending|instrumental|interlude|tag|turnaround|vamp|breakdown|solo|coda|strofa|refren|interludiu|final";
 const SECTION_RE = new RegExp(`^(?:${SECTION_WORDS})\\s*\\d*\\s*:?\\s*$`, "i");
@@ -159,6 +173,8 @@ export function renderChordPro(text, { mode = "chords", originalKey = "C", targe
     if (!lyric.trim() && chords.length === 0) { out.push({ kind: "empty" }); continue; }
     if (chords.length === 0 && isSection(lyric)) { out.push({ kind: "section", label: lyric.trim().toUpperCase() }); continue; }
 
+    // Lyrics: un rând DOAR cu acorduri (fără versuri) nu trebuie să lase un rând gol → îl sărim.
+    if (mode === "lyrics" && !lyric.trim() && chords.length > 0) continue;
     if (mode === "lyrics" || chords.length === 0) { out.push({ kind: "row", chordRow: "", lyricRow: lyric }); continue; }
 
     // Rând de acorduri aliniat — respectă coloanele (deci spațiile tastate), min 1 spațiu la coliziune.
