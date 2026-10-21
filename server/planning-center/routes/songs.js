@@ -183,11 +183,9 @@ router.get("/:id/arrangements/:aid", requireCan("people.view"), async (req, res)
       lengthLabel: fmtLen(arr.lengthSec), lengthSec: arr.lengthSec, bpm: arr.bpm, meter: arr.meter,
       sequence: arr.sequence || [], albumArtUrl: arr.albumArtUrl || "", tagIds: (arr.tagIds || []).map(String),
       chordChart: { exists: hasChordChart, originalKey: master?.originalKey || "" },
-      arrangementFiles: [
-        // Chord Chart în gama ORIGINALĂ a aranjamentului (derivat din ChordPro) — apare mereu aici.
-        ...(hasChordChart && master.originalKey ? [derivedChart(master.originalKey)] : []),
-        ...files.filter((f) => f.scope === "arrangement" && !(f.kind === "chordChart" && f.source === "chordpro")).map(fileDto),
-      ],
+      // Coloana „Arrangement" = DOAR fișiere reale (Numbers/Lyrics/PDF-uri generate). Chart-ul în gamă
+      // NU se derivă aici — el apare în coloana cheii respective (care deja spune gama + chord chart).
+      arrangementFiles: files.filter((f) => f.scope === "arrangement" && !(f.kind === "chordChart" && f.source === "chordpro")).map(fileDto),
       keys: keys.map((k) => ({
         id: k._id, startKey: k.startKey, endKey: k.endKey, description: k.description,
         label: keyLabel(k), capos: k.capos || [],

@@ -475,7 +475,7 @@ export default function SongDetail() {
                 <div className="file-cols" ref={colsRef} onScroll={updateScroll}
                   onMouseDown={onColsDown} onMouseMove={onColsMove} onMouseUp={onColsUp} onMouseLeave={onColsUp}>
                   <div className="fcol">
-                    <div className="fcol-h"><span>Arrangement{arr.chordChart?.originalKey ? ` · ${arr.chordChart.originalKey}` : ""}</span></div>
+                    <div className="fcol-h"><span>Arrangement</span></div>
                     {(arr.arrangementFiles || []).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onHover={openFileMenu} onLeave={closeFileMenuSoon} onInfo={openInfo} />)}
                     {(arr.arrangementFiles || []).length === 0 && <div className="fcol-empty" />}
                   </div>
