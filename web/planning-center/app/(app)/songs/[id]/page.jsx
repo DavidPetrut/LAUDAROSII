@@ -24,6 +24,7 @@ const ClickTrackBar = dynamic(() => import("@/components/songs/ClickTrackBar"), 
 import AddFileModal from "@/components/songs/AddFileModal";
 import SongInfoModal from "@/components/songs/SongInfoModal";
 import ChartPreviewModal from "@/components/songs/ChartPreviewModal";
+import WordsEditorModal from "@/components/songs/WordsEditorModal";
 import TransposeModal from "@/components/songs/TransposeModal";
 import TagsModal from "@/components/songs/TagsModal";
 
@@ -48,6 +49,7 @@ export default function SongDetail() {
   const mmss = (s) => { s = Math.max(0, Math.floor(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
   const [editField, setEditField] = useState(null); // 'bpm'|'length'|'name'
   const [preview, setPreview] = useState(null); // { mode, targetKey } pt. ChartPreviewModal
+  const [wordsEdit, setWordsEdit] = useState(false); // editor Words (editare manuală a versurilor)
   const [transposeFor, setTransposeFor] = useState(null); // fișierul de transpus
   const [renameFor, setRenameFor] = useState(null); // fișierul de redenumit
   const [renameVal, setRenameVal] = useState("");
@@ -138,6 +140,7 @@ export default function SongDetail() {
   };
 
   const editFile = (f) => {
+    if (f.kind === "words") { setWordsEdit(true); return; } // Words → editor de versuri (manual)
     if (f.source === "generated" && isChart(f)) { router.push(`/chords/${id}/${arrId}`); return; }
     setRenameVal(f.name || ""); setRenameFor(f);
   };
@@ -544,6 +547,7 @@ export default function SongDetail() {
       )}
       {showCT && <ClickTrackBar defaults={ctDefaults} playerActive={!!player.track} onClose={() => setShowCT(false)} />}
       {preview && <ChartPreviewModal songId={id} arrId={arrId} song={song} arr={arr} mode={preview.mode} targetKey={preview.targetKey} onClose={() => setPreview(null)} />}
+      {wordsEdit && <WordsEditorModal songId={id} arrId={arrId} song={song} arr={arr} onClose={() => setWordsEdit(false)} onSaved={async () => { setWordsEdit(false); await loadArr(); }} />}
       {transposeFor && (() => {
         const isAud = isAudioUrl(transposeFor.url, transposeFor.kind) || isYouTube(transposeFor.url);
         return (

@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api/client";
-import { renderChordPro, lyricToHtml, buildWords } from "@/lib/songs/chordpro";
+import { renderChordPro, lyricToHtml, buildWords, wordsTextToLines } from "@/lib/songs/chordpro";
 import { abbreviateSequence } from "@/lib/songs/sequence";
 import { paginateLines } from "@/lib/songs/paginate";
 import { generateChartPdf } from "@/lib/songs/pdf";
@@ -34,16 +34,21 @@ export default function ChartPreviewModal({ songId, arrId, song, arr, mode = "ch
   }, [onClose]);
 
   const isWords = mode === "words";
+  const storedWords = (arr?.wordsText || "").trim();
+  const wordsTitle = (arr?.wordsTitle || "").trim() || song?.title;
   const tk = mode === "chords" ? (targetKey || originalKey) : originalKey;
-  const lines = useMemo(() => (isWords ? buildWords(text, { translate: true }).lines : renderChordPro(text, { mode, originalKey, targetKey: tk })), [text, isWords, mode, originalKey, tk]);
+  // Words: dacă există text salvat (generat + corectat + editat), îl folosim — ca preview-ul să fie IDENTIC cu PDF-ul.
+  const lines = useMemo(() => (isWords
+    ? (storedWords ? wordsTextToLines(storedWords) : buildWords(text, { translate: arr?.wordsTranslate !== false }).lines)
+    : renderChordPro(text, { mode, originalKey, targetKey: tk })), [text, isWords, storedWords, arr, mode, originalKey, tk]);
   const pages = useMemo(() => paginateLines(lines, { fontSize: 18 * 0.9 }), [lines]);
   const keyLabel = isWords ? "Words" : mode === "lyrics" ? "Lyrics" : mode === "numbers" ? "Numbers" : mode === "numerals" ? "Numerals" : (targetKey || originalKey);
   const seqTokens = isWords ? [] : abbreviateSequence(arr?.sequence || []);
 
   const buildPdf = useCallback(() => generateChartPdf({
-    title: song?.title, keyLabel, bpm: arr?.bpm, meter: arr?.meter, arrName: arr?.name, author: song?.author,
+    title: isWords ? wordsTitle : song?.title, keyLabel, bpm: arr?.bpm, meter: arr?.meter, arrName: arr?.name, author: song?.author,
     seqTokens, lines, chordColorHex: CHORD, fontSize: 16, variant: isWords ? "words" : "chart",
-  }), [song, arr, keyLabel, seqTokens, lines, isWords]);
+  }), [song, arr, keyLabel, seqTokens, lines, isWords, wordsTitle]);
 
   const download = async () => {
     const blob = await buildPdf();
@@ -85,7 +90,7 @@ export default function ChartPreviewModal({ songId, arrId, song, arr, mode = "ch
         {loading ? <div className="sheet"><div className="body"><div className="dim">Se încarcă…</div></div></div> : pages.map((pageLines, pi) => (
           <div className="sheet" key={pi}>
             {isWords ? (
-              pi === 0 ? <div className="hdr-words">{song?.title || "…"}</div> : null
+              pi === 0 ? <div className="hdr-words">{wordsTitle || "…"}</div> : null
             ) : (
               <div className="hdr">
                 <div className="hdr-title">{song?.title || "…"} <span className="hdr-key">[{keyLabel}, {arr?.bpm || "—"} bpm, {arr?.meter || "4/4"}]</span></div>

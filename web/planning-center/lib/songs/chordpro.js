@@ -202,12 +202,31 @@ export function buildWords(text, { translate = true } = {}) {
   collapsed.forEach((c, i) => {
     if (i > 0) out.push({ kind: "empty" });
     if (c.ro) out.push({ kind: "section", label: c.ro });
-    if (c.count > 1) out.push({ kind: "row", chordRow: "", lyricRow: "/:" });
-    for (const bl of c.bodyLines) out.push(bl);
-    if (c.count > 1) out.push({ kind: "row", chordRow: "", lyricRow: `:/  ×${c.count}` });
+    if (c.count > 1) {
+      // „/: " ÎNAINTEA primului vers; „:/ ×N" pe rând separat dedesubt (regulă fixă).
+      let done = false;
+      for (const bl of c.bodyLines) {
+        if (!done && bl.kind === "row") { out.push({ ...bl, lyricRow: "/: " + bl.lyricRow }); done = true; }
+        else out.push(bl);
+      }
+      out.push({ kind: "row", chordRow: "", lyricRow: `:/  ×${c.count}` });
+    } else {
+      for (const bl of c.bodyLines) out.push(bl);
+    }
   });
 
   return { lines: out, mapping: [...mapping.entries()].map(([en, ro]) => ({ en, ro })) };
+}
+
+// Etichetele RO ale secțiunilor din „Words" (pt. a parsa textul Words editabil înapoi în linii).
+export const WORDS_RO_LABEL = /^(Strofa(\s+\d+)?|Refren(\s+2)?|Pre-refren|Bridge|Repetare)$/;
+export function wordsTextToLines(txt) {
+  return String(txt).replace(/\r\n?/g, "\n").split("\n").map((line) => {
+    const t = line.trim();
+    if (!t) return { kind: "empty" };
+    if (WORDS_RO_LABEL.test(t)) return { kind: "section", label: t };
+    return { kind: "row", chordRow: "", lyricRow: line };
+  });
 }
 
 // Secțiuni cunoscute (orice capitalizare, număr opțional, „:" opțional).

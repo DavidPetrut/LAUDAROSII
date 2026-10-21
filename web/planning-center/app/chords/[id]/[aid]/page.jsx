@@ -10,7 +10,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useParams, useRouter } from "next/navigation";
 import { api, songsApi } from "@/lib/api/client";
 import { isAuthed } from "@/lib/auth/auth";
-import { renderChordPro, ALL_KEYS, lyricToHtml, isSection, convertBrackets, simplifyBrackets, stripAllBrackets, buildWords } from "@/lib/songs/chordpro";
+import { renderChordPro, ALL_KEYS, lyricToHtml, isSection, convertBrackets, simplifyBrackets, stripAllBrackets, buildWords, wordsTextToLines } from "@/lib/songs/chordpro";
 import RefreshOptionsModal from "@/components/songs/RefreshOptionsModal";
 import { runAi } from "@/lib/ai/client";
 import { abbreviateSequence } from "@/lib/songs/sequence";
@@ -22,15 +22,8 @@ import Modal from "@/components/ui/Modal";
 const PDF_NAMES = { numerals: "Numerals Chart", numbers: "Numbers Chart", lyrics: "Lyrics", words: "Words" };
 
 // ── Words: pas AI cu reguli (goluri / repetare→bis / adnotări band) la generare ──
-const WORDS_RO_LABEL = /^(Strofa(\s+\d+)?|Refren(\s+2)?|Pre-refren|Bridge|Repetare)$/;
 const wordsLinesToText = (lines) => lines.map((l) => (l.kind === "section" ? l.label : l.kind === "empty" ? "" : l.lyricRow)).join("\n");
-const wordsTextToLines = (txt) => String(txt).replace(/\r\n?/g, "\n").split("\n").map((line) => {
-  const t = line.trim();
-  if (!t) return { kind: "empty" };
-  if (WORDS_RO_LABEL.test(t)) return { kind: "section", label: t };
-  return { kind: "row", chordRow: "", lyricRow: line };
-});
-const WORDS_AI_PROMPT = "Primești versurile unui cântec creștin, pregătite pentru public (secțiuni + versuri, fără acorduri). NU schimba cuvintele, ordinea sau etichetele secțiunilor (Strofa/Refren/Refren 2/Pre-refren/Bridge/Repetare). Asigură-te DOAR de: 1) nu există rânduri goale în interiorul unei secțiuni; 2) dacă o secțiune «Repetare» conține exact versul secțiunii imediat de deasupra, elimin-o și adaugă la secțiunea de deasupra marcajul de repetiție: un rând «/:» înainte de versuri și un rând «:/ ×N» după (N = de câte ori se repetă); 3) elimină orice adnotare tehnică pentru instrumentiști (ex. «(cu stop pe timpul 4)»), de pe liniile de secțiune sau de la capătul rândurilor. Păstrează marcajele /: :/ și ×N deja existente. Returnează DOAR textul rezultat, fără explicații.";
+const WORDS_AI_PROMPT = "Primești versurile unui cântec creștin, pregătite pentru public (secțiuni + versuri, fără acorduri). NU schimba literele cuvintelor (fără prefixe/sufixe noi), ordinea sau etichetele secțiunilor (Strofa/Refren/Refren 2/Pre-refren/Bridge/Repetare). Asigură-te DOAR de: 1) nu există rânduri goale în interiorul unei secțiuni; 2) dacă o secțiune «Repetare» conține exact versul secțiunii imediat de deasupra, elimin-o și adaugă repetiția la secțiunea de deasupra astfel: pune «/: » LIPIT înaintea primului vers al acelei secțiuni și un rând nou «:/ ×N» după ultimul vers (N = de câte ori se repetă); 3) elimină orice adnotare tehnică pentru instrumentiști (ex. «(cu stop pe timpul 4)») de pe liniile de secțiune sau de la capătul rândurilor. Păstrează marcajele /: :/ și ×N deja existente. Returnează DOAR textul rezultat, fără explicații.";
 
 const CHORD_COLORS = { Blue: "#0921ff", Orange: "#d98a2b", Black: "#111", Green: "#2f9e5b", Red: "#d14b43" };
 
@@ -140,6 +133,11 @@ export default function ChordEditor() {
         setText(cc.chordpro || "");
         setOriginalKey(cc.originalKey || a.keys?.[0]?.startKey || "C");
         if (cc.formatting && Object.keys(cc.formatting).length) setFormatting((f) => ({ ...f, ...cc.formatting }));
+        // Words: încarcă setările salvate; dacă există deja un Words generat, bifează-l (pare generat).
+        setWordsTitle(a.wordsTitle || "");
+        setWordsTranslate(a.wordsTranslate !== false);
+        setWordsAiRules(a.wordsAiRules !== false);
+        if ((a.wordsText || "").trim()) setPdfs((p) => ({ ...p, words: true }));
         loaded.current = true;
       } catch (e) { /* lăsăm gol */ loaded.current = true; }
     })();
@@ -193,7 +191,7 @@ export default function ChordEditor() {
         catch (e) { setToast("Reîntregire indisponibilă: " + (e?.message || "")); setTimeout(() => setToast(""), 4000); }
       }
       if (fixWords) {
-        const res = await aiTransform(t, "Ești corector. În textul ChordPro de mai jos corectează DOAR cuvintele rupte și spațierea greșită dintre litere/cuvinte (ex. «Du m ne zeu» → «Dumnezeu»). Păstrează EXACT acordurile dintre paranteze pătrate [..] și pozițiile lor relativ la silabe, rândurile, secțiunile (VERSE/CHORUS etc.) și punctuația. Nu adăuga, nu șterge și nu muta acorduri. Nu traduce. Returnează DOAR textul rezultat, fără explicații.");
+        const res = await aiTransform(t, "Ești corector de SPAȚIERE. În textul ChordPro de mai jos ai voie să modifici DOAR spațiile albe dintre litere/cuvinte (să le elimini sau să le adaugi) și, dacă chiar e nevoie, să adaugi o cratimă «-». REGULĂ ABSOLUTĂ: NU ai voie să adaugi, să ștergi sau să schimbi NICIO literă — secvența de litere trebuie să rămână identică după ce ignori spațiile (ex. «Du m ne zeu» → «Dumnezeu» ✓; dar «cer un treg» NU devine «cerul întreg», rămâne «cer un treg» sau cel mult «cer-un-treg»). Nu atinge sufixele/prefixele cuvintelor. Păstrează EXACT acordurile dintre paranteze pătrate [..] și pozițiile lor, rândurile, secțiunile și punctuația. Nu adăuga/șterge/muta acorduri. Nu traduce. Returnează DOAR textul rezultat, fără explicații.");
         if (typeof res === "string" && res.trim()) t = res;
         else { setToast(typeof res === "object" ? (res.error || "AI indisponibil.") : "AI indisponibil."); setTimeout(() => setToast(""), 4000); }
       }
@@ -301,6 +299,8 @@ export default function ChordEditor() {
             try { const res = await aiTransform(wordsLinesToText(lns), WORDS_AI_PROMPT); if (typeof res === "string" && res.trim()) lns = wordsTextToLines(res); } catch { /* best-effort */ }
           }
           extra = { variant: "words", seqTokens: [], title: (wordsTitle.trim() || song?.title) };
+          // Persistă textul + setările Words (pt. preview fidel și editare manuală ulterioară).
+          try { await songsApi.updateArrangement(id, aid, { wordsText: wordsLinesToText(lns), wordsTitle: wordsTitle.trim(), wordsTranslate, wordsAiRules }); } catch { /* best-effort */ }
         } else {
           lns = renderChordPro(text, { mode: t, originalKey, targetKey: originalKey });
         }

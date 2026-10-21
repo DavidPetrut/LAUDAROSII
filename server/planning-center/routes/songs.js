@@ -278,6 +278,8 @@ router.get("/:id/arrangements/:aid", requireCan("people.view"), async (req, res)
       lengthLabel: fmtLen(arr.lengthSec), lengthSec: arr.lengthSec, bpm: arr.bpm, meter: arr.meter,
       sequence: arr.sequence || [], albumArtUrl: arr.albumArtUrl || "", tagIds: (arr.tagIds || []).map(String),
       notes: arr.notes || "",
+      wordsText: arr.wordsText || "", wordsTitle: arr.wordsTitle || "",
+      wordsTranslate: arr.wordsTranslate !== false, wordsAiRules: arr.wordsAiRules !== false,
       chordChart: { exists: hasChordChart, originalKey: master?.originalKey || "" },
       // Coloana „Arrangement" = DOAR fișiere reale (Numbers/Lyrics/PDF-uri generate). Chart-ul în gamă
       // NU se derivă aici — el apare în coloana cheii respective (care deja spune gama + chord chart).
@@ -335,7 +337,9 @@ router.post("/:id/arrangements/reorder", requireCan("songs.edit"), async (req, r
 router.patch("/:id/arrangements/:aid", requireCan("songs.edit"), async (req, res) => {
   try {
     const b = req.body || {}; const set = {};
-    ["name", "meter", "notes"].forEach((k) => b[k] !== undefined && (set[k] = String(b[k])));
+    ["name", "meter", "notes", "wordsText", "wordsTitle"].forEach((k) => b[k] !== undefined && (set[k] = String(b[k])));
+    if (b.wordsTranslate !== undefined) set.wordsTranslate = !!b.wordsTranslate;
+    if (b.wordsAiRules !== undefined) set.wordsAiRules = !!b.wordsAiRules;
     if (b.bpm !== undefined) set.bpm = Number(b.bpm) || null;
     if (b.lengthSec !== undefined) set.lengthSec = Number(b.lengthSec) || 0;
     if (Array.isArray(b.sequence)) set.sequence = b.sequence;
