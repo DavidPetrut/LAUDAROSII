@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api/client";
-import { renderChordPro, lyricToHtml } from "@/lib/songs/chordpro";
+import { renderChordPro, lyricToHtml, buildWords } from "@/lib/songs/chordpro";
 import { abbreviateSequence } from "@/lib/songs/sequence";
 import { paginateLines } from "@/lib/songs/paginate";
 import { generateChartPdf } from "@/lib/songs/pdf";
@@ -33,16 +33,17 @@ export default function ChartPreviewModal({ songId, arrId, song, arr, mode = "ch
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  const isWords = mode === "words";
   const tk = mode === "chords" ? (targetKey || originalKey) : originalKey;
-  const lines = useMemo(() => renderChordPro(text, { mode, originalKey, targetKey: tk }), [text, mode, originalKey, tk]);
+  const lines = useMemo(() => (isWords ? buildWords(text, { translate: true }).lines : renderChordPro(text, { mode, originalKey, targetKey: tk })), [text, isWords, mode, originalKey, tk]);
   const pages = useMemo(() => paginateLines(lines, { fontSize: 18 * 0.9 }), [lines]);
-  const keyLabel = mode === "lyrics" ? "Lyrics" : mode === "numbers" ? "Numbers" : mode === "numerals" ? "Numerals" : (targetKey || originalKey);
-  const seqTokens = abbreviateSequence(arr?.sequence || []);
+  const keyLabel = isWords ? "Words" : mode === "lyrics" ? "Lyrics" : mode === "numbers" ? "Numbers" : mode === "numerals" ? "Numerals" : (targetKey || originalKey);
+  const seqTokens = isWords ? [] : abbreviateSequence(arr?.sequence || []);
 
   const buildPdf = useCallback(() => generateChartPdf({
     title: song?.title, keyLabel, bpm: arr?.bpm, meter: arr?.meter, arrName: arr?.name, author: song?.author,
-    seqTokens, lines, chordColorHex: CHORD, fontSize: 16,
-  }), [song, arr, keyLabel, seqTokens, lines]);
+    seqTokens, lines, chordColorHex: CHORD, fontSize: 16, variant: isWords ? "words" : "chart",
+  }), [song, arr, keyLabel, seqTokens, lines, isWords]);
 
   const download = async () => {
     const blob = await buildPdf();
@@ -83,11 +84,15 @@ export default function ChartPreviewModal({ songId, arrId, song, arr, mode = "ch
       <div className="scroll">
         {loading ? <div className="sheet"><div className="body"><div className="dim">Se încarcă…</div></div></div> : pages.map((pageLines, pi) => (
           <div className="sheet" key={pi}>
-            <div className="hdr">
-              <div className="hdr-title">{song?.title || "…"} <span className="hdr-key">[{keyLabel}, {arr?.bpm || "—"} bpm, {arr?.meter || "4/4"}]</span></div>
-              <div className="hdr-arr">[{arr?.name}]{song?.author ? <> by <b>{song.author}</b></> : null}</div>
-              {seqTokens.length > 0 && <div className="hdr-seq">{seqTokens.join(", ")}</div>}
-            </div>
+            {isWords ? (
+              pi === 0 ? <div className="hdr-words">{song?.title || "…"}</div> : null
+            ) : (
+              <div className="hdr">
+                <div className="hdr-title">{song?.title || "…"} <span className="hdr-key">[{keyLabel}, {arr?.bpm || "—"} bpm, {arr?.meter || "4/4"}]</span></div>
+                <div className="hdr-arr">[{arr?.name}]{song?.author ? <> by <b>{song.author}</b></> : null}</div>
+                {seqTokens.length > 0 && <div className="hdr-seq">{seqTokens.join(", ")}</div>}
+              </div>
+            )}
             <div className="body">
               {pageLines.map((ln, i) => {
                 if (ln.kind === "empty") return <div key={i} className="pl">&nbsp;</div>;
@@ -124,6 +129,7 @@ export default function ChartPreviewModal({ songId, arrId, song, arr, mode = "ch
         .hdr-key { font-weight: 700; }
         .hdr-arr { font-size: 11px; font-weight: 700; color: #444; margin-top: 4px; }
         .hdr-seq { font-weight: 700; margin-top: 8px; font-size: 15px; }
+        .hdr-words { font-weight: 800; font-size: 24px; color: #111; margin-bottom: 18px; overflow-wrap: anywhere; }
         .body { padding: 2px 2px; font-family: "PcMono", "Courier New", monospace; font-size: 18px; }
         .psec { font-weight: 900; margin: 22px 0 6px; letter-spacing: .4px; }
         .body > .psec:first-child { margin-top: 0; }

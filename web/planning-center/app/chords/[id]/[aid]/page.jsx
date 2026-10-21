@@ -21,6 +21,17 @@ import Modal from "@/components/ui/Modal";
 
 const PDF_NAMES = { numerals: "Numerals Chart", numbers: "Numbers Chart", lyrics: "Lyrics", words: "Words" };
 
+// ── Words: pas AI cu reguli (goluri / repetare→bis / adnotări band) la generare ──
+const WORDS_RO_LABEL = /^(Strofa(\s+\d+)?|Refren(\s+2)?|Pre-refren|Bridge|Repetare)$/;
+const wordsLinesToText = (lines) => lines.map((l) => (l.kind === "section" ? l.label : l.kind === "empty" ? "" : l.lyricRow)).join("\n");
+const wordsTextToLines = (txt) => String(txt).replace(/\r\n?/g, "\n").split("\n").map((line) => {
+  const t = line.trim();
+  if (!t) return { kind: "empty" };
+  if (WORDS_RO_LABEL.test(t)) return { kind: "section", label: t };
+  return { kind: "row", chordRow: "", lyricRow: line };
+});
+const WORDS_AI_PROMPT = "Primești versurile unui cântec creștin, pregătite pentru public (secțiuni + versuri, fără acorduri). NU schimba cuvintele, ordinea sau etichetele secțiunilor (Strofa/Refren/Refren 2/Pre-refren/Bridge/Repetare). Asigură-te DOAR de: 1) nu există rânduri goale în interiorul unei secțiuni; 2) dacă o secțiune «Repetare» conține exact versul secțiunii imediat de deasupra, elimin-o și adaugă la secțiunea de deasupra marcajul de repetiție: un rând «/:» înainte de versuri și un rând «:/ ×N» după (N = de câte ori se repetă); 3) elimină orice adnotare tehnică pentru instrumentiști (ex. «(cu stop pe timpul 4)»), de pe liniile de secțiune sau de la capătul rândurilor. Păstrează marcajele /: :/ și ×N deja existente. Returnează DOAR textul rezultat, fără explicații.";
+
 const CHORD_COLORS = { Blue: "#0921ff", Orange: "#d98a2b", Black: "#111", Green: "#2f9e5b", Red: "#d14b43" };
 
 // ── Hotkeys configurabile (persistate în localStorage ≈ „forever") ────────────
@@ -91,6 +102,10 @@ export default function ChordEditor() {
   const [previewSel, setPreviewSel] = useState("original"); // "original" | key | "numbers" | "numerals" | "lyrics" | "words"
   const [pdfs, setPdfs] = useState({ numerals: false, numbers: true, lyrics: true, words: false });
   const [wordsTranslate, setWordsTranslate] = useState(true); // Words: tradu sequence-urile în RO (doar acest PDF)
+  const [wordsTitle, setWordsTitle] = useState("");           // Words: titlu custom (gol = titlul piesei)
+  const [wordsAiRules, setWordsAiRules] = useState(true);     // Words: corectează cu reguli (AI) la generare
+  const [wordsTbOpen, setWordsTbOpen] = useState(false);      // toolbar-ul care iese din bifa Words
+  const [wordsAiConfirm, setWordsAiConfirm] = useState(false); // confirmare inline la debifarea AI-regulilor
   const [formatting, setFormatting] = useState({ font: "Courier, Monospaced", size: 16, chordColor: "Blue", columns: 1 });
   const [fmtOpen, setFmtOpen] = useState(false);
   const [keyOpen, setKeyOpen] = useState(false); // grila pt. Original Key
@@ -279,8 +294,17 @@ export default function ChordEditor() {
 
       // 1) Numerals / Numbers / Lyrics / Words → card Arrangement (independente de gamă)
       for (const t of types) {
-        const lns = t === "words" ? buildWords(text, { translate: wordsTranslate }).lines : renderChordPro(text, { mode: t, originalKey, targetKey: originalKey });
-        const blob = await generateChartPdf({ ...common, keyLabel: t[0].toUpperCase() + t.slice(1), lines: lns, variant: t === "words" ? "words" : "chart", seqTokens: t === "words" ? [] : common.seqTokens });
+        let lns, extra = {};
+        if (t === "words") {
+          lns = buildWords(text, { translate: wordsTranslate }).lines;
+          if (wordsAiRules) {
+            try { const res = await aiTransform(wordsLinesToText(lns), WORDS_AI_PROMPT); if (typeof res === "string" && res.trim()) lns = wordsTextToLines(res); } catch { /* best-effort */ }
+          }
+          extra = { variant: "words", seqTokens: [], title: (wordsTitle.trim() || song?.title) };
+        } else {
+          lns = renderChordPro(text, { mode: t, originalKey, targetKey: originalKey });
+        }
+        const blob = await generateChartPdf({ ...common, keyLabel: t[0].toUpperCase() + t.slice(1), lines: lns, ...extra });
         const name = PDF_NAMES[t];
         for (const o of (fresh.arrangementFiles || []).filter((f) => f.source === "generated" && f.name === name)) {
           try { await songsApi.deleteFile(id, aid, o.id); } catch { /* endpoint nedeployat încă */ }
@@ -318,12 +342,52 @@ export default function ChordEditor() {
         <div className="pdfs">
           <span className="pdfs-l">Create PDFs:</span>
           {["numerals", "numbers", "lyrics", "words"].map((k) => (
-            <button key={k} className={`pdf-toggle ${pdfs[k] ? "on" : ""}`} onClick={() => setPdfs((p) => ({ ...p, [k]: !p[k] }))}>
+            <button key={k} className={`pdf-toggle ${pdfs[k] ? "on" : ""}`}
+              onClick={() => { const turnOn = !pdfs[k]; setPdfs((p) => ({ ...p, [k]: !p[k] })); if (k === "words") { setWordsTbOpen(turnOn); setWordsAiConfirm(false); } }}>
               {pdfs[k] ? "✓ " : ""}{k[0].toUpperCase() + k.slice(1)}
             </button>
           ))}
           <button className="gen-btn" onClick={doGenerate}>Generate</button>
           {gen && <span className="gen-msg">{gen}</span>}
+
+          {wordsTbOpen && pdfs.words && (
+            <>
+              <div className="wtb-back" onClick={() => { setWordsTbOpen(false); setWordsAiConfirm(false); }} />
+              <div className="wtb">
+                <div className="wtb-row">
+                  <span className="wtb-l">Limbă secțiuni</span>
+                  <div className="wtb-flags">
+                    <button className={wordsTranslate ? "on" : ""} onClick={() => setWordsTranslate(true)} title="Română">
+                      <svg width="22" height="15" viewBox="0 0 22 15"><rect x="0" y="0" width="7.33" height="15" fill="#002B7F"/><rect x="7.33" y="0" width="7.33" height="15" fill="#FCD116"/><rect x="14.66" y="0" width="7.34" height="15" fill="#CE1126"/></svg>
+                    </button>
+                    <button className={!wordsTranslate ? "on" : ""} onClick={() => setWordsTranslate(false)} title="Fără conversie — denumirile ca în editor">
+                      <svg width="22" height="15" viewBox="0 0 22 15"><rect x="0.5" y="0.5" width="21" height="14" rx="2" fill="none" stroke="currentColor" opacity=".5"/><line x1="2" y1="13" x2="20" y2="2" stroke="#CE1126" strokeWidth="2"/></svg>
+                    </button>
+                  </div>
+                </div>
+                <div className="wtb-row col">
+                  <span className="wtb-l">Titlu nou <i>(cum apare pe PDF)</i></span>
+                  <input className="wtb-in" value={wordsTitle} onChange={(e) => setWordsTitle(e.target.value)} placeholder={song?.title || "Titlul melodiei"} />
+                </div>
+                <div className="wtb-air">
+                  <button className={`wtb-ai ${wordsAiRules ? "on" : ""}`}
+                    onClick={() => { if (wordsAiRules) setWordsAiConfirm(true); else { setWordsAiRules(true); setWordsAiConfirm(false); } }}>
+                    <span className="wtb-chk">{wordsAiRules && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>}</span>
+                    <span>Corectează cu reguli (AI) <i>recomandat</i></span>
+                  </button>
+                  {wordsAiConfirm && (
+                    <div className="wtb-cf">
+                      Fără AI, fișierul poate ieși cu goluri, repetări sau adnotări tehnice. Dezactivezi?
+                      <div className="wtb-cf-b">
+                        <button onClick={() => { setWordsAiRules(false); setWordsAiConfirm(false); }}>Da, dezactivează</button>
+                        <button className="keep" onClick={() => setWordsAiConfirm(false)}>Nu</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -379,16 +443,6 @@ export default function ChordEditor() {
               </div>
             )}
           </div>
-          {isWords && (
-            <div className="words-tt" title="Conversia sequence-urilor în română (doar acest PDF)">
-              <button className={wordsTranslate ? "on" : ""} onClick={() => setWordsTranslate(true)} title="Traduce secțiunile în română">
-                <svg width="20" height="14" viewBox="0 0 20 14"><rect x="0" y="0" width="6.67" height="14" fill="#002B7F"/><rect x="6.67" y="0" width="6.67" height="14" fill="#FCD116"/><rect x="13.33" y="0" width="6.67" height="14" fill="#CE1126"/></svg>
-              </button>
-              <button className={!wordsTranslate ? "on" : ""} onClick={() => setWordsTranslate(false)} title="Fără conversie — lasă denumirile ca în editor">
-                <svg width="20" height="14" viewBox="0 0 20 14"><rect x="0.5" y="0.5" width="19" height="13" rx="1.5" fill="none" stroke="currentColor" opacity=".5"/><line x1="2" y1="12" x2="18" y2="2" stroke="#CE1126" strokeWidth="1.8"/></svg>
-              </button>
-            </div>
-          )}
           <div className="auto">
             <span className="ar">✓ Auto-refresh</span>
             {status && <span className="st">{status}</span>}
@@ -407,7 +461,7 @@ export default function ChordEditor() {
           {pages.map((pageLines, pi) => (
             <div className="sheet" key={pi} style={{ columnCount: formatting.columns || 1 }}>
               {isWords ? (
-                pi === 0 ? <div className="hdr-words">{song?.title || "…"}</div> : null
+                pi === 0 ? <div className="hdr-words">{wordsTitle.trim() || song?.title || "…"}</div> : null
               ) : (
                 <div className="hdr">
                   <div className="hdr-title">{song?.title || "…"} <span className="hdr-key">[{keyLabel}, {arr?.bpm || "—"} bpm, {arr?.meter || "4/4"}]</span></div>
@@ -510,7 +564,7 @@ export default function ChordEditor() {
         .editor { position: fixed; inset: 0; background: #0b0d10; display: flex; flex-direction: column; z-index: 40; }
         .topbar { height: 46px; display: flex; align-items: center; padding: 0 18px; border-bottom: 1px solid var(--border-soft); }
         .back { background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px; }
-        .pdfs { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+        .pdfs { margin-left: auto; display: flex; align-items: center; gap: 10px; position: relative; }
         .pdfs-l { color: var(--text-dim); font-size: 13px; }
         .pdf-toggle { background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 13px; padding: 4px 6px; border-radius: 5px; }
         .pdf-toggle.on { color: var(--text); }
@@ -534,11 +588,30 @@ export default function ChordEditor() {
         .keymode button { flex: 1; height: 32px; }
         .ctrl-sel { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 5px; height: 30px; padding: 0 10px; cursor: pointer; min-width: 110px; text-align: left; }
         .ctrl-sel.wide { min-width: 150px; }
-        .words-tt { display: inline-flex; gap: 4px; margin-left: 10px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 7px; padding: 3px; }
-        .words-tt button { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 26px; background: transparent; border: none; border-radius: 5px; cursor: pointer; color: var(--text-dim); opacity: .55; }
-        .words-tt button:hover { opacity: .85; }
-        .words-tt button.on { background: var(--surface-3); opacity: 1; box-shadow: 0 0 0 1px var(--primary) inset; }
-        .hdr-words { font-weight: 700; font-size: 18px; color: #111; background: #fff; padding: 2px 0 14px; }
+        .hdr-words { font-weight: 700; font-size: 18px; color: #111; background: #fff; padding: 2px 0 14px; overflow-wrap: anywhere; }
+        /* Toolbar-ul care iese din bifa Words */
+        .wtb-back { position: fixed; inset: 0; z-index: 44; }
+        .wtb { position: absolute; top: calc(100% + 8px); right: 0; z-index: 45; width: 300px; background: var(--surface-3); border: 1px solid var(--border-strong);
+          border-radius: 10px; padding: 12px; box-shadow: 0 16px 40px rgba(0,0,0,.55); display: flex; flex-direction: column; gap: 12px; }
+        .wtb-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .wtb-row.col { flex-direction: column; align-items: stretch; gap: 6px; }
+        .wtb-l { font-size: 12.5px; color: var(--text); font-weight: 500; }
+        .wtb-l i { color: var(--text-faint); font-weight: 400; font-style: normal; font-size: 11.5px; }
+        .wtb-flags { display: inline-flex; gap: 4px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 7px; padding: 3px; }
+        .wtb-flags button { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 26px; background: transparent; border: none; border-radius: 5px; cursor: pointer; color: var(--text-dim); opacity: .5; }
+        .wtb-flags button:hover { opacity: .85; }
+        .wtb-flags button.on { background: var(--surface-3); opacity: 1; box-shadow: 0 0 0 1px var(--primary) inset; }
+        .wtb-in { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; height: 32px; padding: 0 10px; font-size: 13px; }
+        .wtb-in:focus { outline: none; border-color: var(--primary); }
+        .wtb-air { border-top: 1px solid var(--border); padding-top: 10px; }
+        .wtb-ai { display: flex; align-items: center; gap: 9px; width: 100%; background: transparent; border: none; color: var(--text); cursor: pointer; font-size: 12.5px; text-align: left; padding: 0; }
+        .wtb-ai i { color: var(--text-faint); font-style: normal; font-size: 11px; }
+        .wtb-chk { flex: 0 0 auto; width: 20px; height: 20px; border-radius: 5px; border: 1.5px solid var(--border-strong); display: flex; align-items: center; justify-content: center; color: #fff; }
+        .wtb-ai.on .wtb-chk { background: var(--primary); border-color: var(--primary); }
+        .wtb-cf { margin-top: 10px; font-size: 11.5px; color: #e7b04b; background: rgba(231,176,75,.1); border: 1px solid rgba(231,176,75,.3); border-radius: 7px; padding: 9px 10px; }
+        .wtb-cf-b { display: flex; gap: 8px; margin-top: 8px; }
+        .wtb-cf-b button { flex: 1; height: 28px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); cursor: pointer; font-size: 12px; }
+        .wtb-cf-b button.keep { background: var(--primary); border-color: var(--primary); color: #fff; }
         .options { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 5px; height: 30px; padding: 0 12px; cursor: pointer; }
         .reset-ch { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 5px; height: 30px; width: 34px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
         .reset-ch:hover { color: var(--text); border-color: var(--primary); }

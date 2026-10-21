@@ -120,11 +120,20 @@ export function stripAllBrackets(text) {
 // Secțiuni fără versuri (se elimină complet din Words).
 const WORDS_DROP_RE = /^(intro|outro|instrumental|interlude|solo|vamp|ending|break|turnaround|breakdown|coda|tag\s*end)\b/i;
 
-/** Info despre o etichetă de secțiune: cuvântul de bază + numărul. */
+/** Info despre o etichetă de secțiune: cuvântul de bază + numărul (fără adnotările „(…)" de band). */
 function sectionInfo(label) {
-  const t = String(label || "").replace(/\./g, " ").replace(/:/g, "").trim();
+  const t = String(label || "").replace(/\./g, " ").replace(/\(.*$/, "").replace(/:/g, "").trim();
   const m = /^([A-Za-zăâîșțĂÂÎȘȚ -]+?)\s*(\d+)?\s*$/.exec(t);
   return { word: (m ? m[1] : t).toLowerCase().trim(), num: m && m[2] ? m[2] : "", raw: t };
+}
+
+// Cuvinte de secțiune (pt. a recunoaște și etichetele cu adnotare „(CU STOP…)", pe care isSection le ratează).
+const WORDS_SECTION_WORD = /^(verse|chorus|pre[- ]?chorus|post[- ]?chorus|bridge|intro|outro|ending|instrumental|interlude|tag|turnaround|vamp|refrain|solo|coda|breakdown|strofa|refren|punte|final|coro)\s*\d*\s*:?\s*$/i;
+// Întoarce eticheta curată a liniei dacă e secțiune (chiar cu adnotare de band după), altfel null.
+function wordsSectionLabel(lyric) {
+  const clean = String(lyric).replace(/\(.*$/, "").trim();
+  if (isSection(clean) || WORDS_SECTION_WORD.test(clean)) return clean;
+  return null;
 }
 
 /** Traduce o etichetă de secțiune în RO (sau o lasă cum e dacă translate=false / necunoscută). */
@@ -135,7 +144,7 @@ export function translateSection(label, translate = true) {
   if (/^(pre[- ]?chorus|pre[- ]?refren)$/.test(word)) return "Pre-refren";
   if (/^(chorus|refren)$/.test(word)) return "Refren";
   if (/^refrain$/.test(word)) return "Refren 2";
-  if (/^(bridge|punte)$/.test(word)) return `Bridge${num ? ` ${num}` : ""}`;
+  if (/^(bridge|punte)$/.test(word)) return "Bridge"; // fără număr — același bridge (ca refrenul)
   if (/^tag$/.test(word)) return "Repetare";
   return raw; // necunoscută → neschimbată
 }
@@ -152,7 +161,8 @@ export function buildWords(text, { translate = true } = {}) {
   let cur = { label: null, bodyRaw: [] };
   for (const line of rawLines) {
     const { lyric, chords } = parseLine(line);
-    if (chords.length === 0 && isSection(lyric)) { blocks.push(cur); cur = { label: lyric.trim(), bodyRaw: [] }; continue; }
+    const secLabel = chords.length === 0 ? wordsSectionLabel(lyric) : null;
+    if (secLabel) { blocks.push(cur); cur = { label: secLabel, bodyRaw: [] }; continue; }
     cur.bodyRaw.push(line);
   }
   blocks.push(cur);
@@ -166,14 +176,11 @@ export function buildWords(text, { translate = true } = {}) {
     for (const line of b.bodyRaw) {
       const { lyric, chords } = parseLine(line);
       const bare = lyric.replace(/\s+/g, " ").trim();
-      if (!bare && chords.length === 0) { bodyLines.push({ kind: "empty" }); continue; }
-      if (!bare && chords.length > 0) continue; // rând doar de acorduri → scos
+      if (!bare) continue; // rând gol SAU doar acorduri → scos (fără goluri în secțiuni, cerința)
       if (WORDS_DROP_RE.test(bare) || /^[|\-\s]*$/.test(bare)) continue; // linie instrumentală inline (INTRO: |---|) / doar bare
       // versuri curate pt. public: colapsează golurile lăsate de acorduri (nu contează alinierea aici)
       bodyLines.push({ kind: "row", chordRow: "", lyricRow: lyric.replace(/[ \t]{2,}/g, " ").replace(/[ \t]+$/g, "") });
     }
-    while (bodyLines.length && bodyLines[0].kind === "empty") bodyLines.shift();
-    while (bodyLines.length && bodyLines[bodyLines.length - 1].kind === "empty") bodyLines.pop();
     if (b.label === null && bodyLines.length === 0) continue;
     const ro = b.label ? translateSection(b.label, translate) : null;
     if (b.label) mapping.set(b.label.replace(/\./g, " ").replace(/:/g, "").trim(), ro);
@@ -184,7 +191,9 @@ export function buildWords(text, { translate = true } = {}) {
   const collapsed = [];
   for (const p of processed) {
     const last = collapsed[collapsed.length - 1];
-    if (last && last.ro && p.ro && last.ro === p.ro && last.bodyKey === p.bodyKey) last.count++;
+    // Colapsare: același text ca secțiunea de deasupra → bis ×N. Fie aceeași etichetă (Refren/Refren),
+    // fie un „Repetare" care repetă fix versul de deasupra (atunci se pliază ÎN acea secțiune, cerința).
+    if (last && last.bodyKey && last.bodyKey === p.bodyKey && (last.ro === p.ro || p.ro === "Repetare")) last.count++;
     else collapsed.push({ ...p, count: 1 });
   }
 

@@ -112,7 +112,7 @@ export default function SongDetail() {
     closeInfo();
   };
 
-  const isChart = (f) => ["chordChart", "lyrics", "numbers", "numerals"].includes(f.kind);
+  const isChart = (f) => ["chordChart", "lyrics", "numbers", "numerals", "words"].includes(f.kind);
   // Gama inițială implicită la transpose: audio → detectată/din nume; chart → gama aranjamentului (chord chart).
   const keyFromName = (name) => { const m = /(?:in\s+|[-\s])([A-G][b#]?)m?\s*(?:\.[a-z0-9]+)?$/i.exec(String(name || "")); return m ? m[1] : ""; };
   const ccKey = () => (arr?.chordChart?.originalKey || "").replace(/m(in)?$/i, "").replace(/maj$/i, "").trim();
@@ -130,6 +130,7 @@ export default function SongDetail() {
       if (f.kind === "numbers") mode = "numbers";
       else if (f.kind === "numerals") mode = "numerals";
       else if (f.kind === "lyrics") mode = "lyrics";
+      else if (f.kind === "words") mode = "words";
       else { mode = "chords"; targetKey = f.displayKey || (/(?:in\s+|-)([A-G][b#]?)m?\b/i.exec(f.name || "") || [])[1] || ""; }
       setPreview({ mode, targetKey });
     } else if (f.url) window.open(f.url, "_blank", "noopener");
@@ -872,7 +873,7 @@ function TagSet({ label, ids, tagMap, onEdit }) {
 }
 
 function FileRow({ f, onOpen, onHover, onLeave, onInfo }) {
-  const iconName = f.kind === "audio" ? "audio" : f.kind === "lyrics" ? "lyrics" : f.kind === "link" ? "play"
+  const iconName = f.kind === "audio" ? "audio" : (f.kind === "lyrics" || f.kind === "words") ? "lyrics" : f.kind === "link" ? "play"
     : (f.kind === "chordChart" || f.kind === "numbers" || f.kind === "numerals") ? "chart" : "file";
   return (
     <div className="frow" onMouseEnter={(e) => onHover(f, e.currentTarget)} onMouseLeave={onLeave}>

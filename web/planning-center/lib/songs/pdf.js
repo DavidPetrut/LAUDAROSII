@@ -59,8 +59,10 @@ export async function generateChartPdf({
     if (variant === "words") {
       if (pi === 0) {
         doc.setFont(FH, "bold"); doc.setFontSize(18); doc.setTextColor(17, 17, 17);
-        doc.text(title || "", margin, 40);
-        y = 62;
+        const tlines = doc.splitTextToSize(title || "", pageW - 2 * margin); // word-wrap pt. titluri lungi
+        let ty = 38;
+        for (const tl of tlines) { doc.text(tl, margin, ty); ty += 22; }
+        y = ty + 10;
       } else { y = margin + 6; }
       return;
     }
