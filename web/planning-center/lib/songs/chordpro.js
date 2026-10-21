@@ -116,6 +116,91 @@ export function stripAllBrackets(text) {
   return out.join("\n");
 }
 
+// ── „Words" — versuri simple pt. public: scoate instrumentalele, traduce secțiunile în RO, colapsează bis ──
+// Secțiuni fără versuri (se elimină complet din Words).
+const WORDS_DROP_RE = /^(intro|outro|instrumental|interlude|solo|vamp|ending|break|turnaround|breakdown|coda|tag\s*end)\b/i;
+
+/** Info despre o etichetă de secțiune: cuvântul de bază + numărul. */
+function sectionInfo(label) {
+  const t = String(label || "").replace(/\./g, " ").replace(/:/g, "").trim();
+  const m = /^([A-Za-zăâîșțĂÂÎȘȚ -]+?)\s*(\d+)?\s*$/.exec(t);
+  return { word: (m ? m[1] : t).toLowerCase().trim(), num: m && m[2] ? m[2] : "", raw: t };
+}
+
+/** Traduce o etichetă de secțiune în RO (sau o lasă cum e dacă translate=false / necunoscută). */
+export function translateSection(label, translate = true) {
+  const { word, num, raw } = sectionInfo(label);
+  if (!translate) return raw; // auto-conversie oprită → exact ce scrie în stânga
+  if (/^(verse|strofa)$/.test(word)) return `Strofa${num ? ` ${num}` : ""}`;
+  if (/^(pre[- ]?chorus|pre[- ]?refren)$/.test(word)) return "Pre-refren";
+  if (/^(chorus|refren)$/.test(word)) return "Refren";
+  if (/^refrain$/.test(word)) return "Refren 2";
+  if (/^(bridge|punte)$/.test(word)) return `Bridge${num ? ` ${num}` : ""}`;
+  if (/^tag$/.test(word)) return "Repetare";
+  return raw; // necunoscută → neschimbată
+}
+
+/**
+ * Construiește liniile pt. PDF-ul „Words": doar versuri (fără acorduri), secțiuni traduse în RO,
+ * instrumentalele scoase, iar secțiunile identice consecutive colapsate cu bis „/: … :/" + „×N".
+ * Întoarce { lines, mapping:[{en,ro}] }.
+ */
+export function buildWords(text, { translate = true } = {}) {
+  const rawLines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
+  // 1) grupare pe secțiuni (blocuri).
+  const blocks = [];
+  let cur = { label: null, bodyRaw: [] };
+  for (const line of rawLines) {
+    const { lyric, chords } = parseLine(line);
+    if (chords.length === 0 && isSection(lyric)) { blocks.push(cur); cur = { label: lyric.trim(), bodyRaw: [] }; continue; }
+    cur.bodyRaw.push(line);
+  }
+  blocks.push(cur);
+
+  // 2) procesare: scoate instrumentalele, randează versurile, traduce eticheta.
+  const mapping = new Map();
+  const processed = [];
+  for (const b of blocks) {
+    if (b.label && WORDS_DROP_RE.test(b.label.replace(/\./g, " "))) continue; // secțiune fără versuri
+    const bodyLines = [];
+    for (const line of b.bodyRaw) {
+      const { lyric, chords } = parseLine(line);
+      const bare = lyric.replace(/\s+/g, " ").trim();
+      if (!bare && chords.length === 0) { bodyLines.push({ kind: "empty" }); continue; }
+      if (!bare && chords.length > 0) continue; // rând doar de acorduri → scos
+      if (WORDS_DROP_RE.test(bare) || /^[|\-\s]*$/.test(bare)) continue; // linie instrumentală inline (INTRO: |---|) / doar bare
+      // versuri curate pt. public: colapsează golurile lăsate de acorduri (nu contează alinierea aici)
+      bodyLines.push({ kind: "row", chordRow: "", lyricRow: lyric.replace(/[ \t]{2,}/g, " ").replace(/[ \t]+$/g, "") });
+    }
+    while (bodyLines.length && bodyLines[0].kind === "empty") bodyLines.shift();
+    while (bodyLines.length && bodyLines[bodyLines.length - 1].kind === "empty") bodyLines.pop();
+    if (b.label === null && bodyLines.length === 0) continue;
+    const ro = b.label ? translateSection(b.label, translate) : null;
+    if (b.label) mapping.set(b.label.replace(/\./g, " ").replace(/:/g, "").trim(), ro);
+    processed.push({ ro, bodyLines, bodyKey: bodyLines.map((l) => (l.kind === "row" ? l.lyricRow.trim() : "")).join("\n") });
+  }
+
+  // 3) colapsare: secțiuni consecutive cu aceeași etichetă RO ȘI același conținut → una, cu ×N.
+  const collapsed = [];
+  for (const p of processed) {
+    const last = collapsed[collapsed.length - 1];
+    if (last && last.ro && p.ro && last.ro === p.ro && last.bodyKey === p.bodyKey) last.count++;
+    else collapsed.push({ ...p, count: 1 });
+  }
+
+  // 4) emite liniile (secțiune + bis dacă se repetă).
+  const out = [];
+  collapsed.forEach((c, i) => {
+    if (i > 0) out.push({ kind: "empty" });
+    if (c.ro) out.push({ kind: "section", label: c.ro });
+    if (c.count > 1) out.push({ kind: "row", chordRow: "", lyricRow: "/:" });
+    for (const bl of c.bodyLines) out.push(bl);
+    if (c.count > 1) out.push({ kind: "row", chordRow: "", lyricRow: `:/  ×${c.count}` });
+  });
+
+  return { lines: out, mapping: [...mapping.entries()].map(([en, ro]) => ({ en, ro })) };
+}
+
 // Secțiuni cunoscute (orice capitalizare, număr opțional, „:" opțional).
 const SECTION_WORDS = "verse|chorus|pre-?chorus|post-?chorus|refrain|bridge|intro|outro|ending|instrumental|interlude|tag|turnaround|vamp|breakdown|solo|coda|strofa|refren|interludiu|final";
 const SECTION_RE = new RegExp(`^(?:${SECTION_WORDS})\\s*\\d*\\s*:?\\s*$`, "i");

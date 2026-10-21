@@ -10,7 +10,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useParams, useRouter } from "next/navigation";
 import { api, songsApi } from "@/lib/api/client";
 import { isAuthed } from "@/lib/auth/auth";
-import { renderChordPro, ALL_KEYS, lyricToHtml, isSection, convertBrackets, simplifyBrackets, stripAllBrackets } from "@/lib/songs/chordpro";
+import { renderChordPro, ALL_KEYS, lyricToHtml, isSection, convertBrackets, simplifyBrackets, stripAllBrackets, buildWords } from "@/lib/songs/chordpro";
 import RefreshOptionsModal from "@/components/songs/RefreshOptionsModal";
 import { runAi } from "@/lib/ai/client";
 import { abbreviateSequence } from "@/lib/songs/sequence";
@@ -19,7 +19,7 @@ import { generateChartPdf } from "@/lib/songs/pdf";
 import ChordProEditor from "@/components/songs/ChordProEditor";
 import Modal from "@/components/ui/Modal";
 
-const PDF_NAMES = { numerals: "Numerals Chart", numbers: "Numbers Chart", lyrics: "Lyrics" };
+const PDF_NAMES = { numerals: "Numerals Chart", numbers: "Numbers Chart", lyrics: "Lyrics", words: "Words" };
 
 const CHORD_COLORS = { Blue: "#0921ff", Orange: "#d98a2b", Black: "#111", Green: "#2f9e5b", Red: "#d14b43" };
 
@@ -88,8 +88,9 @@ export default function ChordEditor() {
   const [arr, setArr] = useState(null);
   const [text, setText] = useState("");
   const [originalKey, setOriginalKey] = useState("C");
-  const [previewSel, setPreviewSel] = useState("original"); // "original" | key | "numbers" | "numerals" | "lyrics"
-  const [pdfs, setPdfs] = useState({ numerals: false, numbers: true, lyrics: true });
+  const [previewSel, setPreviewSel] = useState("original"); // "original" | key | "numbers" | "numerals" | "lyrics" | "words"
+  const [pdfs, setPdfs] = useState({ numerals: false, numbers: true, lyrics: true, words: false });
+  const [wordsTranslate, setWordsTranslate] = useState(true); // Words: tradu sequence-urile în RO (doar acest PDF)
   const [formatting, setFormatting] = useState({ font: "Courier, Monospaced", size: 16, chordColor: "Blue", columns: 1 });
   const [fmtOpen, setFmtOpen] = useState(false);
   const [keyOpen, setKeyOpen] = useState(false); // grila pt. Original Key
@@ -251,12 +252,13 @@ export default function ChordEditor() {
   // Modul + gama țintă pentru preview.
   const mode = ["numbers", "numerals", "lyrics"].includes(previewSel) ? previewSel : "chords";
   const targetKey = previewSel === "original" ? originalKey : (mode === "chords" ? previewSel : originalKey);
-  const lines = useMemo(() => renderChordPro(text, { mode, originalKey, targetKey }),
-    [text, mode, originalKey, targetKey]);
+  const isWords = previewSel === "words";
+  const lines = useMemo(() => (isWords ? buildWords(text, { translate: wordsTranslate }).lines : renderChordPro(text, { mode, originalKey, targetKey })),
+    [text, isWords, wordsTranslate, mode, originalKey, targetKey]);
   // Paginare în puncte (ca PDF) ca împărțirea pe pagini din preview să corespundă cu PDF-ul.
   const pages = useMemo(() => paginateLines(lines, { fontSize: formatting.size * 0.9 }), [lines, formatting.size]);
 
-  const keyLabel = mode === "lyrics" ? "Lyrics" : mode === "numbers" ? "Numbers" : mode === "numerals" ? "Numerals" : targetKey;
+  const keyLabel = isWords ? "Words" : mode === "lyrics" ? "Lyrics" : mode === "numbers" ? "Numbers" : mode === "numerals" ? "Numerals" : targetKey;
   const seqTokens = abbreviateSequence(arr?.sequence || []);
   const chordColor = CHORD_COLORS[formatting.chordColor] || CHORD_COLORS.Blue;
 
@@ -271,10 +273,10 @@ export default function ChordEditor() {
       const fresh = await songsApi.arrangement(id, aid); // ultimele fișiere
       const common = { title: song?.title, bpm: arr?.bpm, meter: arr?.meter, arrName: arr?.name, author: song?.author, seqTokens, chordColorHex: chordColor, fontSize: formatting.size };
 
-      // 1) Numerals / Numbers / Lyrics → card Arrangement (independente de gamă)
+      // 1) Numerals / Numbers / Lyrics / Words → card Arrangement (independente de gamă)
       for (const t of types) {
-        const lns = renderChordPro(text, { mode: t, originalKey, targetKey: originalKey });
-        const blob = await generateChartPdf({ ...common, keyLabel: t[0].toUpperCase() + t.slice(1), lines: lns });
+        const lns = t === "words" ? buildWords(text, { translate: wordsTranslate }).lines : renderChordPro(text, { mode: t, originalKey, targetKey: originalKey });
+        const blob = await generateChartPdf({ ...common, keyLabel: t[0].toUpperCase() + t.slice(1), lines: lns, variant: t === "words" ? "words" : "chart", seqTokens: t === "words" ? [] : common.seqTokens });
         const name = PDF_NAMES[t];
         for (const o of (fresh.arrangementFiles || []).filter((f) => f.source === "generated" && f.name === name)) {
           try { await songsApi.deleteFile(id, aid, o.id); } catch { /* endpoint nedeployat încă */ }
@@ -311,7 +313,7 @@ export default function ChordEditor() {
         <button className="back" onClick={() => router.push(`/songs/${id}`)}>‹ Back</button>
         <div className="pdfs">
           <span className="pdfs-l">Create PDFs:</span>
-          {["numerals", "numbers", "lyrics"].map((k) => (
+          {["numerals", "numbers", "lyrics", "words"].map((k) => (
             <button key={k} className={`pdf-toggle ${pdfs[k] ? "on" : ""}`} onClick={() => setPdfs((p) => ({ ...p, [k]: !p[k] }))}>
               {pdfs[k] ? "✓ " : ""}{k[0].toUpperCase() + k.slice(1)}
             </button>
@@ -368,10 +370,21 @@ export default function ChordEditor() {
                   <button onClick={() => { setPreviewSel("numbers"); setPreviewOpen(false); }}>Numbers</button>
                   <button onClick={() => { setPreviewSel("numerals"); setPreviewOpen(false); }}>Numerals</button>
                   <button onClick={() => { setPreviewSel("lyrics"); setPreviewOpen(false); }}>Lyrics</button>
+                  <button onClick={() => { setPreviewSel("words"); setPreviewOpen(false); }}>Words</button>
                 </div>
               </div>
             )}
           </div>
+          {isWords && (
+            <div className="words-tt" title="Conversia sequence-urilor în română (doar acest PDF)">
+              <button className={wordsTranslate ? "on" : ""} onClick={() => setWordsTranslate(true)} title="Traduce secțiunile în română">
+                <svg width="20" height="14" viewBox="0 0 20 14"><rect x="0" y="0" width="6.67" height="14" fill="#002B7F"/><rect x="6.67" y="0" width="6.67" height="14" fill="#FCD116"/><rect x="13.33" y="0" width="6.67" height="14" fill="#CE1126"/></svg>
+              </button>
+              <button className={!wordsTranslate ? "on" : ""} onClick={() => setWordsTranslate(false)} title="Fără conversie — lasă denumirile ca în editor">
+                <svg width="20" height="14" viewBox="0 0 20 14"><rect x="0.5" y="0.5" width="19" height="13" rx="1.5" fill="none" stroke="currentColor" opacity=".5"/><line x1="2" y1="12" x2="18" y2="2" stroke="#CE1126" strokeWidth="1.8"/></svg>
+              </button>
+            </div>
+          )}
           <div className="auto">
             <span className="ar">✓ Auto-refresh</span>
             {status && <span className="st">{status}</span>}
@@ -389,11 +402,15 @@ export default function ChordEditor() {
         <div className="preview-wrap">
           {pages.map((pageLines, pi) => (
             <div className="sheet" key={pi} style={{ columnCount: formatting.columns || 1 }}>
-              <div className="hdr">
-                <div className="hdr-title">{song?.title || "…"} <span className="hdr-key">[{keyLabel}, {arr?.bpm || "—"} bpm, {arr?.meter || "4/4"}]</span></div>
-                <div className="hdr-arr">[{arr?.name}]{song?.author ? <> by <b>{song.author}</b></> : null}</div>
-                {seqTokens.length > 0 && <div className="hdr-seq">{seqTokens.join(", ")}</div>}
-              </div>
+              {isWords ? (
+                pi === 0 ? <div className="hdr-words">{song?.title || "…"}</div> : null
+              ) : (
+                <div className="hdr">
+                  <div className="hdr-title">{song?.title || "…"} <span className="hdr-key">[{keyLabel}, {arr?.bpm || "—"} bpm, {arr?.meter || "4/4"}]</span></div>
+                  <div className="hdr-arr">[{arr?.name}]{song?.author ? <> by <b>{song.author}</b></> : null}</div>
+                  {seqTokens.length > 0 && <div className="hdr-seq">{seqTokens.join(", ")}</div>}
+                </div>
+              )}
               <div className="body" style={{ fontSize: formatting.size, lineHeight: 1.7 }}>
                 {pageLines.map((ln, i) => {
                   if (ln.kind === "empty") return <div key={i} className="pl">&nbsp;</div>;
@@ -513,6 +530,11 @@ export default function ChordEditor() {
         .keymode button { flex: 1; height: 32px; }
         .ctrl-sel { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 5px; height: 30px; padding: 0 10px; cursor: pointer; min-width: 110px; text-align: left; }
         .ctrl-sel.wide { min-width: 150px; }
+        .words-tt { display: inline-flex; gap: 4px; margin-left: 10px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 7px; padding: 3px; }
+        .words-tt button { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 26px; background: transparent; border: none; border-radius: 5px; cursor: pointer; color: var(--text-dim); opacity: .55; }
+        .words-tt button:hover { opacity: .85; }
+        .words-tt button.on { background: var(--surface-3); opacity: 1; box-shadow: 0 0 0 1px var(--primary) inset; }
+        .hdr-words { font-weight: 700; font-size: 18px; color: #111; background: #fff; padding: 2px 0 14px; }
         .options { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 5px; height: 30px; padding: 0 12px; cursor: pointer; }
         .reset-ch { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 5px; height: 30px; width: 34px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
         .reset-ch:hover { color: var(--text); border-color: var(--primary); }

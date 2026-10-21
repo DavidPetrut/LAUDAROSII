@@ -33,7 +33,7 @@ const stripFmt = (s) => String(s || "").replace(/<\/?[biu]>/gi, "");
 
 export async function generateChartPdf({
   title, keyLabel, bpm, meter, arrName, author, seqTokens = [], lines = [],
-  chordColorHex = "#2f6fe0", fontSize = 16,
+  chordColorHex = "#2f6fe0", fontSize = 16, variant = "chart",
 }) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "pt", format: "a4" });
@@ -54,7 +54,16 @@ export async function generateChartPdf({
   const [cr, cg, cb] = hexToRgb(chordColorHex);
   let y = 0;
 
-  function header() {
+  function header(pi) {
+    // „Words": fără chenar gri; doar titlul bold, o singură dată, pe prima pagină.
+    if (variant === "words") {
+      if (pi === 0) {
+        doc.setFont(FH, "bold"); doc.setFontSize(18); doc.setTextColor(17, 17, 17);
+        doc.text(title || "", margin, 40);
+        y = 62;
+      } else { y = margin + 6; }
+      return;
+    }
     const bx = margin - 10, bw = pageW - 2 * (margin - 10), bh = 66;
     doc.setFillColor(237, 238, 240);
     doc.roundedRect(bx, 16, bw, bh, 2, 2, "F"); // card gri aproape PĂTRAT, ca PCO
@@ -70,7 +79,7 @@ export async function generateChartPdf({
   const pages = paginateLines(lines, { fontSize: fs });
   pages.forEach((pageLines, pi) => {
     if (pi > 0) doc.addPage();
-    header();
+    header(pi);
     doc.setFont(F, "normal"); doc.setFontSize(fs);
     for (const ln of pageLines) {
       if (ln.kind === "empty") { y += fs * 0.9; continue; }
