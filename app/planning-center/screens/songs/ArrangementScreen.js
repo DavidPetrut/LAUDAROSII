@@ -25,6 +25,8 @@ export function ArrangementScreen({ navigation, route }) {
   const canEdit = !!me?.capabilities?.songsEdit;
   const [arr, setArr] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [notes, setNotes] = useState(""); // notițe aranjament (sincronizate cu web-ul)
+  const [notesSaving, setNotesSaving] = useState(false);
 
   // Add/Edit Key sheet
   const [keySheet, setKeySheet] = useState(false);
@@ -80,6 +82,7 @@ export function ArrangementScreen({ navigation, route }) {
     try {
       const [a, cat] = await Promise.all([pcApi.songs.arrangement(songId, arrangementId), pcApi.songs.tags("arrangement").catch(() => ({ groups: [] }))]);
       setArr(a);
+      setNotes(a?.notes || "");
       const map = {}; (cat.groups || []).forEach((g) => g.tags.forEach((t) => { map[String(t.id)] = t.name; }));
       setTagNames(map);
     } catch (e) { showError(e?.message || "Eroare la aranjament."); }
@@ -88,6 +91,14 @@ export function ArrangementScreen({ navigation, route }) {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const saveTags = async (ids) => { await pcApi.songs.setArrangementTags(songId, arrangementId, ids); await load(); };
+
+  const saveNotes = async () => {
+    if ((arr?.notes || "") === notes) return;
+    setNotesSaving(true);
+    try { await pcApi.songs.updateArrangement(songId, arrangementId, { notes }); setArr((a) => (a ? { ...a, notes } : a)); }
+    catch (e) { showError(e?.message || "Nu am putut salva notițele."); }
+    finally { setNotesSaving(false); }
+  };
 
   const openAddKey = () => { setEditingKey(null); setStartKey(""); setEndKey(""); setDescription(""); setImportMt(false); setKeySheet(true); };
   const openEditKey = (k) => { setEditingKey(k); setStartKey(k.startKey); setEndKey(k.endKey && k.endKey !== "Same" ? k.endKey : ""); setDescription(k.description || ""); setImportMt(false); setKeySheet(true); };
@@ -216,6 +227,17 @@ export function ArrangementScreen({ navigation, route }) {
             {(arr.tagIds || []).map((id) => <PcChip key={String(id)} label={tagNames[String(id)] || "…"} />)}
             {(arr.tagIds || []).length === 0 && <Text style={styles.noFiles}>Niciun tag de aranjament.</Text>}
           </View>
+
+          <View style={styles.keysHead}>
+            <PcSectionTitle style={{ marginTop: 20, marginBottom: 0 }}>Notes</PcSectionTitle>
+            {notesSaving && <Text style={styles.notesSaving}>se salvează…</Text>}
+          </View>
+          {canEdit ? (
+            <TextInput style={styles.notesInput} value={notes} onChangeText={setNotes} onBlur={saveNotes}
+              multiline placeholder="Notițe pentru acest aranjament…" placeholderTextColor={pcColors.textMuted} />
+          ) : (
+            <Text style={notes ? styles.notesRead : styles.noFiles}>{notes || "Nicio notiță."}</Text>
+          )}
         </ScrollView>
       )}
 
@@ -321,6 +343,9 @@ const styles = StyleSheet.create({
   input: { color: pcColors.textPrimary, fontSize: 16, backgroundColor: pcColors.input, borderWidth: 1, borderColor: pcColors.inputBorder, borderRadius: 10, paddingHorizontal: 12, height: 48 },
   mtRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 16 },
   mtTxt: { color: pcColors.textPrimary, fontSize: 15 },
+  notesSaving: { color: pcColors.textMuted, fontSize: 12, marginTop: 20 },
+  notesInput: { color: pcColors.textPrimary, fontSize: 15, lineHeight: 21, backgroundColor: pcColors.input, borderWidth: 1, borderColor: pcColors.inputBorder, borderRadius: 10, padding: 12, marginTop: 10, minHeight: 90, textAlignVertical: "top" },
+  notesRead: { color: pcColors.textSecondary, fontSize: 14, lineHeight: 21, marginTop: 10 },
 });
 
 export default ArrangementScreen;

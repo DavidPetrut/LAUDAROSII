@@ -76,4 +76,7 @@ export const songsApi = {
   importPcoParse: (file) => { const fd = new FormData(); fd.append("file", file); return api.post("/songs/import-pco-pdf/parse", fd); },
   importPcoCommit: (payload) => api.post("/songs/import-pco-pdf/commit", payload),
   saveChordChart: (id, aid, payload) => api.put(`/songs/${id}/arrangements/${aid}/chordchart`, payload),
+  youtubeTitle: (url) => api.get(`/songs/meta/youtube-title?url=${encodeURIComponent(url)}`),
+  deleteSong: (id) => api.del(`/songs/${id}`),
+  deleteSongInfo: (id) => api.get(`/songs/${id}/delete-info`),
 };

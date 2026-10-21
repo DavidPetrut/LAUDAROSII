@@ -19,6 +19,28 @@ const router = express.Router();
 let _multer = null;
 try { const multer = require("multer"); _multer = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } }); } catch (e) { /* 503 */ }
 
+// Cloudinary lazy — pt. CURĂȚAREA fișierelor la ștergerea unui cântec (eliberare spațiu).
+let _cloud = null, _cloudOk = false;
+try {
+  _cloud = require("cloudinary").v2;
+  if (process.env.CLOUDINARY_URL) _cloudOk = true;
+  else if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+    _cloud.config({ cloud_name: process.env.CLOUDINARY_CLOUD_NAME, api_key: process.env.CLOUDINARY_API_KEY, api_secret: process.env.CLOUDINARY_API_SECRET });
+    _cloudOk = true;
+  }
+} catch (e) { /* fără curățare Cloudinary */ }
+
+// Derivă {resource_type, public_id} dintr-un secure_url Cloudinary (raw păstrează extensia în public_id).
+function cloudinaryRef(url) {
+  const m = /res\.cloudinary\.com\/[^/]+\/(image|video|raw)\/upload\/(?:v\d+\/)?(.+)$/.exec(String(url || ""));
+  if (!m) return null;
+  const resource_type = m[1];
+  let publicId = m[2].split("?")[0];
+  if (resource_type !== "raw") publicId = publicId.replace(/\.[^./]+$/, ""); // image/video: formatul e separat de public_id
+  try { publicId = decodeURIComponent(publicId); } catch (e) { /* lasă-l */ }
+  return { resource_type, public_id: publicId };
+}
+
 const OID = (v) => (mongoose.Types.ObjectId.isValid(v) ? new mongoose.Types.ObjectId(v) : null);
 const fmtLen = (s) => { const x = Math.max(0, Math.floor(s || 0)); return `${Math.floor(x / 60)}:${String(x % 60).padStart(2, "0")}`; };
 const keyLabel = (k) => (k.endKey && k.endKey !== "Same" && k.endKey !== k.startKey ? `${k.startKey} → ${k.endKey}` : k.startKey);
@@ -131,6 +153,18 @@ router.post("/import-pco-pdf/commit", requireCan("songs.edit"), async (req, res)
   } catch (err) { console.error("[pc] import-pco commit:", err.message); res.status(500).json({ error: "Eroare: " + err.message }); }
 });
 
+/* GET /meta/youtube-title?url= — titlul unui video YouTube (oEmbed), pt. prepopularea numelui fișierului. */
+router.get("/meta/youtube-title", requireCan("people.view"), async (req, res) => {
+  try {
+    const url = String(req.query.url || "");
+    if (!/youtu\.?be/i.test(url)) return res.json({ title: "" });
+    const r = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return res.json({ title: "" });
+    const j = await r.json();
+    res.json({ title: j.title || "", author: j.author_name || "" });
+  } catch (e) { res.json({ title: "" }); }
+});
+
 /* ───────── PATCH /:id — editează „Song Information" (title/ccli/author/copyright/admin/notes/themes) ───────── */
 router.patch("/:id", requireCan("songs.edit"), async (req, res) => {
   try {
@@ -145,6 +179,57 @@ router.patch("/:id", requireCan("songs.edit"), async (req, res) => {
     if (!s) return res.status(404).json({ error: "Cântec inexistent." });
     res.json({ ok: true });
   } catch (err) { console.error("[pc] PATCH /songs/:id:", err.message); res.status(500).json({ error: "Eroare la salvare." }); }
+});
+
+/* GET /:id/delete-info — câte aranjamente/fișiere s-ar șterge (pt. confirmarea ștergerii). */
+router.get("/:id/delete-info", requireCan("people.view"), async (req, res) => {
+  try {
+    const id = OID(req.params.id);
+    const song = await PcSong.findOne(scoped(req, { _id: id })).select("title").lean();
+    if (!song) return res.status(404).json({ error: "Cântec inexistent." });
+    const arrs = await PcArrangement.find(scoped(req, { songId: id })).select("_id").lean();
+    const arrIds = arrs.map((a) => a._id);
+    const match = scoped(req, { $or: [{ songId: id }, { arrangementId: { $in: arrIds } }] });
+    const files = await PcSongFile.countDocuments({ ...match, source: { $ne: "chordpro" } }); // fără masterul ChordPro
+    res.json({ title: song.title, arrangements: arrs.length, files });
+  } catch (err) { console.error("[pc] delete-info:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
+/* DELETE /:id — șterge DEFINITIV cântecul: toate aranjamentele, cheile, fișierele (DB) +
+   fișierele urcate de noi din Cloudinary (DOAR dacă nu-s folosite de alt cântec → eliberare curată). */
+router.delete("/:id", requireCan("songs.edit"), async (req, res) => {
+  try {
+    const id = OID(req.params.id);
+    const song = await PcSong.findOne(scoped(req, { _id: id })).select("_id").lean();
+    if (!song) return res.status(404).json({ error: "Cântec inexistent." });
+    const arrs = await PcArrangement.find(scoped(req, { songId: id })).select("_id").lean();
+    const arrIds = arrs.map((a) => a._id);
+    const match = scoped(req, { $or: [{ songId: id }, { arrangementId: { $in: arrIds } }] });
+    const files = await PcSongFile.find(match).lean();
+
+    // 1) Curăță Cloudinary — doar URL-uri Cloudinary, și NUMAI dacă același fișier nu e folosit de alt cântec.
+    let cloudRemoved = 0, cloudSkipped = 0;
+    if (_cloudOk) {
+      const seen = new Set();
+      for (const f of files) {
+        const ref = cloudinaryRef(f.url);
+        if (!ref || seen.has(f.url)) continue;
+        seen.add(f.url);
+        const usedElsewhere = await PcSongFile.countDocuments(scoped(req, { url: f.url, songId: { $ne: id } }));
+        if (usedElsewhere > 0) { cloudSkipped++; continue; }
+        try { await _cloud.uploader.destroy(ref.public_id, { resource_type: ref.resource_type, invalidate: true }); cloudRemoved++; }
+        catch (e) { console.error("[pc] cloudinary destroy:", ref.public_id, e.message); }
+      }
+    }
+
+    // 2) Șterge hard din DB (fișiere → chei → aranjamente → cântec).
+    await PcSongFile.deleteMany(match);
+    await PcKey.deleteMany(scoped(req, { $or: [{ songId: id }, { arrangementId: { $in: arrIds } }] }));
+    await PcArrangement.deleteMany(scoped(req, { songId: id }));
+    await PcSong.deleteOne(scoped(req, { _id: id }));
+
+    res.json({ ok: true, arrangements: arrs.length, files: files.length, cloudRemoved, cloudSkipped });
+  } catch (err) { console.error("[pc] DELETE song:", err.message); res.status(500).json({ error: "Eroare: " + err.message }); }
 });
 
 /* ───────── GET /:id — detaliu cântec + aranjamente ───────── */
@@ -182,6 +267,7 @@ router.get("/:id/arrangements/:aid", requireCan("people.view"), async (req, res)
       id: arr._id, songId: arr.songId, name: arr.name,
       lengthLabel: fmtLen(arr.lengthSec), lengthSec: arr.lengthSec, bpm: arr.bpm, meter: arr.meter,
       sequence: arr.sequence || [], albumArtUrl: arr.albumArtUrl || "", tagIds: (arr.tagIds || []).map(String),
+      notes: arr.notes || "",
       chordChart: { exists: hasChordChart, originalKey: master?.originalKey || "" },
       // Coloana „Arrangement" = DOAR fișiere reale (Numbers/Lyrics/PDF-uri generate). Chart-ul în gamă
       // NU se derivă aici — el apare în coloana cheii respective (care deja spune gama + chord chart).
@@ -239,7 +325,7 @@ router.post("/:id/arrangements/reorder", requireCan("songs.edit"), async (req, r
 router.patch("/:id/arrangements/:aid", requireCan("songs.edit"), async (req, res) => {
   try {
     const b = req.body || {}; const set = {};
-    ["name", "meter"].forEach((k) => b[k] !== undefined && (set[k] = String(b[k])));
+    ["name", "meter", "notes"].forEach((k) => b[k] !== undefined && (set[k] = String(b[k])));
     if (b.bpm !== undefined) set.bpm = Number(b.bpm) || null;
     if (b.lengthSec !== undefined) set.lengthSec = Number(b.lengthSec) || 0;
     if (Array.isArray(b.sequence)) set.sequence = b.sequence;

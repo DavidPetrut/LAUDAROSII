@@ -26,6 +26,7 @@ export default function AddFileModal({ songId, arrangementId, keys = [], onClose
   const [pco, setPco] = useState(null); // rezultat parse PCO PDF
   const [link, setLink] = useState("");
   const [name, setName] = useState("");
+  const [nameEdited, setNameEdited] = useState(false); // userul a scris numele manual → nu-l suprascriem
   const [attachKey, setAttachKey] = useState(""); // "" = Arrangement (global), altfel keyId
   const [tag, setTag] = useState("");
   const [stream, setStream] = useState("YouTube");
@@ -53,6 +54,13 @@ export default function AddFileModal({ songId, arrangementId, keys = [], onClose
       }
     } catch (e) { setErr(e?.message || "Upload eșuat."); }
     finally { setBusy(false); }
+  }
+
+  // YouTube: prepopulează numele cu titlul videoclipului (editabil dacă userul nu l-a schimbat deja).
+  async function fetchYtName(url) {
+    const u = (url || "").trim();
+    if (!u || nameEdited || !/youtu\.?be/i.test(u)) return;
+    try { const r = await songsApi.youtubeTitle(u); if (r?.title && !nameEdited) setName(r.title); } catch {}
   }
 
   async function submit() {
@@ -135,21 +143,21 @@ export default function AddFileModal({ songId, arrangementId, keys = [], onClose
             {STREAMS.map((s) => <button key={s} className={stream === s ? "on" : ""} onClick={() => setStream(s)}>{s}</button>)}
           </div>
           <label className="lbl">Link {stream}</label>
-          <input className="input" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" />
+          <input className="input" value={link} onChange={(e) => setLink(e.target.value)} onBlur={() => fetchYtName(link)} placeholder="https://…" />
         </>
       )}
 
       {mode === "link" && (
         <>
           <label className="lbl">Link</label>
-          <input className="input" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" />
+          <input className="input" value={link} onChange={(e) => setLink(e.target.value)} onBlur={() => fetchYtName(link)} placeholder="https://…" />
         </>
       )}
 
       {mode !== "pcopdf" && (
         <>
           <label className="lbl">Name</label>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nume fișier" />
+          <input className="input" value={name} onChange={(e) => { setName(e.target.value); setNameEdited(true); }} placeholder="Nume fișier" />
 
           <div className="two">
             <div>

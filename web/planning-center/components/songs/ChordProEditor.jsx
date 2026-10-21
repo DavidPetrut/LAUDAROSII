@@ -123,6 +123,7 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
       major: token, minorForm: token + "m",
       degrees: diatonicDegrees(defaultKey || "C", numeric),
       items: chordVariations(content || "C"), view: "bar",
+      firstRow: value.lastIndexOf("\n", innerStart - 1) === -1, // acord pe PRIMUL rând → n-are loc sus
     };
   }
   function openPickerAtCaret() {
@@ -372,7 +373,11 @@ export default function ChordProEditor({ value, onChange, fontSize = 16, customL
           const w = pick.view === "more" ? 340 : pick.view === "deg" ? 380 : 110; // lățime aprox. după view
           const taW = taRef.current ? taRef.current.clientWidth : 800;
           const left = Math.max(w / 2 + 8, Math.min(pick.x, taW - w / 2 - 8)); // centrat, clamp pe X după view
-          const top = Math.max(4, pick.y - (pick.view === "more" ? 228 : pick.view === "deg" ? 60 : 52));
+          // Primul row: n-ai loc sus (acolo e INTRO-ul) → pune toolbar-ul SUB acord (jos e spațiu infinit).
+          const lh = taRef.current ? (parseFloat(getComputedStyle(taRef.current).lineHeight) || 21) : 21;
+          const top = pick.firstRow
+            ? pick.y + lh + 6
+            : Math.max(4, pick.y - (pick.view === "more" ? 228 : pick.view === "deg" ? 60 : 52));
           return { left, transform: "translateX(-50%)", top };
         })()}>
           {pick.view === "bar" ? (

@@ -75,6 +75,8 @@ export default function SongDetail() {
   const [infoFor, setInfoFor] = useState(null); // { f, top, left }
   const [infoName, setInfoName] = useState("");
   const [detBusy, setDetBusy] = useState(false);
+  const [notesDraft, setNotesDraft] = useState(""); // Notes per aranjament (editabile, se propagă pe mobil)
+  const [notesSaving, setNotesSaving] = useState(false);
   const openInfo = (f, el) => {
     const r = el.getBoundingClientRect();
     setInfoFor({ f, top: r.bottom + 6, left: Math.min(r.right, (typeof window !== "undefined" ? window.innerWidth : 9999) - 16) });
@@ -307,6 +309,14 @@ export default function SongDetail() {
   // ── edits ──
   const patchArr = async (payload) => { await songsApi.updateArrangement(id, arrId, payload); await loadArr(); await loadSong(); };
   const saveSequence = async (seq) => { await patchArr({ sequence: seq }); setModal(null); };
+  // Notes: sincronizează draftul la schimbarea aranjamentului; salvează la blur (se propagă și pe mobil).
+  useEffect(() => { setNotesDraft(arr?.notes || ""); }, [arrId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const saveNotes = async () => {
+    if ((arr?.notes || "") === notesDraft) return;
+    setNotesSaving(true);
+    try { await patchArr({ notes: notesDraft }); } catch (e) { setToast("Nu am putut salva notițele."); setTimeout(() => setToast(""), 3000); }
+    finally { setNotesSaving(false); }
+  };
   const addKey = async (payload) => { await songsApi.addKey(id, arrId, payload); setModal(null); await loadArr(); };
   const addArrangement = async (payload) => { const r = await songsApi.addArrangement(id, payload); setModal(null); setArrId(r.id); await loadSong(); };
   const saveInfo = async (payload) => { await songsApi.patchSong(id, payload); setModal(null); await loadSong(); };
@@ -512,8 +522,9 @@ export default function SongDetail() {
                   <TagSet label="Cântec" ids={song.tagIds || []} tagMap={tagMap} onEdit={() => setTagModal("song")} />
                 </div>
                 <div className="panel">
-                  <div className="panel-h">Notes</div>
-                  <div className="panel-sub dim">{arr.notes || ""}</div>
+                  <div className="panel-h">Notes{notesSaving ? <span className="notes-saving"> · se salvează…</span> : null}</div>
+                  <textarea className="notes-ta" value={notesDraft} onChange={(e) => setNotesDraft(e.target.value)} onBlur={saveNotes}
+                    placeholder="Notițe pentru acest aranjament (se văd și pe telefon)…" />
                 </div>
               </div>
             </>
@@ -817,6 +828,11 @@ export default function SongDetail() {
         .panel { border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 90px; }
         .panel-h { font-weight: 600; margin-bottom: 8px; }
         .panel-sub { font-size: 13px; }
+        .notes-saving { font-weight: 400; font-size: 11.5px; color: var(--text-faint); }
+        .notes-ta { width: 100%; min-height: 72px; resize: vertical; background: var(--surface-2); border: 1px solid var(--border-strong);
+          border-radius: 6px; color: var(--text); font-size: 13px; line-height: 1.5; padding: 8px 10px; font-family: inherit; }
+        .notes-ta:focus { outline: none; border-color: var(--primary); }
+        .notes-ta::placeholder { color: var(--text-faint); }
       `}</style>
     </div>
   );
