@@ -10,7 +10,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useParams, useRouter } from "next/navigation";
 import { api, songsApi } from "@/lib/api/client";
 import { isAuthed } from "@/lib/auth/auth";
-import { renderChordPro, ALL_KEYS, lyricToHtml, isSection, convertBrackets, simplifyBrackets, stripAllBrackets, buildWords, wordsTextToLines } from "@/lib/songs/chordpro";
+import { renderChordPro, ALL_KEYS, lyricToHtml, isSection, convertBrackets, simplifyBrackets, stripAllBrackets, buildWords, wordsTextToLines, sequenceFromChordpro } from "@/lib/songs/chordpro";
 import RefreshOptionsModal from "@/components/songs/RefreshOptionsModal";
 import { runAi } from "@/lib/ai/client";
 import { abbreviateSequence } from "@/lib/songs/sequence";
@@ -276,7 +276,8 @@ export default function ChordEditor() {
   const pages = useMemo(() => paginateLines(lines, { fontSize: formatting.size * 0.9 }), [lines, formatting.size]);
 
   const keyLabel = isWords ? "Words" : mode === "lyrics" ? "Lyrics" : mode === "numbers" ? "Numbers" : mode === "numerals" ? "Numerals" : targetKey;
-  const seqTokens = abbreviateSequence(arr?.sequence || []);
+  // Sequence DINAMIC: din secțiunile reale din chart (nu din sequence-ul standard al melodiei).
+  const seqTokens = useMemo(() => sequenceFromChordpro(text), [text]);
   const chordColor = CHORD_COLORS[formatting.chordColor] || CHORD_COLORS.Blue;
 
   // ── Generează PDF-urile selectate (explicit, ca să NU se adune fișiere). Șterge vechiul de același fel. ──

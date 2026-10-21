@@ -218,6 +218,38 @@ export function buildWords(text, { translate = true } = {}) {
   return { lines: out, mapping: [...mapping.entries()].map(([en, ro]) => ({ en, ro })) };
 }
 
+// ── Sequence DINAMIC: tokenii de sub titlu, derivați din secțiunile REALE din chart (nu din sequence-ul standard al melodiei) ──
+const SEQ_ABBR = { verse: "V", strofa: "V", chorus: "C", refren: "C", refrain: "R", bridge: "B", punte: "B", intro: "Intro", outro: "O", ending: "E", instrumental: "Inst", interlude: "Interlude", tag: "Tag", turnaround: "Turn", vamp: "Vamp", prechorus: "Pre", postchorus: "Po", breakdown: "Breakdown", solo: "Solo", coda: "Coda", final: "Final", coro: "C" };
+const SEQ_WORDS = "verse|chorus|pre[- ]?chorus|post[- ]?chorus|bridge|intro|outro|ending|instrumental|interlude|tag|turnaround|vamp|refrain|solo|coda|breakdown|strofa|refren|punte|final|coro";
+const SEQ_HEAD_RE = new RegExp(`^(${SEQ_WORDS})\\s*(\\d+)?\\s*:`, "i");
+
+/** Abrevierea PCO a unei etichete (folosește numărul PROPRIU al etichetei: „Verse 1"→V1, „Verse"→V). */
+function seqToken(word, num) {
+  const w = String(word).toLowerCase().replace(/[\s-]/g, "");
+  const abbr = SEQ_ABBR[w] || (word[0] ? word[0].toUpperCase() + word.slice(1).toLowerCase() : word);
+  return abbr + (num || "");
+}
+
+/** Tokenii de sequence derivați din secțiunile care apar efectiv în ChordPro (în ordine, cu ×N pt. repetări consecutive). */
+export function sequenceFromChordpro(text) {
+  const raw = [];
+  for (const line of String(text || "").replace(/\r\n?/g, "\n").split("\n")) {
+    const { lyric } = parseLine(line);
+    const head = lyric.replace(/\./g, " ").replace(/\(.*$/, "").trim();
+    let m = SEQ_HEAD_RE.exec(head); // etichetă cu „:" (inclusiv instrumentale inline: „INTRO: |…")
+    if (!m && isSection(head)) m = /^([A-Za-zăâîșțĂÂÎȘȚ -]+?)\s*(\d+)?\s*:?\s*$/.exec(head);
+    if (m) raw.push(seqToken(m[1].trim(), m[2] || ""));
+  }
+  // comasează repetările consecutive identice → ×N
+  const out = [];
+  for (const tk of raw) {
+    const prev = out[out.length - 1];
+    if (prev && prev.base === tk) prev.mult++;
+    else out.push({ base: tk, mult: 1 });
+  }
+  return out.map((t) => (t.mult > 1 ? `${t.base}×${t.mult}` : t.base));
+}
+
 // Etichetele RO ale secțiunilor din „Words" (pt. a parsa textul Words editabil înapoi în linii).
 export const WORDS_RO_LABEL = /^(Strofa(\s+\d+)?|Refren(\s+2)?|Pre-refren|Bridge|Repetare)$/;
 export function wordsTextToLines(txt) {

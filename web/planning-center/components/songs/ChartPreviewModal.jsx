@@ -6,8 +6,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api/client";
-import { renderChordPro, lyricToHtml, buildWords, wordsTextToLines } from "@/lib/songs/chordpro";
-import { abbreviateSequence } from "@/lib/songs/sequence";
+import { renderChordPro, lyricToHtml, buildWords, wordsTextToLines, sequenceFromChordpro } from "@/lib/songs/chordpro";
 import { paginateLines } from "@/lib/songs/paginate";
 import { generateChartPdf } from "@/lib/songs/pdf";
 
@@ -43,7 +42,7 @@ export default function ChartPreviewModal({ songId, arrId, song, arr, mode = "ch
     : renderChordPro(text, { mode, originalKey, targetKey: tk })), [text, isWords, storedWords, arr, mode, originalKey, tk]);
   const pages = useMemo(() => paginateLines(lines, { fontSize: 18 * 0.9 }), [lines]);
   const keyLabel = isWords ? "Words" : mode === "lyrics" ? "Lyrics" : mode === "numbers" ? "Numbers" : mode === "numerals" ? "Numerals" : (targetKey || originalKey);
-  const seqTokens = isWords ? [] : abbreviateSequence(arr?.sequence || []);
+  const seqTokens = isWords ? [] : sequenceFromChordpro(text);
 
   const buildPdf = useCallback(() => generateChartPdf({
     title: isWords ? wordsTitle : song?.title, keyLabel, bpm: arr?.bpm, meter: arr?.meter, arrName: arr?.name, author: song?.author,
