@@ -77,16 +77,26 @@ const map = {
     createdByPersonId: ctx.local("Person", relId(r, "created_by")),
   }),
 
-  plan_time: (r, ctx) => ({
-    planId: ctx.local("Plan", relId(r, "plan")),
-    type: A(r).time_type || "service",
-    name: A(r).name || "",
-    startsAt: A(r).starts_at,
-    endsAt: A(r).ends_at || null,
-    assignedTeamIds: (A(r).scheduled_team_ids || []).map((id) => ctx.local("Team", String(id))).filter(Boolean),
-    teamReminders: A(r).team_reminders || {},
-    recorded: !!A(r).recorded,
-  }),
+  plan_time: (r, ctx) => {
+    // team_reminders din PCO poate avea chei/valori nevalide → curăț la {string:number} (Map sigur).
+    const reminders = {};
+    const tr = A(r).team_reminders;
+    if (tr && typeof tr === "object" && !Array.isArray(tr)) {
+      for (const [k, v] of Object.entries(tr)) {
+        if (k != null && k !== "undefined" && v != null && !isNaN(Number(v))) reminders[String(k)] = Number(v);
+      }
+    }
+    return {
+      planId: ctx.local("Plan", relId(r, "plan")),
+      type: A(r).time_type || "service",
+      name: A(r).name || "",
+      startsAt: A(r).starts_at,
+      endsAt: A(r).ends_at || null,
+      assignedTeamIds: (A(r).scheduled_team_ids || []).map((id) => ctx.local("Team", String(id))).filter(Boolean),
+      teamReminders: reminders,
+      recorded: !!A(r).recorded,
+    };
+  },
 
   item: (r, ctx) => ({
     planId: ctx.local("Plan", relId(r, "plan")),
