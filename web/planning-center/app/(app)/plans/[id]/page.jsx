@@ -19,6 +19,12 @@ function Avatar({ p }) {
     : <span className="av ini">{p.initials || "?"}</span>;
 }
 
+/* icon status identic cu Matrix: confirmat = bifă verde; neconfirmat = „?" galben */
+function StatusIcon({ s }) {
+  if (s === "confirmed") return <span className="sic"><svg width="13" height="13" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#57b98a" /><path d="M4.5 8.2l2.2 2.2 4.8-4.8" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg></span>;
+  return <span className="sic"><svg width="13" height="13" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7.2" fill="none" stroke="#c9a227" strokeWidth="1.6" /><text x="8" y="11.5" textAnchor="middle" fontSize="9" fill="#c9a227" fontWeight="700">?</text></svg></span>;
+}
+
 export default function PlanDetailPage() {
   const router = useRouter();
   const { id } = useParams();
@@ -182,7 +188,7 @@ function TeamCol({ t }) {
           <div className="pos-name">{g.positionName || "—"}</div>
           {(g.people || []).map((p, pi) => p.needed
             ? <div key={pi} className="need">Needed</div>
-            : <div key={pi} className="pers"><Avatar p={p} /><span className="pn">{p.name}</span><span className="dot" style={{ background: STATUS_COLOR[p.status] || "#6b7580" }} /></div>
+            : <div key={pi} className="pers"><StatusIcon s={p.status} /><span className="pn">{p.name}</span></div>
           )}
         </div>
       ))}
@@ -197,7 +203,7 @@ function TeamCol({ t }) {
         .pos-name { color: var(--text-faint); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 6px; }
         .pers { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
         .pn { color: var(--text); font-size: 13px; flex: 1; }
-        .dot { width: 7px; height: 7px; border-radius: 50%; }
+        .sic { display: inline-flex; flex: none; }
         .need { color: var(--primary); font-size: 12px; border: 1px dashed var(--primary); border-radius: 6px; padding: 3px 8px; display: inline-block; margin: 2px 0; }
         .pos-empty { color: var(--text-faint); font-size: 12px; }
       `}</style>
