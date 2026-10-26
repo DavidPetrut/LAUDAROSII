@@ -43,6 +43,9 @@ Data: noapte 26→27 oct 2026. Tot codul e **comis + pushed pe `master`** (Rende
 - **SIM1 → SIM2:** buton ⧉ pe antetul echipei → **replică toate asignările pe echipa pereche** (după nume poziție).
 - **Editare asignare** (modalul „Editing Scheduled Person"): creion pe persoană → **Confirmed / Pending /
   Declined** + Remove. Totul **local, fără email**.
+- **Editor „Needed"** în celulă: control **− / N / + / „+ Needed"** (setează câte persoane sunt necesare).
+- **Add Plans** modal (Quantity + Starting On) → creează N planuri săptămânale (doar la Submit).
+- **Teams tab**: iconițe status (bifă verde / „?" galben) la stânga numelui + counts per echipă.
 
 ### 4. Backend (endpoint-uri noi, toate FĂRĂ email)
 - `GET /plans/:id/recommend` — recomandări + conflicte pentru bara dreaptă.
@@ -80,18 +83,20 @@ Data: noapte 26→27 oct 2026. Tot codul e **comis + pushed pe `master`** (Rende
 - Matrix/Teams: dacă vreo iconiță/culoare/aliniere diferă de PCO, notează-mi și reglez pe loc.
 
 ### C. Features din audit rămase (le pot face, doar n-am apucat la noapte)
-- **Add Plans modal** (Quantity / Copy Times From / Templates) — screenshot 252.
-- **Editor „Needed count"** direct în celula Matrix (−/N/+).
-- **Teams tab**: counts per echipă (●confirmat ●refuzat ⊙neconfirmat) + iconițe status identice cu Matrix.
-- **Blockout „churchBlock"** (albastru, pus de planificator) + management în profil.
-- **Target view pe TOATE planurile** (crosshair) — acum e doar pe planurile vizibile.
+- **Copy Times From / Templates** în Add Plans (acum creează săptămânal simplu; templates = următorul pas).
+- **Blockout „churchBlock"** (albastru, pus de planificator) + management în profil + regula „blockout peste
+  email trimis = interzis".
+- **Target view pe TOATE planurile** (crosshair) — acum e doar pe planurile vizibile din grilă.
 - **Recomandări avansate:** reguli per poziție (gen/program/target „2×/lună") — schema există
-  (`defaultGender/defaultProgram/recommendRule`), le populăm + rafinăm.
+  (`defaultGender/defaultProgram/recommendRule`), le populăm din import + rafinăm scorul.
+- **Auto-scheduler, signup sheets, stage layouts, reports builder** = seam-uri (din audit §5), le lăsăm later.
 
 ### D. Status import
-- La momentul scrierii: **~47% din conținut** (529/1130 planuri cu asignări). Restul = **istoric vechi**,
-  se completează singur în fundal. Dacă laptopul a adormit, importul s-a oprit — îl reiau cu
-  `node planning-center/services/pcoImport/cli.js --run` (idempotent, continuă de unde a rămas).
+- Rulează în fundal, **ordine apropiate-de-azi întâi** → planurile active (Nov-Dec 2026) au deja asignări.
+  Restul = **istoric vechi** (2021-2025), se completează singur. Dacă laptopul a adormit și importul s-a
+  oprit, îl reiei cu `node planning-center/services/pcoImport/cli.js --run` (idempotent, continuă de unde a
+  rămas), apoi verifici cu `--resolve`.
+- Verifică starea oricând: `node planning-center/services/pcoImport/cli.js --resolve` (din `server/`).
 
 ---
 
