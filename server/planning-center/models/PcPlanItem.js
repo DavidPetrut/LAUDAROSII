@@ -33,6 +33,11 @@ const schema = pcSchema({
   sequence: { type: [String], default: [] }, // secvență one-time pt. acest plan (gol = moștenește din aranjament)
   rowColor: { type: String, default: "" },
   sortOrder: { type: Number, default: 0 },
+  // ── Import PCO (aditiv) ──
+  htmlDetails: { type: String, default: "" }, // tab „Detail" (rich-text → raport)
+  // Per-service-time: exclude item de la un timp + offset de lungime (pt. „exclude item from a time").
+  itemTimes: { type: [{ timeId: mongoose.Schema.Types.ObjectId, exclude: Boolean, lengthOffsetSec: Number }], default: [] },
+  ccli: { type: Object, default: {} }, // CCLI reporting data per song item (print/digital/recording…)
 });
 
 schema.index({ orgId: 1, planId: 1, sortOrder: 1 });

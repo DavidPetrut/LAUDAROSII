@@ -53,8 +53,11 @@ const schema = pcSchema({
   householdId: { type: mongoose.Schema.Types.ObjectId, ref: "PcHousehold", default: null },
   membershipTypeId: { type: mongoose.Schema.Types.ObjectId, ref: "PcMembershipType", default: null },
   campusId: { type: mongoose.Schema.Types.ObjectId, ref: "PcCampus", default: null },
-  status: { type: String, enum: ["active", "inactive"], default: "active" },
+  status: { type: String, enum: ["active", "inactive"], default: "active" }, // inactive = plecat din biserică
   inactiveReason: { type: String, default: "" },
+  // ── Nou (lider) ──
+  programIntent: { type: String, enum: ["1", "2", ""], default: "" }, // intenția „(1)/(2)" din nume → atribut filtrabil
+  schedulingStatus: { type: String, enum: ["available", "onBreak", "suspended"], default: "available" }, // „blocat de noi" → ascuns din listele de asignare
   deceased: { type: Boolean, default: false },
   child: { type: Boolean, default: false }, // copil (poate n-avea login)
   avatar: { type: String, default: "" }, // URL sau base64 moștenit din users.personalData.profilePicture

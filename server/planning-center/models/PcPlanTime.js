@@ -8,6 +8,11 @@ const schema = pcSchema({
   name: { type: String, default: "" }, // ex. „Band Practice", „Pre-Service Prayer"
   startsAt: { type: Date, required: true },
   endsAt: { type: Date, default: null },
+  // ── „Times conduc totul" (PCO): ce echipe/poziții sunt asignate la acest timp + remindere per echipă ──
+  assignedTeamIds: { type: [mongoose.Schema.Types.ObjectId], ref: "PcTeam", default: [] },
+  assignedPositionIds: { type: [mongoose.Schema.Types.ObjectId], ref: "PcPosition", default: [] },
+  teamReminders: { type: Map, of: Number, default: {} }, // teamId → zile (0–7) înainte
+  recorded: { type: Boolean, default: false }, // Services LIVE (ulterior)
 });
 
 schema.index({ orgId: 1, planId: 1, startsAt: 1 });

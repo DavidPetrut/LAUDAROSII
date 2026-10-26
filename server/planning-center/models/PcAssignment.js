@@ -27,6 +27,11 @@ const schema = pcSchema({
   acceptedAt: { type: Date, default: null },
   declinedAt: { type: Date, default: null },
   declinedAfterConfirm: { type: Boolean, default: false },
+  // ── Import PCO + flux de înlocuire (aditiv) ──
+  scheduledByPersonId: { type: mongoose.Schema.Types.ObjectId, ref: "PcPerson", default: null },
+  preparedAt: { type: Date, default: null }, // timeline: pregătit
+  readAt: { type: Date, default: null },     // timeline: citit
+  replacementPersonId: { type: mongoose.Schema.Types.ObjectId, ref: "PcPerson", default: null }, // cine l-a înlocuit
 });
 
 schema.index({ orgId: 1, planId: 1, teamId: 1 });

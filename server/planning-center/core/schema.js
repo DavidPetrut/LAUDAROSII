@@ -26,6 +26,10 @@ function pcSchema(definition, options = {}) {
   const base = {
     schemaVersion: { type: Number, default: SCHEMA_VERSION },
     deletedAt: { type: Date, default: null, index: true },
+    // Migrare/import: id-ul din sistemul SURSĂ (ex. PCO) + sursa. Import idempotent (upsert pe remoteId)
+    // și rezolvarea relațiilor (remoteId→localId). Gol = creat la noi. Prezent pe TOATE colecțiile pc_.
+    remoteId: { type: String, default: null },
+    remoteSource: { type: String, default: "" }, // ex. „pco"
   };
   if (!tenantRoot) {
     base.orgId = {
@@ -40,6 +44,9 @@ function pcSchema(definition, options = {}) {
     { ...base, ...definition },
     { timestamps: true, ...mongooseOptions }
   );
+  // Index sparse pt. lookup rapid la import (nu forțează unicitate — multi-org + re-import controlat).
+  if (tenantRoot) schema.index({ remoteId: 1, remoteSource: 1 }, { sparse: true });
+  else schema.index({ orgId: 1, remoteSource: 1, remoteId: 1 }, { sparse: true });
   return schema;
 }
 

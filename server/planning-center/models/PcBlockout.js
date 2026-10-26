@@ -15,6 +15,9 @@ const schema = pcSchema({
   endTime: { type: String, default: "" },
   repeat: { type: String, enum: ["none", "weekly", "monthly", "yearly"], default: "none" },
   reason: { type: String, default: "" },
+  // ── Nou (lider): „blocat de noi" (planificator), nu personal ──
+  type: { type: String, enum: ["personal", "churchBlock"], default: "personal" }, // churchBlock = albastru, ascunde din liste
+  setByPersonId: { type: mongoose.Schema.Types.ObjectId, ref: "PcPerson", default: null },
 });
 
 schema.index({ orgId: 1, personId: 1, startDate: 1 });
