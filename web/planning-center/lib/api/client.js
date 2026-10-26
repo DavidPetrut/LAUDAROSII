@@ -94,6 +94,19 @@ export const plansApi = {
   notes: (id) => api.get(`/plans/${id}/notes`),
 };
 
+/* ─── People (tab People) — server/planning-center/routes/people.js ─── */
+export const peopleApi = {
+  // { results:[{id,firstName,lastName,email,phone,permission,createdAt,...}], total, page, limit, hasMore }
+  list: (params = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== "")).toString();
+    return api.get(`/people${qs ? `?${qs}` : ""}`);
+  },
+  get: (id) => api.get(`/people/${id}`),
+  teams: (id) => api.get(`/people/${id}/teams`),
+  schedule: (id) => api.get(`/people/${id}/schedule`),
+  blockouts: (id) => api.get(`/people/${id}/blockouts`),
+};
+
 /* ─── Matrix (planificare multi-plan) — server/planning-center/routes/matrix.js ─── */
 export const matrixApi = {
   // { serviceTypeId, plans:[{id,dateLabel}], teams:[{teamId,name,positions:[{positionId,name,cells:[{people:[{..,status}],needed}]}]}] }

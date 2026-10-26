@@ -59,6 +59,8 @@ function initials(first, last) {
   return `${(first || "").charAt(0)}${(last || "").charAt(0)}`.toUpperCase() || "—";
 }
 function toRow(p) {
+  const email = (p.emails || []).find((e) => e.primary)?.address || (p.emails || [])[0]?.address || "";
+  const phone = (p.phones || []).find((e) => e.primary)?.number || (p.phones || [])[0]?.number || "";
   return {
     id: p._id,
     firstName: p.firstName,
@@ -66,6 +68,10 @@ function toRow(p) {
     fullName: [p.firstName, p.lastName].filter(Boolean).join(" ").trim(),
     avatar: p.avatar || "",
     initials: initials(p.firstName, p.lastName),
+    email,
+    phone,
+    permission: p.role || p.permission || "Viewer",
+    createdAt: p.createdAt || null,
   };
 }
 
@@ -203,7 +209,7 @@ router.get("/", requireCan("people.view"), async (req, res) => {
         .sort({ [sortField]: sortDir, _id: 1 })
         .skip((pageN - 1) * limitN)
         .limit(limitN)
-        .select("firstName lastName avatar")
+        .select("firstName lastName avatar emails phones role permission createdAt")
         .lean(),
     ]);
 
