@@ -91,12 +91,14 @@ Data: noapte 26→27 oct 2026. Tot codul e **comis + pushed pe `master`** (Rende
   (`defaultGender/defaultProgram/recommendRule`), le populăm din import + rafinăm scorul.
 - **Auto-scheduler, signup sheets, stage layouts, reports builder** = seam-uri (din audit §5), le lăsăm later.
 
-### D. Status import
-- Rulează în fundal, **ordine apropiate-de-azi întâi** → planurile active (Nov-Dec 2026) au deja asignări.
-  Restul = **istoric vechi** (2021-2025), se completează singur. Dacă laptopul a adormit și importul s-a
-  oprit, îl reiei cu `node planning-center/services/pcoImport/cli.js --run` (idempotent, continuă de unde a
-  rămas), apoi verifici cu `--resolve`.
-- Verifică starea oricând: `node planning-center/services/pcoImport/cli.js --resolve` (din `server/`).
+### D. Status import — ✅ COMPLET 100% (terminat în ~103 min, ZERO erori)
+Final în DB (toate cu `remoteSource:"pco"`):
+- **292 oameni** (287 reali + 5 conturi) · **9 service types** · **46 echipe** · **322 poziții**
+- **1128 planuri** (tot istoricul ~5 ani) · **18.611 asignări** · **5104 needed** · **2059 plan-times** ·
+  **8314 items** · **225 note** · **9217 blockouts**
+- **PlanTimes: 0 erori** (fix-ul `teamReminders` a mers) — nu mai e nevoie de backfill.
+- Verifică oricând: `node planning-center/services/pcoImport/cli.js --resolve` (din `server/`).
+  Re-rulare (idempotentă, nu dublează): `--run`.
 
 ---
 

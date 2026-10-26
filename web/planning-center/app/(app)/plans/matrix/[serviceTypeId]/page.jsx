@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { matrixApi, plansApi } from "@/lib/api/client";
+import { matrixApi, plansApi, peopleApi } from "@/lib/api/client";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 
 /* status: confirmat = bifă verde; neconfirmat = „?" galben; (declined e scos din backend) */
@@ -32,6 +32,7 @@ export default function MatrixPage() {
   const [recBusy, setRecBusy] = useState(false);
   const [recQuery, setRecQuery] = useState("");
   const [target, setTarget] = useState(null);     // {personId, name} — target view
+  const [targetSched, setTargetSched] = useState(null); // programul complet al persoanei din target
   const [toast, setToast] = useState("");
   const [teamMenu, setTeamMenu] = useState(null);  // teamId cu meniul deschis
   const [editing, setEditing] = useState(null);    // {planId, assignmentId, name, status}
@@ -124,6 +125,12 @@ export default function MatrixPage() {
     } catch (e) { flash(e?.message || "Eroare."); }
   }
 
+  function pickTarget(pp) {
+    if (target && String(target.personId) === String(pp.personId)) { setTarget(null); setTargetSched(null); return; }
+    setTarget({ personId: pp.personId, name: pp.name }); setTargetSched(null);
+    peopleApi.schedule(pp.personId).then((r) => setTargetSched(r.schedule || [])).catch(() => setTargetSched([]));
+  }
+
   const toggle = (id) => setCollapsed((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   useAiSurface({
@@ -151,7 +158,7 @@ export default function MatrixPage() {
         </div>
         <div className="mt-center">{dateRange}</div>
         <div className="mt-right">
-          {target && <button className="exit-target" onClick={() => setTarget(null)}>⌖ Exit target view</button>}
+          {target && <button className="exit-target" onClick={() => { setTarget(null); setTargetSched(null); }}>⌖ Exit target view</button>}
           <label className="cnt">Planuri
             <select value={count} onChange={(e) => setCount(parseInt(e.target.value, 10))}>{[4, 6, 8, 10, 12].map((n) => <option key={n} value={n}>{n}</option>)}</select>
           </label>
@@ -202,7 +209,7 @@ export default function MatrixPage() {
                             <div key={pi} className={`person ${dim ? "dim" : ""} ${hit ? "hit" : ""}`}
                               draggable
                               onDragStart={(e) => { dragRef.current = { personId: pp.personId, assignmentId: pp.assignmentId, planId: plans[ci].id, move: e.ctrlKey || e.metaKey }; }}
-                              onClick={() => setTarget(target && String(target.personId) === String(pp.personId) ? null : { personId: pp.personId, name: pp.name })}
+                              onClick={() => pickTarget(pp)}
                               title={`${pp.name} — click: target view · trage: copiază (Ctrl: mută)`}>
                               <Status s={pp.status} />
                               <span className="pn">{pp.name}</span>
@@ -288,6 +295,17 @@ export default function MatrixPage() {
         </div>
       )}
 
+      {target && (
+        <div className="tpanel">
+          <div className="tp-head"><span>⌖ {target.name}</span><button onClick={() => { setTarget(null); setTargetSched(null); }}>×</button></div>
+          <div className="tp-sub">Unde mai e planificat (viitor)</div>
+          {targetSched == null ? <div className="tp-muted">Se încarcă…</div> : targetSched.length === 0 ? <div className="tp-muted">Nicăieri în viitor.</div> :
+            targetSched.map((s, i) => (
+              <div key={i} className="tp-row"><span className="tp-ic">{s.status === "confirmed" ? "✅" : "❔"}</span><span className="tp-d">{s.dateLabel}</span><span className="tp-s">{s.serviceTypeName}</span></div>
+            ))}
+        </div>
+      )}
+
       {toast && <div className="toast">{toast}</div>}
 
       <style jsx>{`
@@ -362,6 +380,13 @@ export default function MatrixPage() {
         .wk { color: var(--text-faint); font-size: 11px; min-width: 34px; text-align: right; }
         .cand.here { opacity: .7; } .here-b { color: var(--product); }
         .muted { color: var(--text-faint); font-size: 12px; padding: 6px; }
+        .tpanel { position: fixed; bottom: 18px; left: 18px; width: 260px; max-height: 50vh; overflow: auto; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 10px; padding: 12px 14px; z-index: 55; box-shadow: 0 8px 28px rgba(0,0,0,.45); }
+        .tp-head { display: flex; align-items: center; justify-content: space-between; color: var(--text); font-weight: 600; font-size: 13px; }
+        .tp-head button { background: transparent; border: none; color: var(--text-faint); font-size: 18px; cursor: pointer; line-height: 1; }
+        .tp-sub { color: var(--text-faint); font-size: 11px; margin: 4px 0 8px; }
+        .tp-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12.5px; border-bottom: 1px solid var(--border-soft); }
+        .tp-d { color: var(--text); width: 64px; } .tp-s { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tp-muted { color: var(--text-faint); font-size: 12px; padding: 4px 0; }
         .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text); padding: 10px 18px; border-radius: 8px; font-size: 13px; z-index: 60; box-shadow: 0 8px 28px rgba(0,0,0,.4); }
         .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; z-index: 70; }
         .dialog { background: var(--modal-bg); border: 1px solid var(--border-strong); border-radius: 10px; padding: 20px; width: 400px; max-width: 92vw; }
