@@ -92,6 +92,7 @@ export const plansApi = {
   times: (id) => api.get(`/plans/${id}/times`),
   order: (id) => api.get(`/plans/${id}/order`),
   notes: (id) => api.get(`/plans/${id}/notes`),
+  files: (id) => api.get(`/plans/${id}/files`),
 };
 
 /* ─── People (tab People) — server/planning-center/routes/people.js ─── */
