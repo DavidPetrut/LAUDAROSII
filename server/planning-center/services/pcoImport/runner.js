@@ -84,20 +84,27 @@ class ImportRunner {
     // 3) People (cu emails/telefoane) + serii
     await this.upsertBatch("Person", await c.getAll("/people", { include: "emails,phone_numbers" }));
     await this.upsertBatch("Series", await c.getAll("/series"));
-    // 4) Per service type: planuri (TOT istoricul: past + future) + conținutul fiecărui plan
+    // 4) PLANURI — întâi doc-urile de plan din TOATE service types (ca să apară toate în tab Plans),
+    //    apoi conținutul fiecărui plan în ordine GLOBALĂ (cele mai recente întâi), ca Matrix-ul
+    //    (care arată planuri recente/viitoare) să se umple imediat pt. toate service types.
+    const allPlans = []; // { stId, remoteId, sortDate }
     for (const [stId] of this.ids.ServiceType || []) {
-      for (const flt of ["past", "future"]) {
-        const { data, included } = await c.getAll(`/service_types/${stId}/plans`, { filter: flt, include: "series" });
+      for (const flt of ["future", "past"]) {
+        const { data, included } = await c.getAll(`/service_types/${stId}/plans`, { filter: flt, include: "series", order: flt === "past" ? "-sort_date" : "sort_date" });
         await this.upsertBatch("Plan", { data, included });
-        for (const p of data) {
-          const base = `/service_types/${stId}/plans/${p.id}`;
-          await this.upsertBatch("PlanTime", await c.getAll(`${base}/plan_times`));
-          await this.upsertBatch("Item", await c.getAll(`${base}/items`));
-          await this.upsertBatch("NeededPosition", await c.getAll(`${base}/needed_positions`));
-          await this.upsertBatch("PlanPerson", await c.getAll(`${base}/team_members`));
-          await this.upsertBatch("PlanNote", await c.getAll(`${base}/notes`));
-        }
+        for (const p of data) allPlans.push({ stId, remoteId: p.id, sortDate: p.attributes?.sort_date || p.attributes?.dates || null });
       }
+    }
+    // cele mai recente întâi (viitoare + recente trecute), ca scheduling-ul activ să intre primul
+    allPlans.sort((a, b) => new Date(b.sortDate || 0) - new Date(a.sortDate || 0));
+    this.log(`[pcoImport] ${allPlans.length} planuri — trag conținutul (recente întâi)…`);
+    for (const { stId, remoteId } of allPlans) {
+      const base = `/service_types/${stId}/plans/${remoteId}`;
+      await this.upsertBatch("PlanTime", await c.getAll(`${base}/plan_times`));
+      await this.upsertBatch("Item", await c.getAll(`${base}/items`));
+      await this.upsertBatch("NeededPosition", await c.getAll(`${base}/needed_positions`));
+      await this.upsertBatch("PlanPerson", await c.getAll(`${base}/team_members`));
+      await this.upsertBatch("PlanNote", await c.getAll(`${base}/notes`));
     }
     // 5) Blockouts (per persoană). TODO: paralelizare controlată + ItemNotes + PlanTemplates + SchedulingPreferences.
     for (const [personId] of this.ids.Person || []) {

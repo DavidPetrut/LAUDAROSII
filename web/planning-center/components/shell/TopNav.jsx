@@ -67,10 +67,10 @@ export default function TopNav() {
           display: inline-flex; align-items: center; justify-content: center; }
         .brand-name { font-size: 16px; font-weight: 600; letter-spacing: .2px; }
         .brand-caret { color: var(--text-faint); font-size: 10px; }
-        .links { display: flex; align-items: center; gap: 4px; }
-        .link { padding: 6px 12px; border-radius: 6px; color: var(--text-dim); font-size: 13.5px; }
-        .link:hover { color: var(--text); background: rgba(255,255,255,.04); }
-        .link.active { color: var(--text); background: rgba(255,255,255,.07); }
+        .links { display: flex; align-items: center; gap: 10px; }
+        .link { padding: 7px 15px; border-radius: 7px; color: var(--text-dim); font-size: 13.5px; border: 1px solid transparent; transition: background .12s, color .12s, border-color .12s; }
+        .link:hover { color: var(--text); background: rgba(255,255,255,.05); }
+        .link.active { color: var(--text); background: var(--surface-3); border-color: var(--border-strong); font-weight: 600; }
         .right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
         .icon-btn { background: transparent; border: none; color: var(--text-dim); cursor: pointer; padding: 6px; border-radius: 6px; }
         .icon-btn:hover { color: var(--text); background: rgba(255,255,255,.05); }
