@@ -117,6 +117,22 @@ export const peopleApi = {
   teams: (id) => api.get(`/people/${id}/teams`),
   schedule: (id) => api.get(`/people/${id}/schedule`),
   blockouts: (id) => api.get(`/people/${id}/blockouts`),
+  messages: (id) => api.get(`/people/${id}/messages`),
+};
+
+/* ─── My Schedule / calendar — server/planning-center/routes/schedule.js ─── */
+export const scheduleApi = {
+  my: () => api.get("/schedule/my"),
+  calendar: (year, month) => api.get(`/schedule/calendar?year=${year}&month=${month}`),
+  blockouts: () => api.get("/schedule/blockouts"),
+};
+
+/* ─── Media — server/planning-center/routes/media.js ─── */
+export const mediaApi = {
+  list: (params = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString();
+    return api.get(`/media${qs ? `?${qs}` : ""}`);
+  },
 };
 
 /* ─── Matrix (planificare multi-plan) — server/planning-center/routes/matrix.js ─── */
