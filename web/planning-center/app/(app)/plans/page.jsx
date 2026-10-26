@@ -22,7 +22,25 @@ export default function PlansPage() {
   const [err, setErr] = useState("");
   const [collapsed, setCollapsed] = useState(() => new Set()); // service types colapsate
   const [limits, setLimits] = useState({}); // stId → câte planuri afișate (default 10)
+  const [addFor, setAddFor] = useState(null); // {id, name} service type pt. Add Plans
+  const [addDate, setAddDate] = useState("");
+  const [addQty, setAddQty] = useState(1);
+  const [addBusy, setAddBusy] = useState(false);
   const PAGE = 10;
+
+  async function submitAddPlans() {
+    if (!addFor || !addDate) return;
+    setAddBusy(true);
+    try {
+      const base = new Date(addDate);
+      for (let i = 0; i < Math.max(1, Math.min(12, addQty)); i++) {
+        const d = new Date(base); d.setDate(base.getDate() + i * 7);
+        await plansApi.create(addFor.id, d.toISOString().slice(0, 10));
+      }
+      setAddFor(null); setAddDate(""); setAddQty(1); await load();
+    } catch (e) { setErr(e?.message || "Eroare la adăugare."); }
+    finally { setAddBusy(false); }
+  }
   const [month, setMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const [selDay, setSelDay] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
 
@@ -176,7 +194,7 @@ export default function PlansPage() {
                       {limit > PAGE && (
                         <button className="view-less" onClick={() => setLimits((m) => ({ ...m, [st.id]: PAGE }))}>Arată mai puține</button>
                       )}
-                      <button className="add-plan" onClick={() => router.push(`/plans/matrix/${st.id}`)}>+ Add plan</button>
+                      <button className="add-plan" onClick={() => { setAddFor({ id: st.id, name: st.name }); setAddDate(new Date().toISOString().slice(0, 10)); setAddQty(1); }}>+ Add plan</button>
                     </div>
                   </div>
                 )}
@@ -186,8 +204,38 @@ export default function PlansPage() {
         </section>
       </div>
 
+      {addFor && (
+        <div className="ov" onClick={() => !addBusy && setAddFor(null)}>
+          <div className="dlg" onClick={(e) => e.stopPropagation()}>
+            <h3>Add Plans</h3>
+            <div className="dsub">{addFor.name}</div>
+            <div className="frow">
+              <label>Quantity<select value={addQty} onChange={(e) => setAddQty(parseInt(e.target.value, 10))}>{Array.from({ length: 12 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
+              <label>Starting On<input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} /></label>
+            </div>
+            <p className="dhint">Creează {addQty} plan{addQty > 1 ? "uri" : ""} săptămânal{addQty > 1 ? "e" : ""} începând cu data aleasă (orele se copiază din template-ul service type-ului).</p>
+            <div className="dact">
+              <button className="c" onClick={() => setAddFor(null)} disabled={addBusy}>Cancel</button>
+              <button className="s" onClick={submitAddPlans} disabled={addBusy || !addDate}>{addBusy ? "Se adaugă…" : `Add ${addQty}`}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style jsx>{`
         .plans { padding: 18px 0 80px; }
+        .ov { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; z-index: 60; }
+        .dlg { background: var(--modal-bg); border: 1px solid var(--border-strong); border-radius: 10px; padding: 20px; width: 440px; max-width: 92vw; }
+        .dlg h3 { margin: 0 0 3px; font-size: 16px; color: var(--text); }
+        .dsub { color: var(--text-dim); font-size: 13px; margin-bottom: 16px; }
+        .frow { display: flex; gap: 14px; }
+        .frow label { flex: 1; display: flex; flex-direction: column; gap: 5px; color: var(--text-faint); font-size: 12px; }
+        .frow select, .frow input { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; height: 34px; padding: 0 10px; font-size: 13px; }
+        .dhint { color: var(--text-faint); font-size: 12px; line-height: 1.5; margin: 14px 0; }
+        .dact { display: flex; justify-content: flex-end; gap: 10px; }
+        .dact .c { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; padding: 8px 16px; cursor: pointer; }
+        .dact .s { background: var(--primary); border: 1px solid var(--primary); color: #fff; border-radius: 6px; padding: 8px 18px; cursor: pointer; }
+        .dact .s:disabled { opacity: .5; }
         .phead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
         .org-title { font-size: var(--fs-h1); font-weight: 600; margin: 0; }
         .matrix-pick { position: relative; }
