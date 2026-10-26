@@ -95,9 +95,11 @@ class ImportRunner {
         for (const p of data) allPlans.push({ stId, remoteId: p.id, sortDate: p.attributes?.sort_date || p.attributes?.dates || null });
       }
     }
-    // cele mai recente întâi (viitoare + recente trecute), ca scheduling-ul activ să intre primul
-    allPlans.sort((a, b) => new Date(b.sortDate || 0) - new Date(a.sortDate || 0));
-    this.log(`[pcoImport] ${allPlans.length} planuri — trag conținutul (recente întâi)…`);
+    // cele mai APROPIATE de azi întâi (viitor apropiat + trecut recent) — exact ce arată Matrix/Plans.
+    // Istoricul vechi se completează la urmă. Așa scheduling-ul activ apare imediat.
+    const now = Date.now();
+    allPlans.sort((a, b) => Math.abs(new Date(a.sortDate || 0).getTime() - now) - Math.abs(new Date(b.sortDate || 0).getTime() - now));
+    this.log(`[pcoImport] ${allPlans.length} planuri — trag conținutul (cele apropiate de azi întâi)…`);
     for (const { stId, remoteId } of allPlans) {
       const base = `/service_types/${stId}/plans/${remoteId}`;
       await this.upsertBatch("PlanTime", await c.getAll(`${base}/plan_times`));
