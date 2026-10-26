@@ -81,3 +81,23 @@ export const songsApi = {
   deleteSong: (id) => api.del(`/songs/${id}`),
   deleteSongInfo: (id) => api.get(`/songs/${id}/delete-info`),
 };
+
+/* ─── Plans (tab Plans) — server/planning-center/routes/plans.js ─── */
+export const plansApi = {
+  // { serviceTypes: [{ id, name, plans: [{ id, title, dateLabel, sortDate }] }] }
+  list: () => api.get("/plans"),
+  create: (serviceTypeId, date) => api.post("/plans", { serviceTypeId, date }),
+  get: (id) => api.get(`/plans/${id}`),
+  teams: (id) => api.get(`/plans/${id}/teams`),
+  times: (id) => api.get(`/plans/${id}/times`),
+  order: (id) => api.get(`/plans/${id}/order`),
+  notes: (id) => api.get(`/plans/${id}/notes`),
+};
+
+/* ─── Matrix (planificare multi-plan) — server/planning-center/routes/matrix.js ─── */
+export const matrixApi = {
+  // { serviceTypeId, plans:[{id,dateLabel}], teams:[{teamId,name,positions:[{positionId,name,cells:[{people:[{..,status}],needed}]}]}] }
+  grid: (serviceTypeId, count = 4) => api.get(`/matrix/${serviceTypeId}?count=${count}`),
+  // ATENȚIE: trimite emailuri reale. Se apelează DOAR la acțiune explicită a utilizatorului.
+  sendEmails: (serviceTypeId, planIds, teamId) => api.post(`/matrix/${serviceTypeId}/emails`, { planIds, teamId }),
+};
