@@ -593,6 +593,32 @@ router.post("/:id/assignments", requireCan("services.schedule"), async (req, res
   }
 });
 
+/* ───────── PATCH /:id/assignments/:aid — editează o asignare (status/poziție/note/times) ─────────
+   Modalul „Editing Scheduled Person". NU trimite email (schimbarea de status e locală). */
+router.patch("/:id/assignments/:aid", requireCan("services.schedule"), async (req, res) => {
+  try {
+    const b = req.body || {};
+    const set = {};
+    if (["confirmed", "unconfirmed", "declined"].includes(b.status)) {
+      set.status = b.status;
+      if (b.status === "confirmed") set.acceptedAt = new Date();
+      if (b.status === "declined") { set.declinedAt = new Date(); set.declineReason = b.declineReason || ""; }
+    }
+    if (b.positionId !== undefined) set.positionId = OID(b.positionId) || null;
+    if (b.teamId !== undefined) set.teamId = OID(b.teamId);
+    if (Array.isArray(b.timeIds)) set.timeIds = b.timeIds.map(OID).filter(Boolean);
+    if (typeof b.notes === "string") set.notes = b.notes;
+    if (typeof b.prepared === "boolean") set.prepared = b.prepared;
+    if (b.repliesToPersonId !== undefined) set.repliesToPersonId = OID(b.repliesToPersonId) || null;
+    const a = await PcAssignment.findOneAndUpdate(scoped(req, { _id: OID(req.params.aid) }), { $set: set }, { new: true }).select("_id status").lean();
+    if (!a) return res.status(404).json({ error: "Programare inexistentă." });
+    res.json({ ok: true, status: a.status });
+  } catch (err) {
+    console.error("[pc] PATCH /plans/:id/assignments/:aid:", err.message);
+    res.status(500).json({ error: "Eroare la editare: " + err.message });
+  }
+});
+
 /* ───────── DELETE /:id/assignments/:aid ───────── */
 router.delete("/:id/assignments/:aid", requireCan("services.schedule"), async (req, res) => {
   try {

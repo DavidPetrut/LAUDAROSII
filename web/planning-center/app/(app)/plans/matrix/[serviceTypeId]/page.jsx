@@ -34,6 +34,7 @@ export default function MatrixPage() {
   const [target, setTarget] = useState(null);     // {personId, name} — target view
   const [toast, setToast] = useState("");
   const [teamMenu, setTeamMenu] = useState(null);  // teamId cu meniul deschis
+  const [editing, setEditing] = useState(null);    // {planId, assignmentId, name, status}
   const dragRef = useRef(null);
   const recTimer = useRef(null);
 
@@ -85,6 +86,14 @@ export default function MatrixPage() {
   async function removePerson(planId, assignmentId) {
     try { await plansApi.unassign(planId, assignmentId); flash("Șters."); await load(); }
     catch (e) { flash(e?.message || "Eroare."); }
+  }
+  async function saveStatus(status) {
+    if (!editing) return;
+    try {
+      await plansApi.updateAssignment(editing.planId, editing.assignmentId, { status });
+      flash(status === "declined" ? "Marcat refuzat." : status === "confirmed" ? "Confirmat." : "Neconfirmat.");
+      setEditing(null); await load();
+    } catch (e) { flash(e?.message || "Eroare."); }
   }
   async function dropOnCell(planId, teamId, positionId) {
     const d = dragRef.current; dragRef.current = null;
@@ -193,6 +202,7 @@ export default function MatrixPage() {
                               title={`${pp.name} — click: target view · trage: copiază (Ctrl: mută)`}>
                               <Status s={pp.status} />
                               <span className="pn">{pp.name}</span>
+                              <button className="ped" title="Editează" onClick={(e) => { e.stopPropagation(); setEditing({ planId: plans[ci].id, assignmentId: pp.assignmentId, name: pp.name, status: pp.status }); }}>✎</button>
                               <button className="prm" title="Șterge" onClick={(e) => { e.stopPropagation(); removePerson(plans[ci].id, pp.assignmentId); }}>×</button>
                             </div>
                           );
@@ -245,6 +255,25 @@ export default function MatrixPage() {
         )}
       </div>
 
+      {editing && (
+        <div className="overlay" onClick={() => setEditing(null)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>Editează programarea</h3>
+            <div className="dlg-name">{editing.name}</div>
+            <div className="seg">
+              {[["confirmed", "Confirmed"], ["unconfirmed", "Pending"], ["declined", "Declined"]].map(([v, l]) => (
+                <button key={v} className={`seg-b ${editing.status === v ? "on " + v : ""}`} onClick={() => saveStatus(v)}>{l}</button>
+              ))}
+            </div>
+            <p className="dlg-note">Schimbarea statusului se salvează instant, <b>fără email</b>. Emailurile de programare le trimiteți voi manual.</p>
+            <div className="dlg-act">
+              <button className="btn-rm" onClick={() => { removePerson(editing.planId, editing.assignmentId); setEditing(null); }}>Remove</button>
+              <button className="btn-cl" onClick={() => setEditing(null)}>Închide</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {toast && <div className="toast">{toast}</div>}
 
       <style jsx>{`
@@ -287,8 +316,9 @@ export default function MatrixPage() {
         .person.hit { background: rgba(47,129,247,.18); box-shadow: inset 0 0 0 1px var(--primary); }
         .st-ic { display: inline-flex; flex: none; }
         .pn { color: var(--text); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
-        .prm { opacity: 0; background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; flex: none; }
-        .person:hover .prm { opacity: 1; } .prm:hover { color: var(--danger); }
+        .prm, .ped { opacity: 0; background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 12px; line-height: 1; padding: 0 2px; flex: none; }
+        .prm { font-size: 14px; }
+        .person:hover .prm, .person:hover .ped { opacity: 1; } .prm:hover { color: var(--danger); } .ped:hover { color: var(--primary); }
         .needed { color: #e0a93c; font-size: 11.5px; font-weight: 600; padding: 2px 3px; }
         .empty { padding: 40px; color: var(--text-faint); }
         /* bara dreaptă */
@@ -311,6 +341,20 @@ export default function MatrixPage() {
         .cand.here { opacity: .7; } .here-b { color: var(--product); }
         .muted { color: var(--text-faint); font-size: 12px; padding: 6px; }
         .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text); padding: 10px 18px; border-radius: 8px; font-size: 13px; z-index: 60; box-shadow: 0 8px 28px rgba(0,0,0,.4); }
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; z-index: 70; }
+        .dialog { background: var(--modal-bg); border: 1px solid var(--border-strong); border-radius: 10px; padding: 20px; width: 400px; max-width: 92vw; }
+        .dialog h3 { margin: 0 0 4px; font-size: 16px; color: var(--text); }
+        .dlg-name { color: var(--text-dim); font-size: 13px; margin-bottom: 14px; }
+        .seg { display: flex; gap: 0; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; }
+        .seg-b { flex: 1; background: var(--surface-2); border: none; color: var(--text-dim); padding: 9px 0; cursor: pointer; font-size: 13px; border-right: 1px solid var(--border-strong); }
+        .seg-b:last-child { border-right: none; }
+        .seg-b.on.confirmed { background: var(--product); color: #0b2018; font-weight: 600; }
+        .seg-b.on.unconfirmed { background: #c9a227; color: #1d1600; font-weight: 600; }
+        .seg-b.on.declined { background: var(--danger); color: #fff; font-weight: 600; }
+        .dlg-note { color: var(--text-faint); font-size: 12px; line-height: 1.5; margin: 14px 0; }
+        .dlg-act { display: flex; align-items: center; justify-content: space-between; }
+        .btn-rm { background: transparent; border: 1px solid var(--danger); color: var(--danger); border-radius: 6px; padding: 7px 14px; cursor: pointer; font-size: 13px; }
+        .btn-cl { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; padding: 7px 16px; cursor: pointer; font-size: 13px; }
         .err { background: rgba(229,83,75,.12); border: 1px solid rgba(229,83,75,.4); color: #f0a7a2; padding: 10px 12px; border-radius: 6px; margin-bottom: 12px; }
       `}</style>
     </div>
