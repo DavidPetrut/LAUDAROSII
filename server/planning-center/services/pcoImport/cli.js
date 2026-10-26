@@ -64,6 +64,55 @@ const has = (f) => process.argv.includes(f);
     return;
   }
 
+  // Dedublare People: pt. fiecare persoană SEED (non-PCO) găsește perechea PCO după email,
+  // mută login-ul (userId + accessIntent + avatar + taguri) pe cea reală și șterge duplicatul.
+  // Conturile reale care NU au pereche în PCO se PĂSTREAZĂ (au userId). Dry by default; --apply scrie.
+  if (has("--dedupe-people")) {
+    const apply = has("--apply");
+    const norm = (s) => String(s || "").trim().toLowerCase();
+    const emailsOf = (p) => (p.emails || []).map((e) => norm(e.address)).filter(Boolean);
+    const seed = await M.PcPerson.find({ orgId, remoteSource: { $ne: "pco" } }).lean();
+    const pco = await M.PcPerson.find({ orgId, remoteSource: "pco" }).lean();
+    // index pco după fiecare email
+    const pcoByEmail = new Map();
+    for (const p of pco) for (const e of emailsOf(p)) if (!pcoByEmail.has(e)) pcoByEmail.set(e, p);
+
+    const buckets = { moved: [], keptNoMatchAccount: [], deleteJunk: [] };
+    for (const s of seed) {
+      const match = emailsOf(s).map((e) => pcoByEmail.get(e)).find(Boolean);
+      if (match) buckets.moved.push({ s, match });
+      else if (s.userId) buckets.keptNoMatchAccount.push(s);
+      else buckets.deleteJunk.push(s);
+    }
+    console.log(`[dedupe] seed=${seed.length} pco=${pco.length}`);
+    console.log(`[dedupe] cu pereche PCO (mut login + șterg seed): ${buckets.moved.length}`);
+    console.log(`[dedupe]   din care cu userId (login mutat): ${buckets.moved.filter((x) => x.s.userId).length}`);
+    console.log(`[dedupe] fără pereche DAR cont real (PĂSTRAT): ${buckets.keptNoMatchAccount.length}`);
+    if (buckets.keptNoMatchAccount.length) console.log(`[dedupe]   păstrați:`, buckets.keptNoMatchAccount.map((p) => `${p.firstName} ${p.lastName}`.trim() || emailsOf(p)[0]).join(", "));
+    console.log(`[dedupe] fără pereche și fără login (șterg ca junk): ${buckets.deleteJunk.length}`);
+    if (buckets.deleteJunk.length) console.log(`[dedupe]   junk:`, buckets.deleteJunk.map((p) => `${p.firstName || ""} ${p.lastName || ""}`.trim() || emailsOf(p)[0] || "(gol)").slice(0, 60).join(" | "));
+
+    if (!apply) { console.log("[dedupe] DRY — rulează cu --apply pt. a executa."); await mongoose.disconnect(); return; }
+
+    let moved = 0, deleted = 0;
+    for (const { s, match } of buckets.moved) {
+      const upd = {};
+      if (s.userId && !match.userId) upd.userId = s.userId;
+      if (!match.avatar && s.avatar) upd.avatar = s.avatar;
+      const hasIntent = s.accessIntent && Object.values(s.accessIntent).some((v) => v && (typeof v !== "object" ? true : Object.values(v).some(Boolean)));
+      if (hasIntent) upd.accessIntent = s.accessIntent;
+      if ((s.tagIds || []).length) upd.tagIds = Array.from(new Set([...(match.tagIds || []).map(String), ...s.tagIds.map(String)]));
+      if (Object.keys(upd).length) await M.PcPerson.updateOne({ _id: match._id }, { $set: upd });
+      await M.PcPerson.deleteOne({ _id: s._id });
+      moved++;
+    }
+    for (const s of buckets.deleteJunk) { await M.PcPerson.deleteOne({ _id: s._id }); deleted++; }
+    console.log(`[dedupe] APLICAT: ${moved} mutate+șterse, ${deleted} junk șterse, ${buckets.keptNoMatchAccount.length} conturi păstrate.`);
+    console.log(`[dedupe] People acum:`, await M.PcPerson.countDocuments({ orgId }), "| cu login:", await M.PcPerson.countDocuments({ orgId, userId: { $ne: null } }));
+    await mongoose.disconnect();
+    return;
+  }
+
   const dryRun = !has("--run");
   console.log(`[cli] ÎNAINTE:`, JSON.stringify(await counts()));
   const { runImport } = require("./index");
