@@ -21,6 +21,8 @@ export default function PlansPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [collapsed, setCollapsed] = useState(() => new Set()); // service types colapsate
+  const [limits, setLimits] = useState({}); // stId → câte planuri afișate (default 10)
+  const PAGE = 10;
   const [month, setMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const [selDay, setSelDay] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
 
@@ -134,8 +136,11 @@ export default function PlansPage() {
           <div className="main-head"><h2>Service Types</h2></div>
           {loading ? <div className="empty">Se încarcă…</div> : serviceTypes.map((st) => {
             const isCol = collapsed.has(st.id);
-            const { upcoming, past } = splitPlans(st.plans);
-            const list = (upcoming.length ? upcoming : past);
+            // cele mai recente întâi (viitoare + trecute), ca în PCO; afișăm max `limit`, restul cu „vezi mai vechi"
+            const ordered = [...(st.plans || [])].sort((a, b) => new Date(b.sortDate || 0) - new Date(a.sortDate || 0));
+            const limit = limits[st.id] || PAGE;
+            const list = ordered.slice(0, limit);
+            const remaining = ordered.length - list.length;
             return (
               <div key={st.id} className="st">
                 <div className="st-bar">
@@ -150,7 +155,7 @@ export default function PlansPage() {
                 {!isCol && (
                   <div className="st-body">
                     <div className="pt-head">
-                      <div className="c-date">{upcoming.length ? "Upcoming" : "Recente"}</div>
+                      <div className="c-date">DATA</div>
                       <div className="c-title">TITLE</div>
                       <div className="c-upd">LAST UPDATED</div>
                     </div>
@@ -162,7 +167,17 @@ export default function PlansPage() {
                         <div className="c-upd">{p.updatedLabel || ""}</div>
                       </div>
                     ))}
-                    <button className="add-plan" onClick={() => router.push(`/plans/matrix/${st.id}`)}>+ Add plan</button>
+                    <div className="pt-foot">
+                      {remaining > 0 && (
+                        <button className="view-older" onClick={() => setLimits((m) => ({ ...m, [st.id]: limit + PAGE }))}>
+                          Vezi mai vechi ({remaining})
+                        </button>
+                      )}
+                      {limit > PAGE && (
+                        <button className="view-less" onClick={() => setLimits((m) => ({ ...m, [st.id]: PAGE }))}>Arată mai puține</button>
+                      )}
+                      <button className="add-plan" onClick={() => router.push(`/plans/matrix/${st.id}`)}>+ Add plan</button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -224,7 +239,11 @@ export default function PlansPage() {
         .pt-row:hover { background: var(--row-hover); border-left-color: var(--product); }
         .c-date { color: var(--text); } .c-title { color: var(--text-link); } .c-upd { color: var(--text-faint); font-size: 12px; }
         .pt-empty { padding: 14px 16px; color: var(--text-faint); font-size: 13px; }
-        .add-plan { margin: 10px 16px; background: transparent; border: none; color: var(--primary); cursor: pointer; font-size: 13px; padding: 4px 0; }
+        .pt-foot { display: flex; align-items: center; gap: 16px; padding: 10px 16px; }
+        .view-older, .view-less { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim);
+          border-radius: 6px; padding: 5px 12px; font-size: 12.5px; cursor: pointer; }
+        .view-older:hover, .view-less:hover { color: var(--text); border-color: var(--product); }
+        .add-plan { margin-left: auto; background: transparent; border: none; color: var(--primary); cursor: pointer; font-size: 13px; padding: 4px 0; }
         .add-plan:hover { text-decoration: underline; }
         .empty { padding: 30px 8px; color: var(--text-faint); }
         .err { background: rgba(229,83,75,.12); border: 1px solid rgba(229,83,75,.4); color: #f0a7a2; padding: 10px 12px; border-radius: 6px; margin-bottom: 12px; }
