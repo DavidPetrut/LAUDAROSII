@@ -105,6 +105,10 @@ export default function MatrixPage() {
       await load();
     } catch (e) { flash(e?.message || "Eroare."); }
   }
+  async function changeNeeded(planId, teamId, positionId, count) {
+    try { await plansApi.setNeeded(planId, teamId, positionId, Math.max(0, count)); await load(); }
+    catch (e) { flash(e?.message || "Eroare."); }
+  }
   async function copySimTeam(fromTeamId) {
     setTeamMenu(null);
     // alege echipa țintă: următoarea echipă cu nume asemănător (SIM) sau prima alta
@@ -207,7 +211,17 @@ export default function MatrixPage() {
                             </div>
                           );
                         })}
-                        {c.needed > 0 && <div className="needed">{c.needed} Needed</div>}
+                        <div className="needrow" onClick={(e) => e.stopPropagation()}>
+                          {c.needed > 0 ? (
+                            <span className="needctl">
+                              <button onClick={() => changeNeeded(plans[ci].id, t.teamId, pos.positionId, c.needed - 1)}>−</button>
+                              <span className="needn">{c.needed} Needed</span>
+                              <button onClick={() => changeNeeded(plans[ci].id, t.teamId, pos.positionId, c.needed + 1)}>+</button>
+                            </span>
+                          ) : (
+                            <button className="needadd" title="Adaugă Needed" onClick={() => changeNeeded(plans[ci].id, t.teamId, pos.positionId, 1)}>+ Needed</button>
+                          )}
+                        </div>
                       </div>
                     );
                   });
@@ -319,7 +333,15 @@ export default function MatrixPage() {
         .prm, .ped { opacity: 0; background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 12px; line-height: 1; padding: 0 2px; flex: none; }
         .prm { font-size: 14px; }
         .person:hover .prm, .person:hover .ped { opacity: 1; } .prm:hover { color: var(--danger); } .ped:hover { color: var(--primary); }
-        .needed { color: #e0a93c; font-size: 11.5px; font-weight: 600; padding: 2px 3px; }
+        .needrow { padding: 1px 3px; }
+        .needctl { display: inline-flex; align-items: center; gap: 4px; }
+        .needn { color: #e0a93c; font-size: 11.5px; font-weight: 600; }
+        .needctl button, .needadd { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 4px; cursor: pointer; }
+        .needctl button { width: 18px; height: 18px; line-height: 1; font-size: 13px; }
+        .needctl button:hover { color: var(--text); }
+        .needadd { opacity: 0; font-size: 10.5px; padding: 1px 7px; }
+        .datacell:hover .needadd { opacity: 1; }
+        .needadd:hover { color: var(--primary); border-color: var(--primary); }
         .empty { padding: 40px; color: var(--text-faint); }
         /* bara dreaptă */
         .side { width: 320px; flex: none; border: 1px solid var(--border); border-left: none; border-radius: 0 8px 8px 0; background: var(--surface); display: flex; flex-direction: column; max-height: calc(100vh - 150px); }

@@ -751,6 +751,28 @@ router.post("/:id/assignments/copy", requireCan("services.schedule"), async (req
   }
 });
 
+/* ───────── PUT /:id/needed — setează câte persoane sunt necesare pe (echipă, poziție) ─────────
+   Celula „Needed" din Matrix (−/N/+). Upsert PcNeededPosition. FĂRĂ email. */
+router.put("/:id/needed", requireCan("services.schedule"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id);
+    const teamId = OID(req.body?.teamId), positionId = OID(req.body?.positionId);
+    const count = Math.max(0, Math.min(99, parseInt(req.body?.count, 10) || 0));
+    if (!teamId || !positionId) return res.status(400).json({ error: "teamId și positionId sunt necesare." });
+    if (count === 0) {
+      await PcNeededPosition.deleteMany(scoped(req, { planId, teamId, positionId }));
+    } else {
+      const existing = await PcNeededPosition.findOne(scoped(req, { planId, teamId, positionId }));
+      if (existing) { existing.count = count; await existing.save(); }
+      else await PcNeededPosition.create(stamp(req, { planId, teamId, positionId, count }));
+    }
+    res.json({ ok: true, count });
+  } catch (err) {
+    console.error("[pc] PUT /plans/:id/needed:", err.message);
+    res.status(500).json({ error: "Eroare la Needed: " + err.message });
+  }
+});
+
 /* ───────── POST /:id/send-schedule-emails — trimite emailurile de programare (PRIORITAR) ───────── */
 router.post("/:id/send-schedule-emails", requireCan("services.schedule"), async (req, res) => {
   try {

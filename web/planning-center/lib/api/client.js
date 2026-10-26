@@ -105,6 +105,8 @@ export const plansApi = {
   unassign: (id, aid) => api.del(`/plans/${id}/assignments/${aid}`),
   // replică o echipă pe alta (SIM1→SIM2), după nume poziție
   copyTeam: (id, fromTeamId, toTeamId) => api.post(`/plans/${id}/assignments/copy`, { fromTeamId, toTeamId }),
+  // setează câte persoane sunt necesare pe (echipă, poziție) — celula Needed
+  setNeeded: (id, teamId, positionId, count) => api.put(`/plans/${id}/needed`, { teamId, positionId, count }),
 };
 
 /* ─── People (tab People) — server/planning-center/routes/people.js ─── */
