@@ -48,6 +48,22 @@ const has = (f) => process.argv.includes(f);
     return;
   }
 
+  // Șterge datele SEED (non-PCO) de Services pt. acest org, ca să rămână doar importul real.
+  // NU atinge oamenii (PcPerson) — au legătura de autentificare (userId).
+  if (has("--clean-seed")) {
+    const filter = { orgId, remoteSource: { $ne: "pco" } };
+    const targets = { ServiceTypes: M.PcServiceType, Teams: M.PcTeam, Positions: M.PcPosition, Plans: M.PcPlan, PlanTimes: M.PcPlanTime, Assignments: M.PcAssignment, Needed: M.PcNeededPosition, PlanNotes: M.PcPlanNote };
+    const out = {};
+    for (const [k, Model] of Object.entries(targets)) {
+      const r = await Model.deleteMany(filter);
+      out[k] = r.deletedCount || 0;
+    }
+    console.log("[cli] seed Services șters (non-PCO):", JSON.stringify(out));
+    console.log("[cli] counts după:", JSON.stringify(await counts(), null, 2));
+    await mongoose.disconnect();
+    return;
+  }
+
   const dryRun = !has("--run");
   console.log(`[cli] ÎNAINTE:`, JSON.stringify(await counts()));
   const { runImport } = require("./index");
