@@ -8,7 +8,7 @@ const mongoose = require("mongoose");
 const {
   PcPlan, PcPlanTime, PcPlanItem, PcAssignment, PcNeededPosition, PcPlanNote, PcPlanFile,
   PcServiceType, PcTeam, PcPosition, PcTeamMember, PcPerson, PcOrg, PcCampus, PcSong,
-  PcArrangement, PcKey, PcSongFile,
+  PcArrangement, PcKey, PcSongFile, PcBlockout,
 } = require("../models");
 const { scoped, stamp } = require("../core/orgScope");
 const { requireCan } = require("../core/permissions");
@@ -602,6 +602,126 @@ router.delete("/:id/assignments/:aid", requireCan("services.schedule"), async (r
   } catch (err) {
     console.error("[pc] DELETE /plans/:id/assignments/:aid:", err.message);
     res.status(500).json({ error: "Eroare la ștergere." });
+  }
+});
+
+/* ───────── GET /:id/recommend — bara dreaptă: candidați pt. o poziție, cu „due" + conflicte ─────────
+   Sortare: fără conflict întâi, apoi cei care n-au mai fost de mult pe poziție (due). FĂRĂ email. */
+router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id);
+    const teamId = OID(req.query.teamId), positionId = OID(req.query.positionId);
+    const plan = await PcPlan.findOne(scoped(req, { _id: planId })).select("sortDate serviceTypeId").lean();
+    if (!plan) return res.status(404).json({ error: "Plan inexistent." });
+    const planDate = new Date(plan.sortDate);
+    const dayStart = new Date(planDate); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+    const pos = positionId ? await PcPosition.findOne(scoped(req, { _id: positionId })).lean() : null;
+
+    // candidați: activi, disponibili (schedulingStatus available/gol), nu copii; filtru opțional gen/program din poziție + q
+    const q = String(req.query.q || "").trim();
+    const filter = scoped(req, { status: "active", schedulingStatus: { $in: ["available", null] } });
+    if (q) { const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"); filter.$or = [{ firstName: rx }, { lastName: rx }, { nickname: rx }]; }
+    if (pos?.defaultGender && pos.defaultGender !== "any") filter.gender = pos.defaultGender;
+    if (pos?.defaultProgram && pos.defaultProgram !== "any") filter.programIntent = pos.defaultProgram;
+    const people = await PcPerson.find(filter).collation({ locale: "ro", strength: 1 }).limit(q ? 40 : 400).select("firstName lastName avatar gender programIntent").lean();
+    const pids = people.map((p) => p._id);
+
+    // fereastră ±180z pt. recență + conflicte (bounded); + blockouts care acoperă ziua
+    const winStart = new Date(planDate); winStart.setDate(winStart.getDate() - 180);
+    const winEnd = new Date(planDate); winEnd.setDate(winEnd.getDate() + 180);
+    const winPlans = await PcPlan.find(scoped(req, { sortDate: { $gte: winStart, $lte: winEnd } })).select("sortDate").lean();
+    const planDateById = Object.fromEntries(winPlans.map((p) => [String(p._id), new Date(p.sortDate)]));
+    const [assigns, blockouts] = await Promise.all([
+      PcAssignment.find(scoped(req, { personId: { $in: pids }, planId: { $in: winPlans.map((p) => p._id) }, status: { $ne: "declined" } })).select("personId planId positionId").lean(),
+      PcBlockout.find(scoped(req, { personId: { $in: pids } })).select("personId startDate endDate").lean(),
+    ]);
+    const WEEK = 7 * 864e5;
+    const byPerson = {}; assigns.forEach((a) => (byPerson[String(a.personId)] = byPerson[String(a.personId)] || []).push(a));
+    const blkByPerson = {}; blockouts.forEach((b) => (blkByPerson[String(b.personId)] = blkByPerson[String(b.personId)] || []).push(b));
+    const dayKey = dayStart.toISOString().slice(0, 10);
+
+    const rows = people.map((p) => {
+      const list = (byPerson[String(p._id)] || []).map((a) => ({ ...a, date: planDateById[String(a.planId)] })).filter((a) => a.date);
+      // cea mai apropiată asignare (orice poziție) → badge săptămâni (semnat)
+      let nearest = null, nearestAbs = Infinity;
+      let lastAtPosWeeks = null; // de câte săpt. n-a mai fost pe poziția asta (pt. „due")
+      let alreadyHere = false, sameDayCount = 0;
+      for (const a of list) {
+        const diff = a.date.getTime() - planDate.getTime();
+        if (Math.abs(diff) < nearestAbs && String(a.planId) !== String(planId)) { nearestAbs = Math.abs(diff); nearest = diff; }
+        if (positionId && String(a.positionId) === String(positionId)) {
+          if (String(a.planId) === String(planId)) alreadyHere = true;
+          else if (diff < 0) { const w = Math.round(-diff / WEEK); if (lastAtPosWeeks == null || w < lastAtPosWeeks) lastAtPosWeeks = w; }
+        }
+        // conflict de timp: altă asignare în aceeași zi (alt plan)
+        if (String(a.planId) !== String(planId) && a.date.toISOString().slice(0, 10) === dayKey) sameDayCount++;
+      }
+      const hasBlockout = (blkByPerson[String(p._id)] || []).some((b) => (!b.startDate || b.startDate <= dayStart.toISOString().slice(0, 10)) && (!b.endDate || b.endDate >= dayStart.toISOString().slice(0, 10)));
+      const weeks = nearest == null ? null : Math.round(nearest / WEEK);
+      const weeksLabel = weeks == null ? "" : (weeks >= 0 ? `+${weeks}w` : `${weeks}w`);
+      let conflict = null;
+      if (hasBlockout) conflict = { type: "blockout", count: 1 };
+      else if (sameDayCount > 0) conflict = { type: "time", count: sameDayCount };
+      return {
+        id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "),
+        initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase(), avatar: p.avatar || "",
+        weeksLabel, dueSort: lastAtPosWeeks == null ? 9999 : lastAtPosWeeks, conflict, alreadyHere,
+      };
+    });
+
+    // grupare + sortare: fără conflict (due desc), apoi cu conflict
+    const noConf = rows.filter((r) => !r.conflict && !r.alreadyHere).sort((a, b) => b.dueSort - a.dueSort || a.name.localeCompare(b.name));
+    const withConf = rows.filter((r) => r.conflict && !r.alreadyHere).sort((a, b) => a.name.localeCompare(b.name));
+    const here = rows.filter((r) => r.alreadyHere);
+    const needed = positionId ? (await PcNeededPosition.findOne(scoped(req, { planId, positionId })).select("count").lean())?.count || 0 : 0;
+    res.json({
+      positionName: pos?.name || "",
+      neededCount: needed,
+      alreadyHere: here,
+      groups: [
+        { label: "FĂRĂ CONFLICT", people: noConf },
+        ...(withConf.length ? [{ label: `${withConf.length} CU CONFLICT`, people: withConf }] : []),
+      ],
+    });
+  } catch (err) {
+    console.error("[pc] GET /plans/:id/recommend:", err.message);
+    res.status(500).json({ error: "Eroare la recomandări: " + err.message });
+  }
+});
+
+/* ───────── POST /:id/assignments/copy — replică asignările unei echipe pe alta (SIM1→SIM2) ─────────
+   Potrivește pozițiile după NUME. Status unconfirmed, FĂRĂ email. Idempotent (nu dublează). */
+router.post("/:id/assignments/copy", requireCan("services.schedule"), async (req, res) => {
+  try {
+    const crypto = require("crypto");
+    const planId = OID(req.params.id);
+    const fromTeamId = OID(req.body?.fromTeamId), toTeamId = OID(req.body?.toTeamId);
+    if (!fromTeamId || !toTeamId) return res.status(400).json({ error: "fromTeamId și toTeamId sunt necesare." });
+    const [fromPos, toPos, srcAssigns] = await Promise.all([
+      PcPosition.find(scoped(req, { teamId: fromTeamId })).select("name").lean(),
+      PcPosition.find(scoped(req, { teamId: toTeamId })).select("name").lean(),
+      PcAssignment.find(scoped(req, { planId, teamId: fromTeamId, status: { $ne: "declined" } })).lean(),
+    ]);
+    const toByName = {}; toPos.forEach((p) => (toByName[(p.name || "").trim().toLowerCase()] = p._id));
+    const fromNameById = {}; fromPos.forEach((p) => (fromNameById[String(p._id)] = (p.name || "").trim().toLowerCase()));
+    let copied = 0;
+    for (const a of srcAssigns) {
+      const destPosId = a.positionId ? toByName[fromNameById[String(a.positionId)] || ""] : null;
+      if (!destPosId) continue; // poziție fără corespondent în echipa țintă
+      const exists = await PcAssignment.findOne(scoped(req, { planId, positionId: destPosId, personId: a.personId })).select("_id").lean();
+      if (exists) continue;
+      await PcAssignment.create(stamp(req, {
+        planId, teamId: toTeamId, positionId: destPosId, personId: a.personId,
+        timeIds: [], status: "unconfirmed", source: "copy", prepared: false,
+        responseToken: crypto.randomBytes(18).toString("hex"),
+      }));
+      copied++;
+    }
+    res.json({ ok: true, copied });
+  } catch (err) {
+    console.error("[pc] POST /plans/:id/assignments/copy:", err.message);
+    res.status(500).json({ error: "Eroare la copiere: " + err.message });
   }
 });
 
