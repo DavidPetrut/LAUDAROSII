@@ -93,6 +93,17 @@ export const plansApi = {
   order: (id) => api.get(`/plans/${id}/order`),
   notes: (id) => api.get(`/plans/${id}/notes`),
   files: (id) => api.get(`/plans/${id}/files`),
+  schedulable: (id, q) => api.get(`/plans/${id}/schedulable${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  // bara dreaptă: candidați pt. o poziție (due + conflicte). Nu trimite nimic.
+  recommend: (id, { teamId, positionId, q } = {}) => {
+    const qs = new URLSearchParams(Object.entries({ teamId, positionId, q }).filter(([, v]) => v)).toString();
+    return api.get(`/plans/${id}/recommend${qs ? `?${qs}` : ""}`);
+  },
+  // asignează o persoană (DOAR DB, status unconfirmed implicit — NU trimite email)
+  assign: (id, payload) => api.post(`/plans/${id}/assignments`, payload),
+  unassign: (id, aid) => api.del(`/plans/${id}/assignments/${aid}`),
+  // replică o echipă pe alta (SIM1→SIM2), după nume poziție
+  copyTeam: (id, fromTeamId, toTeamId) => api.post(`/plans/${id}/assignments/copy`, { fromTeamId, toTeamId }),
 };
 
 /* ─── People (tab People) — server/planning-center/routes/people.js ─── */

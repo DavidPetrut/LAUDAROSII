@@ -28,6 +28,7 @@ async function campusTz(req) {
   return tz;
 }
 const fmtDate = (d, tz) => (d ? new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(d)) : "");
+const fmtWeekday = (d, tz) => (d ? new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(new Date(d)) : "");
 const fmtTime = (d, tz) => (d ? new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(d)) : "");
 const mini = (p) => (p ? { id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "), avatar: p.avatar || "", initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase() } : null);
 
@@ -37,6 +38,7 @@ router.get("/:serviceTypeId", requireCan("services.schedule"), async (req, res) 
     const stId = OID(req.params.serviceTypeId);
     const count = Math.min(12, Math.max(1, parseInt(req.query.count, 10) || 4));
     const tz = await campusTz(req);
+    const stDoc = await PcServiceType.findOne(scoped(req, { _id: stId })).select("name").lean();
 
     // planuri: viitoare (azi înainte) ascending, apoi completăm cu recente dacă-s puține
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
@@ -79,7 +81,8 @@ router.get("/:serviceTypeId", requireCan("services.schedule"), async (req, res) 
 
     res.json({
       serviceTypeId: stId,
-      plans: plans.map((p) => ({ id: p._id, dateLabel: fmtDate(p.sortDate, tz) })),
+      serviceTypeName: stDoc?.name || "",
+      plans: plans.map((p) => ({ id: p._id, dateLabel: fmtDate(p.sortDate, tz), weekday: fmtWeekday(p.sortDate, tz) })),
       teams: teamRows,
     });
   } catch (err) {
