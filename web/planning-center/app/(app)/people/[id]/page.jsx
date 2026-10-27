@@ -19,6 +19,8 @@ export default function PersonPage() {
   const [teams, setTeams] = useState([]);
   const [schedule, setSchedule] = useState([]);
   const [blockouts, setBlockouts] = useState([]);
+  const [onBreak, setOnBreak] = useState(false);
+  const [breakBusy, setBreakBusy] = useState(false);
   const [msgs, setMsgs] = useState(null);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
@@ -26,10 +28,20 @@ export default function PersonPage() {
   const load = useCallback(async () => {
     try {
       const [prof, t, s, b] = await Promise.all([peopleApi.get(id), peopleApi.teams(id), peopleApi.schedule(id), peopleApi.blockouts(id)]);
-      setP(prof); setTeams(t.teams || []); setSchedule(s.schedule || []); setBlockouts(b.blockouts || []);
+      setP(prof); setTeams(t.teams || []); setSchedule(s.schedule || []); setBlockouts(b.blockouts || []); setOnBreak(!!b.onBreak);
     } catch (e) { setErr(e?.message || "Eroare."); }
     finally { setLoading(false); }
   }, [id]);
+
+  async function toggleBreak() {
+    setBreakBusy(true);
+    try {
+      if (onBreak) { await peopleApi.clearChurchBlock(id); }
+      else { if (!confirm(`Marchezi ${p?.fullName || "persoana"} ca „blocat de biserică"? Nu va mai apărea în listele de planificare. Fără email.`)) { setBreakBusy(false); return; } await peopleApi.setChurchBlock(id, {}); }
+      await load();
+    } catch (e) { setErr(e?.message || "Eroare la blocaj."); }
+    finally { setBreakBusy(false); }
+  }
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (tab === "Communication" && !msgs) peopleApi.messages(id).then(setMsgs).catch(() => {}); }, [tab, id, msgs]);
 
@@ -37,7 +49,7 @@ export default function PersonPage() {
   const unconfirmed = schedule.filter((s) => s.status === "unconfirmed").length;
 
   // rânduri program: programări + blockouts, sortate pe dată
-  const blockoutRows = blockouts.map((b) => ({ type: "blockout", dateLabel: b.label, sortDate: b.startDate, reason: b.reason }));
+  const blockoutRows = blockouts.map((b) => ({ type: "blockout", kind: b.type || "personal", dateLabel: b.label, sortDate: b.startDate, reason: b.reason }));
   const schedRows = schedule.map((s) => ({ type: "sched", ...s }));
   const rows = [...schedRows, ...blockoutRows].sort((a, b) => new Date(a.sortDate || a.startDate || 0) - new Date(b.sortDate || b.startDate || 0));
 
@@ -59,6 +71,7 @@ export default function PersonPage() {
           <h1>{p?.fullName}</h1>
           <div className="email">{p?.email}</div>
         </div>
+        {onBreak && <span className="breakbadge" title="Nu apare în listele de planificare">🔵 Blocat de biserică</span>}
         <span className="role">{p?.permission || "Viewer"}</span>
       </div>
 
@@ -80,15 +93,24 @@ export default function PersonPage() {
               <div className="sl-label">PROGRAM VIITOR</div>
               {rows.length === 0 && <div className="muted">Nimic programat.</div>}
               {rows.map((r, i) => (
-                <div key={i} className={`srow ${r.type === "blockout" ? "blk" : ""}`} onClick={() => r.planId && router.push(`/plans/${r.planId}`)}>
-                  <span className="sr-ic">{r.type === "blockout" ? "⛔" : (r.status === "confirmed" ? "✅" : "❔")}</span>
+                <div key={i} className={`srow ${r.type === "blockout" ? (r.kind === "churchBlock" ? "church" : "blk") : ""}`} onClick={() => r.planId && router.push(`/plans/${r.planId}`)}>
+                  <span className="sr-ic">{r.type === "blockout" ? (r.kind === "churchBlock" ? "🔵" : "⛔") : (r.status === "confirmed" ? "✅" : "❔")}</span>
                   <span className="sr-date">{r.dateLabel}</span>
-                  <span className="sr-main">{r.type === "blockout" ? `Blockout${r.reason ? " · " + r.reason : ""}` : r.serviceTypeName}</span>
+                  <span className="sr-main">{r.type === "blockout" ? (r.kind === "churchBlock" ? `Blocaj biserică${r.reason ? " · " + r.reason : ""}` : `Blockout${r.reason ? " · " + r.reason : ""}`) : r.serviceTypeName}</span>
                 </div>
               ))}
             </div>
           </div>
           <div className="colside">
+            <div className="card">
+              <div className="card-h">Disponibilitate</div>
+              <div className="brk">
+                <div className="brk-t">{onBreak ? "Blocat de biserică — nu apare în liste." : "Activ — apare în listele de planificare."}</div>
+                <button className={`brk-b ${onBreak ? "on" : ""}`} onClick={toggleBreak} disabled={breakBusy}>
+                  {breakBusy ? "…" : onBreak ? "Ridică blocajul" : "Blochează (on-break)"}
+                </button>
+              </div>
+            </div>
             <div className="card">
               <div className="card-h">Teams</div>
               {teams.length === 0 && <div className="muted">Nicio echipă.</div>}
@@ -140,6 +162,13 @@ export default function PersonPage() {
         .av.ini { background: #3a4552; color: #fff; font-size: 22px; display: inline-flex; align-items: center; justify-content: center; }
         .htext { flex: 1; } .htext h1 { margin: 0; font-size: 22px; } .email { color: var(--text-dim); font-size: 13px; }
         .role { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 5px 12px; font-size: 12.5px; }
+        .breakbadge { background: rgba(47,129,247,.14); border: 1px solid var(--primary); color: #9cc4f5; border-radius: 20px; padding: 5px 12px; font-size: 12px; font-weight: 600; }
+        .brk { display: flex; flex-direction: column; gap: 10px; }
+        .brk-t { color: var(--text-dim); font-size: 12.5px; line-height: 1.4; }
+        .brk-b { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; padding: 8px 12px; cursor: pointer; font-size: 13px; }
+        .brk-b:hover { border-color: var(--primary); }
+        .brk-b.on { border-color: var(--primary); color: #9cc4f5; background: rgba(47,129,247,.1); }
+        .brk-b:disabled { opacity: .6; cursor: default; }
         .tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
         .tab { background: transparent; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 9px 2px; color: var(--text-dim); cursor: pointer; font-size: 14px; }
         .tab.active { color: var(--text); border-bottom-color: var(--primary); font-weight: 600; }
@@ -154,7 +183,7 @@ export default function PersonPage() {
         .stnums b { font-size: 15px; margin-right: 6px; } .stnums .ok { color: var(--product); } .stnums .un { color: #c9a227; } .stnums .no { color: var(--danger); }
         .sl-label { color: var(--text-faint); font-size: 11px; letter-spacing: .5px; margin: 10px 0 6px; }
         .srow { display: flex; align-items: center; gap: 12px; padding: 9px 4px; border-bottom: 1px solid var(--border-soft); cursor: pointer; font-size: 13.5px; }
-        .srow:hover { background: var(--row-hover); } .srow.blk { color: var(--danger); }
+        .srow:hover { background: var(--row-hover); } .srow.blk { color: var(--danger); } .srow.church { color: #9cc4f5; }
         .sr-date { width: 100px; color: var(--text-dim); } .sr-main { color: var(--text); }
         .team { padding: 10px 0; border-bottom: 1px solid var(--border-soft); }
         .tname { color: var(--text); font-weight: 600; font-size: 13.5px; } .leader { margin-left: 8px; font-size: 10px; color: var(--product); border: 1px solid var(--product); border-radius: 4px; padding: 0 5px; }

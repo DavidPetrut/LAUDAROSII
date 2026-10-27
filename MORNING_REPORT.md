@@ -43,13 +43,19 @@
     pereche + poziție cu același nume) bifa „Adaugă și la Asimilare (SIM 2)". Bifată, când asignezi o
     persoană o pune și pe echipa pereche, pe aceeași poziție — optimist, fără email. Merge în Matrix ȘI Teams.
 
+### Ce am mai adăugat (azi, partea 6)
+12. **Blockout rules (lider)** ✅ — **churchBlock (albastru)**: blocaj pus de planificator din profil
+    („Disponibilitate" → Blochează/Ridică), persoana **nu mai apare** în bara de asignare NICI în raportul
+    „Neplanificați"; afișat albastru (vs personal roșu) + badge „Blocat de biserică". Reguli person-side în
+    `POST /schedule/blockouts`: **planificat + email trimis → NU poți pune blockout** (eroare „vorbește cu
+    planificatorul"); **planificat (fără email) + blockout → auto-decline** (DOAR DB, ZERO email/notificare).
+
 ### Ce a mai rămas (ți-l las clar)
 - **Gen real pe oameni** — PCO nu-l dă în export (câmp gol). Când îl avem (manual/heuristic), filtrul de Gen
   se activează automat. SIM merge deja (din nume).
 - **EditPersonModal — email/Service Times/Rehearsal/timeline real**: grila/Teams nu trimit încă aceste
   câmpuri; modalul le afișează doar când există. Le pot popula (mic adaos backend).
-- **Blockout rules** (planificat+email→nu poți blockout; planificat+blockout→auto-decline) + **churchBlock**
-  albastru (on-break/invitați excluși din liste) — sensibil, **cu tine**.
+- **Invitați (guests) one-time** — taxonomie de „gust" fără istoric (apare automat ca Confirmed). Nu e făcut.
 - **Email** (global templates + logo Vertical) — **strict cu tine**, nimic trimis automat.
 - **Deploy:** backend-ul (plans.js teams) cere redeploy Render ca Teams să ia forma nouă (push-ul declanșează).
 
@@ -132,7 +138,6 @@ Data: noapte 26→27 oct 2026. Tot codul e **comis + pushed pe `master`** (Rende
 - **Trimiterea emailurilor de programare** (butonul „Trimite email" din Matrix / „Email These People").
   Endpoint-ul există (`send-schedule-emails`) dar **NU l-am atins niciodată**. Îl testăm împreună, controlat.
 - **Accept/Decline din My Schedule** (declanșează răspuns real) — l-am lăsat ca seam, îl activăm împreună.
-- **Blockout peste o programare cu email trimis** (regula liderului) — logică sensibilă, o facem împreună.
 
 ### B. Lucruri care îți cer OCHIUL (design pixel-perfect vs poze)
 - **Nu m-am putut loga** în app (n-am parola ta) → **n-am văzut UI-ul randat cu date reale**. Am construit
@@ -141,8 +146,6 @@ Data: noapte 26→27 oct 2026. Tot codul e **comis + pushed pe `master`** (Rende
 
 ### C. Features din audit rămase (le pot face, doar n-am apucat la noapte)
 - **Copy Times From / Templates** în Add Plans (acum creează săptămânal simplu; templates = următorul pas).
-- **Blockout „churchBlock"** (albastru, pus de planificator) + management în profil + regula „blockout peste
-  email trimis = interzis".
 - **Target view pe TOATE planurile** (crosshair) — acum e doar pe planurile vizibile din grilă.
 - **Recomandări avansate:** reguli per poziție (gen/program/target „2×/lună") — schema există
   (`defaultGender/defaultProgram/recommendRule`), le populăm din import + rafinăm scorul.

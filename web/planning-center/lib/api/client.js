@@ -122,6 +122,9 @@ export const peopleApi = {
   schedule: (id) => api.get(`/people/${id}/schedule`),
   blockouts: (id) => api.get(`/people/${id}/blockouts`),
   messages: (id) => api.get(`/people/${id}/messages`),
+  // blocaj de biserică (on-break) pus de planificator — ascunde persoana din liste. Fără email.
+  setChurchBlock: (id, payload = {}) => api.post(`/people/${id}/church-block`, payload),
+  clearChurchBlock: (id) => api.del(`/people/${id}/church-block`),
 };
 
 /* ─── My Schedule / calendar — server/planning-center/routes/schedule.js ─── */

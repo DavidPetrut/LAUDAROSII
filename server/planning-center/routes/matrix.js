@@ -200,21 +200,24 @@ router.get("/:serviceTypeId/coverage", requireCan("services.schedule"), async (r
     const schedBy = {};
     winAssigns.forEach((a) => (schedBy[String(a.personId)] = schedBy[String(a.personId)] || new Set()).add(String(a.planId)));
 
-    // blockouts
-    const blk = await PcBlockout.find(scoped(req, { personId: { $in: pid } })).select("personId startDate endDate").lean();
+    // blockouts (cu type: churchBlock = exclus din raport)
+    const blk = await PcBlockout.find(scoped(req, { personId: { $in: pid } })).select("personId startDate endDate type").lean();
     const blkBy = {}; blk.forEach((b) => (blkBy[String(b.personId)] = blkBy[String(b.personId)] || []).push(b));
+    const covers = (b, dk) => (!b.startDate || b.startDate <= dk) && (!b.endDate || b.endDate >= dk);
 
     const rows = people.map((p) => {
-      const sched = schedBy[String(p._id)] ? schedBy[String(p._id)].size : 0;
       const myBlk = blkBy[String(p._id)] || [];
-      const blocked = planKeys.filter((dk) => myBlk.some((b) => (!b.startDate || b.startDate <= dk) && (!b.endDate || b.endDate >= dk))).length;
+      // blocaj de biserică (on-break) care acoperă vreo zi din interval → exclus din raport
+      if (myBlk.some((b) => b.type === "churchBlock" && planKeys.some((dk) => covers(b, dk)))) return null;
+      const sched = schedBy[String(p._id)] ? schedBy[String(p._id)].size : 0;
+      const blocked = planKeys.filter((dk) => myBlk.some((b) => b.type !== "churchBlock" && covers(b, dk))).length;
       const free = Math.max(0, count - sched - blocked);
       return {
         id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "),
         initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase(), avatar: p.avatar || "",
         scheduled: sched, blocked, free,
       };
-    });
+    }).filter(Boolean);
 
     // buckets: 0× (neplanificați) … 4×+; în fiecare, cei mai „liberi" întâi
     const bucket = (n, last) => ({

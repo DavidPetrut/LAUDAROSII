@@ -335,8 +335,39 @@ router.get("/:id/blockouts", requireCan("people.view"), async (req, res) => {
     const personId = OID(req.params.id);
     const today = new Date().toISOString().slice(0, 10);
     const blockouts = await PcBlockout.find(scoped(req, { personId, endDate: { $gte: today } })).sort({ startDate: 1 }).lean();
-    res.json({ blockouts: blockouts.map((b) => ({ id: b._id, startDate: b.startDate, endDate: b.endDate, repeat: b.repeat, reason: b.reason, label: b.startDate === b.endDate ? b.startDate : `${b.startDate} → ${b.endDate}` })) });
+    const onBreak = blockouts.some((b) => b.type === "churchBlock" && (!b.startDate || b.startDate <= today));
+    res.json({
+      onBreak,
+      blockouts: blockouts.map((b) => ({ id: b._id, startDate: b.startDate, endDate: b.endDate, repeat: b.repeat, reason: b.reason, type: b.type || "personal", label: b.startDate === b.endDate ? b.startDate : `${b.startDate} → ${b.endDate}` })),
+    });
   } catch (err) { console.error("[pc] GET /people/:id/blockouts:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
+/* POST /:id/church-block — planificatorul marchează persoana „blocată de biserică" (on-break):
+   nu mai apare în liste. Default: de azi, pe termen nelimitat. DOAR DB, fără email. */
+router.post("/:id/church-block", requireCan("services.schedule"), async (req, res) => {
+  try {
+    const personId = OID(req.params.id);
+    if (!personId) return res.status(400).json({ error: "ID invalid." });
+    const today = new Date().toISOString().slice(0, 10);
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    const startDate = DATE_RE.test(req.body?.startDate) ? req.body.startDate : today;
+    const endDate = DATE_RE.test(req.body?.endDate) ? req.body.endDate : "2099-12-31";
+    if (endDate < startDate) return res.status(400).json({ error: "Data de final e înaintea celei de început." });
+    const setBy = (await PcPerson.findOne(scoped(req, { userId: req.user.id })).select("_id").lean())?._id || null;
+    const doc = await PcBlockout.create(stamp(req, { personId, startDate, endDate, allDay: true, repeat: "none", reason: String(req.body?.reason || "").trim(), type: "churchBlock", setByPersonId: setBy }));
+    res.status(201).json({ ok: true, id: doc._id });
+  } catch (err) { console.error("[pc] POST /people/:id/church-block:", err.message); res.status(500).json({ error: "Eroare la blocaj." }); }
+});
+
+/* DELETE /:id/church-block — ridică blocajul de biserică (toate churchBlock active). DOAR DB. */
+router.delete("/:id/church-block", requireCan("services.schedule"), async (req, res) => {
+  try {
+    const personId = OID(req.params.id);
+    const today = new Date().toISOString().slice(0, 10);
+    const r = await PcBlockout.updateMany(scoped(req, { personId, type: "churchBlock", endDate: { $gte: today } }), { $set: { deletedAt: new Date() } });
+    res.json({ ok: true, cleared: r.modifiedCount || 0 });
+  } catch (err) { console.error("[pc] DELETE /people/:id/church-block:", err.message); res.status(500).json({ error: "Eroare." }); }
 });
 
 /* GET /:id/messages — istoric comunicare (unread/received/sent). */

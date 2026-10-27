@@ -238,6 +238,25 @@ router.post("/blockouts", async (req, res) => {
       if (!allDay && startTime && endTime && endTime < startTime) return res.status(400).json({ error: "Ora de final e înaintea celei de început." });
       toCreate.push({ startDate, endDate, allDay, repeat, reason, startTime, endTime });
     }
+    // ── Reguli lider (blockout) ──
+    // Pre-încarcă programările viitoare ale persoanei + ziua fiecărui plan.
+    const tzR = await campusTz(req);
+    const myAssigns = await PcAssignment.find(scoped(req, { personId: pid, status: { $ne: "declined" } })).lean();
+    const aPlanIds = [...new Set(myAssigns.map((a) => String(a.planId)))].map(OID).filter(Boolean);
+    const aPlans = aPlanIds.length ? await PcPlan.find(scoped(req, { _id: { $in: aPlanIds } })).select("sortDate").lean() : [];
+    const planDayStr = Object.fromEntries(aPlans.map((p) => [String(p._id), new Intl.DateTimeFormat("en-CA", { timeZone: tzR, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(p.sortDate))]));
+    const assignByDay = {};
+    myAssigns.forEach((a) => { const ds = planDayStr[String(a.planId)]; if (ds) (assignByDay[ds] = assignByDay[ds] || []).push(a); });
+    const inRange = (ds, b) => ds >= b.startDate && ds <= b.endDate;
+    // 1) Dacă e deja programat ȘI i s-a trimis programarea (email) pe o zi acoperită → NU poate pune blockout.
+    for (const b of toCreate) {
+      for (const [ds, arr] of Object.entries(assignByDay)) {
+        if (inRange(ds, b) && arr.some((a) => a.notificationSentAt)) {
+          return res.status(409).json({ error: `Ești deja programat pe ${ds} și ți s-a trimis deja programarea. Pentru schimb, vorbește cu planificatorul.` });
+        }
+      }
+    }
+
     const created = [];
     for (const b of toCreate) {
       // Dedup concurent: dacă există deja identic (person+interval+allDay+repeat+reason), nu dubla.
@@ -249,7 +268,17 @@ router.post("/blockouts", async (req, res) => {
       const doc = await PcBlockout.create(stamp(req, { personId: pid, ...b }));
       created.push({ id: doc._id, blockout: b });
     }
-    res.status(201).json({ ok: true, created: created.map((c) => ({ id: c.id, deduped: c.deduped })), count: created.length });
+
+    // 2) Programat (fără email trimis) pe o zi acoperită → auto-decline. DOAR DB, ZERO email/notificare.
+    const declineIds = [];
+    for (const b of toCreate) for (const [ds, arr] of Object.entries(assignByDay)) if (inRange(ds, b)) for (const a of arr) if (!a.notificationSentAt) declineIds.push(a._id);
+    let autoDeclined = 0;
+    if (declineIds.length) {
+      const r1 = await PcAssignment.updateMany(scoped(req, { _id: { $in: declineIds }, status: "confirmed" }), { $set: { status: "declined", declinedAt: new Date(), declineReason: "Blockout", declinedAfterConfirm: true } });
+      const r2 = await PcAssignment.updateMany(scoped(req, { _id: { $in: declineIds }, status: { $ne: "declined" } }), { $set: { status: "declined", declinedAt: new Date(), declineReason: "Blockout" } });
+      autoDeclined = (r1.modifiedCount || 0) + (r2.modifiedCount || 0);
+    }
+    res.status(201).json({ ok: true, created: created.map((c) => ({ id: c.id, deduped: c.deduped })), count: created.length, autoDeclined });
 
     // Anunță adminii (email real) — după răspuns, fără să blocheze (cerință user „adminul sa le primeasca").
     const fresh = created.filter((c) => !c.deduped && c.blockout);

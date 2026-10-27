@@ -698,7 +698,7 @@ router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) =
     const planDateById = Object.fromEntries(winPlans.map((p) => [String(p._id), new Date(p.sortDate)]));
     const [assigns, blockouts] = await Promise.all([
       PcAssignment.find(scoped(req, { personId: { $in: pids }, planId: { $in: winPlans.map((p) => p._id) }, status: { $ne: "declined" } })).select("personId planId positionId").lean(),
-      PcBlockout.find(scoped(req, { personId: { $in: pids } })).select("personId startDate endDate").lean(),
+      PcBlockout.find(scoped(req, { personId: { $in: pids } })).select("personId startDate endDate type").lean(),
     ]);
     const WEEK = 7 * 864e5;
     const byPerson = {}; assigns.forEach((a) => (byPerson[String(a.personId)] = byPerson[String(a.personId)] || []).push(a));
@@ -721,7 +721,11 @@ router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) =
         // conflict de timp: altă asignare în aceeași zi (alt plan)
         if (String(a.planId) !== String(planId) && a.date.toISOString().slice(0, 10) === dayKey) sameDayCount++;
       }
-      const hasBlockout = (blkByPerson[String(p._id)] || []).some((b) => (!b.startDate || b.startDate <= dayStart.toISOString().slice(0, 10)) && (!b.endDate || b.endDate >= dayStart.toISOString().slice(0, 10)));
+      const covers = (b) => (!b.startDate || b.startDate <= dayKey) && (!b.endDate || b.endDate >= dayKey);
+      const myBlk = blkByPerson[String(p._id)] || [];
+      // churchBlock (blocat de planificator / on-break) care acoperă ziua → persoana NU apare deloc în listă
+      const churchBlocked = myBlk.some((b) => b.type === "churchBlock" && covers(b));
+      const hasBlockout = myBlk.some((b) => b.type !== "churchBlock" && covers(b));
       const weeks = nearest == null ? null : Math.round(nearest / WEEK);
       const weeksLabel = weeks == null ? "" : (weeks >= 0 ? `+${weeks}w` : `${weeks}w`);
       let conflict = null;
@@ -730,9 +734,9 @@ router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) =
       return {
         id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "),
         initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase(), avatar: p.avatar || "",
-        weeksLabel, dueSort: lastAtPosWeeks == null ? 9999 : lastAtPosWeeks, conflict, alreadyHere,
+        weeksLabel, dueSort: lastAtPosWeeks == null ? 9999 : lastAtPosWeeks, conflict, alreadyHere, churchBlocked,
       };
-    });
+    }).filter((r) => !r.churchBlocked); // exclude din liste pe cei cu blocaj de biserică
 
     // grupare + sortare: fără conflict (due desc), apoi cu conflict
     const noConf = rows.filter((r) => !r.conflict && !r.alreadyHere).sort((a, b) => b.dueSort - a.dueSort || a.name.localeCompare(b.name));
