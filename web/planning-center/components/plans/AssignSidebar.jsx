@@ -18,20 +18,37 @@ function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return
 export default function AssignSidebar({
   open, title, neededCount, loading, groups = [], alreadyHere = [],
   query, onQuery, onPick, onClose, assigning, mirror, onAddGuest,
+  defaults, positionId, onSaveRules, instructions,
 }) {
   const [sim, setSim] = useState("");          // "", "1", "2"
-  const [gender, setGender] = useState("");    // "", "male", "female"
+  const [gender, setGender] = useState("");    // "", "M", "F"
   const [simOn, setSimOn] = useState(false);   // afișează rândul de filtre
   const [mirrorOn, setMirrorOn] = useState(false); // „adaugă și pe echipa pereche (SIM 2)"
   const [mode, setMode] = useState("member");  // "member" | "guest"
   const [guestName, setGuestName] = useState("");
-  // resetează la schimbarea poziției/echipei
-  useEffect(() => { setMirrorOn(false); setMode("member"); setGuestName(""); }, [title, mirror?.label]);
+  const [rulesOn, setRulesOn] = useState(false);
+  const [draft, setDraft] = useState({ defaultGender: "any", defaultProgram: "any", targetPerMonth: 0 });
+  const [rulesBusy, setRulesBusy] = useState(false);
+
+  // la schimbarea poziției: reset + PRE-SELECTează filtrele din regulile poziției
+  useEffect(() => {
+    setMirrorOn(false); setMode("member"); setGuestName(""); setRulesOn(false);
+    const g = defaults?.gender && defaults.gender !== "any" ? defaults.gender : "";
+    const p = defaults?.program && defaults.program !== "any" ? defaults.program : "";
+    setGender(g); setSim(p); setSimOn(!!(g || p));
+    setDraft({ defaultGender: defaults?.gender || "any", defaultProgram: defaults?.program || "any", targetPerMonth: defaults?.targetPerMonth || 0 });
+    // eslint-disable-next-line
+  }, [title, positionId, defaults?.gender, defaults?.program, defaults?.targetPerMonth]);
 
   function addGuest() {
     const n = guestName.trim();
     if (!n || !onAddGuest) return;
     onAddGuest(n); setGuestName("");
+  }
+  async function saveRules() {
+    if (!onSaveRules) return;
+    setRulesBusy(true);
+    try { await onSaveRules(positionId, draft); setRulesOn(false); } finally { setRulesBusy(false); }
   }
 
   // are vreun candidat date de gen? (altfel nu aplicăm filtrul de gen)
@@ -78,10 +95,35 @@ export default function AssignSidebar({
           <>
           <div className="asb-searchrow">
             <input className="asb-search" placeholder="Caută după nume, tag sau poziție" value={query} onChange={(e) => onQuery(e.target.value)} />
-            <button className={`asb-filt ${simOn ? "on" : ""}`} title="Filtre" onClick={() => setSimOn((v) => !v)}>
+            <button className={`asb-filt ${simOn ? "on" : ""}`} title="Filtre (SIM / Gen)" onClick={() => setSimOn((v) => !v)}>
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h12M4 8h8M6 12h4" /></svg>
             </button>
+            {onSaveRules && positionId && (
+              <button className={`asb-filt ${rulesOn ? "on" : ""}`} title="Reguli poziție (gen/SIM/target)" onClick={() => setRulesOn((v) => !v)}>⚙</button>
+            )}
           </div>
+
+          {rulesOn && (
+            <div className="asb-rules">
+              <div className="rr-t">Reguli poziție — filtrele se pre-selectează la deschidere</div>
+              <div className="ff"><span className="ff-l">Gen</span>
+                {[["any", "Oricine"], ["M", "Băieți"], ["F", "Fete"]].map(([v, l]) => (
+                  <button key={v} className={`chip ${draft.defaultGender === v ? "on" : ""}`} onClick={() => setDraft((d) => ({ ...d, defaultGender: v }))}>{l}</button>
+                ))}
+              </div>
+              <div className="ff"><span className="ff-l">SIM</span>
+                {[["any", "Oricare"], ["1", "1"], ["2", "2"]].map(([v, l]) => (
+                  <button key={v} className={`chip ${draft.defaultProgram === v ? "on" : ""}`} onClick={() => setDraft((d) => ({ ...d, defaultProgram: v }))}>{l}</button>
+                ))}
+              </div>
+              <div className="ff"><span className="ff-l">Target</span>
+                <input className="rr-num" type="number" min="0" max="31" value={draft.targetPerMonth}
+                  onChange={(e) => setDraft((d) => ({ ...d, targetPerMonth: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
+                <span className="rr-x">×/lună</span>
+              </div>
+              <button className="asb-gbtn" disabled={rulesBusy} onClick={saveRules}>{rulesBusy ? "Se salvează…" : "Salvează regula"}</button>
+            </div>
+          )}
 
           {mirror?.available && (
             <label className="asb-mirror" title="Când asignezi, pune aceeași persoană și pe echipa pereche, aceeași poziție">
@@ -100,7 +142,7 @@ export default function AssignSidebar({
               </div>
               <div className="ff">
                 <span className="ff-l">Gen</span>
-                {[["", "Toți"], ["male", "B"], ["female", "F"]].map(([v, l]) => (
+                {[["", "Toți"], ["M", "B"], ["F", "F"]].map(([v, l]) => (
                   <button key={v} className={`chip ${gender === v ? "on" : ""} ${!hasGender && v ? "dis" : ""}`}
                     onClick={() => hasGender || !v ? setGender(v) : null}
                     title={!hasGender && v ? "Fără date de gen încă" : ""}>{l}</button>
@@ -136,6 +178,7 @@ export default function AssignSidebar({
                         <span className="cf-dot" />{p.conflict.count > 1 ? p.conflict.count : ""}
                       </span>
                     )}
+                    {p.targetLabel && <span className={`tgt ${p.belowTarget ? "below" : "met"}`} title="Pe poziția asta luna asta / target">{p.targetLabel}</span>}
                     <span className="wk">{p.weeksLabel}</span>
                   </button>
                 ))}
@@ -182,6 +225,10 @@ export default function AssignSidebar({
           background: rgba(47,129,247,.08); border: 1px solid rgba(47,129,247,.3); border-radius: 6px;
           color: var(--text-dim); font-size: 12.5px; cursor: pointer; }
         .asb-mirror input { accent-color: var(--primary); }
+        .asb-rules { margin: 0 16px 10px; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 8px; display: flex; flex-direction: column; gap: 9px; }
+        .rr-t { color: var(--text-faint); font-size: 11px; line-height: 1.4; }
+        .rr-num { width: 52px; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; height: 26px; padding: 0 8px; font-size: 13px; }
+        .rr-x { color: var(--text-faint); font-size: 11.5px; }
         .asb-filters { padding: 0 16px 10px; display: flex; flex-direction: column; gap: 8px; }
         .ff { display: flex; align-items: center; gap: 6px; }
         .ff-l { color: var(--text-faint); font-size: 10.5px; letter-spacing: .5px; width: 32px; }
@@ -201,6 +248,9 @@ export default function AssignSidebar({
         .cf-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
         .cf.blockout { color: var(--danger); } .cf.blockout .cf-dot { background: var(--danger); }
         .cf.time { color: var(--st-unconfirmed); } .cf.time .cf-dot { background: var(--st-unconfirmed); }
+        .tgt { font-size: 10px; border-radius: 10px; padding: 0 6px; border: 1px solid; white-space: nowrap; }
+        .tgt.below { color: var(--product); border-color: rgba(87,185,138,.5); }
+        .tgt.met { color: var(--text-faint); border-color: var(--border-strong); }
         .wk { color: var(--text-faint); font-size: 11px; min-width: 32px; text-align: right; }
         .cand.here { opacity: .75; cursor: default; } .here-b { color: var(--product); }
         .asb-muted { color: var(--text-faint); font-size: 12.5px; padding: 10px 8px; }

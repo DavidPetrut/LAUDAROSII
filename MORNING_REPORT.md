@@ -61,9 +61,18 @@
     unic, `isGuest`+`guestName`) → **fără istoric**, nu apare în listele de candidați, nu încarcă People.
     Fără email. (cererea liderului pt. vorbitori/vizitatori din afară)
 
+### Ce am mai adăugat (azi, partea 9)
+15. **Reguli de recomandare per poziție** ✅ — în bară, buton ⚙ „Reguli poziție": setezi **Gen** (Oricine/
+    Băieți/Fete), **SIM** (Oricare/1/2) și **Target ×/lună** (`PATCH /plans/positions/:id/rules`). La
+    deschiderea poziției, filtrele se **pre-selectează** din regulă. Recomandarea arată **badge target**
+    (ex. `0/2` verde = sub cotă, `2/2` gri = atins) și **sortează sub-target întâi**, apoi „due".
+    Genul NU se mai filtrează hard în backend (ar goli lista fără date de gen) — se aplică în bară când există.
+
 ### Ce a mai rămas (ți-l las clar)
-- **Gen real pe oameni** — PCO nu-l dă în export (câmp gol). Când îl avem (manual/heuristic), filtrul de Gen
-  se activează automat. SIM merge deja (din nume).
+- **Gen real pe oameni** — PCO nu-l dă în export (câmp gol). Regula „Gen" per poziție se poate seta deja,
+  dar filtrul efectiv se activează automat când avem datele de gen. SIM merge deja (din nume).
+- **Instrucțiuni per poziție** („manualul" de onboarding) — câmpul există + PATCH-ul îl salvează; mai lipsește
+  UI-ul de editare + afișarea la user (in-app/email/push).
 - **Email** (global templates + logo Vertical) — **strict cu tine**, nimic trimis automat.
 - **Deploy:** backend-ul (plans.js teams) cere redeploy Render ca Teams să ia forma nouă (push-ul declanșează).
 

@@ -177,6 +177,10 @@ export default function MatrixPage() {
     try { await plansApi.setNeeded(planId, teamId, positionId, n); reconcile(); }
     catch (e) { flash(e?.message || "Eroare."); reconcile(); }
   }
+  async function saveRules(positionId, payload) {
+    try { await plansApi.setPositionRules(positionId, payload); flash("Reguli poziție salvate."); refreshRec(); }
+    catch (e) { flash(e?.message || "Eroare."); }
+  }
   async function copySimTeam(fromTeamId) {
     const from = teams.find((t) => String(t.teamId) === String(fromTeamId));
     const cand = teams.filter((t) => String(t.teamId) !== String(fromTeamId));
@@ -322,6 +326,7 @@ export default function MatrixPage() {
         assigning={assigning}
         mirror={pereche ? { available: true, label: `Adaugă și la ${pereche.teamName}` } : null}
         onAddGuest={addGuest}
+        defaults={rec?.defaults} positionId={sel?.positionId} onSaveRules={saveRules}
       />
 
       {editing && (

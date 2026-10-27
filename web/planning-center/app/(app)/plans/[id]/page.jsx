@@ -147,6 +147,10 @@ export default function PlanDetailPage() {
     try { await plansApi.updateAssignment(id, editing.assignmentId, { status, notes }); flash("Salvat (fără email)."); reconcileTeams(); }
     catch (e) { flash(e?.message || "Eroare."); reconcileTeams(); }
   }
+  async function saveRules(positionId, payload) {
+    try { await plansApi.setPositionRules(positionId, payload); flash("Reguli poziție salvate."); refreshRec(); }
+    catch (e) { flash(e?.message || "Eroare."); }
+  }
   async function changeNeeded(teamId, positionId, nextCount) {
     const n = Math.max(0, nextCount);
     patchGroup(teamId, positionId, (g) => ({ ...g, needed: n }));
@@ -214,6 +218,7 @@ export default function PlanDetailPage() {
         query={recQuery} onQuery={setRecQuery} onPick={assignPerson} onClose={() => { setSel(null); setRec(null); }} assigning={assigning}
         mirror={pereche ? { available: true, label: `Adaugă și la ${pereche.teamName}` } : null}
         onAddGuest={addGuest}
+        defaults={rec?.defaults} positionId={sel?.positionId} onSaveRules={saveRules}
       />
       {editing && (
         <EditPersonModal person={editing} onClose={() => setEditing(null)} onSave={saveEdit}

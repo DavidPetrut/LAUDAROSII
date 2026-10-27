@@ -709,6 +709,28 @@ router.get("/:id/assignments/:aid", requireCan("people.view"), async (req, res) 
   }
 });
 
+/* ───────── PATCH /positions/:positionId/rules — reguli de recomandare per poziție (lider) ─────────
+   defaultGender (M/F/any), defaultProgram/SIM (1/2/any), targetPerMonth (de câte ori/lună), instructions. */
+router.patch("/positions/:positionId/rules", requireCan("services.schedule"), async (req, res) => {
+  try {
+    const positionId = OID(req.params.positionId);
+    if (!positionId) return res.status(400).json({ error: "ID invalid." });
+    const b = req.body || {};
+    const set = {};
+    if (["M", "F", "any"].includes(b.defaultGender)) set.defaultGender = b.defaultGender;
+    if (["1", "2", "any"].includes(String(b.defaultProgram))) set.defaultProgram = String(b.defaultProgram);
+    if (b.targetPerMonth != null) set["recommendRule.targetPerMonth"] = Math.max(0, Math.min(31, parseInt(b.targetPerMonth, 10) || 0));
+    if (typeof b.instructions === "string") set.instructions = b.instructions;
+    if (!Object.keys(set).length) return res.status(400).json({ error: "Nimic de salvat." });
+    const pos = await PcPosition.findOneAndUpdate(scoped(req, { _id: positionId }), { $set: set }, { new: true }).lean();
+    if (!pos) return res.status(404).json({ error: "Poziție inexistentă." });
+    res.json({ ok: true, defaults: { gender: pos.defaultGender, program: pos.defaultProgram, targetPerMonth: pos.recommendRule?.targetPerMonth || 0 }, instructions: pos.instructions || "" });
+  } catch (err) {
+    console.error("[pc] PATCH /plans/positions/:positionId/rules:", err.message);
+    res.status(500).json({ error: "Eroare la salvarea regulilor." });
+  }
+});
+
 /* ───────── GET /:id/recommend — bara dreaptă: candidați pt. o poziție, cu „due" + conflicte ─────────
    Sortare: fără conflict întâi, apoi cei care n-au mai fost de mult pe poziție (due). FĂRĂ email. */
 router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) => {
@@ -722,13 +744,15 @@ router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) =
     const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
     const pos = positionId ? await PcPosition.findOne(scoped(req, { _id: positionId })).lean() : null;
 
-    // candidați: activi, disponibili (schedulingStatus available/gol), nu copii; filtru opțional gen/program din poziție + q
+    // candidați: activi, disponibili (schedulingStatus available/gol). Gen/program NU se filtrează hard în
+    // backend (datele de gen/program lipsesc din import → ar goli lista); se PRE-SELECTează în bară și se
+    // aplică acolo (SIM din nume, gen doar dacă există date). Regula se întoarce în `defaults`.
     const q = String(req.query.q || "").trim();
     const filter = scoped(req, { status: "active", schedulingStatus: { $in: ["available", null] } });
     if (q) { const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"); filter.$or = [{ firstName: rx }, { lastName: rx }, { nickname: rx }]; }
-    if (pos?.defaultGender && pos.defaultGender !== "any") filter.gender = pos.defaultGender;
-    if (pos?.defaultProgram && pos.defaultProgram !== "any") filter.programIntent = pos.defaultProgram;
     const people = await PcPerson.find(filter).collation({ locale: "ro", strength: 1 }).limit(q ? 40 : 400).select("firstName lastName avatar gender programIntent").lean();
+    const targetPerMonth = Number(pos?.recommendRule?.targetPerMonth) || 0;
+    const monthStart = new Date(planDate); monthStart.setDate(monthStart.getDate() - 30);
     const pids = people.map((p) => p._id);
 
     // fereastră ±180z pt. recență + conflicte (bounded); + blockouts care acoperă ziua
@@ -750,13 +774,15 @@ router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) =
       // cea mai apropiată asignare (orice poziție) → badge săptămâni (semnat)
       let nearest = null, nearestAbs = Infinity;
       let lastAtPosWeeks = null; // de câte săpt. n-a mai fost pe poziția asta (pt. „due")
-      let alreadyHere = false, sameDayCount = 0;
+      let alreadyHere = false, sameDayCount = 0, monthCount = 0;
       for (const a of list) {
         const diff = a.date.getTime() - planDate.getTime();
         if (Math.abs(diff) < nearestAbs && String(a.planId) !== String(planId)) { nearestAbs = Math.abs(diff); nearest = diff; }
         if (positionId && String(a.positionId) === String(positionId)) {
           if (String(a.planId) === String(planId)) alreadyHere = true;
           else if (diff < 0) { const w = Math.round(-diff / WEEK); if (lastAtPosWeeks == null || w < lastAtPosWeeks) lastAtPosWeeks = w; }
+          // de câte ori a fost pe poziția asta în ultimele 30 de zile (pt. „target/lună")
+          if (a.date >= monthStart && a.date < planDate) monthCount++;
         }
         // conflict de timp: altă asignare în aceeași zi (alt plan)
         if (String(a.planId) !== String(planId) && a.date.toISOString().slice(0, 10) === dayKey) sameDayCount++;
@@ -771,15 +797,20 @@ router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) =
       let conflict = null;
       if (hasBlockout) conflict = { type: "blockout", count: 1 };
       else if (sameDayCount > 0) conflict = { type: "time", count: sameDayCount };
+      const belowTarget = targetPerMonth > 0 && monthCount < targetPerMonth;
       return {
         id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "),
         initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase(), avatar: p.avatar || "",
-        weeksLabel, dueSort: lastAtPosWeeks == null ? 9999 : lastAtPosWeeks, conflict, alreadyHere, churchBlocked,
+        gender: p.gender || "", weeksLabel, dueSort: lastAtPosWeeks == null ? 9999 : lastAtPosWeeks,
+        monthCount, targetPerMonth, belowTarget,
+        targetLabel: targetPerMonth > 0 ? `${monthCount}/${targetPerMonth}` : "",
+        conflict, alreadyHere, churchBlocked,
       };
     }).filter((r) => !r.churchBlocked); // exclude din liste pe cei cu blocaj de biserică
 
-    // grupare + sortare: fără conflict (due desc), apoi cu conflict
-    const noConf = rows.filter((r) => !r.conflict && !r.alreadyHere).sort((a, b) => b.dueSort - a.dueSort || a.name.localeCompare(b.name));
+    // grupare + sortare: fără conflict — întâi sub target (cine n-a atins cota), apoi „due" (demult), apoi nume
+    const noConf = rows.filter((r) => !r.conflict && !r.alreadyHere)
+      .sort((a, b) => (b.belowTarget - a.belowTarget) || (b.dueSort - a.dueSort) || a.name.localeCompare(b.name));
     const withConf = rows.filter((r) => r.conflict && !r.alreadyHere).sort((a, b) => a.name.localeCompare(b.name));
     const here = rows.filter((r) => r.alreadyHere);
     const needed = positionId ? (await PcNeededPosition.findOne(scoped(req, { planId, positionId })).select("count").lean())?.count || 0 : 0;
@@ -787,6 +818,8 @@ router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) =
       positionName: pos?.name || "",
       neededCount: needed,
       alreadyHere: here,
+      defaults: { gender: pos?.defaultGender || "any", program: pos?.defaultProgram || "any", targetPerMonth },
+      instructions: pos?.instructions || "",
       groups: [
         { label: "FĂRĂ CONFLICT", people: noConf },
         ...(withConf.length ? [{ label: `${withConf.length} CU CONFLICT`, people: withConf }] : []),
