@@ -343,6 +343,20 @@ router.get("/:id/blockouts", requireCan("people.view"), async (req, res) => {
   } catch (err) { console.error("[pc] GET /people/:id/blockouts:", err.message); res.status(500).json({ error: "Eroare." }); }
 });
 
+/* PATCH /:id — editează câmpuri de bază ale persoanei (acum: gen). Pt. filtrarea fată/băiat. */
+router.patch("/:id", requireCan("services.schedule"), async (req, res) => {
+  try {
+    const id = OID(req.params.id);
+    if (!id) return res.status(400).json({ error: "ID invalid." });
+    const set = {};
+    if (["M", "F", ""].includes(req.body?.gender)) set.gender = req.body.gender;
+    if (!Object.keys(set).length) return res.status(400).json({ error: "Nimic de salvat." });
+    const p = await PcPerson.findOneAndUpdate(scoped(req, { _id: id }), { $set: set }, { new: true }).select("gender").lean();
+    if (!p) return res.status(404).json({ error: "Persoană inexistentă." });
+    res.json({ ok: true, gender: p.gender });
+  } catch (err) { console.error("[pc] PATCH /people/:id:", err.message); res.status(500).json({ error: "Eroare la salvare." }); }
+});
+
 /* POST /:id/church-block — planificatorul marchează persoana „blocată de biserică" (on-break):
    nu mai apare în liste. Default: de azi, pe termen nelimitat. DOAR DB, fără email. */
 router.post("/:id/church-block", requireCan("services.schedule"), async (req, res) => {

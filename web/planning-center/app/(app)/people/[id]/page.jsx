@@ -33,6 +33,10 @@ export default function PersonPage() {
     finally { setLoading(false); }
   }, [id]);
 
+  async function saveGender(g) {
+    setP((prev) => ({ ...prev, gender: g })); // optimist
+    try { await peopleApi.update(id, { gender: g }); } catch (e) { setErr(e?.message || "Eroare la gen."); }
+  }
   async function toggleBreak() {
     setBreakBusy(true);
     try {
@@ -146,7 +150,13 @@ export default function PersonPage() {
           <dl className="details">
             <dt>Email</dt><dd>{(p?.emails || []).map((e) => e.address).join(", ") || "—"}</dd>
             <dt>Telefon</dt><dd>{(p?.phones || []).map((e) => e.number).join(", ") || "—"}</dd>
-            <dt>Gen</dt><dd>{p?.gender === "M" ? "Masculin" : p?.gender === "F" ? "Feminin" : "—"}</dd>
+            <dt>Gen</dt><dd>
+              <select className="gsel" value={p?.gender || ""} onChange={(e) => saveGender(e.target.value)}>
+                <option value="">— nesetat —</option>
+                <option value="M">Masculin</option>
+                <option value="F">Feminin</option>
+              </select>
+            </dd>
             <dt>Data nașterii</dt><dd>{fmt(p?.birthdate) || "—"}</dd>
             <dt>Status</dt><dd>{p?.status}</dd>
             <dt>Echipe</dt><dd>{p?.teamsCount ?? 0}</dd>
@@ -194,6 +204,7 @@ export default function PersonPage() {
         .m-sub { color: var(--text); font-size: 13.5px; } .m-body { color: var(--text-dim); font-size: 12.5px; margin: 3px 0; } .m-date { color: var(--text-faint); font-size: 11px; }
         .details { display: grid; grid-template-columns: 140px 1fr; gap: 10px 14px; margin: 0; }
         .details dt { color: var(--text-faint); font-size: 12.5px; } .details dd { color: var(--text); font-size: 13.5px; margin: 0; }
+        .gsel { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; height: 30px; padding: 0 8px; font-size: 13px; }
         .muted { color: var(--text-faint); font-size: 13px; padding: 8px 0; }
         .err { background: rgba(229,83,75,.12); border: 1px solid rgba(229,83,75,.4); color: #f0a7a2; padding: 10px 12px; border-radius: 6px; }
         @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }

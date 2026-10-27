@@ -122,6 +122,7 @@ export const peopleApi = {
     return api.get(`/people${qs ? `?${qs}` : ""}`);
   },
   get: (id) => api.get(`/people/${id}`),
+  update: (id, payload) => api.patch(`/people/${id}`, payload), // ex. { gender: "M"|"F"|"" }
   teams: (id) => api.get(`/people/${id}/teams`),
   schedule: (id) => api.get(`/people/${id}/schedule`),
   blockouts: (id) => api.get(`/people/${id}/blockouts`),

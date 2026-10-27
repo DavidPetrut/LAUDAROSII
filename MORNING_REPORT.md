@@ -68,9 +68,19 @@
     (ex. `0/2` verde = sub cotă, `2/2` gri = atins) și **sortează sub-target întâi**, apoi „due".
     Genul NU se mai filtrează hard în backend (ar goli lista fără date de gen) — se aplică în bară când există.
 
+### Fixuri din testarea ta (azi, partea 10)
+- **#5 „ID invalid" la Matrix dintr-un plan** — reparat (lipsea `serviceTypeId` în header).
+- **#1 Declined rămâne vizibil** (admin) în Matrix + Teams, nume tăiat; la decline **+1 Needed**, la revenire −1.
+  (La user/mobil se va ascunde — rămâne de făcut filtrul pe permisiune.)
+- **#3 Teams** — counts pe rând separat cu iconițe status (✓/?/✕), padding header poziție, scos spațiul de jos.
+- **#6** — icon „planning" pe persoană (hover) + click pe eticheta poziției → deschide bara de asignare.
+- **#7** — navbar full-width (taburi stânga, profil dreapta), spațiat, activ; **săgeți ‹/› pe dată** în Matrix.
+- **#2 GEN pe oameni** ✅ — am asignat gen după nume (RO): **160 F / 124 M**, 8 rămase (conturi test/ambigue).
+  Script reutilizabil `server/planning-center/services/assignGender.js` (`--dry`/`--apply`). **Gen editabil în profil**
+  (Details → dropdown). Filtrul fată/băiat din bară **funcționează acum**.
+
 ### Ce a mai rămas (ți-l las clar)
-- **Gen real pe oameni** — PCO nu-l dă în export (câmp gol). Regula „Gen" per poziție se poate seta deja,
-  dar filtrul efectiv se activează automat când avem datele de gen. SIM merge deja (din nume).
+- **Create account / registration** (admin creează cont persoană, ca în PCO) + gen obligatoriu la înregistrare.
 - **Instrucțiuni per poziție** („manualul" de onboarding) — câmpul există + PATCH-ul îl salvează; mai lipsește
   UI-ul de editare + afișarea la user (in-app/email/push).
 - **Email** (global templates + logo Vertical) — **strict cu tine**, nimic trimis automat.
