@@ -125,6 +125,12 @@
 - **Default 4 planuri**; dacă dai `+` crește nr. coloanelor, dacă muți cu săgeata păstrezi nr. de coloane.
   Scos select-ul „Planuri" redundant (controlat din + și din rotița Settings).
 
+### Fix scroll dublu Matrix/Teams (azi, partea 17) ✅
+- **Scos al 2-lea X-scroll (al paginii)** — cauza: `width:100vw` include scrollbar-ul vertical → depășea cu
+  ~15px → scroll orizontal al ferestrei peste cel al grilei. Fix: `html { overflow-x: hidden }` (scroll DOAR intern).
+- **Scos Y-scroll-ul paginii** când bara e deschisă — nu mai pun `padding-bottom`, ci micșorez grila (scroll intern).
+- **Scrollbar orizontal grilă/carusel mai gros (×2)**, același design — clar și ușor de folosit.
+
 ### Ce a mai rămas (ți-l las clar)
 - **Bara movable** (trage-o oriunde ca tab flotant) — nice-to-have.
 - **Fișiere poziție pe email** (trimis la useri) — sensibil, cu tine.

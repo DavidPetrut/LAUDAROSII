@@ -485,7 +485,8 @@ export default function MatrixPage() {
         .matrix { padding: 14px 16px 40px; transition: padding-right .16s ease; }
         .matrix.has-side { padding-right: 356px; }  /* loc pt. bara lipită dreapta */
         .matrix.has-left { padding-left: 336px; }   /* loc pt. panoul Settings din stânga */
-        .matrix.has-bar { padding-bottom: 44vh; }   /* loc pt. bara „listă live" din jos */
+        /* când bara e deschisă, MICȘORĂM grila (scroll intern) — fără padding care crește pagina (Y-scroll) */
+        .matrix.has-bar .grid-wrap { max-height: calc(54vh - 150px); }
         .matrix.drag .datacell { box-shadow: inset 0 0 0 1px rgba(47,129,247,.3); background: rgba(47,129,247,.04); }
         .matrix.drag .datacell:hover { box-shadow: inset 0 0 0 2px var(--primary); background: rgba(47,129,247,.12); }
         .mtop { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
@@ -538,6 +539,11 @@ export default function MatrixPage() {
         .cnt { color: var(--text-dim); font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; }
         .cnt select { background: var(--surface-2); color: var(--text); border: 1px solid var(--border-strong); border-radius: 6px; height: 28px; }
         .grid-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 8px; max-height: calc(100vh - 140px); }
+        /* scrollbar orizontal mai gros & clar (dublu), același design */
+        .grid-wrap::-webkit-scrollbar { height: 18px; width: 12px; }
+        .grid-wrap::-webkit-scrollbar-thumb { background: #39434f; border-radius: 9px; border: 4px solid transparent; background-clip: content-box; }
+        .grid-wrap::-webkit-scrollbar-thumb:hover { background: #4a5663; background-clip: content-box; }
+        .grid-wrap { scrollbar-width: auto; }
         .grid { display: grid; min-width: max-content; }
         .cell { border-bottom: 1px solid var(--border-soft); border-right: 1px solid var(--border-soft); font-size: 12.5px; }
         .head { position: sticky; top: 0; z-index: 3; background: var(--surface-2); }

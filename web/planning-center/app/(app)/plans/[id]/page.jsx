@@ -428,7 +428,10 @@ function TeamsTab({ data, sel, onOpenCell, onEdit, onRemove, onNeeded }) {
       {other.length > 0 && <><div className="grp-label">OTHER TEAMS</div><div className="carousel">{other.map((t) => <TeamCol key={t.teamId} t={t} {...props} />)}</div></>}
       <style jsx>{`
         .grp-label { color: var(--text-faint); font-size: 11px; letter-spacing: .5px; margin: 6px 0 10px; }
-        .carousel { display: flex; flex-wrap: nowrap; gap: 14px; margin-bottom: 24px; align-items: flex-start; overflow-x: auto; padding-bottom: 8px; }
+        .carousel { display: flex; flex-wrap: nowrap; gap: 14px; margin-bottom: 24px; align-items: flex-start; overflow-x: auto; padding-bottom: 8px; scrollbar-width: auto; }
+        .carousel::-webkit-scrollbar { height: 18px; }
+        .carousel::-webkit-scrollbar-thumb { background: #39434f; border-radius: 9px; border: 4px solid transparent; background-clip: content-box; }
+        .carousel::-webkit-scrollbar-thumb:hover { background: #4a5663; background-clip: content-box; }
       `}</style>
     </div>
   );

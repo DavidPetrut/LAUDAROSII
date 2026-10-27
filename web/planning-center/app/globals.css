@@ -68,6 +68,9 @@ html, body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
+/* Fără scroll-ul PAGINII pe X: paginile full-bleed (`width:100vw`) depășesc cu lățimea scrollbar-ului
+   vertical și ar genera un al doilea X-scroll (al ferestrei). Scroll-ul rămâne DOAR intern (grilă/carusel). */
+html { overflow-x: hidden; }
 
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; }
