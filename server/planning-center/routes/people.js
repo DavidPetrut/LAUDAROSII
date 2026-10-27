@@ -276,6 +276,26 @@ router.get("/blocked", requireCan("people.manageBlocks"), async (req, res) => {
    după nume peste echipele ministerului. Rosterul = pc_teamMembers (cine slujește pe poziție). */
 const cleanMinistry = (name = "") => String(name).replace(/\s*\(\s*(?:sim\s*)?[12]\s*\)\s*$/i, "").trim() || String(name).trim();
 
+/* ── Grupaj „părinte" al lucrărilor (taburi de nivel 1 în People). Manual, cerut de lideri.
+   Lucrarea reală (minister) devine nivelul 2 înăuntru. Ordinea = prioritatea taburilor. ── */
+const PARENT_ORDER = ["Asimilare", "Vertical Kids", "Lauda si Inchinare", "Media", "Grupuri mici", "Altele"];
+const stripDia = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+const PARENT_MAP = {
+  "asimilare": "Asimilare", "asimilare tineret": "Asimilare", "voluntari": "Asimilare",
+  "mancare": "Asimilare", "shop": "Asimilare", "cafenea": "Asimilare", "curatenie si ordine sala": "Asimilare",
+  "vertical kids": "Vertical Kids",
+  "lauda si inchinare": "Lauda si Inchinare", "lauda si inchinare copii": "Lauda si Inchinare",
+  "vorbitori": "Lauda si Inchinare", "instrumentisti": "Lauda si Inchinare",
+  "vocalisti": "Lauda si Inchinare", "rugaciune": "Lauda si Inchinare",
+  "media": "Media",
+};
+const parentOf = (name) => {
+  const k = stripDia(name);
+  if (PARENT_MAP[k]) return PARENT_MAP[k];
+  if (/^grup(\s|$)/.test(k)) return "Grupuri mici";
+  return "Altele";
+};
+
 router.get("/ministries", requireCan("people.view"), async (req, res) => {
   try {
     const teams = await PcTeam.find(scoped(req, { archived: false })).select("name sortOrder").sort({ sortOrder: 1, name: 1 }).lean();
@@ -314,10 +334,20 @@ router.get("/ministries", requireCan("people.view"), async (req, res) => {
         return { name: P.name, positionIds: ids, order: P.order, members: mem };
       }).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
       const memberCount = new Set(positionsArr.flatMap((p) => p.members.map((m) => String(m.id)))).size;
-      return { name: M.name, order: M.order, memberCount, positions: positionsArr };
+      return { name: M.name, group: parentOf(M.name), order: M.order, memberCount, positions: positionsArr };
     }).sort((a, b) => b.memberCount - a.memberCount || a.name.localeCompare(b.name));
 
-    res.json({ ministries: out });
+    // taburile de nivel 1 (doar cele care au lucrări), în ordinea cerută; membri unici per grup
+    const groups = PARENT_ORDER
+      .map((g) => {
+        const mins2 = out.filter((m) => m.group === g);
+        if (!mins2.length) return null;
+        const memberCount = new Set(mins2.flatMap((m) => m.positions.flatMap((p) => p.members.map((x) => String(x.id))))).size;
+        return { name: g, memberCount, ministryCount: mins2.length };
+      })
+      .filter(Boolean);
+
+    res.json({ ministries: out, groups });
   } catch (err) { console.error("[pc] GET /people/ministries:", err.message); res.status(500).json({ error: "Eroare la lucrări." }); }
 });
 

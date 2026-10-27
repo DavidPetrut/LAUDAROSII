@@ -1,11 +1,11 @@
 "use client";
 /**
- * Pagina People — tab-ul „People" din PCO Services, 1:1 cu screenshot-urile.
- * Header „N people" + căutare; tabel: FIRST NAME / LAST NAME / EMAIL / PHONE / PERMISSIONS /
- * LAST SCHEDULED PLAN / LAST LOGIN / LAST SET BLOCKOUTS / CREATED ON; avatar + paginare.
- * Date REALE din /api/pc/v1/people (paginate server-side).
+ * Pagina People — tab-ul „People" din PCO Services.
+ * Nivel 1 = taburi „părinte" (Toate / Asimilare / Vertical Kids / Laudă și Închinare / Media / Grupuri mici),
+ * nivel 2 = lucrările reale din acel părinte, nivel 3 = pozițiile → roster (MinistryBoard).
+ * „Toate" = tabelul plat cu toți oamenii (coloană Actions: slujire + profil). Date REALE din /api/pc/v1/people.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { peopleApi, teamsApi } from "@/lib/api/client";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
@@ -27,37 +27,49 @@ export default function PeoplePage() {
   const [err, setErr] = useState("");
   const [sortBy, setSortBy] = useState("firstName");
   const [dir, setDir] = useState("asc");
-  const [group, setGroup] = useState("");          // lucrarea (minister) selectată ("" = toate)
-  const [groups, setGroups] = useState([]);        // [{ name, teamCount, isDefault }] — pt. modalul de mapare
-  const [ministries, setMinistries] = useState([]); // lucrări → poziții → roster (vederea nouă)
+  const [parent, setParent] = useState("");         // tab de nivel 1 ("" = Toate)
+  const [group, setGroup] = useState("");           // lucrarea (minister) selectată în nivelul 2
+  const [mapGroups, setMapGroups] = useState([]);   // pt. modalul de mapare echipe→grupuri (admin)
+  const [ministries, setMinistries] = useState([]); // lucrări → poziții → roster (cu .group = părinte)
+  const [parents, setParents] = useState([]);       // [{ name, memberCount, ministryCount }] taburi nivel 1
   const [quickFor, setQuickFor] = useState(null);   // persoana pt. asignare rapidă (din Toate)
   const [canManage, setCanManage] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
-  const [canBlock, setCanBlock] = useState(false);   // scheduler: vede/administrează blocajele
+  const [canBlock, setCanBlock] = useState(false);
   const [blockedOpen, setBlockedOpen] = useState(false);
   const [blockedCount, setBlockedCount] = useState(0);
-  const [blockedIds, setBlockedIds] = useState(() => new Set()); // pt. badge-ul de lacăt pe avatar
+  const [blockedIds, setBlockedIds] = useState(() => new Set());
   const limit = 40;
   const tRef = useRef(null);
 
   const load = useCallback(async (p = page) => {
     setLoading(true);
     try {
-      const r = await peopleApi.list({ q: query, page: p, limit, sortBy, dir, ministryGroup: group || undefined });
+      const r = await peopleApi.list({ q: query, page: p, limit, sortBy, dir });
       setRows(r.results || []); setTotal(r.total || 0); setHasMore(!!r.hasMore); setErr("");
     } catch (e) { setErr(e?.message || "Eroare la încărcare."); }
     finally { setLoading(false); }
-  }, [query, page, sortBy, dir, group]);
-  useEffect(() => { load(page); /* eslint-disable-line */ }, [page, sortBy, dir]);
+  }, [query, page, sortBy, dir]);
+  useEffect(() => { if (parent === "") load(page); /* eslint-disable-line */ }, [page, sortBy, dir, parent]);
 
-  // la schimbarea grupului → resetează la pagina 1 și reîncarcă
-  useEffect(() => { setPage(1); load(1); /* eslint-disable-line */ }, [group]);
-
-  // grupurile de slujire + dacă pot administra maparea (admin)
-  const loadGroups = useCallback(() => { teamsApi.ministryGroups().then((r) => setGroups(r.groups || [])).catch(() => {}); }, []);
-  const loadMinistries = useCallback(() => { peopleApi.ministries().then((r) => setMinistries(r.ministries || [])).catch(() => {}); }, []);
+  const loadGroups = useCallback(() => { teamsApi.ministryGroups().then((r) => setMapGroups(r.groups || [])).catch(() => {}); }, []);
+  const loadMinistries = useCallback(() => {
+    peopleApi.ministries().then((r) => { setMinistries(r.ministries || []); setParents(r.groups || []); }).catch(() => {});
+  }, []);
   useEffect(() => { loadMinistries(); }, [loadMinistries]);
-  const activeMinistry = ministries.find((m) => m.name === group) || null;
+
+  // lucrările din părintele selectat (nivel 2) + lucrarea activă
+  const childMinistries = useMemo(() => (parent ? ministries.filter((m) => m.group === parent) : []), [ministries, parent]);
+  const activeMinistry = useMemo(() => ministries.find((m) => m.name === group) || null, [ministries, group]);
+
+  // schimbare părinte → auto-selectează prima lucrare din el (sau golește pt. Toate)
+  useEffect(() => {
+    if (parent === "") { setGroup(""); return; }
+    const kids = ministries.filter((m) => m.group === parent);
+    if (kids.length && !kids.some((m) => m.name === group)) setGroup(kids[0].name);
+    // eslint-disable-next-line
+  }, [parent, ministries]);
+
   const loadBlockedCount = useCallback(() => {
     peopleApi.blocked().then((r) => { setBlockedCount(r.total || 0); setBlockedIds(new Set((r.blocked || []).map((x) => String(x.id)))); }).catch(() => {});
   }, []);
@@ -69,8 +81,9 @@ export default function PeoplePage() {
     }).catch(() => {});
   }, [loadGroups, loadBlockedCount]);
 
-  // căutare debounced → resetează la pagina 1
+  // căutare debounced (doar pe „Toate") → resetează la pagina 1
   useEffect(() => {
+    if (parent !== "") return;
     clearTimeout(tRef.current);
     tRef.current = setTimeout(() => { setPage(1); load(1); }, 300);
     return () => clearTimeout(tRef.current);
@@ -84,30 +97,35 @@ export default function PeoplePage() {
     id: "people.list",
     label: "People — lista de oameni",
     scope: "page",
-    getContext: () => ({ query, total, page, afișate: rows.length }),
+    getContext: () => ({ query, total, page, afișate: rows.length, parent, group }),
     actions: [
-      { id: "search", label: "Caută persoană", params: { q: "string" }, run: ({ q }) => setQuery(q || "") },
+      { id: "search", label: "Caută persoană", params: { q: "string" }, run: ({ q }) => { setParent(""); setQuery(q || ""); } },
       { id: "open", label: "Deschide profil", params: { id: "string" }, run: ({ id }) => router.push(`/people/${id}`) },
     ],
-  }, [query, total, page, rows]);
+  }, [query, total, page, rows, parent, group]);
+
+  const openProfile = (id) => router.push(`/people/${id}`);
 
   return (
     <div className="people pc-full pc-pad">
-      <div className="phead">
-        <span className="count">{loading ? "…" : `${total} people`}</span>
-        <input className="search" placeholder="Caută după nume sau email" value={query} onChange={(e) => setQuery(e.target.value)} />
-      </div>
-      {err && <div className="err">{err}</div>}
+      {/* RÂND CONTROL: căutare (stânga) · taburi nivel 1 · acțiuni (dreapta) */}
+      <div className="ctl">
+        <div className="srch">
+          <svg className="si" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+          <input className="search" placeholder="Caută persoană…" value={query}
+            onChange={(e) => { if (parent !== "") setParent(""); setQuery(e.target.value); }} />
+          {query && <button className="sx" title="Șterge" onClick={() => setQuery("")}>×</button>}
+        </div>
 
-      <div className="gbar">
-        <div className="gchips">
-          <button className={`gchip ${group === "" ? "on" : ""}`} onClick={() => setGroup("")}>Toate</button>
-          {ministries.map((m) => (
-            <button key={m.name} className={`gchip ${group === m.name ? "on" : ""}`} onClick={() => setGroup(m.name)}>
-              {m.name}{m.memberCount ? <span className="gc-n">{m.memberCount}</span> : null}
+        <div className="ptabs">
+          <button className={`ptab ${parent === "" ? "on" : ""}`} onClick={() => { setParent(""); }}>Toate</button>
+          {parents.map((g) => (
+            <button key={g.name} className={`ptab ${parent === g.name ? "on" : ""}`} onClick={() => setParent(g.name)}>
+              {g.name}{g.memberCount ? <span className="pt-n">{g.memberCount}</span> : null}
             </button>
           ))}
         </div>
+
         <div className="gright">
           {canBlock && (
             <button className="gblocked" onClick={() => setBlockedOpen(true)} title="Oameni blocați acum">
@@ -124,23 +142,50 @@ export default function PeoplePage() {
         </div>
       </div>
 
-      {activeMinistry ? (
-        <MinistryBoard ministry={activeMinistry} onChanged={loadMinistries} />
+      {/* RÂND NIVEL 2: lucrările din părintele selectat */}
+      {parent !== "" && childMinistries.length > 0 && (
+        <div className="ltabs">
+          {childMinistries.map((m) => (
+            <button key={m.name} className={`ltab ${group === m.name ? "on" : ""}`} onClick={() => setGroup(m.name)}>
+              {m.name}{m.memberCount ? <span className="lt-n">{m.memberCount}</span> : null}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {err && <div className="err">{err}</div>}
+
+      {parent !== "" ? (
+        activeMinistry ? <MinistryBoard ministry={activeMinistry} onChanged={loadMinistries} />
+          : <div className="empty">Nicio lucrare în „{parent}".</div>
       ) : (
       <>
+      <div className="pcount">{loading ? "…" : `${total} persoane`}</div>
       <div className="table">
         <div className="thead">
+          <div className="c-ac">ACȚIUNI</div>
           <div className="c-av" />
-          <div className="c-fn sortable" onClick={() => sort("firstName")}>FIRST NAME {sortBy === "firstName" ? (dir === "asc" ? "↑" : "↓") : ""}</div>
-          <div className="c-ln sortable" onClick={() => sort("lastName")}>LAST NAME {sortBy === "lastName" ? (dir === "asc" ? "↑" : "↓") : ""}</div>
-          <div className="c-em">EMAIL ADDRESS</div>
-          <div className="c-ph">PHONE NUMBER</div>
-          <div className="c-pm">PERMISSIONS</div>
-          <div className="c-cr">CREATED ON</div>
+          <div className="c-fn sortable" onClick={() => sort("firstName")}>PRENUME {sortBy === "firstName" ? (dir === "asc" ? "↑" : "↓") : ""}</div>
+          <div className="c-ln sortable" onClick={() => sort("lastName")}>NUME {sortBy === "lastName" ? (dir === "asc" ? "↑" : "↓") : ""}</div>
+          <div className="c-em">EMAIL</div>
+          <div className="c-ph">TELEFON</div>
+          <div className="c-pm">PERMISIUNI</div>
+          <div className="c-cr">CREAT</div>
+          <div className="c-sp" />
         </div>
-        {rows.map((p) => (
-          <div key={p.id} className="trow" onClick={() => setQuickFor({ id: p.id, name: `${p.firstName} ${p.lastName}`.trim(), avatar: p.avatar, initials: p.initials })} title="Click: asignează rapid în lucrări">
-            <button className="qa-btn" title="Vezi profilul complet" onClick={(e) => { e.stopPropagation(); router.push(`/people/${p.id}`); }}>⤢</button>
+        {rows.map((p) => {
+          const name = `${p.firstName || ""} ${p.lastName || ""}`.trim();
+          return (
+          <div key={p.id} className="trow" onClick={() => openProfile(p.id)} title="Click: deschide profilul">
+            <div className="c-ac" onClick={(e) => e.stopPropagation()}>
+              <button className="aic" title="Slujiri — asignează rapid"
+                onClick={() => setQuickFor({ id: p.id, name, avatar: p.avatar, initials: p.initials })}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+              </button>
+              <button className="aic" title="Deschide profilul" onClick={() => openProfile(p.id)}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" /></svg>
+              </button>
+            </div>
             <div className="c-av">
               <span className={`avw ${blockedIds.has(String(p.id)) ? "locked" : ""}`}>
                 {p.avatar ? <img src={p.avatar} alt="" className="ava" /> : <span className="ava ini">{p.initials}</span>}
@@ -153,12 +198,14 @@ export default function PeoplePage() {
             </div>
             <div className="c-fn">{p.firstName}</div>
             <div className="c-ln">{p.lastName}</div>
-            <div className="c-em">{p.email}</div>
+            <div className="c-em" title={p.email}>{p.email}</div>
             <div className="c-ph">{p.phone}</div>
             <div className="c-pm">{p.permission}</div>
             <div className="c-cr">{fmtDate(p.createdAt)}</div>
+            <div className="c-sp" />
           </div>
-        ))}
+          );
+        })}
         {!loading && rows.length === 0 && <div className="empty">Nicio persoană.</div>}
       </div>
 
@@ -176,7 +223,7 @@ export default function PeoplePage() {
 
       {manageOpen && (
         <MinistryGroupsModal
-          groups={groups.map((g) => g.name)}
+          groups={mapGroups.map((g) => g.name)}
           onClose={() => setManageOpen(false)}
           onChanged={() => { loadGroups(); load(page); }}
         />
@@ -191,35 +238,51 @@ export default function PeoplePage() {
 
       <style jsx>{`
         .people { padding: 20px 20px 80px; }
-        .gbar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
-        .gchips { display: flex; gap: 7px; flex-wrap: wrap; }
-        .gchip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 13px; border-radius: 15px;
-          background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); font-size: 12.5px;
+        .ctl { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+        .srch { position: relative; display: flex; align-items: center; flex: none; }
+        .srch .si { position: absolute; left: 12px; color: var(--text-faint); pointer-events: none; }
+        .search { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 9px;
+          height: 38px; padding: 0 30px 0 34px; width: 300px; outline: none; font-size: 13.5px; transition: border-color .12s, box-shadow .12s; }
+        .search::placeholder { color: var(--text-faint); }
+        .search:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(47,129,247,.12); }
+        .sx { position: absolute; right: 8px; background: transparent; border: none; color: var(--text-faint); font-size: 17px; cursor: pointer; line-height: 1; padding: 2px 4px; border-radius: 5px; }
+        .sx:hover { color: var(--text); }
+        .ptabs { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+        .ptab { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 15px; border-radius: 18px;
+          background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); font-size: 13px;
           cursor: pointer; transition: color .12s, background .12s, border-color .12s; }
-        .gchip:hover { color: var(--text); }
-        .gchip.on { background: var(--surface-3); border-color: var(--product); color: var(--text); font-weight: 600; }
-        .gc-n { background: var(--surface); border-radius: 10px; padding: 0 6px; font-size: 11px; color: var(--text-faint); }
-        .gchip.on .gc-n { color: var(--product); }
+        .ptab:hover { color: var(--text); }
+        .ptab.on { background: var(--surface-3); border-color: var(--product); color: var(--text); font-weight: 600; }
+        .pt-n { background: var(--surface); border-radius: 10px; padding: 0 7px; font-size: 11px; color: var(--text-faint); }
+        .ptab.on .pt-n { color: var(--product); }
         .gright { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-        .gmanage, .gblocked { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 13px;
-          border-radius: 6px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim);
+        .gmanage, .gblocked { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 13px;
+          border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim);
           font-size: 12.5px; cursor: pointer; transition: color .12s, border-color .12s; }
         .gmanage:hover, .gblocked:hover { color: var(--text); border-color: var(--product); }
         .gb-n { background: rgba(229,83,75,.16); color: #f0a7a2; border-radius: 10px; padding: 0 7px; font-size: 11px; font-weight: 600; }
-        .phead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-        .count { color: var(--text); font-size: 15px; font-weight: 600; }
-        .search { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px;
-          height: 32px; padding: 0 12px; width: 280px; outline: none; font-size: 13px; }
-        .search::placeholder { color: var(--text-faint); }
-        .table { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-        .thead, .trow { display: grid; grid-template-columns: 48px 150px 150px minmax(200px,1fr) 150px 140px 130px; align-items: center; }
-        .thead { color: var(--text-faint); font-size: var(--fs-colhead); letter-spacing: .5px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+
+        .ltabs { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 14px; padding: 2px 0 2px; animation: ltIn .18s ease; }
+        @keyframes ltIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+        .ltab { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 13px; border-radius: 8px;
+          background: var(--surface-2); border: 1px solid var(--border); color: var(--text-dim); font-size: 12.5px; cursor: pointer; transition: all .12s; }
+        .ltab:hover { color: var(--text); border-color: var(--border-strong); }
+        .ltab.on { background: rgba(47,129,247,.12); border-color: var(--primary); color: var(--text); font-weight: 600; }
+        .lt-n { background: var(--surface); border-radius: 10px; padding: 0 6px; font-size: 11px; color: var(--text-faint); }
+        .ltab.on .lt-n { color: var(--primary); }
+
+        .pcount { color: var(--text-dim); font-size: 12.5px; margin-bottom: 8px; }
+        .table { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+        .thead, .trow { display: grid; grid-template-columns: 76px 44px 150px 150px 230px 140px 110px 110px 1fr; align-items: center; }
+        .thead { color: var(--text-faint); font-size: var(--fs-colhead); letter-spacing: .5px; padding: 11px 14px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
         .sortable { cursor: pointer; } .sortable:hover { color: var(--text-dim); }
-        .trow { padding: 10px 14px; border-bottom: 1px solid var(--border-soft); cursor: pointer; font-size: 13.5px; position: relative; }
+        .trow { padding: 9px 14px; border-bottom: 1px solid var(--border-soft); cursor: pointer; font-size: 13.5px; }
         .trow:last-child { border-bottom: none; }
         .trow:hover { background: var(--row-hover); }
-        .qa-btn { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 2; opacity: 0; background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; width: 28px; height: 26px; cursor: pointer; font-size: 13px; }
-        .trow:hover .qa-btn { opacity: 1; } .qa-btn:hover { color: var(--text); border-color: var(--product); }
+        .c-ac { display: flex; align-items: center; gap: 6px; }
+        .aic { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 7px;
+          background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); cursor: pointer; transition: all .12s; }
+        .aic:hover { color: var(--product); border-color: var(--product); background: var(--surface-3); }
         .c-av { display: flex; }
         .avw { position: relative; display: inline-flex; }
         .avw.locked .ava { border: 2px solid var(--primary); }
