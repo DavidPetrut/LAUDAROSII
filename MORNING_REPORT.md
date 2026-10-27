@@ -138,7 +138,15 @@
   bifezi/debifezi exact ce coloane vrei (nu doar fereastră contiguă). Backend grid acceptă `planIds` explicit.
 - Săgețile `‹ ›` mută selecția cu 1, `+` adaugă un plan la stânga/dreapta; Settings (Smart Load) revine la fereastră.
 
+### Matrix: controale segmentate + dropdown îmbunătățit (azi, partea 19) ✅
+- **Controale segmentate 3-în-1**: `‹ + −` (stânga) și `− + ›` (dreapta) — un singur buton delimitat în trei;
+  `−` scoate un plan din stânga/dreapta (invers de `+`). Iconițe mai clare (chevron SVG, + / − mai lizibile).
+- **Buton nou „planning"** lângă „Listă live" — deschide bara de asignare (ultima poziție).
+- **Dropdown dată**: lățit (380px) — „Quick load plans" pe UN rând; **planurile afișate acum sunt PRE-BIFATE**,
+  checklist-ul **începe la prima dată afișată** + câteva extra (nu toate planurile pe 5 ani); header cu service type-ul.
+
 ### Ce a mai rămas (ți-l las clar)
+- **Multi-service-type + search în dropdown-ul de dată** (ca PCO) — momentan multi-ST se face din rotița Settings.
 - **Bara movable** (trage-o oriunde ca tab flotant) — nice-to-have.
 - **Fișiere poziție pe email** (trimis la useri) — sensibil, cu tine.
 - **Salvare custom matrix** (persistent, nu doar în sesiune) + tab **Sections** (ce secțiuni poziții arăți).

@@ -59,6 +59,7 @@ export default function MatrixPage() {
   const [barFilters, setBarFilters] = useState({ ministry: null, gender: "", sim: "" }); // filtre tag-uri bară
   const [dragActive, setDragActive] = useState(false); // feedback drag (Kanban)
   const dragRef = useRef(null);
+  const lastSelRef = useRef(null); // ultima poziție deschisă — pt. butonul „planning"
   const recTimer = useRef(null);
 
   // reconciliere silențioasă (fără loading flag) — ține bara deschisă și scroll-ul pe loc
@@ -113,6 +114,8 @@ export default function MatrixPage() {
   const shiftLater = () => { const s = curSel(); const idxs = s.map((id) => optIds.indexOf(id)).filter((i) => i >= 0); const min = Math.min(...idxs), max = Math.max(...idxs); if (max < optIds.length - 1) setSelFrom([...s.filter((_, i) => optIds.indexOf(s[i]) !== min), optIds[max + 1]]); };
   const togglePlan = (id) => { const s = curSel(); const has = s.includes(String(id)); setSelFrom(has ? s.filter((x) => x !== String(id)) : [...s, String(id)]); };
   const isSel = (id) => curSel().includes(String(id));
+  const removeEarliest = () => { const s = curSel(); if (s.length <= 1) return; const idxs = s.map((id) => optIds.indexOf(id)); const minId = s[idxs.indexOf(Math.min(...idxs))]; setSelFrom(s.filter((x) => x !== minId)); };
+  const removeLatest = () => { const s = curSel(); if (s.length <= 1) return; const idxs = s.map((id) => optIds.indexOf(id)); const maxId = s[idxs.indexOf(Math.max(...idxs))]; setSelFrom(s.filter((x) => x !== maxId)); };
 
   // patch imuabil pe o celulă (team, position, colIdx)
   const patchCell = useCallback((teamId, positionId, colIdx, fn) => {
@@ -149,6 +152,7 @@ export default function MatrixPage() {
 
   const openCell = useCallback(async (planId, teamId, positionId, positionName, colIdx) => {
     setTarget(null); setTargetSched(null);
+    lastSelRef.current = { planId, teamId, positionId, positionName, colIdx };
     setSel({ planId, teamId, positionId, positionName, colIdx });
     // bara „listă live" moștenește filtrul de slujire din poziția selectată (se poate scoate cu × din tag)
     const tName = (data?.teams || []).find((t) => String(t.teamId) === String(teamId))?.name || "";
@@ -277,9 +281,15 @@ export default function MatrixPage() {
 
   const gridCols = `220px repeat(${Math.max(1, nPlans)}, minmax(158px, 1fr))`;
   const dateRange = nPlans ? `${plans[0].dateLabel} – ${plans[nPlans - 1].dateLabel}` : "";
-  const _selIdxs = curSel().map((id) => optIds.indexOf(id)).filter((i) => i >= 0);
+  const _cur = curSel();
+  const _selIdxs = _cur.map((id) => optIds.indexOf(id)).filter((i) => i >= 0);
   const canEarlier = _selIdxs.length > 0 && Math.min(..._selIdxs) > 0;
   const canLater = _selIdxs.length > 0 && Math.max(..._selIdxs) < optIds.length - 1;
+  const canRemove = _cur.length > 1;
+  // checklist limitat: începe la PRIMUL plan afișat + 6 extra după (nu toate planurile pe 5 ani)
+  const _minSel = _selIdxs.length ? Math.min(..._selIdxs) : 0;
+  const _maxSel = _selIdxs.length ? Math.max(..._selIdxs) : 0;
+  const visibleOpts = planOptions.slice(_minSel, Math.min(planOptions.length, _maxSel + 1 + 6));
 
   return (
     <div className={`matrix pc-full ${sel ? "has-side" : ""} ${showSettings ? "has-left" : ""} ${barOpen ? "has-bar" : ""} ${dragActive ? "drag" : ""}`}>
@@ -304,9 +314,12 @@ export default function MatrixPage() {
           </div>
         </div>
         <div className="mt-center">
-          <div className="dgrp">
-            <button className="darr" disabled={!canEarlier} title="Mută fereastra o săptămână în urmă" onClick={shiftEarlier}>‹</button>
-            <button className="dadd" disabled={!canEarlier} title="Adaugă un plan la stânga (+1 coloană)" onClick={addEarlier}>+</button>
+          <div className="dnav left">
+            <button disabled={!canEarlier} title="Mută o săptămână în urmă" onClick={shiftEarlier}>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 3L5 8l5 5" /></svg>
+            </button>
+            <button disabled={!canEarlier} title="Adaugă un plan la stânga" onClick={addEarlier}><span className="pm">+</span></button>
+            <button disabled={!canRemove} title="Scoate planul din stânga" onClick={removeEarliest}><span className="pm">−</span></button>
           </div>
           <div className="drange-wrap">
             <button className="drange" onClick={() => { setShowDateMenu((v) => !v); setShowStMenu(false); setShowSettings(false); }}>{dateRange} <span className="dcaret">▾</span></button>
@@ -317,21 +330,25 @@ export default function MatrixPage() {
                   <span className="dm-t">Quick load plans</span>
                   <button className="dm-load" disabled={!canLater} onClick={addLater}>Load next + ›</button>
                 </div>
+                <div className="dm-st">{data?.serviceTypeName || ""}</div>
                 <div className="dm-list">
-                  {planOptions.map((o) => (
+                  {visibleOpts.map((o) => (
                     <label key={o.id} className="dm-row">
                       <input type="checkbox" checked={isSel(o.id)} onChange={() => togglePlan(o.id)} />
                       <span className="dm-d">{o.dateLabel}{o.stName && data?.multi ? ` · ${o.stName}` : ""}</span>
                     </label>
                   ))}
-                  {planOptions.length === 0 && <div className="dm-empty">Niciun plan.</div>}
+                  {visibleOpts.length === 0 && <div className="dm-empty">Niciun plan.</div>}
                 </div>
               </div>
             )}
           </div>
-          <div className="dgrp">
-            <button className="dadd" disabled={!canLater} title="Adaugă un plan la dreapta (+1 coloană)" onClick={addLater}>+</button>
-            <button className="darr" disabled={!canLater} title="Mută fereastra o săptămână înainte" onClick={shiftLater}>›</button>
+          <div className="dnav right">
+            <button disabled={!canRemove} title="Scoate planul din dreapta" onClick={removeLatest}><span className="pm">−</span></button>
+            <button disabled={!canLater} title="Adaugă un plan la dreapta" onClick={addLater}><span className="pm">+</span></button>
+            <button disabled={!canLater} title="Mută o săptămână înainte" onClick={shiftLater}>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3l5 5-5 5" /></svg>
+            </button>
           </div>
         </div>
         <div className="mt-right">
@@ -339,6 +356,10 @@ export default function MatrixPage() {
           <button className={`cover-btn ${barOpen ? "on" : ""}`} title="Listă live (bară jos) — persoane care mai pot fi asignate"
             onClick={() => setBarOpen((v) => !v)}>
             👥 Listă live
+          </button>
+          <button className={`plan-btn ${sel ? "on" : ""}`} title="Deschide bara de asignare (ultima poziție)"
+            onClick={() => { const l = lastSelRef.current; if (sel) return; if (l) openCell(l.planId, l.teamId, l.positionId, l.positionName, l.colIdx); else flash("Click pe o poziție în grilă pentru a deschide bara."); }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2.5" y="3" width="11" height="11" rx="1.5" /><path d="M2.5 6h11M5.5 1.5v2.5M10.5 1.5v2.5M8 8.5v3M6.5 10h3" /></svg>
           </button>
         </div>
       </div>
@@ -566,19 +587,21 @@ export default function MatrixPage() {
         .stgroup { background: var(--primary); color: #fff; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; padding: 7px 14px; position: sticky; left: 0; z-index: 2; border-top: 1px solid var(--border); }
         .caret { color: var(--text-faint); font-size: 10px; }
         .mt-center { flex: 1; display: flex; align-items: center; justify-content: center; gap: 14px; }
-        .dgrp { display: inline-flex; gap: 4px; }
-        .darr, .dadd { width: 30px; height: 30px; border-radius: 7px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); cursor: pointer; font-size: 17px; line-height: 1; }
-        .dadd { font-size: 16px; font-weight: 600; }
-        .darr:hover:not(:disabled), .dadd:hover:not(:disabled) { color: var(--text); border-color: var(--primary); }
-        .dadd:hover:not(:disabled) { background: rgba(47,129,247,.12); color: #9cc4f5; }
-        .darr:disabled, .dadd:disabled { opacity: .35; cursor: default; }
+        /* controale segmentate (3-în-1): ‹ + −   și   − + › — un singur buton delimitat în trei */
+        .dnav { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; }
+        .dnav button { width: 33px; height: 30px; background: transparent; border: none; border-right: 1px solid var(--border-strong); color: var(--text-dim); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+        .dnav button:last-child { border-right: none; }
+        .dnav button:hover:not(:disabled) { color: var(--text); background: rgba(47,129,247,.14); }
+        .dnav button:disabled { opacity: .3; cursor: default; }
+        .pm { font-size: 18px; font-weight: 500; line-height: 1; }
         .drange-wrap { position: relative; }
         .drange { color: var(--text); font-size: 16px; font-weight: 600; min-width: 180px; text-align: center; background: transparent; border: none; cursor: pointer; padding: 4px 8px; border-radius: 7px; }
         .drange:hover { background: rgba(255,255,255,.05); } .dcaret { color: var(--text-faint); font-size: 11px; }
-        .date-menu { position: absolute; left: 50%; transform: translateX(-50%); top: 40px; z-index: 50; width: 300px; max-height: 60vh; overflow: auto;
-          background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,.45); padding: 8px; }
-        .dm-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 4px 10px; border-bottom: 1px solid var(--border); }
-        .dm-t { color: var(--text); font-weight: 700; font-size: 13px; }
+        .date-menu { position: absolute; left: 50%; transform: translateX(-50%); top: 40px; z-index: 50; width: 380px; max-height: 62vh; overflow: auto;
+          background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,.45); padding: 10px 12px; }
+        .dm-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 2px 10px; border-bottom: 1px solid var(--border); }
+        .dm-t { color: var(--text); font-weight: 700; font-size: 13.5px; white-space: nowrap; }
+        .dm-st { color: var(--text-dim); font-size: 12.5px; font-weight: 600; padding: 10px 2px 2px; }
         .dm-load { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 5px 8px; font-size: 11.5px; cursor: pointer; white-space: nowrap; }
         .dm-load:hover:not(:disabled) { color: var(--text); border-color: var(--primary); } .dm-load:disabled { opacity: .35; cursor: default; }
         .dm-list { padding: 6px 2px; display: flex; flex-direction: column; }
@@ -591,6 +614,8 @@ export default function MatrixPage() {
         .cover-btn { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 5px 11px; font-size: 12.5px; cursor: pointer; }
         .cover-btn:hover { color: var(--text); border-color: var(--primary); }
         .cover-btn.on { background: rgba(47,129,247,.14); border-color: var(--primary); color: #9cc4f5; }
+        .plan-btn { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); width: 34px; height: 32px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+        .plan-btn:hover, .plan-btn.on { color: var(--text); border-color: var(--primary); }
         .cnt { color: var(--text-dim); font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; }
         .cnt select { background: var(--surface-2); color: var(--text); border: 1px solid var(--border-strong); border-radius: 6px; height: 28px; }
         .grid-wrap { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
