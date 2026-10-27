@@ -74,6 +74,8 @@ export default function MatrixPage() {
   const [targetAvail, setTargetAvail] = useState({}); // planId → {blockout,here,busy,busyLabel} (target-mode)
   const [toast, setToast] = useState("");
   const [editing, setEditing] = useState(null);
+  const [simPair, setSimPair] = useState(null); // prompt „pune-l și la SIM-ul pereche?" după asignare
+  const [simBusy, setSimBusy] = useState(false);
   const [barOpen, setBarOpen] = useState(false);   // bara de jos „listă live"
   const [browse, setBrowse] = useState(false);     // sidebar dreapta în mod „vizualizare toți oamenii" (fără poziție)
   const [cov, setCov] = useState(null);
@@ -252,6 +254,35 @@ export default function MatrixPage() {
     // eslint-disable-next-line
   }, [recQuery]);
 
+  // După orice asignare, dacă echipa are pereche de SIM (ex. Asimilare SIM1 ↔ SIM2) și poziția identică
+  // de la pereche NU e deja ocupată de persoană → oferă (modal) să-l pui și la celălalt program.
+  function maybeOfferSimPair(planId, person, teamId, positionId, colIdx) {
+    if (!person?.id || String(person.id).startsWith("tmp-")) return; // invitați / temporar
+    const team = teams.find((t) => String(t.teamId) === String(teamId));
+    if (!team) return;
+    const pairName = perecheName(team.name);
+    if (!pairName) return;
+    const pairTeam = teams.find((t) => eq(t.name, pairName) && String(t.teamId) !== String(teamId));
+    if (!pairTeam) return;
+    const pos = (team.positions || []).find((p) => String(p.positionId) === String(positionId));
+    const pairPos = pos && (pairTeam.positions || []).find((p) => eq(p.name, pos.name));
+    if (!pairPos) return;
+    const pairCell = (pairPos.cells || [])[colIdx];
+    if (pairCell && (pairCell.people || []).some((x) => String(x.personId) === String(person.id))) return; // deja acolo
+    setSimPair({ planId, colIdx, person: { id: person.id, name: person.name, avatar: person.avatar || "", initials: person.initials || "" },
+      toTeamId: pairTeam.teamId, toTeamName: pairTeam.name, toPositionId: pairPos.positionId, positionName: pairPos.name });
+  }
+  async function confirmSimPair() {
+    if (!simPair) return;
+    const sp = simPair; setSimBusy(true);
+    const tmpId = `tmp-sp-${Date.now()}`;
+    patchCell(sp.toTeamId, sp.toPositionId, sp.colIdx, (c) => ({ ...c, needed: Math.max(0, (c.needed || 0) - 1),
+      people: [...c.people, { personId: sp.person.id, assignmentId: tmpId, name: sp.person.name, avatar: sp.person.avatar, initials: sp.person.initials, status: "unconfirmed" }] }));
+    try { await plansApi.assign(sp.planId, { personId: sp.person.id, teamId: sp.toTeamId, positionId: sp.toPositionId, status: "unconfirmed" }); flash(`Adăugat și la ${sp.toTeamName} (fără email).`); loadCov(); softReconcile(); }
+    catch (e) { flash(e?.message || "Eroare."); reconcile(); }
+    finally { setSimBusy(false); setSimPair(null); }
+  }
+
   async function assignPerson(p, mirror, timeIds) {
     if (!sel) { flash("Click pe o căsuță (poziție) din grilă ca să asignezi pe cineva."); return; }
     setAssigning(true);
@@ -266,6 +297,7 @@ export default function MatrixPage() {
       if (r?.id) patchCell(sel.teamId, sel.positionId, sel.colIdx, (c) => ({ ...c, people: c.people.map((x) => String(x.assignmentId).startsWith("tmp-a-") ? { ...x, assignmentId: r.id } : x) }));
       if (doMirror) await plansApi.assign(sel.planId, { personId: p.id, teamId: pereche.teamId, positionId: pereche.positionId, status: "unconfirmed", timeIds: tIds });
       flash(doMirror ? `Asignat + ${pereche.teamName} (fără email).` : "Asignat (neconfirmat, fără email).");
+      if (!doMirror) maybeOfferSimPair(sel.planId, p, sel.teamId, sel.positionId, sel.colIdx);
       refreshRec(); loadCov(); softReconcile();
     } catch (e) { flash(e?.message || "Eroare."); reconcile(); }
     finally { setAssigning(false); }
@@ -315,6 +347,7 @@ export default function MatrixPage() {
       if (r?.id) patchCell(teamId, positionId, colIdx, (c) => ({ ...c, people: c.people.map((x) => String(x.assignmentId) === String(tmpId) ? { ...x, assignmentId: r.id } : x) }));
       if (doMove && d.assignmentId) await plansApi.unassign(d.planId, d.assignmentId);
       flash(doMove ? "Mutat." : "Copiat."); loadCov(); softReconcile();
+      if (!d.isGuest) maybeOfferSimPair(planId, { id: d.personId, name: d.name, avatar: d.avatar, initials: d.initials }, teamId, positionId, colIdx);
     } catch (e) { flash(e?.message || "Eroare."); reconcile(); }
   }
   async function changeNeeded(planId, teamId, positionId, colIdx, nextCount) {
@@ -344,19 +377,6 @@ export default function MatrixPage() {
     } catch (e) { flash(e?.message || "Eroare la adăugarea planului."); }
     finally { setAddingPlan(false); }
   }
-  async function copySimTeam(fromTeamId) {
-    const from = teams.find((t) => String(t.teamId) === String(fromTeamId));
-    const cand = teams.filter((t) => String(t.teamId) !== String(fromTeamId));
-    const guess = cand.find((t) => t.name.replace(/sim ?\d/i, "").trim() === (from?.name || "").replace(/sim ?\d/i, "").trim()) || cand[0];
-    if (!guess) return flash("Nicio echipă țintă.");
-    if (!confirm(`Copiez toate asignările din „${from?.name}" în „${guess.name}" (pe planurile vizibile)? Fără email.`)) return;
-    try {
-      let total = 0;
-      for (const p of plans) { const r = await plansApi.copyTeam(p.id, fromTeamId, guess.teamId); total += r.copied || 0; }
-      flash(`Copiat ${total} asignări în „${guess.name}".`); reconcile();
-    } catch (e) { flash(e?.message || "Eroare."); }
-  }
-
   const loadAvail = useCallback(async (personId) => {
     const ids = (data?.plans || []).map((p) => p.id).join(",");
     if (!personId || !ids) { setTargetAvail({}); return; }
@@ -396,7 +416,8 @@ export default function MatrixPage() {
     try {
       await plansApi.assign(planId, { personId: target.personId, teamId, positionId, status: "unconfirmed" });
       flash(`⌖ ${target.name} planificat (neconfirmat, fără email).`);
-      reconcile(); loadCov(); loadAvail(target.personId);
+      maybeOfferSimPair(planId, { id: target.personId, name: target.name, avatar: target.avatar, initials: target.initials }, teamId, positionId, colIdx);
+      loadCov(); loadAvail(target.personId); softReconcile();
     } catch (e) { flash(e?.message || "Eroare."); reconcile(); }
     finally { setAssigning(false); }
   }
@@ -661,9 +682,6 @@ export default function MatrixPage() {
                   <button className="tb-toggle" onClick={() => toggle(t.teamId)}>
                     <span className={`tb-caret ${collapsed.has(t.teamId) ? "col" : ""}`}>▾</span>{t.name}
                   </button>
-                  <div className="tb-actions">
-                    <button className="gear" title="Copiază pe echipa pereche (SIM1→SIM2)" onClick={() => copySimTeam(t.teamId)}>⧉</button>
-                  </div>
                 </div>
               );
               if (collapsed.has(t.teamId)) return out;
@@ -776,6 +794,23 @@ export default function MatrixPage() {
       )}
 
       {dragActive && dragHint && <div className="drag-hint">⇄ {dragHint}</div>}
+
+      {simPair && (
+        <div className="sp-ov" onClick={() => !simBusy && setSimPair(null)}>
+          <div className="sp-dlg" onClick={(e) => e.stopPropagation()}>
+            <div className="sp-ic">⇆</div>
+            <div className="sp-who">
+              <PersonAvatar person={simPair.person} size={44} showBadge={false} />
+              <div className="sp-wt"><div className="sp-n">{simPair.person.name}</div><div className="sp-sub">l-ai pus pe o poziție de SIM</div></div>
+            </div>
+            <div className="sp-q">Îl pui și la <b>{simPair.toTeamName}</b> · <b>{simPair.positionName}</b>? <span className="sp-free">(poziție liberă)</span></div>
+            <div className="sp-act">
+              <button className="sp-no" disabled={simBusy} onClick={() => setSimPair(null)}>Nu, doar aici</button>
+              <button className="sp-yes" disabled={simBusy} onClick={confirmSimPair}>{simBusy ? "Se adaugă…" : "Da, pune-l și acolo"}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && <div className="toast">{toast}</div>}
 
@@ -966,6 +1001,20 @@ export default function MatrixPage() {
         .empty { padding: 40px; color: var(--text-faint); }
         .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text); padding: 10px 18px; border-radius: 8px; font-size: 13px; z-index: 60; box-shadow: 0 8px 28px rgba(0,0,0,.4); }
         .drag-hint { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); background: var(--primary); color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 12.5px; font-weight: 600; z-index: 70; box-shadow: 0 6px 20px rgba(47,129,247,.4); pointer-events: none; animation: tmbIn .14s ease; }
+        .sp-ov { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 85; display: flex; align-items: center; justify-content: center; padding: 16px; animation: tmbIn .14s ease; }
+        .sp-dlg { background: var(--modal-bg); border: 1px solid var(--border-strong); border-radius: 13px; padding: 20px 22px; width: 420px; max-width: 94vw; box-shadow: 0 24px 64px rgba(0,0,0,.5); animation: spIn .18s cubic-bezier(.2,.9,.3,1.2); }
+        @keyframes spIn { from { opacity: 0; transform: scale(.92) translateY(8px); } to { opacity: 1; transform: none; } }
+        .sp-ic { width: 38px; height: 38px; border-radius: 10px; background: rgba(47,129,247,.16); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 14px; }
+        .sp-who { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+        .sp-n { color: var(--text); font-size: 15px; font-weight: 600; }
+        .sp-sub { color: var(--text-faint); font-size: 12px; margin-top: 1px; }
+        .sp-q { color: var(--text-dim); font-size: 13.5px; line-height: 1.55; } .sp-q b { color: var(--text); }
+        .sp-free { color: var(--product); font-size: 12px; }
+        .sp-act { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .sp-no { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 7px; padding: 9px 15px; font-size: 13px; cursor: pointer; }
+        .sp-no:hover { color: var(--text); }
+        .sp-yes { background: var(--primary); border: 1px solid var(--primary); color: #fff; border-radius: 7px; padding: 9px 17px; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .sp-yes:disabled, .sp-no:disabled { opacity: .55; cursor: default; }
         .err { background: rgba(229,83,75,.12); border: 1px solid rgba(229,83,75,.4); color: #f0a7a2; padding: 10px 12px; border-radius: 6px; margin-bottom: 12px; }
         .tmode-bar { display: flex; align-items: center; gap: 11px; background: linear-gradient(90deg, rgba(87,185,138,.14), rgba(47,129,247,.1)); border: 1px solid rgba(87,185,138,.4); border-radius: 9px; padding: 9px 14px; margin-bottom: 10px; animation: tmbIn .18s ease; }
         @keyframes tmbIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
