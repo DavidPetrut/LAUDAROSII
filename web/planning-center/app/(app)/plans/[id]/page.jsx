@@ -7,7 +7,7 @@
  * aceeași bară GLOBALĂ de asignare (AssignSidebar) ca în Matrix; click pe persoană → EditPersonModal.
  * UX seamless: update OPTIMIST + reconciliere silențioasă. ZERO emailuri trimise de aici.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { plansApi } from "@/lib/api/client";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
@@ -15,7 +15,7 @@ import PersonAvatar from "@/components/plans/PersonAvatar";
 import AssignSidebar from "@/components/plans/AssignSidebar";
 import EditPersonModal from "@/components/plans/EditPersonModal";
 
-const TABS = ["Order", "Teams"]; // Times/Files/Notes mutate în sidebar-ul STÂNGA (ca în PCO)
+const TABS = ["Order", "Teams", "Rehearse"]; // Times/Files/Notes mutate în sidebar-ul STÂNGA (ca în PCO)
 
 /* echipa pereche SIM: „Asimilare (SIM 1)" ↔ „Asimilare (SIM 2)" */
 function perecheName(name = "") {
@@ -42,6 +42,12 @@ export default function PlanDetailPage() {
   const [recQuery, setRecQuery] = useState("");
   const [assigning, setAssigning] = useState(false);
   const [editing, setEditing] = useState(null);
+
+  // drag & drop Kanban între echipe/poziții (#3): mută implicit, Ctrl = copiază
+  const dragRef = useRef(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [dropKey, setDropKey] = useState(null);
+  const [dragHint, setDragHint] = useState("");
 
   // meniu 3-puncte (rename / print / copy link)
   const [menuOpen, setMenuOpen] = useState(false);
@@ -84,7 +90,7 @@ export default function PlanDetailPage() {
 
   useEffect(() => {
     if (data[tab]) return;
-    const fn = { Order: plansApi.order, Teams: plansApi.teams }[tab];
+    const fn = { Order: plansApi.order, Teams: plansApi.teams, Rehearse: plansApi.rehearse }[tab];
     if (!fn) return;
     fn(id).then((r) => setData((d) => ({ ...d, [tab]: r }))).catch((e) => setErr(e?.message || "Eroare."));
   }, [tab, id, data]);
@@ -170,6 +176,27 @@ export default function PlanDetailPage() {
     patchGroup(teamId, positionId, (g) => ({ ...g, people: g.people.filter((x) => String(x.assignmentId) !== String(assignmentId)) }));
     try { await plansApi.unassign(id, assignmentId); flash("Șters."); reconcileTeams(); refreshRec(); }
     catch (e) { flash(e?.message || "Eroare."); reconcileTeams(); }
+  }
+  // Kanban: trage o persoană în altă poziție/echipă → MUTĂ (Ctrl = copiază). ZERO email.
+  function onPersonDragStart(pp, g, t) {
+    dragRef.current = { personId: pp.personId, assignmentId: pp.assignmentId, teamId: t.teamId, positionId: g.positionId, name: pp.name, avatar: pp.avatar, initials: pp.initials, isGuest: !!pp.isGuest };
+    setDragActive(true); setDragHint(`${pp.name} → lași jos = MUTĂ · ține Ctrl = copiezi`);
+  }
+  async function dropOnPos(teamId, positionId, ev) {
+    const d = dragRef.current; dragRef.current = null;
+    setDragActive(false); setDropKey(null); setDragHint("");
+    if (!d) return;
+    const copy = !!(ev && (ev.ctrlKey || ev.metaKey));
+    if (String(d.teamId) === String(teamId) && String(d.positionId) === String(positionId)) return; // aceeași poziție
+    const doMove = !copy && d.assignmentId && !String(d.assignmentId).startsWith("tmp-");
+    const tmpId = `tmp-m-${Date.now()}`;
+    patchGroup(teamId, positionId, (g) => ({ ...g, needed: Math.max(0, (g.needed || 0) - 1), people: [...g.people, { personId: d.personId, assignmentId: tmpId, name: d.name, avatar: d.avatar, initials: d.initials, status: "unconfirmed", isGuest: d.isGuest }] }));
+    if (doMove) patchGroup(d.teamId, d.positionId, (g) => ({ ...g, people: g.people.filter((x) => String(x.assignmentId) !== String(d.assignmentId)) }));
+    try {
+      await plansApi.assign(id, d.isGuest ? { guestName: d.name, teamId, positionId } : { personId: d.personId, teamId, positionId, status: "unconfirmed" });
+      if (doMove) await plansApi.unassign(id, d.assignmentId);
+      flash(doMove ? "Mutat." : "Copiat."); reconcileTeams(); refreshRec();
+    } catch (e) { flash(e?.message || "Eroare."); reconcileTeams(); }
   }
   async function saveEdit(payload) {
     if (!editing) return;
@@ -290,7 +317,9 @@ export default function PlanDetailPage() {
               {tab === "Order" && <OrderTab data={cur} />}
               {tab === "Teams" && <TeamsTab data={cur} sel={sel} onOpenCell={openCell}
                 onEdit={(pp, g, t) => setEditing({ planId: id, teamId: t.teamId, positionId: g.positionId, assignmentId: pp.assignmentId, name: pp.name, avatar: pp.avatar, initials: pp.initials, status: pp.status, teamName: t.name, positionName: g.positionName })}
-                onRemove={removePerson} onNeeded={changeNeeded} />}
+                onRemove={removePerson} onNeeded={changeNeeded}
+                dragActive={dragActive} dropKey={dropKey} setDropKey={setDropKey} onDragStartP={onPersonDragStart} onDropPos={dropOnPos} onDragEndP={() => { setDragActive(false); setDropKey(null); setDragHint(""); }} />}
+              {tab === "Rehearse" && <RehearseTab data={cur} />}
             </div>
           )}
         </div>
@@ -309,10 +338,13 @@ export default function PlanDetailPage() {
         <EditPersonModal person={editing} onClose={() => setEditing(null)} onSave={saveEdit}
           onRemove={() => { removePerson(editing.teamId, editing.positionId, editing.assignmentId); setEditing(null); }} />
       )}
+      {dragActive && dragHint && <div className="drag-hint">⇄ {dragHint}</div>}
       {toast && <div className="toast">{toast}</div>}
 
       <style jsx>{`
         .pd { padding: 18px 20px 80px; transition: padding-right .16s ease; }
+        .drag-hint { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); background: var(--primary); color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 12.5px; font-weight: 600; z-index: 70; box-shadow: 0 6px 20px rgba(47,129,247,.4); pointer-events: none; animation: dhIn .14s ease; }
+        @keyframes dhIn { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
         .pd.has-side { padding-right: 360px; }
         .top { display: flex; align-items: flex-start; gap: 10px; }
         .back { background: transparent; border: none; color: var(--text-dim); cursor: pointer; padding: 6px; margin-top: 4px; }
@@ -414,21 +446,21 @@ function OrderTab({ data }) {
   );
 }
 
-/* icon status standalone pt. header-ul echipei (aceleași ca badge-ul de pe avatar) */
+/* icon status pt. header-ul echipei — OUTLINE (gol înăuntru), ca în PCO */
 function CountIcon({ s }) {
   const c = s === "confirmed" ? "#57b98a" : s === "unconfirmed" ? "#c9a227" : "#e5534b";
   return (
-    <svg width="15" height="15" viewBox="0 0 16 16" style={{ flex: "none" }}>
-      <circle cx="8" cy="8" r="8" fill={c} />
-      {s === "confirmed" && <path d="M4.5 8.2l2.2 2.2 4.8-4.8" fill="none" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />}
-      {s === "unconfirmed" && <text x="8" y="11.6" textAnchor="middle" fontSize="10" fill="#1d1600" fontWeight="800">?</text>}
-      {s === "declined" && <path d="M5.2 5.2l5.6 5.6M10.8 5.2l-5.6 5.6" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" />}
+    <svg width="16" height="16" viewBox="0 0 16 16" style={{ flex: "none" }}>
+      <circle cx="8" cy="8" r="6.7" fill="none" stroke={c} strokeWidth="1.4" />
+      {s === "confirmed" && <path d="M5 8.1l2 2 4-4.3" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />}
+      {s === "unconfirmed" && <text x="8" y="11.5" textAnchor="middle" fontSize="9" fill={c} fontWeight="800">?</text>}
+      {s === "declined" && <path d="M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8" stroke={c} strokeWidth="1.5" strokeLinecap="round" />}
     </svg>
   );
 }
 
 /* ── Teams (interactiv) ── echipele = coloane în carusel orizontal ── */
-function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes = [] }) {
+function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes = [], dragActive, dropKey, setDropKey, onDragStartP, onDropPos, onDragEndP }) {
   const perTime = serviceTimes.length >= 2; // Needed pe fiecare oră de serviciu
   return (
     <div className="tcol">
@@ -436,20 +468,31 @@ function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes 
         <div className="tc-name">{t.name}</div>
         <div className="tc-counts">
           <span className="cnt ok" title="Confirmați"><CountIcon s="confirmed" />{t.counts?.confirmed || 0}</span>
-          <span className="cnt un" title="În așteptare"><CountIcon s="unconfirmed" />{t.counts?.unconfirmed || 0}</span>
           <span className="cnt no" title="Refuzați"><CountIcon s="declined" />{t.counts?.declined || 0}</span>
+          <span className="cnt un" title="În așteptare"><CountIcon s="unconfirmed" />{t.counts?.unconfirmed || 0}</span>
         </div>
       </div>
       {(t.groups || []).map((g, gi) => {
         const isSel = sel && String(sel.teamId) === String(t.teamId) && String(sel.positionId) === String(g.positionId);
+        const posKey = `${t.teamId}-${g.positionId}`;
         return (
-          <div key={g.positionId || gi} className={`pos ${isSel ? "sel" : ""}`}>
+          <div key={g.positionId || gi}
+            className={`pos ${isSel ? "sel" : ""} ${dragActive && dropKey === posKey ? "drophover" : ""}`}
+            onDragOver={(e) => { if (dragActive) { e.preventDefault(); } }}
+            onDragEnter={() => { if (dragActive) setDropKey?.(posKey); }}
+            onDrop={(e) => onDropPos?.(t.teamId, g.positionId, e)}>
             <div className="pos-name" onClick={() => onOpenCell(t.teamId, g.positionId, g.positionName || "Poziție", t.name)} title="Asignează pe această poziție">{g.positionName || "—"}</div>
             {(g.people || []).map((p, pi) => (
-              <div key={p.assignmentId || pi} className="pers" onClick={() => onEdit(p, g, t)} title={`${p.name} — click: editează status`}>
+              <div key={p.assignmentId || pi} className="pers" draggable
+                onDragStart={(e) => { e.dataTransfer.effectAllowed = "copyMove"; onDragStartP?.(p, g, t); }}
+                onDragEnd={() => onDragEndP?.()}
+                onClick={() => onEdit(p, g, t)} title={`${p.name} — click: editează · trage: MUTĂ (Ctrl = copiază)`}>
                 <PersonAvatar person={p} status={p.status} size={24} />
                 <span className={`pn ${p.status === "declined" ? "decl" : ""}`}>{p.name}</span>
                 {p.isGuest && <span className="gtag">invitat</span>}
+                <button className="ped" title="Editează (status, ore, poziție)" onClick={(e) => { e.stopPropagation(); onEdit(p, g, t); }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+                </button>
                 <button className="psch" title="Replanifică — deschide bara" onClick={(e) => { e.stopPropagation(); onOpenCell(t.teamId, g.positionId, g.positionName || "Poziție", t.name); }}>
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5" /><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" /></svg>
                 </button>
@@ -475,14 +518,18 @@ function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes 
             ) : (
               <>
                 {g.needed > 0 && (
-                  <div className="needctl">
-                    <button onClick={() => onNeeded(t.teamId, g.positionId, null, g.needed - 1)}>−</button>
-                    <span className="needn">{g.needed} Needed</span>
-                    <button onClick={() => onNeeded(t.teamId, g.positionId, null, g.needed + 1)}>+</button>
+                  <div className="needrow">
+                    <div className="needctl">
+                      <button onClick={() => onNeeded(t.teamId, g.positionId, null, g.needed - 1)}>−</button>
+                      <span className="needn">{g.needed} Needed</span>
+                      <button onClick={() => onNeeded(t.teamId, g.positionId, null, g.needed + 1)}>+</button>
+                    </div>
                   </div>
                 )}
                 {g.needed === 0 && (!g.people || !g.people.length) && (
-                  <button className="needadd" onClick={() => onNeeded(t.teamId, g.positionId, null, 1)}>+ Needed</button>
+                  <div className="needrow">
+                    <button className="needadd" onClick={() => onNeeded(t.teamId, g.positionId, null, 1)}>+ Needed</button>
+                  </div>
                 )}
               </>
             )}
@@ -492,31 +539,35 @@ function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes 
       {(!t.groups || !t.groups.length) && <div className="pos-empty">Nicio poziție.</div>}
       <style jsx>{`
         .tcol { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0 0 6px; width: 262px; flex: none; }
-        .tc-head { display: flex; flex-direction: column; align-items: flex-start; gap: 9px; padding: 13px 14px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); border-radius: 10px 10px 0 0; z-index: 1; }
-        .tc-name { color: var(--text); font-weight: 600; font-size: 14.5px; }
-        .tc-counts { display: flex; gap: 16px; }
-        .cnt { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; }
+        .tc-head { display: flex; flex-direction: column; align-items: flex-start; gap: 11px; padding: 17px 16px 15px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); border-radius: 10px 10px 0 0; z-index: 1; }
+        .tc-name { color: var(--text); font-weight: 600; font-size: 15px; }
+        .tc-counts { display: flex; gap: 18px; }
+        .cnt { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
         .cnt.ok { color: var(--product); } .cnt.no { color: var(--danger); } .cnt.un { color: var(--st-unconfirmed); }
-        .pos { padding: 0 0 2px; }
+        .pos { padding: 0 0 2px; transition: background .12s, box-shadow .12s; }
         .pos.sel { background: rgba(47,129,247,.07); }
+        .pos.drophover { background: rgba(47,129,247,.14); box-shadow: inset 0 0 0 2px var(--primary); border-radius: 6px; }
         .pos-name { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; padding: 12px 14px 8px; background: var(--section-head-bg); cursor: pointer; }
         .pos-name:hover { color: var(--text); }
-        .pers { display: flex; align-items: center; gap: 9px; padding: 6px 14px; cursor: pointer; }
+        .pers { display: flex; align-items: center; gap: 9px; padding: 7px 14px; min-height: 38px; cursor: grab; }
         .pers:hover { background: rgba(255,255,255,.05); }
+        .pers:active { cursor: grabbing; }
         .pn { color: var(--text); font-size: 13px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .pn.decl { text-decoration: line-through; opacity: .6; }
         .gtag { flex: none; font-size: 9px; color: var(--product); border: 1px solid rgba(87,185,138,.5); border-radius: 10px; padding: 0 5px; text-transform: uppercase; }
-        .prm, .psch { opacity: 0; background: transparent; border: none; color: var(--text-faint); cursor: pointer; line-height: 1; padding: 0 2px; flex: none; display: inline-flex; align-items: center; }
+        .prm, .psch, .ped { opacity: 0; background: transparent; border: none; color: var(--text-faint); cursor: pointer; line-height: 1; padding: 0 2px; flex: none; display: inline-flex; align-items: center; }
         .prm { font-size: 15px; }
-        .pers:hover .prm, .pers:hover .psch { opacity: 1; } .prm:hover { color: var(--danger); } .psch:hover { color: var(--product); }
-        .needctl { display: inline-flex; align-items: center; gap: 5px; margin: 2px 14px; }
+        .pers:hover .prm, .pers:hover .psch, .pers:hover .ped { opacity: 1; } .prm:hover { color: var(--danger); } .psch:hover, .ped:hover { color: var(--product); }
+        .needrow { display: flex; align-items: center; padding: 7px 14px; min-height: 38px; }
+        .needctl { display: inline-flex; align-items: center; gap: 5px; }
         .needn { color: #e0a93c; font-size: 11.5px; font-weight: 600; }
-        .needctl button { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 4px; cursor: pointer; width: 18px; height: 18px; line-height: 1; font-size: 13px; }
+        .needctl button { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 4px; cursor: pointer; width: 19px; height: 19px; line-height: 1; font-size: 13px; }
         .needctl button:hover { color: var(--text); }
-        .needadd { margin: 2px 14px; background: var(--surface-2); border: 1px dashed var(--border-strong); color: var(--text-faint); border-radius: 5px; cursor: pointer; font-size: 11px; padding: 3px 10px; }
+        .needctl button:disabled { opacity: .4; cursor: default; }
+        .needadd { background: var(--surface-2); border: 1px dashed var(--border-strong); color: var(--text-faint); border-radius: 5px; cursor: pointer; font-size: 11px; padding: 4px 11px; }
         .needadd:hover { color: var(--primary); border-color: var(--primary); }
-        .needtimes { display: flex; flex-direction: column; gap: 3px; margin: 3px 14px 4px; }
-        .needtime { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .needtimes { display: flex; flex-direction: column; gap: 4px; padding: 6px 14px; }
+        .needtime { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 26px; }
         .nt-lbl { color: var(--text-faint); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .needn.zero { color: var(--text-faint); }
         .pos-empty { color: var(--text-faint); font-size: 12px; padding: 10px 14px; }
@@ -524,11 +575,11 @@ function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes 
     </div>
   );
 }
-function TeamsTab({ data, sel, onOpenCell, onEdit, onRemove, onNeeded }) {
+function TeamsTab({ data, sel, onOpenCell, onEdit, onRemove, onNeeded, dragActive, dropKey, setDropKey, onDragStartP, onDropPos, onDragEndP }) {
   if (!data) return <div className="muted">Se încarcă…</div>;
   const my = data.myTeams || [], other = data.otherTeams || [];
   if (!my.length && !other.length) return <div className="muted">Nicio echipă pe acest plan.</div>;
-  const props = { sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes: data.serviceTimes || [] };
+  const props = { sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes: data.serviceTimes || [], dragActive, dropKey, setDropKey, onDragStartP, onDropPos, onDragEndP };
   return (
     <div className="teams">
       {my.length > 0 && <><div className="grp-label">MY TEAMS</div><div className="carousel">{my.map((t) => <TeamCol key={t.teamId} t={t} {...props} />)}</div></>}
@@ -539,6 +590,70 @@ function TeamsTab({ data, sel, onOpenCell, onEdit, onRemove, onNeeded }) {
         .carousel::-webkit-scrollbar { height: 18px; }
         .carousel::-webkit-scrollbar-thumb { background: #39434f; border-radius: 9px; border: 4px solid transparent; background-clip: content-box; }
         .carousel::-webkit-scrollbar-thumb:hover { background: #4a5663; background-clip: content-box; }
+      `}</style>
+    </div>
+  );
+}
+
+/* ── Rehearse ── cântecele planului (structuri + documente + media), ca în PCO ── */
+function RehearseTab({ data }) {
+  const [selId, setSelId] = useState(null);
+  if (!data) return <div className="muted">Se încarcă…</div>;
+  const songs = data.songs || [];
+  if (!songs.length) return <div className="muted">Niciun cântec în acest plan. Adaugă cântece din tab-ul „Order".</div>;
+  const sel = songs.find((s) => String(s.itemId) === String(selId)) || songs[0];
+  return (
+    <div className="reh">
+      <div className="reh-list">
+        <div className="reh-ll">Cântece · {songs.length}</div>
+        {songs.map((s) => (
+          <button key={s.itemId} className={`reh-item ${String(sel.itemId) === String(s.itemId) ? "on" : ""}`} onClick={() => setSelId(s.itemId)}>
+            <span className="reh-t">{s.title}</span>
+            {s.keyName && <span className="reh-k">{s.keyName}</span>}
+          </button>
+        ))}
+      </div>
+      <div className="reh-detail">
+        <div className="reh-h">{sel.title}</div>
+        <div className="reh-sub">{[sel.arrangementName, sel.bpm ? `${sel.bpm} bpm` : ""].filter(Boolean).join(" · ") || "—"}</div>
+        {sel.sequence?.length > 0 && <div className="reh-seq"><span className="reh-sl">Sequence</span> {sel.sequence.join(", ")}</div>}
+        {sel.notes && <div className="reh-notes">{sel.notes}</div>}
+        <div className="reh-cards">
+          <div className="reh-card">
+            <div className="reh-ch">Documente</div>
+            {sel.hasChordChart && <div className="reh-f">Chord Chart{sel.originalKey ? ` · ${sel.originalKey}` : ""}</div>}
+            {(sel.docs || []).map((d) => (d.url ? <a key={d.id} className="reh-f link" href={d.url} target="_blank" rel="noreferrer">{d.name}</a> : <div key={d.id} className="reh-f">{d.name}{d.pending ? " (în lucru)" : ""}</div>))}
+            {!sel.hasChordChart && !(sel.docs || []).length && <div className="reh-none">Niciun document.</div>}
+          </div>
+          <div className="reh-card">
+            <div className="reh-ch">Media (audio)</div>
+            {(sel.audio || []).map((a) => <a key={a.id} className="reh-f link" href={a.url} target="_blank" rel="noreferrer">▸ {a.name}</a>)}
+            {!(sel.audio || []).length && <div className="reh-none">Niciun fișier audio.</div>}
+          </div>
+        </div>
+      </div>
+      <style jsx>{`
+        .reh { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
+        .reh-list { border: 1px solid var(--border); border-radius: 10px; padding: 8px; background: var(--surface); }
+        .reh-ll { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; padding: 6px 8px 8px; }
+        .reh-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: transparent; border: none; color: var(--text-dim); border-radius: 7px; padding: 10px 10px; cursor: pointer; font-size: 13px; }
+        .reh-item:hover { background: var(--surface-2); color: var(--text); }
+        .reh-item.on { background: rgba(47,129,247,.12); color: var(--text); box-shadow: inset 0 0 0 1px rgba(47,129,247,.4); }
+        .reh-t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .reh-k { flex: none; color: var(--product); border: 1px solid var(--product); border-radius: 4px; font-size: 11px; padding: 0 6px; font-weight: 600; }
+        .reh-detail { border: 1px solid var(--border); border-radius: 10px; padding: 20px 22px; background: var(--surface); min-width: 0; }
+        .reh-h { color: var(--text); font-size: 20px; font-weight: 600; }
+        .reh-sub { color: var(--text-dim); font-size: 13px; margin-top: 4px; }
+        .reh-seq { color: var(--text-dim); font-size: 12.5px; margin-top: 12px; line-height: 1.6; }
+        .reh-sl { color: var(--text-faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; margin-right: 6px; }
+        .reh-notes { color: var(--text-dim); font-size: 13px; margin-top: 10px; background: var(--surface-2); border-radius: 8px; padding: 10px 12px; line-height: 1.5; }
+        .reh-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+        @media (max-width: 760px) { .reh { grid-template-columns: 1fr; } .reh-cards { grid-template-columns: 1fr; } }
+        .reh-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 12px 14px; }
+        .reh-ch { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; margin-bottom: 9px; }
+        .reh-f { display: block; color: var(--text); font-size: 13px; padding: 5px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .reh-f.link { color: var(--text-link); cursor: pointer; } .reh-f.link:hover { text-decoration: underline; }
+        .reh-none { color: var(--text-faint); font-size: 12.5px; padding: 4px 0; }
       `}</style>
     </div>
   );
@@ -555,15 +670,23 @@ function TimesTab({ data }) {
         <div key={label} className="tblock">
           <div className="tb-label">{label}</div>
           {list.map((t) => (
-            <div key={t.id} className="trow"><span className="tw">{t.weekday}</span><span className="tr">{t.range}</span><span className="td">{t.date}</span>{t.name ? <span className="tn">{t.name}</span> : null}</div>
+            <div key={t.id} className="trow">
+              <span className="tw">{t.weekday}</span>
+              <span className="tr">{t.range}{t.name ? <span className="tn"> · {t.name}</span> : null}</span>
+              <span className="td">{t.date}</span>
+            </div>
           ))}
         </div>
       ))}
       <style jsx>{`
-        .tblock { margin-bottom: 18px; }
-        .tb-label { color: var(--text-faint); font-size: 11px; letter-spacing: .5px; margin-bottom: 8px; text-transform: uppercase; }
-        .trow { display: flex; align-items: center; gap: 14px; padding: 8px 0; border-bottom: 1px solid var(--border-soft); font-size: 13.5px; }
-        .tw { color: var(--product); font-weight: 600; width: 40px; } .tr { color: var(--text); } .td { color: var(--text-dim); } .tn { color: var(--text-faint); }
+        .tblock { margin-bottom: 16px; } .tblock:last-child { margin-bottom: 0; }
+        .tb-label { color: var(--text-faint); font-size: 10.5px; letter-spacing: .5px; margin-bottom: 4px; text-transform: uppercase; }
+        .trow { display: flex; align-items: baseline; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border-soft); font-size: 13px; }
+        .trow:last-child { border-bottom: none; }
+        .tw { color: var(--product); font-weight: 700; width: 26px; flex: none; font-size: 12px; text-transform: uppercase; }
+        .tr { color: var(--text); flex: 1; min-width: 0; }
+        .td { color: var(--text-dim); margin-left: auto; flex: none; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+        .tn { color: var(--text-faint); }
       `}</style>
     </div>
   );

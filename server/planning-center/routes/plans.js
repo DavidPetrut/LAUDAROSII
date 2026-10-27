@@ -174,7 +174,7 @@ router.get("/:id", requireCan("people.view"), async (req, res) => {
       title: plan.title || st?.name || "Plan",
       serviceTypeId: plan.serviceTypeId,   // #5: lipsea → butonul Matrix dădea „ID invalid"
       serviceTypeName: st?.name || "",
-      dateLabel: fmtDate(plan.sortDate, tz),
+      dateLabel: plan.sortDate ? new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date(plan.sortDate)) : "",
       prevId: prev?._id || null,
       nextId: next?._id || null,
       myAssignments,

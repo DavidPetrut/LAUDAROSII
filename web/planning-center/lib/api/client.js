@@ -91,6 +91,7 @@ export const plansApi = {
   get: (id) => api.get(`/plans/${id}`),
   update: (id, payload) => api.patch(`/plans/${id}`, payload), // ex. { title } — redenumire plan
   teams: (id) => api.get(`/plans/${id}/teams`),
+  rehearse: (id) => api.get(`/plans/${id}/rehearse`), // cântecele planului (Rehearse tab)
   times: (id) => api.get(`/plans/${id}/times`),
   order: (id) => api.get(`/plans/${id}/order`),
   notes: (id) => api.get(`/plans/${id}/notes`),
