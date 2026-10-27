@@ -583,10 +583,12 @@ export default function MatrixPage() {
 
       <style jsx>{`
         /* înălțime FIXĂ cât viewport-ul sub nav → grila umple restul și X-scroll-ul e PINNED jos (vizibil mereu) */
-        .matrix { height: calc(100vh - var(--nav-h)); display: flex; flex-direction: column; overflow: hidden; padding: 14px 16px 14px; transition: padding .16s ease; }
+        /* padding-bottom = înălțimea barei „Listă live" collapse (--cbar-h): grila se oprește MEREU fix deasupra ei,
+           așa că X-scroll-ul rămâne vizibil chiar și cu bara închisă (bara stă DEDESUBT, nu peste scroll). */
+        .matrix { height: calc(100vh - var(--nav-h)); display: flex; flex-direction: column; overflow: hidden; padding: 14px 16px var(--cbar-h); transition: padding .22s cubic-bezier(.4,0,.2,1); }
         .matrix.has-side { padding-right: 356px; }  /* loc pt. bara lipită dreapta */
         .matrix.has-left { padding-left: 336px; }   /* loc pt. panoul Settings din stânga */
-        .matrix.has-bar { padding-bottom: 46vh; }   /* lasă loc pt. bara „listă live" → grila se oprește în ea */
+        .matrix.has-bar { padding-bottom: 46vh; }   /* bara extinsă → grila se oprește în ea (X-scroll tot pinned) */
         .matrix.drag .datacell { box-shadow: inset 0 0 0 1px rgba(47,129,247,.3); background: rgba(47,129,247,.04); }
         .matrix.drag .datacell:hover { box-shadow: inset 0 0 0 2px var(--primary); background: rgba(47,129,247,.12); }
         .mtop { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }

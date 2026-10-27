@@ -39,6 +39,7 @@
 
   /* Dimensiuni / layout */
   --nav-h: 52px;            /* înălțimea barei de sus */
+  --cbar-h: 46px;           /* înălțimea „Listă live" collapse — grila se oprește fix deasupra ei (X-scroll pinned) */
   --radius: 6px;            /* raza colțurilor (carduri, butoane) — PCO e „aproape drept" */
   --radius-sm: 4px;
   --content-max: 1600px;    /* lățimea maximă a conținutului */

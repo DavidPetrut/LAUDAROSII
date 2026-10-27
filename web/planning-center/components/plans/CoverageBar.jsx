@@ -97,9 +97,9 @@ export default function CoverageBar({ open, onToggle, cov, loading, filters = {}
         .covbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 46; background: var(--surface);
           border-top: 1px solid var(--border-strong); border-radius: 12px 12px 0 0;
           box-shadow: 0 -10px 30px rgba(0,0,0,.34); transition: height .22s cubic-bezier(.4,0,.2,1), left .16s, right .16s;
-          height: 46px; display: flex; flex-direction: column; }
+          height: var(--cbar-h); display: flex; flex-direction: column; }
         .covbar.open { height: 46vh; }
-        .cb-handle { height: 46px; flex: none; display: flex; align-items: center; gap: 10px; background: var(--surface-2);
+        .cb-handle { height: var(--cbar-h); flex: none; display: flex; align-items: center; gap: 10px; background: var(--surface-2);
           border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0; color: var(--text); cursor: pointer; padding: 0 18px; font-size: 13px; }
         .cb-grip { width: 36px; height: 4px; border-radius: 3px; background: var(--border-strong); flex: none; }
         .cb-ht { font-weight: 700; letter-spacing: .2px; }
