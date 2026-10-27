@@ -5,7 +5,7 @@
  * iar bara de asignare e GLOBALĂ și lipită în DREAPTA ecranului (AssignSidebar).
  * Celule = oameni ca AVATAR + badge status în colț (PersonAvatar) + „Needed" (−/N/+).
  * UX seamless: update OPTIMIST + reconciliere silențioasă (fără flash „Se încarcă").
- * Target view (click pe om → unde mai e planificat). Drag = COPIAZĂ (Ctrl = MUTĂ).
+ * Target view (click pe om → unde mai e planificat). Drag = MUTĂ (Kanban); Ctrl/Cmd = COPIAZĂ.
  * „⧉" pe antetul echipei = copiază SIM1→SIM2. TOTUL scrie DOAR în DB — ZERO emailuri.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -67,6 +67,8 @@ export default function MatrixPage() {
   const [covBusy, setCovBusy] = useState(false);
   const [barFilters, setBarFilters] = useState({ ministry: null, gender: "", sim: "" }); // filtre tag-uri bară
   const [dragActive, setDragActive] = useState(false); // feedback drag (Kanban)
+  const [dropKey, setDropKey] = useState(null);         // celula peste care e drag-ul acum (evidențiere)
+  const [dragHint, setDragHint] = useState("");         // indiciu flotant în timpul drag-ului
   const dragRef = useRef(null);
   const lastSelRef = useRef(null); // ultima poziție deschisă — pt. butonul „planning"
   const recTimer = useRef(null);
@@ -252,16 +254,22 @@ export default function MatrixPage() {
     try { await plansApi.updateAssignment(editing.planId, editing.assignmentId, payload); flash("Salvat (fără email)."); reconcile(); }
     catch (e) { flash(e?.message || "Eroare."); reconcile(); }
   }
-  async function dropOnCell(planId, teamId, positionId, colIdx) {
+  async function dropOnCell(planId, teamId, positionId, colIdx, ev) {
     const d = dragRef.current; dragRef.current = null;
+    setDragActive(false); setDropKey(null); setDragHint("");
     if (!d) return;
+    // Kanban: drag simplu = MUTĂ; Ctrl/Cmd = COPIAZĂ. Din bara „Listă live" = mereu adaugă (nu are sursă).
+    const copy = !!(ev && (ev.ctrlKey || ev.metaKey));
+    const sameCell = !d.fromBar && String(d.planId) === String(planId) && String(d.teamId) === String(teamId) && String(d.positionId) === String(positionId);
+    if (sameCell) return; // lăsat înapoi pe aceeași poziție → nimic
+    const doMove = !copy && !d.fromBar && d.assignmentId && !String(d.assignmentId).startsWith("tmp-");
     const tmpId = `tmp-${Date.now()}`;
     patchCell(teamId, positionId, colIdx, (c) => ({ ...c, people: [...c.people, { personId: d.personId, assignmentId: tmpId, name: d.name, avatar: d.avatar, initials: d.initials, status: "unconfirmed" }] }));
-    if (d.move) patchCell(d.teamId, d.positionId, d.colIdx, (c) => ({ ...c, people: c.people.filter((x) => String(x.assignmentId) !== String(d.assignmentId)) }));
+    if (doMove) patchCell(d.teamId, d.positionId, d.colIdx, (c) => ({ ...c, people: c.people.filter((x) => String(x.assignmentId) !== String(d.assignmentId)) }));
     try {
       await plansApi.assign(planId, { personId: d.personId, teamId, positionId, status: "unconfirmed" });
-      if (d.move && d.assignmentId) await plansApi.unassign(d.planId, d.assignmentId);
-      flash(d.move ? "Mutat." : "Copiat."); reconcile(); loadCov();
+      if (doMove && d.assignmentId) await plansApi.unassign(d.planId, d.assignmentId);
+      flash(doMove ? "Mutat." : "Copiat."); reconcile(); loadCov();
     } catch (e) { flash(e?.message || "Eroare."); reconcile(); }
   }
   async function changeNeeded(planId, teamId, positionId, colIdx, nextCount) {
@@ -581,22 +589,24 @@ export default function MatrixPage() {
                   const av = target ? targetAvail[String(plans[ci].id)] : null;
                   const tHere = target && (c.people || []).some((x) => String(x.personId) === String(target.personId));
                   const tCls = target ? (av?.blockout ? "t-blk" : tHere ? "t-here" : av?.busy ? "t-busy" : "t-free") : "";
+                  const cellKey = `${t.teamId}-${pos.positionId}-${ci}`;
                   out.push(
-                    <div key={`${t.teamId}-${pos.positionId}-${ci}`}
-                      className={`cell datacell ${isSel ? "sel" : ""} ${tCls}`}
+                    <div key={cellKey}
+                      className={`cell datacell ${isSel ? "sel" : ""} ${tCls} ${dragActive && dropKey === cellKey ? "drophover" : ""}`}
                       onClick={(e) => { if (e.target.closest(".person")) return; if (target) { assignTargetToCell(plans[ci].id, t.teamId, pos.positionId, ci, c); return; } openCell(plans[ci].id, t.teamId, pos.positionId, pos.name, ci); }}
                       onDragOver={(e) => { if (dragRef.current) e.preventDefault(); }}
-                      onDrop={() => dropOnCell(plans[ci].id, t.teamId, pos.positionId, ci)}>
+                      onDragEnter={() => { if (dragRef.current) setDropKey(cellKey); }}
+                      onDrop={(e) => dropOnCell(plans[ci].id, t.teamId, pos.positionId, ci, e)}>
                       {(c.people || []).map((pp, pi) => {
                         const dim = target && String(target.personId) !== String(pp.personId);
                         const hit = target && String(target.personId) === String(pp.personId);
                         return (
                           <div key={pp.assignmentId || pi} className={`person ${dim ? "dim" : ""} ${hit ? "hit" : ""}`}
                             draggable
-                            onDragStart={() => { dragRef.current = { personId: pp.personId, assignmentId: pp.assignmentId, planId: plans[ci].id, teamId: t.teamId, positionId: pos.positionId, colIdx: ci, name: pp.name, avatar: pp.avatar, initials: pp.initials, move: false }; setDragActive(true); }}
-                            onDragEnd={() => setDragActive(false)}
+                            onDragStart={(e) => { e.dataTransfer.effectAllowed = "copyMove"; dragRef.current = { personId: pp.personId, assignmentId: pp.assignmentId, planId: plans[ci].id, teamId: t.teamId, positionId: pos.positionId, colIdx: ci, name: pp.name, avatar: pp.avatar, initials: pp.initials }; setDragActive(true); setDragHint(`${pp.name} → lași jos = MUTĂ · ține Ctrl = copiezi`); }}
+                            onDragEnd={() => { setDragActive(false); setDropKey(null); setDragHint(""); }}
                             onClick={() => pickTarget(pp)}
-                            title={`${pp.name} — click: target view · trage: copiază`}>
+                            title={`${pp.name} — click: target · trage: MUTĂ (Ctrl = copiază)`}>
                             <PersonAvatar person={pp} status={pp.status} size={22} />
                             <span className={`pn ${pp.status === "declined" ? "decl" : ""}`}>{pp.name}</span>
                             {pp.isGuest && <span className="gtag">invitat</span>}
@@ -658,8 +668,8 @@ export default function MatrixPage() {
         open={barOpen} onToggle={() => setBarOpen((v) => !v)} cov={cov} loading={covBusy}
         filters={barFilters} onRemoveFilter={(t) => setBarFilters((f) => ({ ...f, [t]: t === "ministry" ? null : "" }))}
         style={{ left: showSettings ? 316 : 0, right: (sel || browse) ? 348 : 0 }}
-        onPersonDragStart={(p) => { dragRef.current = { personId: p.id, name: p.name, avatar: p.avatar, initials: p.initials, fromBar: true, move: false }; setDragActive(true); }}
-        onPersonDragEnd={() => setDragActive(false)}
+        onPersonDragStart={(p) => { dragRef.current = { personId: p.id, name: p.name, avatar: p.avatar, initials: p.initials, fromBar: true }; setDragActive(true); setDragHint(`${p.name} → lași jos pe o poziție = asignezi`); }}
+        onPersonDragEnd={() => { setDragActive(false); setDropKey(null); setDragHint(""); }}
         target={target} targetSched={targetSched} targetAvail={targetAvail} onCloseTarget={clearTarget}
       />
 
@@ -679,6 +689,8 @@ export default function MatrixPage() {
           onChanged={() => reconcile()}
         />
       )}
+
+      {dragActive && dragHint && <div className="drag-hint">⇄ {dragHint}</div>}
 
       {toast && <div className="toast">{toast}</div>}
 
@@ -794,8 +806,8 @@ export default function MatrixPage() {
         /* tint-ul de coloană selectată se compune PESTE fundalul opac (altfel header-ul devine translucid
            și se vede conținutul care derulează pe sub — vizibil mai ales pe ultima coloană). */
         .planhead.selcol { background: linear-gradient(rgba(47,129,247,.14), rgba(47,129,247,.14)), var(--surface-2); }
-        .ph-st { color: var(--text-faint); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .ph-date { color: var(--text); font-size: 12.5px; font-weight: 600; margin-top: 2px; }
+        .ph-st { color: var(--text-faint); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ph-date { color: var(--text); font-size: 14.5px; font-weight: 700; margin-top: 3px; letter-spacing: .1px; }
         /* chip disponibilitate target în antet */
         .planhead.av-free { box-shadow: inset 0 -2px 0 rgba(87,185,138,.6); }
         .planhead.av-blk { box-shadow: inset 0 -2px 0 rgba(248,81,73,.6); }
@@ -816,6 +828,10 @@ export default function MatrixPage() {
         .datacell { padding: 6px 8px; background: var(--bg); min-height: 38px; cursor: pointer; display: flex; flex-direction: column; gap: 3px; }
         .datacell:hover { background: var(--row-hover); }
         .datacell.sel { background: rgba(47,129,247,.10); box-shadow: inset 0 0 0 1px var(--primary); }
+        /* Kanban drag: toate celulele devin zone de drop vizibile; cea țintită se evidențiază clar */
+        .matrix.drag .datacell { outline: 1px dashed var(--border-strong); outline-offset: -4px; transition: outline-color .1s, background .1s; }
+        .matrix.drag .datacell.drophover { background: rgba(47,129,247,.18); outline: 2px solid var(--primary); outline-offset: -2px; box-shadow: inset 0 0 0 9999px rgba(47,129,247,.06); }
+        .matrix.drag .person { cursor: grabbing; }
         /* target-mode: colorăm celulele după disponibilitatea persoanei-target */
         .datacell.t-free { cursor: copy; }
         .datacell.t-free:hover { background: rgba(87,185,138,.14); box-shadow: inset 0 0 0 1px rgba(87,185,138,.55); }
@@ -847,6 +863,7 @@ export default function MatrixPage() {
         .needadd:hover { color: var(--primary); border-color: var(--primary); }
         .empty { padding: 40px; color: var(--text-faint); }
         .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text); padding: 10px 18px; border-radius: 8px; font-size: 13px; z-index: 60; box-shadow: 0 8px 28px rgba(0,0,0,.4); }
+        .drag-hint { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); background: var(--primary); color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 12.5px; font-weight: 600; z-index: 70; box-shadow: 0 6px 20px rgba(47,129,247,.4); pointer-events: none; animation: tmbIn .14s ease; }
         .err { background: rgba(229,83,75,.12); border: 1px solid rgba(229,83,75,.4); color: #f0a7a2; padding: 10px 12px; border-radius: 6px; margin-bottom: 12px; }
         .tmode-bar { display: flex; align-items: center; gap: 11px; background: linear-gradient(90deg, rgba(87,185,138,.14), rgba(47,129,247,.1)); border: 1px solid rgba(87,185,138,.4); border-radius: 9px; padding: 9px 14px; margin-bottom: 10px; animation: tmbIn .18s ease; }
         @keyframes tmbIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
