@@ -39,6 +39,8 @@ export default function MatrixPage() {
   const [matrixName, setMatrixName] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [showStMenu, setShowStMenu] = useState(false);
+  const [showDateMenu, setShowDateMenu] = useState(false);
+  const [selectedPlanIds, setSelectedPlanIds] = useState(null); // null = mod fereastră (prev/next); array = checklist explicit
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [collapsed, setCollapsed] = useState(() => new Set());
@@ -62,13 +64,18 @@ export default function MatrixPage() {
   // reconciliere silențioasă (fără loading flag) — ține bara deschisă și scroll-ul pe loc
   const isoWeeks = (n) => { const d = new Date(); d.setDate(d.getDate() + n * 7); return d.toISOString().slice(0, 10); };
   const fetchGrid = useCallback(() => {
-    const opts = { offset };
-    if (dateMode) { opts.from = isoWeeks(-Math.abs(fromW)); opts.to = isoWeeks(Math.abs(toW)); }
-    else { opts.prev = prev; opts.next = count; }
+    const opts = {};
     const extra = stIds.filter((x) => String(x) !== String(serviceTypeId));
     if (extra.length) opts.sts = extra.join(",");
+    if (selectedPlanIds && selectedPlanIds.length) {       // checklist explicit (Quick load plans)
+      opts.planIds = selectedPlanIds.join(",");
+    } else if (dateMode) {                                  // Smart Load: Date
+      opts.offset = offset; opts.from = isoWeeks(-Math.abs(fromW)); opts.to = isoWeeks(Math.abs(toW));
+    } else {                                                // Smart Load: Quantity (fereastră)
+      opts.offset = offset; opts.prev = prev; opts.next = count;
+    }
     return matrixApi.grid(serviceTypeId, opts);
-  }, [serviceTypeId, count, offset, prev, dateMode, fromW, toW, stIds]);
+  }, [serviceTypeId, count, offset, prev, dateMode, fromW, toW, stIds, selectedPlanIds]);
   const load = useCallback(async () => {
     setLoading(true);
     try { setData(await fetchGrid()); setErr(""); }
@@ -94,6 +101,18 @@ export default function MatrixPage() {
   const teams = data?.teams || [];
   const nPlans = plans.length;
   const flash = (m) => { setToast(m); setTimeout(() => setToast(""), 2400); };
+
+  // ─── navigare dată (checklist explicit „Quick load plans") ───
+  const planOptions = data?.planOptions || [];              // toate planurile ST-urilor, cronologic
+  const optIds = planOptions.map((o) => String(o.id));
+  const curSel = () => (selectedPlanIds && selectedPlanIds.length ? selectedPlanIds.map(String) : plans.map((p) => String(p.id)));
+  const setSelFrom = (ids) => setSelectedPlanIds(ids.length ? ids : null);
+  const addEarlier = () => { const s = curSel(); const idxs = s.map((id) => optIds.indexOf(id)).filter((i) => i >= 0); const min = Math.min(...idxs); if (min > 0) setSelFrom([optIds[min - 1], ...s]); };
+  const addLater = () => { const s = curSel(); const idxs = s.map((id) => optIds.indexOf(id)).filter((i) => i >= 0); const max = Math.max(...idxs); if (max < optIds.length - 1) setSelFrom([...s, optIds[max + 1]]); };
+  const shiftEarlier = () => { const s = curSel(); const idxs = s.map((id) => optIds.indexOf(id)).filter((i) => i >= 0); const min = Math.min(...idxs), max = Math.max(...idxs); if (min > 0) setSelFrom([optIds[min - 1], ...s.filter((_, i) => optIds.indexOf(s[i]) !== max)]); };
+  const shiftLater = () => { const s = curSel(); const idxs = s.map((id) => optIds.indexOf(id)).filter((i) => i >= 0); const min = Math.min(...idxs), max = Math.max(...idxs); if (max < optIds.length - 1) setSelFrom([...s.filter((_, i) => optIds.indexOf(s[i]) !== min), optIds[max + 1]]); };
+  const togglePlan = (id) => { const s = curSel(); const has = s.includes(String(id)); setSelFrom(has ? s.filter((x) => x !== String(id)) : [...s, String(id)]); };
+  const isSel = (id) => curSel().includes(String(id));
 
   // patch imuabil pe o celulă (team, position, colIdx)
   const patchCell = useCallback((teamId, positionId, colIdx, fn) => {
@@ -258,6 +277,9 @@ export default function MatrixPage() {
 
   const gridCols = `220px repeat(${Math.max(1, nPlans)}, minmax(158px, 1fr))`;
   const dateRange = nPlans ? `${plans[0].dateLabel} – ${plans[nPlans - 1].dateLabel}` : "";
+  const _selIdxs = curSel().map((id) => optIds.indexOf(id)).filter((i) => i >= 0);
+  const canEarlier = _selIdxs.length > 0 && Math.min(..._selIdxs) > 0;
+  const canLater = _selIdxs.length > 0 && Math.max(..._selIdxs) < optIds.length - 1;
 
   return (
     <div className={`matrix pc-full ${sel ? "has-side" : ""} ${showSettings ? "has-left" : ""} ${barOpen ? "has-bar" : ""} ${dragActive ? "drag" : ""}`}>
@@ -283,13 +305,33 @@ export default function MatrixPage() {
         </div>
         <div className="mt-center">
           <div className="dgrp">
-            <button className="darr" disabled={!data?.hasPrev} title="O săptămână în urmă (mută fereastra)" onClick={() => setOffset((o) => o - 1)}>‹</button>
-            <button className="dadd" disabled={!data?.hasPrev} title="Adaugă o săptămână la stânga (+1 coloană)" onClick={() => setPrev((p) => p + 1)}>+</button>
+            <button className="darr" disabled={!canEarlier} title="Mută fereastra o săptămână în urmă" onClick={shiftEarlier}>‹</button>
+            <button className="dadd" disabled={!canEarlier} title="Adaugă un plan la stânga (+1 coloană)" onClick={addEarlier}>+</button>
           </div>
-          <span className="drange">{dateRange}</span>
+          <div className="drange-wrap">
+            <button className="drange" onClick={() => { setShowDateMenu((v) => !v); setShowStMenu(false); setShowSettings(false); }}>{dateRange} <span className="dcaret">▾</span></button>
+            {showDateMenu && (
+              <div className="date-menu">
+                <div className="dm-head">
+                  <button className="dm-load" disabled={!canEarlier} onClick={addEarlier}>‹ + Load prev</button>
+                  <span className="dm-t">Quick load plans</span>
+                  <button className="dm-load" disabled={!canLater} onClick={addLater}>Load next + ›</button>
+                </div>
+                <div className="dm-list">
+                  {planOptions.map((o) => (
+                    <label key={o.id} className="dm-row">
+                      <input type="checkbox" checked={isSel(o.id)} onChange={() => togglePlan(o.id)} />
+                      <span className="dm-d">{o.dateLabel}{o.stName && data?.multi ? ` · ${o.stName}` : ""}</span>
+                    </label>
+                  ))}
+                  {planOptions.length === 0 && <div className="dm-empty">Niciun plan.</div>}
+                </div>
+              </div>
+            )}
+          </div>
           <div className="dgrp">
-            <button className="dadd" disabled={!data?.hasNext} title="Adaugă o săptămână la dreapta (+1 coloană)" onClick={() => setCount((c) => Math.min(26, c + 1))}>+</button>
-            <button className="darr" disabled={!data?.hasNext} title="O săptămână înainte (mută fereastra)" onClick={() => setOffset((o) => o + 1)}>›</button>
+            <button className="dadd" disabled={!canLater} title="Adaugă un plan la dreapta (+1 coloană)" onClick={addLater}>+</button>
+            <button className="darr" disabled={!canLater} title="Mută fereastra o săptămână înainte" onClick={shiftLater}>›</button>
           </div>
         </div>
         <div className="mt-right">
@@ -312,26 +354,26 @@ export default function MatrixPage() {
           </div>
           <div className="set-sec">SMART LOAD</div>
           <div className="set-modes">
-            <button className={`set-mode ${!dateMode ? "on" : ""}`} onClick={() => setDateMode(false)}>Quantity</button>
-            <button className={`set-mode ${dateMode ? "on" : ""}`} onClick={() => setDateMode(true)}>Date</button>
+            <button className={`set-mode ${!dateMode ? "on" : ""}`} onClick={() => { setDateMode(false); setSelectedPlanIds(null); }}>Quantity</button>
+            <button className={`set-mode ${dateMode ? "on" : ""}`} onClick={() => { setDateMode(true); setSelectedPlanIds(null); }}>Date</button>
           </div>
           {!dateMode ? (
             <>
               <div className="set-row"><span className="set-l">Previous plans</span>
-                <span className="stepper"><button onClick={() => { setPrev(Math.max(0, prev - 1)); setOffset(0); }}>−</button><b>{prev}</b><button onClick={() => { setPrev(prev + 1); setOffset(0); }}>+</button></span>
+                <span className="stepper"><button onClick={() => { setPrev(Math.max(0, prev - 1)); setOffset(0); setSelectedPlanIds(null); }}>−</button><b>{prev}</b><button onClick={() => { setPrev(prev + 1); setOffset(0); setSelectedPlanIds(null); }}>+</button></span>
               </div>
               <div className="set-row"><span className="set-l">Next plans</span>
-                <span className="stepper"><button onClick={() => { setCount(Math.max(1, count - 1)); setOffset(0); }}>−</button><b>{count}</b><button onClick={() => { setCount(count + 1); setOffset(0); }}>+</button></span>
+                <span className="stepper"><button onClick={() => { setCount(Math.max(1, count - 1)); setOffset(0); setSelectedPlanIds(null); }}>−</button><b>{count}</b><button onClick={() => { setCount(count + 1); setOffset(0); setSelectedPlanIds(null); }}>+</button></span>
               </div>
             </>
           ) : (
             <>
               <div className="set-row"><span className="set-l">From</span>
-                <span className="stepper"><button onClick={() => setFromW(Math.max(0, fromW - 1))}>−</button><b>{fromW}</b><button onClick={() => setFromW(fromW + 1)}>+</button></span>
+                <span className="stepper"><button onClick={() => { setFromW(Math.max(0, fromW - 1)); setSelectedPlanIds(null); }}>−</button><b>{fromW}</b><button onClick={() => { setFromW(fromW + 1); setSelectedPlanIds(null); }}>+</button></span>
                 <span className="set-x2">week(s) ago</span>
               </div>
               <div className="set-row"><span className="set-l">To</span>
-                <span className="stepper"><button onClick={() => setToW(Math.max(0, toW - 1))}>−</button><b>{toW}</b><button onClick={() => setToW(toW + 1)}>+</button></span>
+                <span className="stepper"><button onClick={() => { setToW(Math.max(0, toW - 1)); setSelectedPlanIds(null); }}>−</button><b>{toW}</b><button onClick={() => { setToW(toW + 1); setSelectedPlanIds(null); }}>+</button></span>
                 <span className="set-x2">weeks from now</span>
               </div>
             </>
@@ -344,7 +386,7 @@ export default function MatrixPage() {
               return (
                 <label key={s.id} className="set-st">
                   <input type="checkbox" checked={on} disabled={isBase}
-                    onChange={() => { setStIds((p) => on ? p.filter((x) => String(x) !== String(s.id)) : [...p, String(s.id)]); setOffset(0); }} />
+                    onChange={() => { setStIds((p) => on ? p.filter((x) => String(x) !== String(s.id)) : [...p, String(s.id)]); setOffset(0); setSelectedPlanIds(null); }} />
                   {s.name}{isBase ? " (de bază)" : ""}
                 </label>
               );
@@ -482,11 +524,11 @@ export default function MatrixPage() {
       {toast && <div className="toast">{toast}</div>}
 
       <style jsx>{`
-        .matrix { padding: 14px 16px 40px; transition: padding-right .16s ease; }
+        /* înălțime FIXĂ cât viewport-ul sub nav → grila umple restul și X-scroll-ul e PINNED jos (vizibil mereu) */
+        .matrix { height: calc(100vh - var(--nav-h)); display: flex; flex-direction: column; overflow: hidden; padding: 14px 16px 14px; transition: padding .16s ease; }
         .matrix.has-side { padding-right: 356px; }  /* loc pt. bara lipită dreapta */
         .matrix.has-left { padding-left: 336px; }   /* loc pt. panoul Settings din stânga */
-        /* când bara e deschisă, MICȘORĂM grila (scroll intern) — fără padding care crește pagina (Y-scroll) */
-        .matrix.has-bar .grid-wrap { max-height: calc(54vh - 150px); }
+        .matrix.has-bar { padding-bottom: 46vh; }   /* lasă loc pt. bara „listă live" → grila se oprește în ea */
         .matrix.drag .datacell { box-shadow: inset 0 0 0 1px rgba(47,129,247,.3); background: rgba(47,129,247,.04); }
         .matrix.drag .datacell:hover { box-shadow: inset 0 0 0 2px var(--primary); background: rgba(47,129,247,.12); }
         .mtop { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
@@ -530,7 +572,20 @@ export default function MatrixPage() {
         .darr:hover:not(:disabled), .dadd:hover:not(:disabled) { color: var(--text); border-color: var(--primary); }
         .dadd:hover:not(:disabled) { background: rgba(47,129,247,.12); color: #9cc4f5; }
         .darr:disabled, .dadd:disabled { opacity: .35; cursor: default; }
-        .drange { color: var(--text); font-size: 16px; font-weight: 600; min-width: 180px; text-align: center; }
+        .drange-wrap { position: relative; }
+        .drange { color: var(--text); font-size: 16px; font-weight: 600; min-width: 180px; text-align: center; background: transparent; border: none; cursor: pointer; padding: 4px 8px; border-radius: 7px; }
+        .drange:hover { background: rgba(255,255,255,.05); } .dcaret { color: var(--text-faint); font-size: 11px; }
+        .date-menu { position: absolute; left: 50%; transform: translateX(-50%); top: 40px; z-index: 50; width: 300px; max-height: 60vh; overflow: auto;
+          background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,.45); padding: 8px; }
+        .dm-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 4px 10px; border-bottom: 1px solid var(--border); }
+        .dm-t { color: var(--text); font-weight: 700; font-size: 13px; }
+        .dm-load { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 5px 8px; font-size: 11.5px; cursor: pointer; white-space: nowrap; }
+        .dm-load:hover:not(:disabled) { color: var(--text); border-color: var(--primary); } .dm-load:disabled { opacity: .35; cursor: default; }
+        .dm-list { padding: 6px 2px; display: flex; flex-direction: column; }
+        .dm-row { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--text-dim); }
+        .dm-row:hover { background: rgba(255,255,255,.05); } .dm-row input { accent-color: var(--primary); }
+        .dm-d { color: var(--text); }
+        .dm-empty { color: var(--text-faint); font-size: 12px; padding: 10px; }
         .mt-right { display: flex; align-items: center; gap: 12px; }
         .exit-target { background: rgba(47,129,247,.14); border: 1px solid var(--primary); color: #9cc4f5; border-radius: 6px; padding: 5px 10px; font-size: 12.5px; cursor: pointer; }
         .cover-btn { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 5px 11px; font-size: 12.5px; cursor: pointer; }
@@ -538,7 +593,7 @@ export default function MatrixPage() {
         .cover-btn.on { background: rgba(47,129,247,.14); border-color: var(--primary); color: #9cc4f5; }
         .cnt { color: var(--text-dim); font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; }
         .cnt select { background: var(--surface-2); color: var(--text); border: 1px solid var(--border-strong); border-radius: 6px; height: 28px; }
-        .grid-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 8px; max-height: calc(100vh - 140px); }
+        .grid-wrap { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
         /* scrollbar orizontal mai gros & clar (dublu), același design */
         .grid-wrap::-webkit-scrollbar { height: 18px; width: 12px; }
         .grid-wrap::-webkit-scrollbar-thumb { background: #39434f; border-radius: 9px; border: 4px solid transparent; background-clip: content-box; }

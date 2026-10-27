@@ -131,6 +131,13 @@
 - **Scos Y-scroll-ul paginii** când bara e deschisă — nu mai pun `padding-bottom`, ci micșorez grila (scroll intern).
 - **Scrollbar orizontal grilă/carusel mai gros (×2)**, același design — clar și ușor de folosit.
 
+### Matrix: X-scroll pinned + dropdown dată checklist (azi, partea 18) ✅
+- **X-scroll PINNED** — Matrix are acum înălțime fixă (cât viewport-ul sub nav), grila umple restul cu scroll
+  INTERN → scrollbar-ul orizontal e mereu vizibil jos (nu mai trebuie scroll până în jos). Fără scroll de pagină.
+- **Dropdown „Quick load plans"** (click pe dată, ca PCO) — Load prev/next + **checklist cu toate planurile**;
+  bifezi/debifezi exact ce coloane vrei (nu doar fereastră contiguă). Backend grid acceptă `planIds` explicit.
+- Săgețile `‹ ›` mută selecția cu 1, `+` adaugă un plan la stânga/dreapta; Settings (Smart Load) revine la fereastră.
+
 ### Ce a mai rămas (ți-l las clar)
 - **Bara movable** (trage-o oriunde ca tab flotant) — nice-to-have.
 - **Fișiere poziție pe email** (trimis la useri) — sensibil, cu tine.

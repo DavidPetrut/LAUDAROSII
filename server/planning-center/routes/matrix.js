@@ -58,8 +58,13 @@ router.get("/:serviceTypeId", requireCan("services.schedule"), async (req, res) 
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
     const allPlans = await PcPlan.find(scoped(req, { serviceTypeId: { $in: stIds } })).sort({ sortDate: 1 }).select("_id sortDate serviceTypeId").lean();
 
+    // checklist (Quick load plans): set EXPLICIT de planuri bifate
+    const explicitPlanIds = new Set(String(req.query.planIds || "").split(",").map((s) => s.trim()).filter(Boolean));
+
     let plans, hasPrev = false, hasNext = false;
-    if (from && to) {
+    if (explicitPlanIds.size) {
+      plans = allPlans.filter((p) => explicitPlanIds.has(String(p._id))); // păstrează ordinea cronologică
+    } else if (from && to) {
       const lo = new Date(from + "T00:00:00"), hi = new Date(to + "T23:59:59");
       plans = allPlans.filter((p) => { const d = new Date(p.sortDate); return d >= lo && d <= hi; });
     } else {
@@ -115,6 +120,8 @@ router.get("/:serviceTypeId", requireCan("services.schedule"), async (req, res) 
       multi, selectedStIds: stIds.map(String),
       serviceTypes: allSts.map((s) => ({ id: s._id, name: s.name })),
       hasPrev, hasNext,
+      // pt. dropdown-ul „Quick load plans" (checklist): toate planurile + care sunt afișate acum
+      planOptions: allPlans.map((p) => ({ id: p._id, stName: stName[String(p.serviceTypeId)] || "", dateLabel: fmtDate(p.sortDate, tz), selected: planIds.some((id) => String(id) === String(p._id)) })),
       plans: plans.map((p) => ({ id: p._id, stId: p.serviceTypeId, stName: stName[String(p.serviceTypeId)] || "", dateLabel: fmtDate(p.sortDate, tz), weekday: fmtWeekday(p.sortDate, tz) })),
       teams: teamRows,
     });
