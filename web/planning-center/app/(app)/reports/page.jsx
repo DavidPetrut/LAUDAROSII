@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { reportsApi, peopleApi } from "@/lib/api/client";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 import { StatCard, Donut, Legend, ColumnChart, BarList } from "@/components/reports/Charts";
+import BlockedPeopleModal from "@/components/people/BlockedPeopleModal";
 
 const MONTHS_SHORT = ["Ian", "Feb", "Mar", "Apr", "Mai", "Iun", "Iul", "Aug", "Sep", "Oct", "Noi", "Dec"];
 const monthLabel = (ym) => { const [y, m] = String(ym).split("-"); return `${MONTHS_SHORT[(+m || 1) - 1]} '${String(y).slice(2)}`; };
@@ -53,6 +54,8 @@ export default function ReportsPage() {
   const [person, setPerson] = useState(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const [blockedCount, setBlockedCount] = useState(null); // null = fără drept/necunoscut → ascuns
+  const [blockedOpen, setBlockedOpen] = useState(false);
 
   // person picker
   const [pq, setPq] = useState("");
@@ -73,6 +76,10 @@ export default function ReportsPage() {
   }, [tab, from, to]);
 
   useEffect(() => { loadTab(); }, [loadTab]);
+
+  // „Blocați acum" — doar dacă ai dreptul (scheduler); altfel rămâne ascuns.
+  const loadBlocked = useCallback(() => { peopleApi.blocked().then((r) => setBlockedCount(r.total || 0)).catch(() => setBlockedCount(null)); }, []);
+  useEffect(() => { loadBlocked(); }, [loadBlocked]);
 
   // căutare persoane (debounce)
   useEffect(() => {
@@ -123,6 +130,12 @@ export default function ReportsPage() {
             <button key={p.id} className={`chip ${preset === p.id ? "on" : ""}`} onClick={() => setPreset(p.id)}>{p.label}</button>
           ))}
         </div>
+        {blockedCount != null && (
+          <button className="rep-blocked" onClick={() => setBlockedOpen(true)} title="Oameni blocați acum">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+            Blocați{blockedCount ? <span className="rb-n">{blockedCount}</span> : null}
+          </button>
+        )}
       </div>
       <div className="range-note">{from} → {to}</div>
 
@@ -144,6 +157,8 @@ export default function ReportsPage() {
         </>
       )}
 
+      {blockedOpen && <BlockedPeopleModal onClose={() => setBlockedOpen(false)} onChanged={loadBlocked} />}
+
       <style jsx>{`
         .rep { padding-top: 18px; padding-bottom: 60px; }
         .rep-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
@@ -153,6 +168,10 @@ export default function ReportsPage() {
           background: var(--surface-2); color: var(--text-dim); font-size: 12.5px; cursor: pointer; }
         .chip:hover { color: var(--text); }
         .chip.on { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); font-weight: 600; }
+        .rep-blocked { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 13px; border-radius: 6px;
+          background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); font-size: 12.5px; cursor: pointer; transition: color .12s, border-color .12s; }
+        .rep-blocked:hover { color: var(--text); border-color: var(--product); }
+        .rb-n { background: rgba(229,83,75,.16); color: #f0a7a2; border-radius: 10px; padding: 0 7px; font-size: 11px; font-weight: 600; }
         .range-note { color: var(--text-faint); font-size: 12px; margin-top: 6px; }
         .tabs { display: flex; gap: 4px; margin: 16px 0 20px; border-bottom: 1px solid var(--border); }
         .tab { background: transparent; border: none; color: var(--text-dim); font-size: 13.5px; padding: 10px 16px; cursor: pointer;

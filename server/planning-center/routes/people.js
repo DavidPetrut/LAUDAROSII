@@ -72,6 +72,7 @@ function toRow(p) {
     phone,
     permission: p.role || p.permission || "Viewer",
     createdAt: p.createdAt || null,
+    schedulingStatus: p.schedulingStatus || "available", // available | onBreak | suspended
   };
 }
 
@@ -220,7 +221,7 @@ router.get("/", requireCan("people.view"), async (req, res) => {
         .sort({ [sortField]: sortDir, _id: 1 })
         .skip((pageN - 1) * limitN)
         .limit(limitN)
-        .select("firstName lastName avatar emails phones role permission createdAt")
+        .select("firstName lastName avatar emails phones role permission createdAt schedulingStatus")
         .lean(),
     ]);
 
@@ -235,6 +236,38 @@ router.get("/", requireCan("people.view"), async (req, res) => {
     console.error("[pc] GET /people:", err.message);
     res.status(500).json({ error: "Eroare la încărcarea listei de oameni." });
   }
+});
+
+/* ───────── GET /blocked — oamenii blocați ACUM (real-time), pt. panoul de administrare ─────────
+   Gated: doar cine poate planifica vede/administrează blocajele. Două surse:
+   status persistent (onBreak/suspended) + church-block activ (type churchBlock, endDate ≥ azi). */
+router.get("/blocked", requireCan("services.schedule"), async (req, res) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const [cbs, statusPeople] = await Promise.all([
+      PcBlockout.find(scoped(req, { type: "churchBlock", endDate: { $gte: today } })).sort({ startDate: 1 }).select("personId startDate endDate reason").lean(),
+      PcPerson.find(scoped(req, { schedulingStatus: { $in: ["onBreak", "suspended"] } })).select("firstName lastName avatar schedulingStatus").lean(),
+    ]);
+    const pids = [...new Set([...cbs.map((b) => String(b.personId)), ...statusPeople.map((p) => String(p._id))])].map(OID);
+    const people = await PcPerson.find(scoped(req, { _id: { $in: pids } })).select("firstName lastName avatar schedulingStatus").lean();
+    const pById = Object.fromEntries(people.map((p) => [String(p._id), p]));
+    const cbByPerson = {};
+    cbs.forEach((b) => { const k = String(b.personId); if (!cbByPerson[k]) cbByPerson[k] = b; });
+
+    const rows = pids.map((pid) => {
+      const k = String(pid);
+      const p = pById[k]; if (!p) return null;
+      const cb = cbByPerson[k];
+      const base = { id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" ").trim(), avatar: p.avatar || "", initials: initials(p.firstName, p.lastName) };
+      if (cb) {
+        const until = cb.endDate && cb.endDate < "2099-01-01" ? cb.endDate : null; // null = nelimitat
+        return { ...base, kind: "churchBlock", since: cb.startDate, until, reason: cb.reason || "" };
+      }
+      return { ...base, kind: p.schedulingStatus, until: null, reason: "" };
+    }).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
+
+    res.json({ blocked: rows, total: rows.length });
+  } catch (err) { console.error("[pc] GET /people/blocked:", err.message); res.status(500).json({ error: "Eroare la lista de blocați." }); }
 });
 
 /* ───────── GET /:id — profil persoană ───────── */
@@ -361,10 +394,11 @@ router.patch("/:id", requireCan("services.schedule"), async (req, res) => {
     if (!id) return res.status(400).json({ error: "ID invalid." });
     const set = {};
     if (["M", "F", ""].includes(req.body?.gender)) set.gender = req.body.gender;
+    if (["available", "onBreak", "suspended"].includes(req.body?.schedulingStatus)) set.schedulingStatus = req.body.schedulingStatus;
     if (!Object.keys(set).length) return res.status(400).json({ error: "Nimic de salvat." });
-    const p = await PcPerson.findOneAndUpdate(scoped(req, { _id: id }), { $set: set }, { new: true }).select("gender").lean();
+    const p = await PcPerson.findOneAndUpdate(scoped(req, { _id: id }), { $set: set }, { new: true }).select("gender schedulingStatus").lean();
     if (!p) return res.status(404).json({ error: "Persoană inexistentă." });
-    res.json({ ok: true, gender: p.gender });
+    res.json({ ok: true, gender: p.gender, schedulingStatus: p.schedulingStatus });
   } catch (err) { console.error("[pc] PATCH /people/:id:", err.message); res.status(500).json({ error: "Eroare la salvare." }); }
 });
 

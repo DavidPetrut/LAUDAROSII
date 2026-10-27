@@ -145,6 +145,8 @@ export const peopleApi = {
     return api.get(`/people${qs ? `?${qs}` : ""}`);
   },
   get: (id) => api.get(`/people/${id}`),
+  // oamenii blocați ACUM (status onBreak/suspended + church-block activ) — real-time, gated scheduler
+  blocked: () => api.get("/people/blocked"),
   // Add Person (ca în PCO) — gen OBLIGATORIU; dacă emailul există deja ca user mobil, se leagă. Fără email.
   create: (payload) => api.post("/people", payload),
   update: (id, payload) => api.patch(`/people/${id}`, payload), // ex. { gender: "M"|"F"|"" }

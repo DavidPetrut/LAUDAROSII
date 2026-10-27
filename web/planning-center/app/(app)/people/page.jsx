@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { peopleApi, teamsApi } from "@/lib/api/client";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 import MinistryGroupsModal from "@/components/people/MinistryGroupsModal";
+import BlockedPeopleModal from "@/components/people/BlockedPeopleModal";
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "");
 
@@ -28,6 +29,9 @@ export default function PeoplePage() {
   const [groups, setGroups] = useState([]);        // [{ name, teamCount, isDefault }]
   const [canManage, setCanManage] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
+  const [canBlock, setCanBlock] = useState(false);   // scheduler: vede/administrează blocajele
+  const [blockedOpen, setBlockedOpen] = useState(false);
+  const [blockedCount, setBlockedCount] = useState(0);
   const limit = 40;
   const tRef = useRef(null);
 
@@ -46,10 +50,14 @@ export default function PeoplePage() {
 
   // grupurile de slujire + dacă pot administra maparea (admin)
   const loadGroups = useCallback(() => { teamsApi.ministryGroups().then((r) => setGroups(r.groups || [])).catch(() => {}); }, []);
+  const loadBlockedCount = useCallback(() => { peopleApi.blocked().then((r) => setBlockedCount(r.total || 0)).catch(() => {}); }, []);
   useEffect(() => {
     loadGroups();
-    peopleApi.me().then((r) => setCanManage(!!r?.capabilities?.manageServiceTypes)).catch(() => {});
-  }, [loadGroups]);
+    peopleApi.me().then((r) => {
+      setCanManage(!!r?.capabilities?.manageServiceTypes);
+      if (r?.capabilities?.schedule) { setCanBlock(true); loadBlockedCount(); }
+    }).catch(() => {});
+  }, [loadGroups, loadBlockedCount]);
 
   // căutare debounced → resetează la pagina 1
   useEffect(() => {
@@ -90,12 +98,20 @@ export default function PeoplePage() {
             </button>
           ))}
         </div>
-        {canManage && (
-          <button className="gmanage" onClick={() => setManageOpen(true)} title="Mapează echipele la grupuri">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09A1.65 1.65 0 0 0 9 4.6V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
-            Grupuri de slujire
-          </button>
-        )}
+        <div className="gright">
+          {canBlock && (
+            <button className="gblocked" onClick={() => setBlockedOpen(true)} title="Oameni blocați acum">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+              Blocați{blockedCount ? <span className="gb-n">{blockedCount}</span> : null}
+            </button>
+          )}
+          {canManage && (
+            <button className="gmanage" onClick={() => setManageOpen(true)} title="Mapează echipele la grupuri">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09A1.65 1.65 0 0 0 9 4.6V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+              Grupuri de slujire
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="table">
@@ -138,6 +154,13 @@ export default function PeoplePage() {
         />
       )}
 
+      {blockedOpen && (
+        <BlockedPeopleModal
+          onClose={() => setBlockedOpen(false)}
+          onChanged={() => { loadBlockedCount(); load(page); }}
+        />
+      )}
+
       <style jsx>{`
         .people { padding: 20px 20px 80px; }
         .gbar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
@@ -149,10 +172,12 @@ export default function PeoplePage() {
         .gchip.on { background: var(--surface-3); border-color: var(--product); color: var(--text); font-weight: 600; }
         .gc-n { background: var(--surface); border-radius: 10px; padding: 0 6px; font-size: 11px; color: var(--text-faint); }
         .gchip.on .gc-n { color: var(--product); }
-        .gmanage { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 13px;
+        .gright { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+        .gmanage, .gblocked { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 13px;
           border-radius: 6px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim);
           font-size: 12.5px; cursor: pointer; transition: color .12s, border-color .12s; }
-        .gmanage:hover { color: var(--text); border-color: var(--product); }
+        .gmanage:hover, .gblocked:hover { color: var(--text); border-color: var(--product); }
+        .gb-n { background: rgba(229,83,75,.16); color: #f0a7a2; border-radius: 10px; padding: 0 7px; font-size: 11px; font-weight: 600; }
         .phead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
         .count { color: var(--text); font-size: 15px; font-weight: 600; }
         .search { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px;

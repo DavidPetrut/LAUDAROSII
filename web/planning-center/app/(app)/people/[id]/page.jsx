@@ -20,10 +20,13 @@ export default function PersonPage() {
   const [schedule, setSchedule] = useState([]);
   const [blockouts, setBlockouts] = useState([]);
   const [onBreak, setOnBreak] = useState(false);
-  const [breakBusy, setBreakBusy] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [cb, setCb] = useState({ start: "", end: "", reason: "" });
+  const [cbBusy, setCbBusy] = useState(false);
   const [msgs, setMsgs] = useState(null);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
+  const [canSched, setCanSched] = useState(false); // doar schedulerii văd/administrează blocajele
 
   const load = useCallback(async () => {
     try {
@@ -37,16 +40,36 @@ export default function PersonPage() {
     setP((prev) => ({ ...prev, gender: g })); // optimist
     try { await peopleApi.update(id, { gender: g }); } catch (e) { setErr(e?.message || "Eroare la gen."); }
   }
-  async function toggleBreak() {
-    setBreakBusy(true);
+  async function saveStatus(s) {
+    const prev = p?.schedulingStatus;
+    setP((x) => ({ ...x, schedulingStatus: s })); // optimist
+    setStatusBusy(true);
+    try { await peopleApi.update(id, { schedulingStatus: s }); }
+    catch (e) { setP((x) => ({ ...x, schedulingStatus: prev })); setErr(e?.message || "Eroare la status."); }
+    finally { setStatusBusy(false); }
+  }
+  async function addChurchBlock() {
+    setCbBusy(true);
     try {
-      if (onBreak) { await peopleApi.clearChurchBlock(id); }
-      else { if (!confirm(`Marchezi ${p?.fullName || "persoana"} ca „blocat de biserică"? Nu va mai apărea în listele de planificare. Fără email.`)) { setBreakBusy(false); return; } await peopleApi.setChurchBlock(id, {}); }
-      await load();
+      await peopleApi.setChurchBlock(id, { startDate: cb.start || undefined, endDate: cb.end || undefined, reason: cb.reason });
+      setCb({ start: "", end: "", reason: "" }); await load();
     } catch (e) { setErr(e?.message || "Eroare la blocaj."); }
-    finally { setBreakBusy(false); }
+    finally { setCbBusy(false); }
+  }
+  async function liftChurchBlock() {
+    setCbBusy(true);
+    try { await peopleApi.clearChurchBlock(id); await load(); }
+    catch (e) { setErr(e?.message || "Eroare la ridicare."); }
+    finally { setCbBusy(false); }
+  }
+  function presetEnd(months) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (!months) { setCb((s) => ({ ...s, start: s.start || today, end: "" })); return; } // nelimitat
+    const d = new Date(); d.setMonth(d.getMonth() + months);
+    setCb((s) => ({ ...s, start: s.start || today, end: d.toISOString().slice(0, 10) }));
   }
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { peopleApi.me().then((r) => setCanSched(!!r?.capabilities?.schedule)).catch(() => {}); }, []);
   useEffect(() => { if (tab === "Communication" && !msgs) peopleApi.messages(id).then(setMsgs).catch(() => {}); }, [tab, id, msgs]);
 
   const confirmed = schedule.filter((s) => s.status === "confirmed").length;
@@ -56,6 +79,10 @@ export default function PersonPage() {
   const blockoutRows = blockouts.map((b) => ({ type: "blockout", kind: b.type || "personal", dateLabel: b.label, sortDate: b.startDate, reason: b.reason }));
   const schedRows = schedule.map((s) => ({ type: "sched", ...s }));
   const rows = [...schedRows, ...blockoutRows].sort((a, b) => new Date(a.sortDate || a.startDate || 0) - new Date(b.sortDate || b.startDate || 0));
+
+  const schedStatus = p?.schedulingStatus || "available";
+  const churchBlocks = blockouts.filter((b) => b.type === "churchBlock");
+  const STATUS_LABEL = { onBreak: "Pauză", suspended: "Suspendat" };
 
   useAiSurface({
     id: "people.profile", label: "Profil persoană", scope: "page",
@@ -75,7 +102,8 @@ export default function PersonPage() {
           <h1>{p?.fullName}</h1>
           <div className="email">{p?.email}</div>
         </div>
-        {onBreak && <span className="breakbadge" title="Nu apare în listele de planificare">🔵 Blocat de biserică</span>}
+        {canSched && schedStatus !== "available" && <span className={`statusbadge ${schedStatus}`} title="Ascuns din listele de planificare">{STATUS_LABEL[schedStatus]}</span>}
+        {canSched && onBreak && <span className="breakbadge" title="Nu apare în listele de planificare">Blocat de biserică</span>}
         <span className="role">{p?.permission || "Viewer"}</span>
       </div>
 
@@ -106,15 +134,47 @@ export default function PersonPage() {
             </div>
           </div>
           <div className="colside">
-            <div className="card">
-              <div className="card-h">Disponibilitate</div>
-              <div className="brk">
-                <div className="brk-t">{onBreak ? "Blocat de biserică — nu apare în liste." : "Activ — apare în listele de planificare."}</div>
-                <button className={`brk-b ${onBreak ? "on" : ""}`} onClick={toggleBreak} disabled={breakBusy}>
-                  {breakBusy ? "…" : onBreak ? "Ridică blocajul" : "Blochează (on-break)"}
-                </button>
+            {canSched && (
+              <div className="card">
+                <div className="card-h">Disponibilitate</div>
+                <div className="av-sec">
+                  <div className="av-l">Status de planificare</div>
+                  <div className="seg">
+                    {[["available", "Disponibil"], ["onBreak", "Pauză"], ["suspended", "Suspendat"]].map(([v, l]) => (
+                      <button key={v} className={`seg-b ${schedStatus === v ? `on ${v}` : ""}`} disabled={statusBusy} onClick={() => saveStatus(v)}>{l}</button>
+                    ))}
+                  </div>
+                  {schedStatus !== "available" && <div className="av-note">Ascuns din toate listele de planificare.</div>}
+                </div>
+                <div className="av-div" />
+                <div className="av-sec">
+                  <div className="av-l">Blocaj de biserică</div>
+                  {churchBlocks.length > 0 ? (
+                    <div className="cb-active">
+                      {churchBlocks.map((b) => (
+                        <div key={b.id} className="cb-item"><span className="cb-dot" />{b.label}{b.reason ? ` · ${b.reason}` : ""}</div>
+                      ))}
+                      <button className="brk-b on" disabled={cbBusy} onClick={liftChurchBlock}>{cbBusy ? "…" : "Ridică blocajul"}</button>
+                    </div>
+                  ) : (
+                    <div className="cb-form">
+                      <div className="cb-presets">
+                        {[["1 lună", 1], ["3 luni", 3], ["6 luni", 6], ["Nelimitat", 0]].map(([l, m]) => (
+                          <button key={l} type="button" className="cb-preset" onClick={() => presetEnd(m)}>{l}</button>
+                        ))}
+                      </div>
+                      <div className="cb-row">
+                        <label>De la<input type="date" value={cb.start} onChange={(e) => setCb((s) => ({ ...s, start: e.target.value }))} /></label>
+                        <label>Până la<input type="date" value={cb.end} onChange={(e) => setCb((s) => ({ ...s, end: e.target.value }))} /></label>
+                      </div>
+                      <input className="cb-reason" placeholder="Motiv (opțional)" value={cb.reason} onChange={(e) => setCb((s) => ({ ...s, reason: e.target.value }))} />
+                      <button className="brk-b" disabled={cbBusy} onClick={addChurchBlock}>{cbBusy ? "…" : "Blochează"}</button>
+                      <div className="av-note">Fără „Până la" = nelimitat. Se deblochează automat la expirare.</div>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
             <div className="card">
               <div className="card-h">Teams</div>
               {teams.length === 0 && <div className="muted">Nicio echipă.</div>}
@@ -179,6 +239,32 @@ export default function PersonPage() {
         .brk-b:hover { border-color: var(--primary); }
         .brk-b.on { border-color: var(--primary); color: #9cc4f5; background: rgba(47,129,247,.1); }
         .brk-b:disabled { opacity: .6; cursor: default; }
+        .statusbadge { border-radius: 20px; padding: 5px 12px; font-size: 12px; font-weight: 600; border: 1px solid; }
+        .statusbadge.onBreak { background: rgba(201,162,39,.14); border-color: #c9a227; color: #e0c977; }
+        .statusbadge.suspended { background: rgba(229,83,75,.14); border-color: var(--danger); color: #f0a7a2; }
+        .av-sec { display: flex; flex-direction: column; gap: 8px; }
+        .av-l { color: var(--text-faint); font-size: 10.5px; letter-spacing: .4px; text-transform: uppercase; }
+        .av-note { color: var(--text-faint); font-size: 11.5px; line-height: 1.4; }
+        .av-div { height: 1px; background: var(--border); margin: 14px 0; }
+        .seg { display: flex; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 8px; padding: 2px; gap: 2px; }
+        .seg-b { flex: 1; background: transparent; border: none; color: var(--text-dim); font-size: 12.5px; padding: 7px 0; border-radius: 6px; cursor: pointer; transition: background .13s, color .13s; }
+        .seg-b:hover { color: var(--text); }
+        .seg-b.on { color: #fff; font-weight: 600; }
+        .seg-b.on.available { background: var(--product); }
+        .seg-b.on.onBreak { background: #c9a227; }
+        .seg-b.on.suspended { background: var(--danger); }
+        .seg-b:disabled { cursor: default; }
+        .cb-active { display: flex; flex-direction: column; gap: 8px; }
+        .cb-item { display: flex; align-items: center; gap: 8px; color: #9cc4f5; font-size: 12.5px; }
+        .cb-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--primary); flex: none; }
+        .cb-form { display: flex; flex-direction: column; gap: 9px; }
+        .cb-presets { display: flex; gap: 6px; flex-wrap: wrap; }
+        .cb-preset { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 14px; padding: 4px 11px; font-size: 12px; cursor: pointer; transition: color .12s, border-color .12s; }
+        .cb-preset:hover { color: var(--text); border-color: var(--primary); }
+        .cb-row { display: flex; gap: 10px; }
+        .cb-row label { flex: 1; display: flex; flex-direction: column; gap: 4px; color: var(--text-faint); font-size: 11px; }
+        .cb-row input, .cb-reason { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; height: 32px; padding: 0 9px; font-size: 12.5px; outline: none; font-family: inherit; }
+        .cb-row input:focus, .cb-reason:focus { border-color: var(--primary); }
         .tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
         .tab { background: transparent; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 9px 2px; color: var(--text-dim); cursor: pointer; font-size: 14px; }
         .tab.active { color: var(--text); border-bottom-color: var(--primary); font-weight: 600; }
