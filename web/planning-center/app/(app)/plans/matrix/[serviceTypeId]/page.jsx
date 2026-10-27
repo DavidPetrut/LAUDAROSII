@@ -16,6 +16,14 @@ import PersonAvatar from "@/components/plans/PersonAvatar";
 import AssignSidebar from "@/components/plans/AssignSidebar";
 import EditPersonModal from "@/components/plans/EditPersonModal";
 
+/* numele echipei pereche: „Asimilare (SIM 1)" ↔ „Asimilare (SIM 2)" */
+function perecheName(name = "") {
+  if (/sim\s*1\b/i.test(name)) return name.replace(/sim\s*1\b/i, (m) => m.replace("1", "2"));
+  if (/sim\s*2\b/i.test(name)) return name.replace(/sim\s*2\b/i, (m) => m.replace("2", "1"));
+  return null;
+}
+const eq = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+
 export default function MatrixPage() {
   const router = useRouter();
   const { serviceTypeId } = useParams();
@@ -76,6 +84,17 @@ export default function MatrixPage() {
     try { setRec(await plansApi.recommend(sel.planId, { teamId: sel.teamId, positionId: sel.positionId, q: recQuery })); } catch {}
   }, [sel, recQuery]);
 
+  // echipa pereche (SIM) + poziția cu același nume — pt. bifa „adaugă și la SIM 2"
+  const pereche = useMemo(() => {
+    if (!sel) return null;
+    const selTeam = teams.find((t) => String(t.teamId) === String(sel.teamId));
+    const pn = selTeam && perecheName(selTeam.name);
+    if (!pn) return null;
+    const pt = teams.find((t) => eq(t.name, pn) && String(t.teamId) !== String(sel.teamId));
+    const pp = pt && (pt.positions || []).find((p) => eq(p.name, sel.positionName));
+    return pt && pp ? { teamId: pt.teamId, teamName: pt.name, positionId: pp.positionId } : null;
+  }, [sel, teams]);
+
   const openCell = useCallback(async (planId, teamId, positionId, positionName, colIdx) => {
     setTarget(null); setTargetSched(null);
     setSel({ planId, teamId, positionId, positionName, colIdx });
@@ -98,19 +117,18 @@ export default function MatrixPage() {
     // eslint-disable-next-line
   }, [recQuery]);
 
-  async function assignPerson(p) {
+  async function assignPerson(p, mirror) {
     if (!sel) return;
     setAssigning(true);
-    // optimist: pune persoana în celulă + scade Needed vizual
-    const tmpId = `tmp-${Date.now()}`;
-    patchCell(sel.teamId, sel.positionId, sel.colIdx, (c) => ({
-      ...c,
-      people: [...c.people, { personId: p.id, assignmentId: tmpId, name: p.name, avatar: p.avatar, initials: p.initials, status: "unconfirmed" }],
-      needed: Math.max(0, (c.needed || 0) - 1),
-    }));
+    const push = (c, id) => ({ ...c, people: [...c.people, { personId: p.id, assignmentId: id, name: p.name, avatar: p.avatar, initials: p.initials, status: "unconfirmed" }], needed: Math.max(0, (c.needed || 0) - 1) });
+    // optimist: pune persoana în celulă (+ pe pereche dacă bifat)
+    patchCell(sel.teamId, sel.positionId, sel.colIdx, (c) => push(c, `tmp-a-${Date.now()}`));
+    const doMirror = mirror && pereche;
+    if (doMirror) patchCell(pereche.teamId, pereche.positionId, sel.colIdx, (c) => push(c, `tmp-b-${Date.now()}`));
     try {
       await plansApi.assign(sel.planId, { personId: p.id, teamId: sel.teamId, positionId: sel.positionId, status: "unconfirmed" });
-      flash("Asignat (neconfirmat, fără email).");
+      if (doMirror) await plansApi.assign(sel.planId, { personId: p.id, teamId: pereche.teamId, positionId: pereche.positionId, status: "unconfirmed" });
+      flash(doMirror ? `Asignat + ${pereche.teamName} (fără email).` : "Asignat (neconfirmat, fără email).");
       reconcile(); refreshRec();
     } catch (e) { flash(e?.message || "Eroare."); reconcile(); }
     finally { setAssigning(false); }
@@ -289,6 +307,7 @@ export default function MatrixPage() {
         onPick={assignPerson}
         onClose={closeSide}
         assigning={assigning}
+        mirror={pereche ? { available: true, label: `Adaugă și la ${pereche.teamName}` } : null}
       />
 
       {editing && (

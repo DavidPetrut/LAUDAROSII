@@ -9,7 +9,7 @@
  * Filtrarea SIM se face după numărul din nume „(1)"/„(2)" — exact cum cere liderul.
  * Gen: dacă există date de gen pe candidați, filtrează; altfel toggle-ul rămâne inactiv.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PersonAvatar from "./PersonAvatar";
 
 /* numărul SIM din coada numelui: „Ion Pop (2)" → "2"; fără paranteză → "" */
@@ -17,11 +17,14 @@ function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return
 
 export default function AssignSidebar({
   open, title, neededCount, loading, groups = [], alreadyHere = [],
-  query, onQuery, onPick, onClose, assigning,
+  query, onQuery, onPick, onClose, assigning, mirror,
 }) {
   const [sim, setSim] = useState("");          // "", "1", "2"
   const [gender, setGender] = useState("");    // "", "male", "female"
   const [simOn, setSimOn] = useState(false);   // afișează rândul de filtre
+  const [mirrorOn, setMirrorOn] = useState(false); // „adaugă și pe echipa pereche (SIM 2)"
+  // resetează bifa de replicare când schimbi poziția/echipa
+  useEffect(() => { setMirrorOn(false); }, [title, mirror?.label]);
 
   // are vreun candidat date de gen? (altfel nu aplicăm filtrul de gen)
   const hasGender = useMemo(
@@ -63,6 +66,13 @@ export default function AssignSidebar({
             </button>
           </div>
 
+          {mirror?.available && (
+            <label className="asb-mirror" title="Când asignezi, pune aceeași persoană și pe echipa pereche, aceeași poziție">
+              <input type="checkbox" checked={mirrorOn} onChange={(e) => setMirrorOn(e.target.checked)} />
+              {mirror.label || "Adaugă și pe echipa pereche"}
+            </label>
+          )}
+
           {simOn && (
             <div className="asb-filters">
               <div className="ff">
@@ -101,7 +111,7 @@ export default function AssignSidebar({
               <div key={gi} className="asb-grp">
                 <div className="asb-gl">{g.label}</div>
                 {g.people.map((p) => (
-                  <button key={p.id} className="cand" disabled={assigning} onClick={() => onPick(p)} title="Asignează (fără email)">
+                  <button key={p.id} className="cand" disabled={assigning} onClick={() => onPick(p, mirror?.available ? mirrorOn : false)} title="Asignează (fără email)">
                     <PersonAvatar person={p} size={28} showBadge={false} />
                     <span className="cn">{p.name}</span>
                     {p.conflict && (
@@ -144,6 +154,10 @@ export default function AssignSidebar({
         .asb-filt { width: 34px; flex: none; background: var(--surface-2); border: 1px solid var(--border-strong);
           color: var(--text-dim); border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
         .asb-filt.on, .asb-filt:hover { color: var(--text); border-color: var(--primary); }
+        .asb-mirror { display: flex; align-items: center; gap: 8px; margin: 0 16px 10px; padding: 7px 10px;
+          background: rgba(47,129,247,.08); border: 1px solid rgba(47,129,247,.3); border-radius: 6px;
+          color: var(--text-dim); font-size: 12.5px; cursor: pointer; }
+        .asb-mirror input { accent-color: var(--primary); }
         .asb-filters { padding: 0 16px 10px; display: flex; flex-direction: column; gap: 8px; }
         .ff { display: flex; align-items: center; gap: 6px; }
         .ff-l { color: var(--text-faint); font-size: 10.5px; letter-spacing: .5px; width: 32px; }

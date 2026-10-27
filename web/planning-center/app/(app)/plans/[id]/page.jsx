@@ -17,6 +17,14 @@ import EditPersonModal from "@/components/plans/EditPersonModal";
 
 const TABS = ["Order", "Teams", "Times", "Notes", "Files"];
 
+/* echipa pereche SIM: „Asimilare (SIM 1)" ↔ „Asimilare (SIM 2)" */
+function perecheName(name = "") {
+  if (/sim\s*1\b/i.test(name)) return name.replace(/sim\s*1\b/i, (m) => m.replace("1", "2"));
+  if (/sim\s*2\b/i.test(name)) return name.replace(/sim\s*2\b/i, (m) => m.replace("2", "1"));
+  return null;
+}
+const eq = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+
 export default function PlanDetailPage() {
   const router = useRouter();
   const { id } = useParams();
@@ -90,15 +98,28 @@ export default function PlanDetailPage() {
     try { setRec(await plansApi.recommend(id, { teamId: sel.teamId, positionId: sel.positionId, q: recQuery })); } catch {}
   }, [sel, recQuery, id]);
 
-  async function assignPerson(p) {
+  // echipa pereche + poziția cu același nume (pt. bifa „adaugă și la SIM 2")
+  const allTeams = [...(data.Teams?.myTeams || []), ...(data.Teams?.otherTeams || [])];
+  let pereche = null;
+  if (sel) {
+    const pn = perecheName(sel.teamName);
+    const pt = pn && allTeams.find((t) => eq(t.name, pn) && String(t.teamId) !== String(sel.teamId));
+    const pg = pt && (pt.groups || []).find((g) => eq(g.positionName, sel.positionName));
+    if (pt && pg) pereche = { teamId: pt.teamId, teamName: pt.name, positionId: pg.positionId };
+  }
+
+  async function assignPerson(p, mirror) {
     if (!sel) return;
     setAssigning(true);
-    const tmpId = `tmp-${Date.now()}`;
-    patchGroup(sel.teamId, sel.positionId, (g) => ({
-      ...g, needed: Math.max(0, (g.needed || 0) - 1),
-      people: [...g.people, { personId: p.id, assignmentId: tmpId, name: p.name, avatar: p.avatar, initials: p.initials, status: "unconfirmed" }],
-    }));
-    try { await plansApi.assign(id, { personId: p.id, teamId: sel.teamId, positionId: sel.positionId, status: "unconfirmed" }); flash("Asignat (fără email)."); reconcileTeams(); refreshRec(); }
+    const push = (g, tid) => ({ ...g, needed: Math.max(0, (g.needed || 0) - 1), people: [...g.people, { personId: p.id, assignmentId: tid, name: p.name, avatar: p.avatar, initials: p.initials, status: "unconfirmed" }] });
+    patchGroup(sel.teamId, sel.positionId, (g) => push(g, `tmp-a-${Date.now()}`));
+    const doMirror = mirror && pereche;
+    if (doMirror) patchGroup(pereche.teamId, pereche.positionId, (g) => push(g, `tmp-b-${Date.now()}`));
+    try {
+      await plansApi.assign(id, { personId: p.id, teamId: sel.teamId, positionId: sel.positionId, status: "unconfirmed" });
+      if (doMirror) await plansApi.assign(id, { personId: p.id, teamId: pereche.teamId, positionId: pereche.positionId, status: "unconfirmed" });
+      flash(doMirror ? `Asignat + ${pereche.teamName} (fără email).` : "Asignat (fără email)."); reconcileTeams(); refreshRec();
+    }
     catch (e) { flash(e?.message || "Eroare."); reconcileTeams(); }
     finally { setAssigning(false); }
   }
@@ -179,6 +200,7 @@ export default function PlanDetailPage() {
         open={!!sel} title={sel?.positionName || ""} neededCount={rec?.neededCount || 0}
         loading={recBusy} groups={rec?.groups || []} alreadyHere={rec?.alreadyHere || []}
         query={recQuery} onQuery={setRecQuery} onPick={assignPerson} onClose={() => { setSel(null); setRec(null); }} assigning={assigning}
+        mirror={pereche ? { available: true, label: `Adaugă și la ${pereche.teamName}` } : null}
       />
       {editing && (
         <EditPersonModal person={editing} onClose={() => setEditing(null)} onSave={saveEdit}

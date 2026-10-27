@@ -38,12 +38,16 @@
     structura „Needed" per poziție dintr-un plan model). Păstrează ziua săptămânii. `POST /plans` batch,
     backward-compatible. Fără oameni/email la creare. Fix și full-width (padding orizontal pe pagini).
 
+### Ce am mai adăugat (azi, partea 5)
+11. **Checkbox „Adaugă și la SIM 2" la assign** ✅ — în bara de asignare apare (doar când există echipă
+    pereche + poziție cu același nume) bifa „Adaugă și la Asimilare (SIM 2)". Bifată, când asignezi o
+    persoană o pune și pe echipa pereche, pe aceeași poziție — optimist, fără email. Merge în Matrix ȘI Teams.
+
 ### Ce a mai rămas (ți-l las clar)
 - **Gen real pe oameni** — PCO nu-l dă în export (câmp gol). Când îl avem (manual/heuristic), filtrul de Gen
   se activează automat. SIM merge deja (din nume).
 - **EditPersonModal — email/Service Times/Rehearsal/timeline real**: grila/Teams nu trimit încă aceste
   câmpuri; modalul le afișează doar când există. Le pot popula (mic adaos backend).
-- **SIM1→SIM2 checkbox la assign** (acum e buton ⧉ pe echipă — merge; checkbox-ul e plus de confort).
 - **Blockout rules** (planificat+email→nu poți blockout; planificat+blockout→auto-decline) + **churchBlock**
   albastru (on-break/invitați excluși din liste) — sensibil, **cu tine**.
 - **Email** (global templates + logo Vertical) — **strict cu tine**, nimic trimis automat.
