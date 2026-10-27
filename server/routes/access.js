@@ -124,6 +124,7 @@ router.post("/members/invite", async (req, res) => {
     const fullName = String(req.body.fullName || "").trim().slice(0, 100);
     const email = String(req.body.email || "").trim().toLowerCase().slice(0, 100);
     const phone = String(req.body.phone || "").trim().slice(0, 20);
+    const sim = ["1", "2"].includes(String(req.body.sim)) ? String(req.body.sim) : ""; // SIM/program → programIntent
     const role = GRANT_ROLES.includes(req.body.role) ? req.body.role : "user";
 
     if (!EMAIL_RX.test(email)) return res.status(400).json({ error: "Email invalid" });
@@ -147,7 +148,7 @@ router.post("/members/invite", async (req, res) => {
       email,
       passwordHash: placeholder,
       role,
-      personalData: { fullName, phone },
+      personalData: { fullName, phone, sim },
       invite: { tokenHash, expiresAt, invitedBy: req.user.id, pendingSetup: true },
     });
 

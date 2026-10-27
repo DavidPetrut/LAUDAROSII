@@ -22,7 +22,7 @@ const findPendingInvite = async (rawToken) => {
 
 router.post("/register", authLimiter, async (req, res) => {
   try {
-    const { email, password, fullName, teamRoles } = req.body;
+    const { email, password, fullName, teamRoles, sim } = req.body;
 
     if (!email || !password) {
       return res
@@ -49,7 +49,7 @@ router.post("/register", authLimiter, async (req, res) => {
       passwordHash,
       role: "user",
       teamRoles: teamRoles || [],
-      personalData: { fullName: fullName || "" },
+      personalData: { fullName: fullName || "", sim: ["1", "2"].includes(String(sim)) ? String(sim) : "" },
     });
 
     await user.save();

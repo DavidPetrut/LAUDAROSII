@@ -154,6 +154,13 @@ const userSchema = new mongoose.Schema({
       type: String,
       default: null,
     },
+    // SIM/program la biserică: "1" (dimineața) sau "2" (după-amiaza). Se alege la crearea contului.
+    // Devine programIntent pe pc_person (prioritate față de parsarea din nume). Vezi planning-center.
+    sim: {
+      type: String,
+      enum: ["1", "2", ""],
+      default: "",
+    },
   },
   status: {
     isActive: {

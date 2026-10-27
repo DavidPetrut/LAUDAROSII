@@ -69,7 +69,10 @@ async function syncPersonFromUser(user, opts = {}) {
   person.userId = user._id;
   if (firstName) person.firstName = firstName;
   person.lastName = lastName;
-  if (programIntent) person.programIntent = programIntent;
+  // SIM/program: alegerea explicită de la cont (personalData.sim) are prioritate; altfel markerul din nume.
+  const explicitSim = ["1", "2"].includes(String(user.personalData?.sim)) ? String(user.personalData.sim) : "";
+  if (explicitSim) person.programIntent = explicitSim;
+  else if (programIntent) person.programIntent = programIntent;
 
   // email: îl punem primul/primary dacă lipsește
   const emails = (Array.isArray(person.emails) ? person.emails : []).filter((e) => e && e.address);

@@ -21,6 +21,7 @@ export const RegisterScreen = ({ navigation }) => {
     password: "",
     fullName: "",
     teamRoles: [],
+    sim: "", // programul (SIM 1 dimineața / SIM 2 după-amiaza)
   });
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
@@ -105,6 +106,22 @@ export const RegisterScreen = ({ navigation }) => {
             secureTextEntry
             accessibilityLabel="Câmp parola"
           />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Program (SIM)</Text>
+          <View style={styles.roleSelector}>
+            {[["1", "SIM 1 (dimineața)"], ["2", "SIM 2 (după-amiaza)"]].map(([v, label]) => (
+              <TouchableOpacity
+                key={v}
+                style={[styles.roleChip, form.sim === v && styles.roleChipActive]}
+                onPress={() => updateForm("sim", form.sim === v ? "" : v)}
+                accessibilityRole="radio"
+              >
+                <Text style={[styles.roleChipText, form.sim === v && styles.roleChipTextActive]}>{label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         <View style={styles.inputGroup}>

@@ -16,6 +16,7 @@ export const AppControlCreateMember = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState("user");
+  const [sim, setSim] = useState(""); // programul SIM (1/2) → programIntent în planificare
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
@@ -41,6 +42,7 @@ export const AppControlCreateMember = ({ navigation }) => {
         email: email.trim(),
         phone: phone.trim(),
         role,
+        sim,
         password: needsPassword ? password : undefined,
       });
       setResult(res);
@@ -89,7 +91,7 @@ export const AppControlCreateMember = ({ navigation }) => {
                 <Text style={ac.saveBtnText}>Copiaza link</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={s.secondaryBtn} onPress={() => { setResult(null); setFullName(""); setEmail(""); setPhone(""); setPassword(""); setRole("user"); }}>
+            <TouchableOpacity style={s.secondaryBtn} onPress={() => { setResult(null); setFullName(""); setEmail(""); setPhone(""); setPassword(""); setRole("user"); setSim(""); }}>
               <Text style={[s.secondaryBtnText, { color: ACCENT }]}>Adauga inca unul</Text>
             </TouchableOpacity>
           </View>
@@ -110,6 +112,19 @@ export const AppControlCreateMember = ({ navigation }) => {
 
         <Text style={[s.label, { color: theme.textMuted }]}>Telefon (optional)</Text>
         {input(phone, setPhone, { placeholder: "07xx xxx xxx", keyboardType: "phone-pad" })}
+
+        <Text style={[s.label, { color: theme.textMuted }]}>Program (SIM)</Text>
+        <View style={{ flexDirection: "row", gap: 8, marginBottom: 4 }}>
+          {[["1", "SIM 1"], ["2", "SIM 2"]].map(([v, label]) => (
+            <TouchableOpacity
+              key={v}
+              onPress={() => setSim(sim === v ? "" : v)}
+              style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", borderWidth: 1, borderColor: sim === v ? theme.primary : theme.border, backgroundColor: sim === v ? theme.primary + "22" : "transparent" }}
+            >
+              <Text style={{ color: sim === v ? theme.primary : theme.textPrimary, fontWeight: "600" }}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
         <Text style={[s.label, { color: theme.textMuted }]}>Rol</Text>
         <RoleDropdown value={role} onSelect={setRole} />
