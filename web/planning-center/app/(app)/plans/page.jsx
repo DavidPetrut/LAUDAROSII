@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { plansApi } from "@/lib/api/client";
+import ServiceTypeSettingsModal from "@/components/plans/ServiceTypeSettingsModal";
 import { getStoredUser } from "@/lib/auth/auth";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 
@@ -22,6 +23,7 @@ export default function PlansPage() {
   const [err, setErr] = useState("");
   const [collapsed, setCollapsed] = useState(() => new Set()); // service types colapsate
   const didInitCollapse = useRef(false); // colapsăm TOT o singură dată (la primul load), apoi respectăm alegerea userului
+  const [settingsFor, setSettingsFor] = useState(null); // { id, name } service type pt. modalul de setări
   const [limits, setLimits] = useState({}); // stId → câte planuri afișate (default 10)
   const [addFor, setAddFor] = useState(null); // {id, name} service type pt. Add Plans
   const [addDate, setAddDate] = useState("");
@@ -176,6 +178,9 @@ export default function PlansPage() {
                     <span className="st-name">{st.name}</span>
                   </button>
                   <div className="st-right">
+                    <button className="st-gear" title="Setări service type" aria-label="Setări service type" onClick={() => setSettingsFor({ id: st.id, name: st.name })}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09A1.65 1.65 0 0 0 9 4.6V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+                    </button>
                     <button className="st-matrix" onClick={() => router.push(`/plans/matrix/${st.id}`)}>Matrix <span className="caret">▾</span></button>
                   </div>
                 </div>
@@ -212,6 +217,14 @@ export default function PlansPage() {
           })}
         </section>
       </div>
+
+      {settingsFor && (
+        <ServiceTypeSettingsModal
+          serviceType={settingsFor}
+          onClose={() => setSettingsFor(null)}
+          onSaved={({ id, name }) => setServiceTypes((l) => l.map((s) => (String(s.id) === String(id) ? { ...s, name } : s)))}
+        />
+      )}
 
       {addFor && (
         <div className="ov" onClick={() => !addBusy && setAddFor(null)}>
@@ -308,6 +321,11 @@ export default function PlansPage() {
         .st-caret { color: var(--text-faint); font-size: 11px; transition: transform .15s; }
         .st-caret.col { transform: rotate(-90deg); }
         .st-name { color: var(--text); font-size: 15px; font-weight: 600; }
+        .st-right { display: flex; align-items: center; gap: 8px; }
+        .st-gear { width: 32px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+          background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px;
+          cursor: pointer; transition: color .12s, border-color .12s; }
+        .st-gear:hover { color: var(--text); border-color: var(--product); }
         .st-body { border-top: 1px solid var(--border); }
         .pt-head, .pt-row { display: grid; grid-template-columns: 200px 1fr 220px; align-items: center; padding: 10px 16px; }
         .pt-head { color: var(--text-faint); font-size: var(--fs-colhead); letter-spacing: .5px; border-bottom: 1px solid var(--border-soft); }

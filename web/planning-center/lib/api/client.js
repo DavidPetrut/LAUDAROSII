@@ -119,6 +119,14 @@ export const plansApi = {
   uploadFile: (file) => { const fd = new FormData(); fd.append("file", file); fd.append("name", file.name); return api.post("/uploads", fd); },
 };
 
+/* ─── Service Types (settings) — server/planning-center/routes/services.js ─── */
+export const servicesApi = {
+  get: (id) => api.get(`/service-types/${id}`),
+  patch: (id, payload) => api.patch(`/service-types/${id}`, payload),
+  addNoteCategory: (id, payload) => api.post(`/service-types/${id}/note-categories`, payload),
+  deleteNoteCategory: (id, catId) => api.del(`/service-types/${id}/note-categories/${catId}`),
+};
+
 /* ─── People (tab People) — server/planning-center/routes/people.js ─── */
 export const peopleApi = {
   // { results:[{id,firstName,lastName,email,phone,permission,createdAt,...}], total, page, limit, hasMore }

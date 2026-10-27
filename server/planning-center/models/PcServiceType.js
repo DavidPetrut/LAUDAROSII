@@ -22,8 +22,10 @@ const schema = pcSchema({
   scheduledPublish: { type: Boolean, default: false },  // publică planul în ziua serviciului
   limitedFileVisibility: { type: Boolean, default: false }, // attachment_types_enabled
   lastPlanFrom: { type: String, default: "" },
-  // Public View — ce apare pe planul public (14 booleans PCO). Aditiv, folosit ulterior.
+  // Public View — ce apare pe planul public (booleans PCO). Aditiv, folosit ulterior.
   publicView: { type: Object, default: {} },
+  // Tipuri de item (PCO item types) per service type. Aditiv — importul le mapează sau le ignoră.
+  itemTypes: { type: [{ name: String, color: String }], default: [] },
 });
 
 schema.index({ orgId: 1, sortOrder: 1 });
