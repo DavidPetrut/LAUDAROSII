@@ -15,11 +15,16 @@ import QuickAssignModal from "@/components/people/QuickAssignModal";
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "");
 
-// coloane opționale (cele de bază apar mereu); ordinea din tabel e fixă
+// coloane opționale, în ordinea din tabel (doar Prenume + Nume sunt mereu vizibile)
 const OPT_COLS = [
+  { key: "email", label: "Email" },
+  { key: "phone", label: "Telefon" },
   { key: "sim", label: "SIM (1 / 2)" },
+  { key: "permission", label: "Permisiuni" },
+  { key: "created", label: "Creat" },
   { key: "sex", label: "Sex (F / M)" },
 ];
+const DEFAULT_COLS = ["email", "phone", "sim", "permission", "created"];
 
 export default function PeoplePage() {
   const router = useRouter();
@@ -43,14 +48,16 @@ export default function PeoplePage() {
   const [blockedIds, setBlockedIds] = useState(() => new Set());
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [cols, setCols] = useState(() => {
-    try { const s = JSON.parse(sessionStorage.getItem("pc.pcols")); return new Set(Array.isArray(s) ? s : ["sim"]); } catch { return new Set(["sim"]); }
+    try { const s = JSON.parse(sessionStorage.getItem("pc.pcols2")); return new Set(Array.isArray(s) ? s : DEFAULT_COLS); } catch { return new Set(DEFAULT_COLS); }
   });
   const limit = 40;
   const tRef = useRef(null);
 
-  const showSim = cols.has("sim"), showSex = cols.has("sex");
-  const gridCols = `44px 150px 150px 230px 140px ${showSim ? "84px " : ""}110px 120px ${showSex ? "64px " : ""}1fr`;
-  const toggleCol = (k) => setCols((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); try { sessionStorage.setItem("pc.pcols", JSON.stringify([...n])); } catch {} return n; });
+  const showEmail = cols.has("email"), showPhone = cols.has("phone"), showSim = cols.has("sim"),
+    showPerm = cols.has("permission"), showCreated = cols.has("created"), showSex = cols.has("sex");
+  // gutter stânga (acțiuni la hover) · avatar · prenume · nume · [opționale] · spacer
+  const gridCols = `64px 44px 150px 150px ${showEmail ? "230px " : ""}${showPhone ? "140px " : ""}${showSim ? "84px " : ""}${showPerm ? "110px " : ""}${showCreated ? "120px " : ""}${showSex ? "64px " : ""}1fr`;
+  const toggleCol = (k) => setCols((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); try { sessionStorage.setItem("pc.pcols2", JSON.stringify([...n])); } catch {} return n; });
 
   const load = useCallback(async (p = page) => {
     setLoading(true);
@@ -154,7 +161,7 @@ export default function PeoplePage() {
                   <div className="filt-bd" onClick={() => setFiltersOpen(false)} />
                   <div className="filt-pop">
                     <div className="fp-h">Coloane</div>
-                    <div className="fp-locked">Prenume · Nume · Email · Telefon · Permisiuni · Creat<span>(mereu)</span></div>
+                    <div className="fp-locked">Prenume · Nume <span>(mereu)</span></div>
                     {OPT_COLS.map((c) => (
                       <button key={c.key} className={`fp-row ${cols.has(c.key) ? "on" : ""}`} onClick={() => toggleCol(c.key)}>
                         <span className={`fp-ck ${cols.has(c.key) ? "on" : ""}`}>{cols.has(c.key) ? "✓" : ""}</span>{c.label}
@@ -178,14 +185,15 @@ export default function PeoplePage() {
       <div className="pcount">{loading ? "…" : `${total} persoane`}</div>
       <div className="table">
         <div className="thead" style={{ gridTemplateColumns: gridCols }}>
+          <div className="c-ac" />
           <div className="c-av" />
           <div className="c-fn sortable" onClick={() => sort("firstName")}>PRENUME {sortBy === "firstName" ? (dir === "asc" ? "↑" : "↓") : ""}</div>
           <div className="c-ln sortable" onClick={() => sort("lastName")}>NUME {sortBy === "lastName" ? (dir === "asc" ? "↑" : "↓") : ""}</div>
-          <div className="c-em">EMAIL</div>
-          <div className="c-ph">TELEFON</div>
+          {showEmail && <div className="c-em">EMAIL</div>}
+          {showPhone && <div className="c-ph">TELEFON</div>}
           {showSim && <div className="c-sim">SIM</div>}
-          <div className="c-pm">PERMISIUNI</div>
-          <div className="c-cr">CREAT</div>
+          {showPerm && <div className="c-pm">PERMISIUNI</div>}
+          {showCreated && <div className="c-cr">CREAT</div>}
           {showSex && <div className="c-sx">SEX</div>}
           <div className="c-sp" />
         </div>
@@ -193,15 +201,17 @@ export default function PeoplePage() {
           const name = `${p.firstName || ""} ${p.lastName || ""}`.trim();
           return (
           <div key={p.id} className="trow" style={{ gridTemplateColumns: gridCols }} onClick={() => openProfile(p.id)} title="Click: deschide profilul">
-            {/* bară de acțiuni la HOVER, în stânga */}
-            <div className="hbar" onClick={(e) => e.stopPropagation()}>
-              <button className="aic" title="Slujiri — asignează rapid"
-                onClick={() => setQuickFor({ id: p.id, name, avatar: p.avatar, initials: p.initials, sim: p.sim })}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
-              </button>
-              <button className="aic" title="Deschide profilul" onClick={() => openProfile(p.id)}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" /></svg>
-              </button>
+            {/* gutter stânga rezervat — acțiunile apar aici la HOVER, lângă (nu peste) persoană */}
+            <div className="c-ac" onClick={(e) => e.stopPropagation()}>
+              <div className="hbar">
+                <button className="aic" title="Slujiri — asignează rapid"
+                  onClick={() => setQuickFor({ id: p.id, name, avatar: p.avatar, initials: p.initials, sim: p.sim })}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+                </button>
+                <button className="aic" title="Deschide profilul" onClick={() => openProfile(p.id)}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" /></svg>
+                </button>
+              </div>
             </div>
             <div className="c-av">
               <span className={`avw ${blockedIds.has(String(p.id)) ? "locked" : ""}`}>
@@ -215,11 +225,11 @@ export default function PeoplePage() {
             </div>
             <div className="c-fn">{p.firstName}</div>
             <div className="c-ln">{p.lastName}</div>
-            <div className="c-em" title={p.email}>{p.email}</div>
-            <div className="c-ph">{p.phone}</div>
+            {showEmail && <div className="c-em" title={p.email}>{p.email}</div>}
+            {showPhone && <div className="c-ph">{p.phone}</div>}
             {showSim && <div className="c-sim">{p.sim ? <span className="simb">SIM {p.sim}</span> : <span className="dash">—</span>}</div>}
-            <div className="c-pm">{p.permission}</div>
-            <div className="c-cr">{fmtDate(p.createdAt)}</div>
+            {showPerm && <div className="c-pm">{p.permission}</div>}
+            {showCreated && <div className="c-cr">{fmtDate(p.createdAt)}</div>}
             {showSex && <div className="c-sx">{p.gender === "F" ? <span className="sxb f">F</span> : p.gender === "M" ? <span className="sxb m">M</span> : <span className="dash">—</span>}</div>}
             <div className="c-sp" />
           </div>
@@ -300,16 +310,16 @@ export default function PeoplePage() {
         .thead, .trow { display: grid; align-items: center; }
         .thead { color: var(--text-faint); font-size: var(--fs-colhead); letter-spacing: .5px; padding: 11px 14px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
         .sortable { cursor: pointer; } .sortable:hover { color: var(--text-dim); }
-        .trow { padding: 9px 14px; border-bottom: 1px solid var(--border-soft); cursor: pointer; font-size: 13.5px; position: relative; }
+        .trow { padding: 9px 14px; border-bottom: 1px solid var(--border-soft); cursor: pointer; font-size: 13.5px; }
         .trow:last-child { border-bottom: none; }
         .trow:hover { background: var(--row-hover); }
-        .hbar { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); z-index: 3; display: flex; gap: 6px; opacity: 0; transition: opacity .12s; }
+        .c-ac { display: flex; align-items: center; }
+        .hbar { display: flex; gap: 6px; opacity: 0; transition: opacity .12s; }
         .trow:hover .hbar { opacity: 1; }
-        .trow:hover .c-av { opacity: .12; }
-        .aic { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 7px;
+        .aic { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 7px;
           background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text-dim); cursor: pointer; transition: all .12s; }
         .aic:hover { color: var(--product); border-color: var(--product); background: var(--surface-2); transform: translateY(-1px); }
-        .c-av { display: flex; transition: opacity .12s; }
+        .c-av { display: flex; }
         .avw { position: relative; display: inline-flex; }
         .avw.locked .ava { border: 2px solid var(--primary); }
         .lockc { position: absolute; right: -3px; bottom: -3px; width: 15px; height: 15px; border-radius: 50%; background: var(--primary);
