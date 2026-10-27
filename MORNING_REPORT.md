@@ -32,12 +32,17 @@
    (de câte ori mai poate fi planificat = N − planificat − blocat, ține cont de **blockouts** ⛔) + contor.
    Backend `GET /matrix/:id/coverage` — DOAR READ. (cererea mare a liderului, finalul Word) ✅
 
+### Ce am mai adăugat (azi, partea 4)
+10. **Add Plans — Copy Times From + Template** ✅ (ca poza 273): Quantity + **Copy Times From** (ia orele
+    dintr-un plan ales, decalate corect pe fiecare săptămână) + Starting On + **Template** (copiază
+    structura „Needed" per poziție dintr-un plan model). Păstrează ziua săptămânii. `POST /plans` batch,
+    backward-compatible. Fără oameni/email la creare. Fix și full-width (padding orizontal pe pagini).
+
 ### Ce a mai rămas (ți-l las clar)
 - **Gen real pe oameni** — PCO nu-l dă în export (câmp gol). Când îl avem (manual/heuristic), filtrul de Gen
   se activează automat. SIM merge deja (din nume).
 - **EditPersonModal — email/Service Times/Rehearsal/timeline real**: grila/Teams nu trimit încă aceste
   câmpuri; modalul le afișează doar când există. Le pot popula (mic adaos backend).
-- **Add Plans: Copy Times From + Templates** (Impact/Special/No Template).
 - **SIM1→SIM2 checkbox la assign** (acum e buton ⧉ pe echipă — merge; checkbox-ul e plus de confort).
 - **Blockout rules** (planificat+email→nu poți blockout; planificat+blockout→auto-decline) + **churchBlock**
   albastru (on-break/invitați excluși din liste) — sensibil, **cu tine**.
