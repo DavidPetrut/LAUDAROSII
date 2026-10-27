@@ -241,13 +241,14 @@ export default function MatrixPage() {
     try { await plansApi.unassign(planId, assignmentId); flash("Șters."); reconcile(); refreshRec(); loadCov(); }
     catch (e) { flash(e?.message || "Eroare."); reconcile(); }
   }
-  async function saveEdit({ status, notes }) {
+  async function saveEdit(payload) {
     if (!editing) return;
+    const { status } = payload;
     patchCell(editing.teamId, editing.positionId, editing.colIdx, (c) => ({
       ...c, people: c.people.map((x) => String(x.assignmentId) === String(editing.assignmentId) ? { ...x, status } : x),
     }));
     setEditing(null);
-    try { await plansApi.updateAssignment(editing.planId, editing.assignmentId, { status, notes }); flash("Salvat (fără email)."); reconcile(); }
+    try { await plansApi.updateAssignment(editing.planId, editing.assignmentId, payload); flash("Salvat (fără email)."); reconcile(); }
     catch (e) { flash(e?.message || "Eroare."); reconcile(); }
   }
   async function dropOnCell(planId, teamId, positionId, colIdx) {

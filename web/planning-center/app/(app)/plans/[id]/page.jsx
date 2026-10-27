@@ -171,11 +171,12 @@ export default function PlanDetailPage() {
     try { await plansApi.unassign(id, assignmentId); flash("Șters."); reconcileTeams(); refreshRec(); }
     catch (e) { flash(e?.message || "Eroare."); reconcileTeams(); }
   }
-  async function saveEdit({ status, notes }) {
+  async function saveEdit(payload) {
     if (!editing) return;
+    const { status } = payload;
     patchGroup(editing.teamId, editing.positionId, (g) => ({ ...g, people: g.people.map((x) => String(x.assignmentId) === String(editing.assignmentId) ? { ...x, status } : x) }));
     setEditing(null);
-    try { await plansApi.updateAssignment(id, editing.assignmentId, { status, notes }); flash("Salvat (fără email)."); reconcileTeams(); }
+    try { await plansApi.updateAssignment(id, editing.assignmentId, payload); flash("Salvat (fără email)."); reconcileTeams(); }
     catch (e) { flash(e?.message || "Eroare."); reconcileTeams(); }
   }
   async function saveRules(positionId, payload) {

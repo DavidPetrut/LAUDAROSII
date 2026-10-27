@@ -733,11 +733,12 @@ router.get("/:id/assignments/:aid", requireCan("people.view"), async (req, res) 
     const a = await PcAssignment.findOne(scoped(req, { _id: aid, planId })).lean();
     if (!a) return res.status(404).json({ error: "Programare inexistentă." });
     const tz = await campusTz(req);
-    const [person, pos, team, times] = await Promise.all([
+    const [person, pos, team, times, teamPositions] = await Promise.all([
       PcPerson.findOne(scoped(req, { _id: a.personId })).select("firstName lastName avatar emails").lean(),
       a.positionId ? PcPosition.findOne(scoped(req, { _id: a.positionId })).select("name").lean() : null,
       a.teamId ? PcTeam.findOne(scoped(req, { _id: a.teamId })).select("name").lean() : null,
       PcPlanTime.find(scoped(req, { planId })).sort({ startsAt: 1 }).lean(),
+      a.teamId ? PcPosition.find(scoped(req, { teamId: a.teamId })).select("name").sort({ sortOrder: 1, name: 1 }).lean() : [],
     ]);
     const checked = new Set((a.timeIds || []).map(String));
     const tlabel = (t) => `${fmtWeekday(t.startsAt, tz)} ${fmtTime(t.startsAt, tz)}${t.name ? " · " + t.name : ""}`;
@@ -747,7 +748,10 @@ router.get("/:id/assignments/:aid", requireCan("people.view"), async (req, res) 
     res.json({
       email: person?.emails?.find((e) => e.primary)?.address || person?.emails?.[0]?.address || "",
       teamName: team?.name || "", positionName: a.isTemporaryPosition ? (a.tempPositionName || "") : (pos?.name || ""),
+      positionId: a.positionId || null,
+      positions: (teamPositions || []).map((p) => ({ id: p._id, name: p.name })), // reassign (Schedule Person advanced)
       status: a.status, notes: a.notes || "", prepared: !!a.prepared,
+      declineReason: a.declineReason || "",
       serviceTimes: mapTimes("service"), rehearsalTimes: mapTimes("rehearsal"),
       timeline: { preparedAt: fdt(a.preparedAt), sentAt: fdt(a.notificationSentAt), readAt: fdt(a.readAt), respondedAt: fdt(a.acceptedAt || a.declinedAt) },
     });
