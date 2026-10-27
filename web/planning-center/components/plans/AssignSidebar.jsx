@@ -20,7 +20,9 @@ export default function AssignSidebar({
   open, title, neededCount, loading, groups = [], alreadyHere = [],
   query, onQuery, onPick, onClose, assigning, mirror, onAddGuest,
   defaults, positionId, onSaveRules, instructions, browse = false, serviceTimes = [], onRosterChanged,
+  canAssign = true, canRoster = true, canRules = true,
 }) {
+  const readOnly = !canAssign && !canRoster; // doar vizualizare (rol view-only)
   const [addOn, setAddOn] = useState(false);      // panoul „+ adaugă om pe poziție"
   const [addQ, setAddQ] = useState("");
   const [addRes, setAddRes] = useState([]);       // rezultate căutare (toți oamenii)
@@ -145,7 +147,9 @@ export default function AssignSidebar({
 
           <div className="asb-need">{browse ? "Vizualizare — toți oamenii" : loading ? "…" : neededCount > 0 ? `${neededCount} people still needed` : "Poziție acoperită"}</div>
 
-          {!browse && (
+          {readOnly && <div className="asb-ro">Doar vizualizare — nu ai drept de editare aici.</div>}
+
+          {!browse && canAssign && (
             <div className="asb-tabs">
               <button className={`asb-tab ${mode === "member" ? "on" : ""}`} onClick={() => setMode("member")}>Team Member</button>
               <button className={`asb-tab ${mode === "guest" ? "on" : ""}`} onClick={() => setMode("guest")} title="Invitat one-time (fără istoric)">Guest</button>
@@ -166,12 +170,12 @@ export default function AssignSidebar({
             <button className={`asb-filt ${simOn ? "on" : ""}`} title="Filtre (SIM / Gen)" onClick={() => setSimOn((v) => !v)}>
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h12M4 8h8M6 12h4" /></svg>
             </button>
-            {positionId && !browse && (
+            {positionId && !browse && canRoster && (
               <button className={`asb-filt ${addOn ? "on" : ""}`} title="Adaugă un om pe poziție (roster)" onClick={() => setAddOn((v) => !v)}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><circle cx="9" cy="8" r="3.4" /><path d="M3.5 20v-1a5 5 0 0 1 5-5h1" /><path d="M18 13v6M15 16h6" /></svg>
               </button>
             )}
-            {onSaveRules && positionId && (
+            {onSaveRules && positionId && canRules && (
               <button className={`asb-filt ${rulesOn ? "on" : ""}`} title="Reguli poziție (gen / program / target)" onClick={() => setRulesOn((v) => !v)}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09A1.65 1.65 0 0 0 9 4.6V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
               </button>
@@ -207,8 +211,10 @@ export default function AssignSidebar({
                   <div key={p.id} className="aa-m">
                     {p.avatar ? <img className="aa-av" src={p.avatar} alt="" /> : <span className="aa-av ini">{p.initials}</span>}
                     <span className="aa-mn">{personName(p)}</span>
+                    {canAssign && (
                     <button className="aa-asg" disabled={assigning} title="Asignează pe poziție"
                       onClick={() => onPick?.({ id: p.id, name: personName(p), avatar: p.avatar, initials: p.initials }, mirror?.available ? mirrorOn : false, [...selTimes])}>Asignează</button>
+                    )}
                     <button className="aa-rm" title="Scoate din roster" onClick={() => rosterRemovePerson(p)}>×</button>
                   </div>
                 ))}
@@ -277,7 +283,7 @@ export default function AssignSidebar({
             </div>
           )}
 
-          {mirror?.available && (
+          {mirror?.available && canAssign && (
             <label className="asb-mirror" title="Când asignezi, pune aceeași persoană și pe echipa pereche, aceeași poziție">
               <input type="checkbox" checked={mirrorOn} onChange={(e) => setMirrorOn(e.target.checked)} />
               {mirror.label || "Adaugă și pe echipa pereche"}
@@ -345,7 +351,9 @@ export default function AssignSidebar({
                     <span className={`asb-gc ${col ? "col" : ""}`}>▾</span>
                   </button>
                   {!col && g.people.map((p) => (
-                    <button key={p.id} className="cand" disabled={assigning} onClick={() => onPick(p, mirror?.available ? mirrorOn : false, [...selTimes])} title={browse ? "Click pe o căsuță din grilă ca să asignezi" : "Asignează (fără email)"}>
+                    <button key={p.id} className="cand" disabled={assigning || (!browse && !canAssign)}
+                      onClick={() => { if (!browse && !canAssign) return; onPick(p, mirror?.available ? mirrorOn : false, [...selTimes]); }}
+                      title={!browse && !canAssign ? "Doar vizualizare" : browse ? "Click pe o căsuță din grilă ca să asignezi" : "Asignează (fără email)"}>
                       <PersonAvatar person={p} size={28} showBadge={false} />
                       <span className="cn">{p.name}</span>
                       {cfList(p).length > 0 && (
@@ -401,6 +409,7 @@ export default function AssignSidebar({
         .asb-x { background: transparent; border: none; color: var(--text-faint); font-size: 22px; cursor: pointer; line-height: 1; padding: 0 2px; }
         .asb-x:hover { color: var(--text); }
         .asb-need { text-align: center; color: var(--text-dim); font-size: 13px; padding: 12px 10px 8px; }
+        .asb-ro { margin: 0 16px 8px; padding: 7px 11px; border-radius: 8px; background: rgba(47,129,247,.1); border: 1px solid rgba(47,129,247,.3); color: #9cc4f5; font-size: 12px; text-align: center; }
         .asb-tabs { display: flex; gap: 8px; padding: 0 16px 10px; }
         .asb-tab { flex: 1; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim);
           border-radius: 6px; padding: 7px 0; font-size: 12.5px; cursor: pointer; }

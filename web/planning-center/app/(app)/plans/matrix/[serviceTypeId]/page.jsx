@@ -49,8 +49,9 @@ export default function MatrixPage() {
   const [matrixName, setMatrixName] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [showTeams, setShowTeams] = useState(false);   // modal Teams management (#9)
-  const [canManage, setCanManage] = useState(false);   // services.manageServiceTypes
+  const [canManage, setCanManage] = useState(false);   // services.manageTeams (echipe/poziții)
   const [canAddPlan, setCanAddPlan] = useState(false);  // services.addPlan (quick-add coloană)
+  const [caps, setCaps] = useState({});                 // capabilitățile granulare (din /me)
   const [addPlanOpen, setAddPlanOpen] = useState(false);
   const [newPlanDate, setNewPlanDate] = useState("");
   const [addingPlan, setAddingPlan] = useState(false);
@@ -134,7 +135,9 @@ export default function MatrixPage() {
     try { sessionStorage.setItem(MKEY, JSON.stringify({ count, offset, prev, dateMode, fromW, toW, stIds, selectedPlanIds, collapsed: [...collapsed] })); } catch {}
   }, [MKEY, count, offset, prev, dateMode, fromW, toW, stIds, selectedPlanIds, collapsed]);
   // cine poate administra echipele (buton „Echipe" + modal #9)
-  useEffect(() => { peopleApi.me().then((r) => { setCanManage(!!r?.capabilities?.manageServiceTypes); setCanAddPlan(!!r?.capabilities?.addPlan); }).catch(() => {}); }, []);
+  useEffect(() => { peopleApi.me().then((r) => { const c = r?.capabilities || {}; setCaps(c); setCanManage(!!c.manageTeams); setCanAddPlan(!!c.addPlan); }).catch(() => {}); }, []);
+  // capabilități granulare de editare în Matrix (umbrella services.schedule le dă pe toate)
+  const canAssign = !!caps.assign, canMove = !!caps.move, canEditNeeded = !!caps.editNeeded, canRoster = !!caps.roster;
 
   // bara „listă live" — responsive la poziția selectată (teamId) + LIVE (se cere din nou la assign/remove)
   const loadCov = useCallback(async () => {
@@ -705,31 +708,41 @@ export default function MatrixPage() {
                         const hit = target && String(target.personId) === String(pp.personId);
                         return (
                           <div key={pp.assignmentId || pi} className={`person ${dim ? "dim" : ""} ${hit ? "hit" : ""}`}
-                            draggable
+                            draggable={canMove}
                             onDragStart={(e) => { e.dataTransfer.effectAllowed = "copyMove"; dragRef.current = { personId: pp.personId, assignmentId: pp.assignmentId, planId: plans[ci].id, teamId: t.teamId, positionId: pos.positionId, colIdx: ci, name: pp.name, avatar: pp.avatar, initials: pp.initials }; setDragActive(true); setDragHint(`${pp.name} → lași jos = MUTĂ · ține Ctrl = copiezi`); }}
                             onDragEnd={() => { setDragActive(false); setDropKey(null); setDragHint(""); }}
-                            onClick={() => pickTarget(pp)}
-                            title={`${pp.name} — click: target · trage: MUTĂ (Ctrl = copiază)`}>
+                            onClick={() => { if (canAssign) pickTarget(pp); }}
+                            title={canAssign ? `${pp.name} — click: target · trage: MUTĂ (Ctrl = copiază)` : pp.name}>
                             <PersonAvatar person={pp} status={pp.status} size={22} />
                             <span className={`pn ${pp.status === "declined" ? "decl" : ""}`}>{pp.name}</span>
                             {pp.isGuest && <span className="gtag">invitat</span>}
+                            {canAssign && (
                             <button className="psch" title="Replanifică — deschide bara de asignare" onClick={(e) => { e.stopPropagation(); openCell(plans[ci].id, t.teamId, pos.positionId, pos.name, ci); }}>
                               <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5" /><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" /></svg>
                             </button>
+                            )}
+                            {canAssign && (
                             <button className="ped" title="Editează" onClick={(e) => { e.stopPropagation(); setEditing({ planId: plans[ci].id, teamId: t.teamId, positionId: pos.positionId, colIdx: ci, assignmentId: pp.assignmentId, name: pp.name, avatar: pp.avatar, initials: pp.initials, status: pp.status, teamName: t.name, positionName: pos.name }); }}>✎</button>
+                            )}
+                            {canMove && (
                             <button className="prm" title="Șterge" onClick={(e) => { e.stopPropagation(); removePerson(plans[ci].id, t.teamId, pos.positionId, ci, pp.assignmentId); }}>×</button>
+                            )}
                           </div>
                         );
                       })}
                       <div className="needrow" onClick={(e) => e.stopPropagation()}>
-                        {c.needed > 0 ? (
-                          <span className="needctl">
-                            <button onClick={() => changeNeeded(plans[ci].id, t.teamId, pos.positionId, ci, c.needed - 1)}>−</button>
-                            <span className="needn">{c.needed} Needed</span>
-                            <button onClick={() => changeNeeded(plans[ci].id, t.teamId, pos.positionId, ci, c.needed + 1)}>+</button>
-                          </span>
+                        {canEditNeeded ? (
+                          c.needed > 0 ? (
+                            <span className="needctl">
+                              <button onClick={() => changeNeeded(plans[ci].id, t.teamId, pos.positionId, ci, c.needed - 1)}>−</button>
+                              <span className="needn">{c.needed} Needed</span>
+                              <button onClick={() => changeNeeded(plans[ci].id, t.teamId, pos.positionId, ci, c.needed + 1)}>+</button>
+                            </span>
+                          ) : (
+                            <button className="needadd" title="Adaugă Needed" onClick={() => changeNeeded(plans[ci].id, t.teamId, pos.positionId, ci, 1)}>+ Needed</button>
+                          )
                         ) : (
-                          <button className="needadd" title="Adaugă Needed" onClick={() => changeNeeded(plans[ci].id, t.teamId, pos.positionId, ci, 1)}>+ Needed</button>
+                          c.needed > 0 ? <span className="needn ro">{c.needed} Needed</span> : null
                         )}
                       </div>
                       {target && !tHere && !av?.blockout && (
@@ -766,6 +779,7 @@ export default function MatrixPage() {
         defaults={rec?.defaults} positionId={sel?.positionId} onSaveRules={saveRules} instructions={rec?.instructions}
         serviceTimes={rec?.serviceTimes || []}
         onRosterChanged={refreshRec}
+        canAssign={canAssign} canRoster={canRoster} canRules={canManage || !!caps.positionRules || canAssign}
       />
 
       <CoverageBar

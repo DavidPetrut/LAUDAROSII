@@ -21,7 +21,8 @@ const {
   PcCampus,
 } = require("../models");
 const { scoped, stamp } = require("../core/orgScope");
-const { can, requireCan, requireAny, resolveEffective, pcTitles, CAN_ROSTER } = require("../core/permissions");
+const { can, canAny, requireCan, requireAny, resolveEffective, pcTitles,
+  CAN_ROSTER, CAN_VIEW_MATRIX, CAN_ASSIGN, CAN_MOVE, CAN_NEEDED, CAN_MANAGE_TEAMS, CAN_POSITION_RULES, CAN_BLOCKOUTS } = require("../core/permissions");
 const { syncPeopleIfStale } = require("../services/seed");
 
 const router = express.Router();
@@ -103,10 +104,19 @@ router.get("/me", async (req, res) => {
         exportCsv: await can(req, "people.exportCsv"),
         import: await can(req, "people.import"),
         managePermissions: await can(req, "people.managePermissions"),
+        roster: await canAny(req, CAN_ROSTER),
         addPlan: await can(req, "services.addPlan"),
         manageServiceTypes: await can(req, "services.manageServiceTypes"),
         editOrder: await can(req, "services.editOrder"),
         schedule: await can(req, "services.schedule"),
+        // granular Matrix/Teams (umbrella services.schedule le dă pe toate)
+        viewMatrix: await canAny(req, CAN_VIEW_MATRIX),
+        assign: await canAny(req, CAN_ASSIGN),
+        move: await canAny(req, CAN_MOVE),
+        editNeeded: await canAny(req, CAN_NEEDED),
+        blockouts: await canAny(req, CAN_BLOCKOUTS),
+        manageTeams: await canAny(req, CAN_MANAGE_TEAMS),
+        positionRules: await canAny(req, CAN_POSITION_RULES),
         songsEdit: await can(req, "songs.edit"),
         mediaEdit: await can(req, "media.edit"),
         reportsView: await can(req, "reports.view"),

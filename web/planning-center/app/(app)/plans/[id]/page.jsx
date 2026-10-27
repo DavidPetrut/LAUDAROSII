@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { plansApi } from "@/lib/api/client";
+import { plansApi, peopleApi } from "@/lib/api/client";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 import PersonAvatar from "@/components/plans/PersonAvatar";
 import AssignSidebar from "@/components/plans/AssignSidebar";
@@ -42,6 +42,8 @@ export default function PlanDetailPage() {
   const [recQuery, setRecQuery] = useState("");
   const [assigning, setAssigning] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [caps, setCaps] = useState({}); // capabilități granulare (din /me) pt. gating edit/view-only
+  const canAssign = !!caps.assign, canMove = !!caps.move, canEditNeeded = !!caps.editNeeded, canRoster = !!caps.roster;
 
   // drag & drop Kanban între echipe/poziții (#3): mută implicit, Ctrl = copiază
   const dragRef = useRef(null);
@@ -55,6 +57,7 @@ export default function PlanDetailPage() {
   const [renameVal, setRenameVal] = useState("");
 
   const flash = (m) => { setToast(m); setTimeout(() => setToast(""), 2400); };
+  useEffect(() => { peopleApi.me().then((r) => setCaps(r?.capabilities || {})).catch(() => {}); }, []);
 
   function startRename() { setRenameVal(head?.title || ""); setRenaming(true); setMenuOpen(false); }
   async function saveRename() {
@@ -316,6 +319,7 @@ export default function PlanDetailPage() {
             <div className="body">
               {tab === "Order" && <OrderTab data={cur} />}
               {tab === "Teams" && <TeamsTab data={cur} sel={sel} onOpenCell={openCell}
+                canAssign={canAssign} canMove={canMove} canEditNeeded={canEditNeeded}
                 onEdit={(pp, g, t) => setEditing({ planId: id, teamId: t.teamId, positionId: g.positionId, assignmentId: pp.assignmentId, name: pp.name, avatar: pp.avatar, initials: pp.initials, status: pp.status, teamName: t.name, positionName: g.positionName })}
                 onRemove={removePerson} onNeeded={changeNeeded}
                 dragActive={dragActive} dropKey={dropKey} setDropKey={setDropKey} onDragStartP={onPersonDragStart} onDropPos={dropOnPos} onDragEndP={() => { setDragActive(false); setDropKey(null); setDragHint(""); }} />}
@@ -334,6 +338,7 @@ export default function PlanDetailPage() {
         defaults={rec?.defaults} positionId={sel?.positionId} onSaveRules={saveRules} instructions={rec?.instructions}
         serviceTimes={rec?.serviceTimes || []}
         onRosterChanged={refreshRec}
+        canAssign={canAssign} canRoster={canRoster} canRules={canAssign || !!caps.positionRules || !!caps.manageTeams}
       />
       {editing && (
         <EditPersonModal person={editing} onClose={() => setEditing(null)} onSave={saveEdit}
@@ -461,7 +466,7 @@ function CountIcon({ s }) {
 }
 
 /* ── Teams (interactiv) ── echipele = coloane în carusel orizontal ── */
-function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes = [], dragActive, dropKey, setDropKey, onDragStartP, onDropPos, onDragEndP }) {
+function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes = [], dragActive, dropKey, setDropKey, onDragStartP, onDropPos, onDragEndP, canAssign = true, canMove = true, canEditNeeded = true }) {
   const perTime = serviceTimes.length >= 2; // Needed pe fiecare oră de serviciu
   return (
     <div className="tcol">
@@ -484,20 +489,26 @@ function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes 
             onDrop={(e) => onDropPos?.(t.teamId, g.positionId, e)}>
             <div className="pos-name" onClick={() => onOpenCell(t.teamId, g.positionId, g.positionName || "Poziție", t.name)} title="Asignează pe această poziție">{g.positionName || "—"}</div>
             {(g.people || []).map((p, pi) => (
-              <div key={p.assignmentId || pi} className="pers" draggable
+              <div key={p.assignmentId || pi} className="pers" draggable={canMove}
                 onDragStart={(e) => { e.dataTransfer.effectAllowed = "copyMove"; onDragStartP?.(p, g, t); }}
                 onDragEnd={() => onDragEndP?.()}
-                onClick={() => onEdit(p, g, t)} title={`${p.name} — click: editează · trage: MUTĂ (Ctrl = copiază)`}>
+                onClick={() => { if (canAssign) onEdit(p, g, t); }} title={canAssign ? `${p.name} — click: editează · trage: MUTĂ (Ctrl = copiază)` : p.name}>
                 <PersonAvatar person={p} status={p.status} size={24} />
                 <span className={`pn ${p.status === "declined" ? "decl" : ""}`}>{p.name}</span>
                 {p.isGuest && <span className="gtag">invitat</span>}
+                {canAssign && (
                 <button className="ped" title="Editează (status, ore, poziție)" onClick={(e) => { e.stopPropagation(); onEdit(p, g, t); }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
                 </button>
+                )}
+                {canAssign && (
                 <button className="psch" title="Replanifică — deschide bara" onClick={(e) => { e.stopPropagation(); onOpenCell(t.teamId, g.positionId, g.positionName || "Poziție", t.name); }}>
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5" /><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" /></svg>
                 </button>
+                )}
+                {canMove && (
                 <button className="prm" title="Șterge" onClick={(e) => { e.stopPropagation(); onRemove(t.teamId, g.positionId, p.assignmentId); }}>×</button>
+                )}
               </div>
             ))}
             {perTime ? (
@@ -507,11 +518,13 @@ function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes 
                   return (
                     <div key={st.id} className="needtime">
                       <span className="nt-lbl">{st.label}</span>
+                      {canEditNeeded ? (
                       <div className="needctl">
                         <button onClick={() => onNeeded(t.teamId, g.positionId, st.id, cnt - 1)} disabled={cnt <= 0}>−</button>
                         <span className={`needn ${cnt > 0 ? "" : "zero"}`}>{cnt}</span>
                         <button onClick={() => onNeeded(t.teamId, g.positionId, st.id, cnt + 1)}>+</button>
                       </div>
+                      ) : <span className={`needn ${cnt > 0 ? "" : "zero"}`}>{cnt}</span>}
                     </div>
                   );
                 })}
@@ -520,14 +533,16 @@ function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes 
               <>
                 {g.needed > 0 && (
                   <div className="needrow">
+                    {canEditNeeded ? (
                     <div className="needctl">
                       <button onClick={() => onNeeded(t.teamId, g.positionId, null, g.needed - 1)}>−</button>
                       <span className="needn">{g.needed} Needed</span>
                       <button onClick={() => onNeeded(t.teamId, g.positionId, null, g.needed + 1)}>+</button>
                     </div>
+                    ) : <span className="needn">{g.needed} Needed</span>}
                   </div>
                 )}
-                {g.needed === 0 && (!g.people || !g.people.length) && (
+                {canEditNeeded && g.needed === 0 && (!g.people || !g.people.length) && (
                   <div className="needrow">
                     <button className="needadd" onClick={() => onNeeded(t.teamId, g.positionId, null, 1)}>+ Needed</button>
                   </div>
@@ -576,11 +591,11 @@ function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes 
     </div>
   );
 }
-function TeamsTab({ data, sel, onOpenCell, onEdit, onRemove, onNeeded, dragActive, dropKey, setDropKey, onDragStartP, onDropPos, onDragEndP }) {
+function TeamsTab({ data, sel, onOpenCell, onEdit, onRemove, onNeeded, dragActive, dropKey, setDropKey, onDragStartP, onDropPos, onDragEndP, canAssign = true, canMove = true, canEditNeeded = true }) {
   if (!data) return <div className="muted">Se încarcă…</div>;
   const my = data.myTeams || [], other = data.otherTeams || [];
   if (!my.length && !other.length) return <div className="muted">Nicio echipă pe acest plan.</div>;
-  const props = { sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes: data.serviceTimes || [], dragActive, dropKey, setDropKey, onDragStartP, onDropPos, onDragEndP };
+  const props = { sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes: data.serviceTimes || [], dragActive, dropKey, setDropKey, onDragStartP, onDropPos, onDragEndP, canAssign, canMove, canEditNeeded };
   return (
     <div className="teams">
       {my.length > 0 && <><div className="grp-label">MY TEAMS</div><div className="carousel">{my.map((t) => <TeamCol key={t.teamId} t={t} {...props} />)}</div></>}
