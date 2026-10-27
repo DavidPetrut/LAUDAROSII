@@ -83,6 +83,7 @@ export default function PersonPage() {
   const schedStatus = p?.schedulingStatus || "available";
   const churchBlocks = blockouts.filter((b) => b.type === "churchBlock");
   const STATUS_LABEL = { onBreak: "Pauză", suspended: "Suspendat" };
+  const isBlocked = schedStatus !== "available" || churchBlocks.length > 0;
 
   useAiSurface({
     id: "people.profile", label: "Profil persoană", scope: "page",
@@ -97,7 +98,14 @@ export default function PersonPage() {
     <div className="wrap pc-full pc-pad">
       <div className="head">
         <button className="back" onClick={() => router.push("/people")}>‹</button>
-        {p?.avatar ? <img src={p.avatar} className="av" alt="" /> : <span className="av ini">{p?.initials}</span>}
+        <span className={`avwrap ${canSched && isBlocked ? "locked" : ""}`}>
+          {p?.avatar ? <img src={p.avatar} className="av" alt="" /> : <span className="av ini">{p?.initials}</span>}
+          {canSched && isBlocked && (
+            <span className="lockc" title="Blocat — nu apare în listele de planificare">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+            </span>
+          )}
+        </span>
         <div className="htext">
           <h1>{p?.fullName}</h1>
           <div className="email">{p?.email}</div>
@@ -230,6 +238,11 @@ export default function PersonPage() {
         .back { background: transparent; border: none; color: var(--text-dim); font-size: 22px; cursor: pointer; }
         .av { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; }
         .av.ini { background: #3a4552; color: #fff; font-size: 22px; display: inline-flex; align-items: center; justify-content: center; }
+        .avwrap { position: relative; display: inline-flex; flex: none; }
+        .avwrap.locked .av { border: 3px solid var(--primary); }
+        .lockc { position: absolute; right: 0; bottom: 0; width: 22px; height: 22px; border-radius: 50%; background: var(--primary);
+          color: #fff; display: inline-flex; align-items: center; justify-content: center; border: 2px solid var(--bg); }
+        .lockc svg { width: 11px; height: 11px; }
         .htext { flex: 1; } .htext h1 { margin: 0; font-size: 22px; } .email { color: var(--text-dim); font-size: 13px; }
         .role { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 5px 12px; font-size: 12.5px; }
         .breakbadge { background: rgba(47,129,247,.14); border: 1px solid var(--primary); color: #9cc4f5; border-radius: 20px; padding: 5px 12px; font-size: 12px; font-weight: 600; }

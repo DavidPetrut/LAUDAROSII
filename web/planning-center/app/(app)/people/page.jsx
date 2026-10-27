@@ -32,6 +32,7 @@ export default function PeoplePage() {
   const [canBlock, setCanBlock] = useState(false);   // scheduler: vede/administrează blocajele
   const [blockedOpen, setBlockedOpen] = useState(false);
   const [blockedCount, setBlockedCount] = useState(0);
+  const [blockedIds, setBlockedIds] = useState(() => new Set()); // pt. badge-ul de lacăt pe avatar
   const limit = 40;
   const tRef = useRef(null);
 
@@ -50,7 +51,9 @@ export default function PeoplePage() {
 
   // grupurile de slujire + dacă pot administra maparea (admin)
   const loadGroups = useCallback(() => { teamsApi.ministryGroups().then((r) => setGroups(r.groups || [])).catch(() => {}); }, []);
-  const loadBlockedCount = useCallback(() => { peopleApi.blocked().then((r) => setBlockedCount(r.total || 0)).catch(() => {}); }, []);
+  const loadBlockedCount = useCallback(() => {
+    peopleApi.blocked().then((r) => { setBlockedCount(r.total || 0); setBlockedIds(new Set((r.blocked || []).map((x) => String(x.id)))); }).catch(() => {});
+  }, []);
   useEffect(() => {
     loadGroups();
     peopleApi.me().then((r) => {
@@ -127,7 +130,14 @@ export default function PeoplePage() {
         {rows.map((p) => (
           <div key={p.id} className="trow" onClick={() => router.push(`/people/${p.id}`)}>
             <div className="c-av">
-              {p.avatar ? <img src={p.avatar} alt="" className="ava" /> : <span className="ava ini">{p.initials}</span>}
+              <span className={`avw ${blockedIds.has(String(p.id)) ? "locked" : ""}`}>
+                {p.avatar ? <img src={p.avatar} alt="" className="ava" /> : <span className="ava ini">{p.initials}</span>}
+                {blockedIds.has(String(p.id)) && (
+                  <span className="lockc" title="Blocat — nu apare în listele de planificare">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+                  </span>
+                )}
+              </span>
             </div>
             <div className="c-fn">{p.firstName}</div>
             <div className="c-ln">{p.lastName}</div>
@@ -191,6 +201,11 @@ export default function PeoplePage() {
         .trow:last-child { border-bottom: none; }
         .trow:hover { background: var(--row-hover); }
         .c-av { display: flex; }
+        .avw { position: relative; display: inline-flex; }
+        .avw.locked .ava { border: 2px solid var(--primary); }
+        .lockc { position: absolute; right: -3px; bottom: -3px; width: 15px; height: 15px; border-radius: 50%; background: var(--primary);
+          color: #fff; display: inline-flex; align-items: center; justify-content: center; border: 2px solid var(--bg); }
+        .lockc svg { width: 8px; height: 8px; }
         .ava { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
         .ava.ini { background: #3a4552; color: #fff; font-size: 11px; display: flex; align-items: center; justify-content: center; }
         .c-fn, .c-ln { color: var(--text); }
