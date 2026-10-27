@@ -139,6 +139,27 @@ export const peopleApi = {
   clearChurchBlock: (id) => api.del(`/people/${id}/church-block`),
 };
 
+/* ─── Reports — server/planning-center/routes/reports.js (editor+, reports.view) ─── */
+export const reportsApi = {
+  overview: (opts = {}) => {
+    const qs = new URLSearchParams(Object.entries(opts).filter(([, v]) => v != null && v !== "")).toString();
+    return api.get(`/reports/overview${qs ? `?${qs}` : ""}`);
+  },
+  person: (personId, opts = {}) => {
+    const qs = new URLSearchParams(Object.entries(opts).filter(([, v]) => v != null && v !== "")).toString();
+    return api.get(`/reports/person/${personId}${qs ? `?${qs}` : ""}`);
+  },
+  songs: (opts = {}) => {
+    const qs = new URLSearchParams(Object.entries(opts).filter(([, v]) => v != null && v !== "")).toString();
+    return api.get(`/reports/songs${qs ? `?${qs}` : ""}`);
+  },
+  blockouts: (opts = {}) => {
+    const qs = new URLSearchParams(Object.entries(opts).filter(([, v]) => v != null && v !== "")).toString();
+    return api.get(`/reports/blockouts${qs ? `?${qs}` : ""}`);
+  },
+  futureSchedule: () => api.get("/reports/future-schedule"),
+};
+
 /* ─── My Schedule / calendar — server/planning-center/routes/schedule.js ─── */
 export const scheduleApi = {
   my: () => api.get("/schedule/my"),

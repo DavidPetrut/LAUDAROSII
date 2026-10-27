@@ -15,6 +15,7 @@ const NAV = [
   { href: "/songs", label: "Songs" },
   { href: "/media", label: "Media" },
   { href: "/people", label: "People" },
+  { href: "/reports", label: "Reports" },
 ];
 
 export default function TopNav() {
