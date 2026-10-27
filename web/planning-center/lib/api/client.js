@@ -149,7 +149,7 @@ export const mediaApi = {
 /* ─── Matrix (planificare multi-plan) — server/planning-center/routes/matrix.js ─── */
 export const matrixApi = {
   // { serviceTypeId, plans:[{id,dateLabel}], teams:[{teamId,name,positions:[{positionId,name,cells:[{people:[{..,status}],needed}]}]}] }
-  grid: (serviceTypeId, count = 4) => api.get(`/matrix/${serviceTypeId}?count=${count}`),
+  grid: (serviceTypeId, count = 4, offset = 0) => api.get(`/matrix/${serviceTypeId}?count=${count}${offset ? `&offset=${offset}` : ""}`),
   // raport „persoane neplanificate" (interval + slujire) — doar READ, fără scrieri
   coverage: (serviceTypeId, count = 4, teamId) => {
     const qs = new URLSearchParams(Object.entries({ count, teamId }).filter(([, v]) => v != null && v !== "")).toString();

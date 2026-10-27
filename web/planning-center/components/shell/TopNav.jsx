@@ -60,17 +60,17 @@ export default function TopNav() {
         .nav { height: var(--nav-h); background: var(--bg-header);
           background-image: linear-gradient(90deg, rgba(87,185,138,.10), rgba(87,185,138,0) 42%);
           border-bottom: 1px solid var(--border-soft); position: sticky; top: 0; z-index: 30; }
-        .nav-inner { height: 100%; max-width: var(--content-max); margin: 0 auto; padding: 0 var(--gutter);
-          display: flex; align-items: center; gap: 26px; }
+        .nav-inner { height: 100%; width: 100%; margin: 0; padding: 0 20px;
+          display: flex; align-items: center; gap: 34px; }
         .brand { display: flex; align-items: center; gap: 7px; }
         .brand-logo { width: 26px; height: 26px; border-radius: 7px; background: var(--product);
           display: inline-flex; align-items: center; justify-content: center; }
         .brand-name { font-size: 16px; font-weight: 600; letter-spacing: .2px; }
         .brand-caret { color: var(--text-faint); font-size: 10px; }
-        .links { display: flex; align-items: center; gap: 10px; }
-        .link { padding: 7px 15px; border-radius: 7px; color: var(--text-dim); font-size: 13.5px; border: 1px solid transparent; transition: background .12s, color .12s, border-color .12s; }
-        .link:hover { color: var(--text); background: rgba(255,255,255,.05); }
-        .link.active { color: var(--text); background: var(--surface-3); border-color: var(--border-strong); font-weight: 600; }
+        .links { display: flex; align-items: center; gap: 6px; }
+        .link { padding: 8px 18px; border-radius: 8px; color: var(--text-dim); font-size: 13.5px; border: 1px solid transparent; transition: background .12s, color .12s, border-color .12s; }
+        .link:hover { color: var(--text); background: rgba(255,255,255,.06); }
+        .link.active { color: var(--text); background: var(--surface-3); border-color: var(--border-strong); font-weight: 600; box-shadow: inset 0 0 0 1px rgba(255,255,255,.02); }
         .right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
         .icon-btn { background: transparent; border: none; color: var(--text-dim); cursor: pointer; padding: 6px; border-radius: 6px; }
         .icon-btn:hover { color: var(--text); background: rgba(255,255,255,.05); }

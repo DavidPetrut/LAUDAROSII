@@ -291,17 +291,30 @@ function OrderTab({ data }) {
   );
 }
 
+/* icon status standalone pt. header-ul echipei (aceleași ca badge-ul de pe avatar) */
+function CountIcon({ s }) {
+  const c = s === "confirmed" ? "#57b98a" : s === "unconfirmed" ? "#c9a227" : "#e5534b";
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" style={{ flex: "none" }}>
+      <circle cx="8" cy="8" r="8" fill={c} />
+      {s === "confirmed" && <path d="M4.5 8.2l2.2 2.2 4.8-4.8" fill="none" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />}
+      {s === "unconfirmed" && <text x="8" y="11.6" textAnchor="middle" fontSize="10" fill="#1d1600" fontWeight="800">?</text>}
+      {s === "declined" && <path d="M5.2 5.2l5.6 5.6M10.8 5.2l-5.6 5.6" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" />}
+    </svg>
+  );
+}
+
 /* ── Teams (interactiv) ── echipele = coloane în carusel orizontal ── */
 function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded }) {
   return (
     <div className="tcol">
       <div className="tc-head">
-        <span className="tc-name">{t.name}</span>
-        <span className="tc-counts">
-          <span className="ok">●{t.counts?.confirmed || 0}</span>
-          <span className="no">●{t.counts?.declined || 0}</span>
-          <span className="un">●{t.counts?.unconfirmed || 0}</span>
-        </span>
+        <div className="tc-name">{t.name}</div>
+        <div className="tc-counts">
+          <span className="cnt ok" title="Confirmați"><CountIcon s="confirmed" />{t.counts?.confirmed || 0}</span>
+          <span className="cnt un" title="În așteptare"><CountIcon s="unconfirmed" />{t.counts?.unconfirmed || 0}</span>
+          <span className="cnt no" title="Refuzați"><CountIcon s="declined" />{t.counts?.declined || 0}</span>
+        </div>
       </div>
       {(t.groups || []).map((g, gi) => {
         const isSel = sel && String(sel.teamId) === String(t.teamId) && String(sel.positionId) === String(g.positionId);
@@ -311,8 +324,11 @@ function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded }) {
             {(g.people || []).map((p, pi) => (
               <div key={p.assignmentId || pi} className="pers" onClick={() => onEdit(p, g, t)} title={`${p.name} — click: editează status`}>
                 <PersonAvatar person={p} status={p.status} size={24} />
-                <span className="pn">{p.name}</span>
+                <span className={`pn ${p.status === "declined" ? "decl" : ""}`}>{p.name}</span>
                 {p.isGuest && <span className="gtag">invitat</span>}
+                <button className="psch" title="Replanifică — deschide bara" onClick={(e) => { e.stopPropagation(); onOpenCell(t.teamId, g.positionId, g.positionName || "Poziție", t.name); }}>
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5" /><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" /></svg>
+                </button>
                 <button className="prm" title="Șterge" onClick={(e) => { e.stopPropagation(); onRemove(t.teamId, g.positionId, p.assignmentId); }}>×</button>
               </div>
             ))}
@@ -331,21 +347,24 @@ function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded }) {
       })}
       {(!t.groups || !t.groups.length) && <div className="pos-empty">Nicio poziție.</div>}
       <style jsx>{`
-        .tcol { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0 0 10px; width: 258px; flex: none; }
-        .tc-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); border-radius: 10px 10px 0 0; z-index: 1; }
-        .tc-name { color: var(--text); font-weight: 600; font-size: 14px; }
-        .tc-counts { display: flex; gap: 8px; font-size: 11px; }
-        .tc-counts .ok { color: var(--product); } .tc-counts .no { color: var(--danger); } .tc-counts .un { color: var(--st-unconfirmed); }
-        .pos { padding: 2px 0 8px; }
+        .tcol { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0 0 6px; width: 262px; flex: none; }
+        .tc-head { display: flex; flex-direction: column; align-items: flex-start; gap: 9px; padding: 13px 14px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); border-radius: 10px 10px 0 0; z-index: 1; }
+        .tc-name { color: var(--text); font-weight: 600; font-size: 14.5px; }
+        .tc-counts { display: flex; gap: 16px; }
+        .cnt { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; }
+        .cnt.ok { color: var(--product); } .cnt.no { color: var(--danger); } .cnt.un { color: var(--st-unconfirmed); }
+        .pos { padding: 0 0 2px; }
         .pos.sel { background: rgba(47,129,247,.07); }
-        .pos-name { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; padding: 8px 14px 6px; background: var(--section-head-bg); cursor: pointer; }
+        .pos-name { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; padding: 12px 14px 8px; background: var(--section-head-bg); cursor: pointer; }
         .pos-name:hover { color: var(--text); }
-        .pers { display: flex; align-items: center; gap: 9px; padding: 5px 14px; cursor: pointer; }
+        .pers { display: flex; align-items: center; gap: 9px; padding: 6px 14px; cursor: pointer; }
         .pers:hover { background: rgba(255,255,255,.05); }
         .pn { color: var(--text); font-size: 13px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pn.decl { text-decoration: line-through; opacity: .6; }
         .gtag { flex: none; font-size: 9px; color: var(--product); border: 1px solid rgba(87,185,138,.5); border-radius: 10px; padding: 0 5px; text-transform: uppercase; }
-        .prm { opacity: 0; background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 2px; }
-        .pers:hover .prm { opacity: 1; } .prm:hover { color: var(--danger); }
+        .prm, .psch { opacity: 0; background: transparent; border: none; color: var(--text-faint); cursor: pointer; line-height: 1; padding: 0 2px; flex: none; display: inline-flex; align-items: center; }
+        .prm { font-size: 15px; }
+        .pers:hover .prm, .pers:hover .psch { opacity: 1; } .prm:hover { color: var(--danger); } .psch:hover { color: var(--product); }
         .needctl { display: inline-flex; align-items: center; gap: 5px; margin: 2px 14px; }
         .needn { color: #e0a93c; font-size: 11.5px; font-weight: 600; }
         .needctl button { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 4px; cursor: pointer; width: 18px; height: 18px; line-height: 1; font-size: 13px; }

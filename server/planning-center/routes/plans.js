@@ -170,6 +170,7 @@ router.get("/:id", requireCan("people.view"), async (req, res) => {
     res.json({
       id: plan._id,
       title: plan.title || st?.name || "Plan",
+      serviceTypeId: plan.serviceTypeId,   // #5: lipsea → butonul Matrix dădea „ID invalid"
       serviceTypeName: st?.name || "",
       dateLabel: fmtDate(plan.sortDate, tz),
       prevId: prev?._id || null,
@@ -521,8 +522,8 @@ router.get("/:id/teams", requireCan("people.view"), async (req, res) => {
         return (groups[key] = groups[key] || { positionId: positionId || null, positionName: positionName || "", people: [], needed: 0 });
       };
       order.forEach((o) => ensure(o.positionId, o.positionName));
-      // DECLINED → persoana NU apare pe poziție (cerință user: cine refuză dispare).
-      tAssigns.filter((a) => a.status !== "declined").forEach((a) => {
+      // #1: DECLINED RĂMÂNE pe poziție (pt. admin — evidență); la user (mobil) se va ascunde.
+      tAssigns.forEach((a) => {
         const base = a.isGuest
           ? { name: a.guestName || "Invitat", initials: (a.guestName || "?").slice(0, 2).toUpperCase(), avatar: "" }
           : personMini(personById[String(a.personId)]);
@@ -643,12 +644,15 @@ router.post("/:id/assignments", requireCan("services.schedule"), async (req, res
    Modalul „Editing Scheduled Person". NU trimite email (schimbarea de status e locală). */
 router.patch("/:id/assignments/:aid", requireCan("services.schedule"), async (req, res) => {
   try {
+    const planId = OID(req.params.id);
+    const cur = await PcAssignment.findOne(scoped(req, { _id: OID(req.params.aid) })).lean();
+    if (!cur) return res.status(404).json({ error: "Programare inexistentă." });
     const b = req.body || {};
     const set = {};
     if (["confirmed", "unconfirmed", "declined"].includes(b.status)) {
       set.status = b.status;
-      if (b.status === "confirmed") set.acceptedAt = new Date();
-      if (b.status === "declined") { set.declinedAt = new Date(); set.declineReason = b.declineReason || ""; }
+      if (b.status === "confirmed") { set.acceptedAt = new Date(); if (cur.status === "declined") { set.declinedAt = null; set.declineReason = ""; } }
+      if (b.status === "declined") { set.declinedAt = new Date(); set.declineReason = b.declineReason || ""; if (cur.status === "confirmed") set.declinedAfterConfirm = true; }
     }
     if (b.positionId !== undefined) set.positionId = OID(b.positionId) || null;
     if (b.teamId !== undefined) set.teamId = OID(b.teamId);
@@ -657,7 +661,17 @@ router.patch("/:id/assignments/:aid", requireCan("services.schedule"), async (re
     if (typeof b.prepared === "boolean") set.prepared = b.prepared;
     if (b.repliesToPersonId !== undefined) set.repliesToPersonId = OID(b.repliesToPersonId) || null;
     const a = await PcAssignment.findOneAndUpdate(scoped(req, { _id: OID(req.params.aid) }), { $set: set }, { new: true }).select("_id status").lean();
-    if (!a) return res.status(404).json({ error: "Programare inexistentă." });
+
+    // #1: când cineva REFUZĂ, poziția rămâne „de completat" → +1 Needed. Când revine din declin → −1 Needed.
+    const newStatus = set.status || cur.status;
+    if (cur.positionId && cur.teamId) {
+      if (cur.status !== "declined" && newStatus === "declined") {
+        await PcNeededPosition.findOneAndUpdate(scoped(req, { planId, teamId: cur.teamId, positionId: cur.positionId }), { $inc: { count: 1 } }, { upsert: true, setDefaultsOnInsert: true });
+      } else if (cur.status === "declined" && newStatus !== "declined") {
+        const np = await PcNeededPosition.findOne(scoped(req, { planId, teamId: cur.teamId, positionId: cur.positionId }));
+        if (np && np.count > 0) { np.count -= 1; await np.save(); }
+      }
+    }
     res.json({ ok: true, status: a.status });
   } catch (err) {
     console.error("[pc] PATCH /plans/:id/assignments/:aid:", err.message);

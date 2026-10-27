@@ -29,6 +29,7 @@ export default function MatrixPage() {
   const { serviceTypeId } = useParams();
   const [data, setData] = useState(null);
   const [count, setCount] = useState(8);
+  const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [collapsed, setCollapsed] = useState(() => new Set());
@@ -45,7 +46,7 @@ export default function MatrixPage() {
   const recTimer = useRef(null);
 
   // reconciliere silențioasă (fără loading flag) — ține bara deschisă și scroll-ul pe loc
-  const fetchGrid = useCallback(() => matrixApi.grid(serviceTypeId, count), [serviceTypeId, count]);
+  const fetchGrid = useCallback(() => matrixApi.grid(serviceTypeId, count, offset), [serviceTypeId, count, offset]);
   const load = useCallback(async () => {
     setLoading(true);
     try { setData(await fetchGrid()); setErr(""); }
@@ -224,7 +225,11 @@ export default function MatrixPage() {
           <button className="back" onClick={() => router.push("/plans")} title="Înapoi"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M10 3L5 8l5 5" /></svg></button>
           <span className="st-pick">{data?.serviceTypeName || "Matrix"} <span className="caret">▾</span></span>
         </div>
-        <div className="mt-center">{dateRange}</div>
+        <div className="mt-center">
+          <button className="darr" disabled={!data?.hasPrev} title="Planuri anterioare" onClick={() => setOffset((o) => o - count)}>‹</button>
+          <span className="drange">{dateRange}</span>
+          <button className="darr" disabled={!data?.hasNext} title="Planuri următoare" onClick={() => setOffset((o) => o + count)}>›</button>
+        </div>
         <div className="mt-right">
           {target && <button className="exit-target" onClick={() => { setTarget(null); setTargetSched(null); }}>⌖ Exit target view</button>}
           <button className="cover-btn" title="Persoane neplanificate (tab nou)"
@@ -232,7 +237,7 @@ export default function MatrixPage() {
             👥 Neplanificați
           </button>
           <label className="cnt">Planuri
-            <select value={count} onChange={(e) => setCount(parseInt(e.target.value, 10))}>{[4, 6, 8, 10, 12].map((n) => <option key={n} value={n}>{n}</option>)}</select>
+            <select value={count} onChange={(e) => { setCount(parseInt(e.target.value, 10)); setOffset(0); }}>{[4, 6, 8, 10, 12].map((n) => <option key={n} value={n}>{n}</option>)}</select>
           </label>
         </div>
       </div>
@@ -264,7 +269,7 @@ export default function MatrixPage() {
               ];
               if (collapsed.has(t.teamId)) return out;
               (t.positions || []).forEach((pos) => {
-                out.push(<div key={`${t.teamId}-${pos.positionId}-n`} className="cell poslabel" title={pos.name}>{pos.name}</div>);
+                out.push(<div key={`${t.teamId}-${pos.positionId}-n`} className="cell poslabel" title={`${pos.name} — click: deschide bara de asignare`} onClick={() => openCell(plans[0].id, t.teamId, pos.positionId, pos.name, 0)}>{pos.name}</div>);
                 (pos.cells || []).forEach((c, ci) => {
                   const isSel = sel && sel.positionId === pos.positionId && sel.colIdx === ci;
                   out.push(
@@ -283,8 +288,11 @@ export default function MatrixPage() {
                             onClick={() => pickTarget(pp)}
                             title={`${pp.name} — click: target view · trage: copiază`}>
                             <PersonAvatar person={pp} status={pp.status} size={22} />
-                            <span className="pn">{pp.name}</span>
+                            <span className={`pn ${pp.status === "declined" ? "decl" : ""}`}>{pp.name}</span>
                             {pp.isGuest && <span className="gtag">invitat</span>}
+                            <button className="psch" title="Replanifică — deschide bara de asignare" onClick={(e) => { e.stopPropagation(); openCell(plans[ci].id, t.teamId, pos.positionId, pos.name, ci); }}>
+                              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5" /><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" /></svg>
+                            </button>
                             <button className="ped" title="Editează" onClick={(e) => { e.stopPropagation(); setEditing({ planId: plans[ci].id, teamId: t.teamId, positionId: pos.positionId, colIdx: ci, assignmentId: pp.assignmentId, name: pp.name, avatar: pp.avatar, initials: pp.initials, status: pp.status, teamName: t.name, positionName: pos.name }); }}>✎</button>
                             <button className="prm" title="Șterge" onClick={(e) => { e.stopPropagation(); removePerson(plans[ci].id, t.teamId, pos.positionId, ci, pp.assignmentId); }}>×</button>
                           </div>
@@ -360,7 +368,11 @@ export default function MatrixPage() {
         .back:hover { color: var(--text); }
         .st-pick { background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 6px; padding: 6px 12px; color: var(--text); font-size: 13.5px; font-weight: 600; }
         .caret { color: var(--text-faint); font-size: 10px; }
-        .mt-center { flex: 1; text-align: center; color: var(--text); font-size: 15px; font-weight: 600; }
+        .mt-center { flex: 1; display: flex; align-items: center; justify-content: center; gap: 14px; }
+        .darr { width: 30px; height: 30px; border-radius: 7px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); cursor: pointer; font-size: 17px; line-height: 1; }
+        .darr:hover:not(:disabled) { color: var(--text); border-color: var(--primary); }
+        .darr:disabled { opacity: .35; cursor: default; }
+        .drange { color: var(--text); font-size: 16px; font-weight: 600; min-width: 180px; text-align: center; }
         .mt-right { display: flex; align-items: center; gap: 12px; }
         .exit-target { background: rgba(47,129,247,.14); border: 1px solid var(--primary); color: #9cc4f5; border-radius: 6px; padding: 5px 10px; font-size: 12.5px; cursor: pointer; }
         .cover-btn { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 5px 11px; font-size: 12.5px; cursor: pointer; }
@@ -382,8 +394,9 @@ export default function MatrixPage() {
         .tb-caret { color: var(--text-faint); font-size: 10px; } .tb-caret.col { transform: rotate(-90deg); }
         .tb-actions .gear { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 5px; }
         .tb-actions .gear:hover { color: var(--text); background: rgba(255,255,255,.06); }
-        .poslabel { position: sticky; left: 0; z-index: 1; background: var(--surface); color: var(--text-dim);
+        .poslabel { position: sticky; left: 0; z-index: 1; background: var(--surface); color: var(--text-dim); cursor: pointer;
           text-align: right; padding: 9px 12px; display: flex; align-items: center; justify-content: flex-end; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+        .poslabel:hover { color: var(--text); background: var(--row-hover); }
         .datacell { padding: 6px 8px; background: var(--bg); min-height: 38px; cursor: pointer; display: flex; flex-direction: column; gap: 3px; }
         .datacell:hover { background: var(--row-hover); }
         .datacell.sel { background: rgba(47,129,247,.10); box-shadow: inset 0 0 0 1px var(--primary); }
@@ -393,9 +406,11 @@ export default function MatrixPage() {
         .person.hit { background: rgba(47,129,247,.18); box-shadow: inset 0 0 0 1px var(--primary); }
         .pn { color: var(--text); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
         .gtag { flex: none; font-size: 9px; color: var(--product); border: 1px solid rgba(87,185,138,.5); border-radius: 10px; padding: 0 5px; text-transform: uppercase; letter-spacing: .3px; }
-        .prm, .ped { opacity: 0; background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 12px; line-height: 1; padding: 0 2px; flex: none; }
+        .pn.decl { text-decoration: line-through; opacity: .6; }
+        .prm, .ped, .psch { opacity: 0; background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 12px; line-height: 1; padding: 0 2px; flex: none; display: inline-flex; align-items: center; }
         .prm { font-size: 15px; }
-        .person:hover .prm, .person:hover .ped { opacity: 1; } .prm:hover { color: var(--danger); } .ped:hover { color: var(--primary); }
+        .person:hover .prm, .person:hover .ped, .person:hover .psch { opacity: 1; }
+        .prm:hover { color: var(--danger); } .ped:hover { color: var(--primary); } .psch:hover { color: var(--product); }
         .needrow { padding: 1px 3px; }
         .needctl { display: inline-flex; align-items: center; gap: 5px; }
         .needn { color: #e0a93c; font-size: 11.5px; font-weight: 600; }

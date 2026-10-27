@@ -37,16 +37,20 @@ router.get("/:serviceTypeId", requireCan("services.schedule"), async (req, res) 
   try {
     const stId = OID(req.params.serviceTypeId);
     const count = Math.min(12, Math.max(1, parseInt(req.query.count, 10) || 4));
+    const offset = parseInt(req.query.offset, 10) || 0; // #7: săgeți ‹/› — decalează fereastra cu N planuri
     const tz = await campusTz(req);
     const stDoc = await PcServiceType.findOne(scoped(req, { _id: stId })).select("name").lean();
 
-    // planuri: viitoare (azi înainte) ascending, apoi completăm cu recente dacă-s puține
+    // toate planurile sortate; fereastra default începe la primul plan ≥ azi, apoi se decalează cu `offset`
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    let plans = await PcPlan.find(scoped(req, { serviceTypeId: stId, sortDate: { $gte: todayStart } })).sort({ sortDate: 1 }).limit(count).lean();
-    if (plans.length < count) {
-      const extra = await PcPlan.find(scoped(req, { serviceTypeId: stId, sortDate: { $lt: todayStart } })).sort({ sortDate: -1 }).limit(count - plans.length).lean();
-      plans = [...extra.reverse(), ...plans];
-    }
+    const allPlans = await PcPlan.find(scoped(req, { serviceTypeId: stId })).sort({ sortDate: 1 }).select("_id sortDate").lean();
+    const maxStart = Math.max(0, allPlans.length - count);
+    let todayIdx = allPlans.findIndex((p) => new Date(p.sortDate) >= todayStart);
+    if (todayIdx < 0) todayIdx = maxStart;
+    let startIdx = Math.max(0, Math.min(todayIdx + offset, maxStart));
+    const plans = allPlans.slice(startIdx, startIdx + count);
+    const hasPrev = startIdx > 0;
+    const hasNext = startIdx + count < allPlans.length;
     const planIds = plans.map((p) => p._id);
     const planIndex = Object.fromEntries(plans.map((p, i) => [String(p._id), i]));
 
@@ -66,7 +70,8 @@ router.get("/:serviceTypeId", requireCan("services.schedule"), async (req, res) 
         name: t.name,
         positions: tPos.map((pos) => {
           const cells = plans.map(() => ({ people: [], needed: 0 }));
-          assigns.filter((a) => String(a.positionId) === String(pos._id) && a.status !== "declined").forEach((a) => {
+          // #1: declined RĂMÂNE vizibil (pt. admin/planificator — evidență). La user (mobil) se va ascunde.
+          assigns.filter((a) => String(a.positionId) === String(pos._id)).forEach((a) => {
             const idx = planIndex[String(a.planId)];
             if (idx == null) return;
             const base = a.isGuest
@@ -86,6 +91,7 @@ router.get("/:serviceTypeId", requireCan("services.schedule"), async (req, res) 
     res.json({
       serviceTypeId: stId,
       serviceTypeName: stDoc?.name || "",
+      hasPrev, hasNext,
       plans: plans.map((p) => ({ id: p._id, dateLabel: fmtDate(p.sortDate, tz), weekday: fmtWeekday(p.sortDate, tz) })),
       teams: teamRows,
     });
