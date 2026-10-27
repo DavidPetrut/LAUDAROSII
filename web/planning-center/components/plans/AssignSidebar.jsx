@@ -96,13 +96,6 @@ export default function AssignSidebar({
     .map((g) => ({ ...g, people: (g.people || []).filter(filterPerson) }))
     .filter((g) => g.people.length);
 
-  // tooltip conflict: închide la click oriunde în afara iconiței (icoana face stopPropagation)
-  useEffect(() => {
-    if (!tipFor) return;
-    const h = () => setTipFor(null);
-    window.addEventListener("click", h);
-    return () => window.removeEventListener("click", h);
-  }, [tipFor]);
   const cfList = (p) => (p.conflicts && p.conflicts.length ? p.conflicts : (p.conflict ? [p.conflict] : []));
 
   return (
@@ -277,8 +270,10 @@ export default function AssignSidebar({
                       <PersonAvatar person={p} size={28} showBadge={false} />
                       <span className="cn">{p.name}</span>
                       {cfList(p).length > 0 && (
-                        <span className="cfwrap" title="Click: detalii conflict"
-                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); e.nativeEvent.stopImmediatePropagation(); const r = e.currentTarget.getBoundingClientRect(); const aside = e.currentTarget.closest(".asb"); const ar = aside ? aside.getBoundingClientRect() : { left: 0, top: 0 }; setTipFor(tipFor?.id === p.id ? null : { id: p.id, x: r.left - ar.left, y: r.top - ar.top, items: cfList(p) }); }}>
+                        <span className="cfwrap"
+                          onMouseEnter={(e) => { const r = e.currentTarget.getBoundingClientRect(); const aside = e.currentTarget.closest(".asb"); const ar = aside ? aside.getBoundingClientRect() : { left: 0, top: 0 }; setTipFor({ id: p.id, x: r.left - ar.left, y: r.top - ar.top, items: cfList(p) }); }}
+                          onMouseLeave={() => setTipFor(null)}
+                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
                           {cfList(p).map((c, i) => (
                             <img key={i} className="cf-ic" src={c.type === "blockout" ? "/icons/warn-red.png" : "/icons/warn-yellow.png"} alt={c.label || c.type} draggable={false} />
                           ))}
@@ -302,7 +297,7 @@ export default function AssignSidebar({
       )}
 
       {tipFor && (
-        <div className="cf-tip" style={{ left: tipFor.x, top: tipFor.y }} onClick={(e) => { e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); }}>
+        <div className="cf-tip" style={{ left: tipFor.x, top: tipFor.y }}>
           {tipFor.items.map((c, i) => (
             <div key={i} className="cf-row">
               <span className={`cf-b ${c.type}`}>
@@ -412,7 +407,7 @@ export default function AssignSidebar({
         .cn { color: var(--text); font-size: 13px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .cfwrap { display: inline-flex; align-items: center; gap: 3px; flex: none; cursor: pointer; padding: 2px; margin: -2px; }
         .cf-ic { width: 15px; height: 15px; object-fit: contain; display: block; }
-        .cf-tip { position: fixed; z-index: 200; transform: translate(-100%, -100%); margin: -5px 0 0 -2px;
+        .cf-tip { position: fixed; z-index: 200; transform: translate(-100%, -100%); margin: -5px 0 0 -2px; pointer-events: none;
           background: #0c1016; border: 1px solid var(--border-strong); border-radius: 9px; padding: 9px 11px;
           box-shadow: 0 10px 30px rgba(0,0,0,.55); min-width: 170px; max-width: 260px; display: flex; flex-direction: column; gap: 8px;
           animation: cftipIn .12s ease; }

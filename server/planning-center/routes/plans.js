@@ -753,7 +753,12 @@ router.get("/:id/assignments/:aid", requireCan("people.view"), async (req, res) 
       status: a.status, notes: a.notes || "", prepared: !!a.prepared,
       declineReason: a.declineReason || "",
       serviceTimes: mapTimes("service"), rehearsalTimes: mapTimes("rehearsal"),
-      timeline: { preparedAt: fdt(a.preparedAt), sentAt: fdt(a.notificationSentAt), readAt: fdt(a.readAt), respondedAt: fdt(a.acceptedAt || a.declinedAt) },
+      // „Responded" reflectă răspunsul: data reală dacă există; altfel, dacă e deja confirmat/refuzat
+      // (ex. setat de admin sau import PCO fără timestamp), marchează pasul ca făcut cu eticheta de status.
+      timeline: {
+        preparedAt: fdt(a.preparedAt), sentAt: fdt(a.notificationSentAt), readAt: fdt(a.readAt),
+        respondedAt: fdt(a.acceptedAt || a.declinedAt) || (a.status === "confirmed" ? "Confirmat" : a.status === "declined" ? "Refuzat" : ""),
+      },
     });
   } catch (err) {
     console.error("[pc] GET /plans/:id/assignments/:aid:", err.message);
@@ -882,12 +887,19 @@ router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) =
       const churchBlocked = myBlk.some((b) => b.type === "churchBlock" && covers(b));
       const weeks = nearest == null ? null : Math.round(nearest / WEEK);
       const weeksLabel = weeks == null ? "" : (weeks >= 0 ? `+${weeks}w` : `${weeks}w`);
-      // CONFLICTE — pot fi MAI MULTE simultan (blockout + planificat în altă slujire), cu motiv/dată
+      // CONFLICTE — pot fi MAI MULTE simultan (deja planificat + blockout), cu motiv/dată.
+      // „Deja planificat" = orice asignare în ACEEAȘI ZI, INCLUSIV alte poziții pe ACEST plan
+      // (mai puțin poziția curentă). Așa apare galbenul chiar dacă e pus de 2-5 ori în aceeași săptămână.
       const conflicts = [];
-      const sameDay = list.filter((a) => String(a.planId) !== String(planId) && a.date.toISOString().slice(0, 10) === dayKey);
-      if (sameDay.length) {
-        const sts = [...new Set(sameDay.map((a) => stNames[planStById[String(a.planId)]]).filter(Boolean))];
-        conflicts.push({ type: "time", label: "Planificat în aceeași zi", detail: sts.length ? sts.join(", ") : `${sameDay.length} slujire(i)` });
+      const sched = list.filter((a) => a.date.toISOString().slice(0, 10) === dayKey
+        && !(String(a.planId) === String(planId) && String(a.positionId) === String(positionId)));
+      if (sched.length) {
+        const samePlan = sched.filter((a) => String(a.planId) === String(planId));
+        const otherPlan = sched.filter((a) => String(a.planId) !== String(planId));
+        const parts = [];
+        if (otherPlan.length) { const sts = [...new Set(otherPlan.map((a) => stNames[planStById[String(a.planId)]]).filter(Boolean))]; if (sts.length) parts.push(sts.join(", ")); }
+        if (samePlan.length) parts.push(`${samePlan.length} poziție(i) pe acest plan`);
+        conflicts.push({ type: "time", label: "Deja planificat în aceeași zi", detail: parts.join(" · ") || `${sched.length} slujire(i)` });
       }
       const bk = myBlk.find((b) => b.type !== "churchBlock" && covers(b));
       if (bk) {

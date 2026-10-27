@@ -546,7 +546,7 @@ function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes 
         .cnt.ok { color: var(--product); } .cnt.no { color: var(--danger); } .cnt.un { color: var(--st-unconfirmed); }
         .pos { padding: 0 0 2px; transition: background .12s, box-shadow .12s; }
         .pos.sel { background: rgba(47,129,247,.07); }
-        .pos.drophover { background: rgba(47,129,247,.14); box-shadow: inset 0 0 0 2px var(--primary); border-radius: 6px; }
+        .pos.drophover { background: rgba(47,129,247,.14); outline: 2px solid var(--primary); outline-offset: -2px; border-radius: 6px; position: relative; z-index: 1; }
         .pos-name { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; padding: 12px 14px 8px; background: var(--section-head-bg); cursor: pointer; }
         .pos-name:hover { color: var(--text); }
         .pers { display: flex; align-items: center; gap: 9px; padding: 7px 14px; min-height: 38px; cursor: grab; }
