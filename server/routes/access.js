@@ -151,6 +151,9 @@ router.post("/members/invite", async (req, res) => {
       invite: { tokenHash, expiresAt, invitedBy: req.user.id, pendingSetup: true },
     });
 
+    // Contul creat din admin apare automat în PC People (asignabil chiar înainte de accept). Non-blocant, fără email.
+    try { require("../planning-center/services/peopleSync").syncPersonFromUser(user).catch(() => {}); } catch {}
+
     const base = String(process.env.APP_PUBLIC_URL || "").replace(/\/$/, "");
     const link = `${base}/invite/${rawToken}`;
 

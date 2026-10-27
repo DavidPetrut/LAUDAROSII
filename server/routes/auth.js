@@ -218,6 +218,9 @@ router.post("/invite/:token/set-password", authLimiter, async (req, res) => {
     user.status.lastActiveDate = new Date();
     await user.save();
 
+    // La acceptarea invitației: re-sync (overwrite nume/telefon introduse acum) în PC People. Non-blocant, fără email.
+    try { require("../planning-center/services/peopleSync").syncPersonFromUser(user).catch(() => {}); } catch {}
+
     const token = jwt.sign(
       { id: user._id, role: user.role, tv: user.tokenVersion },
       process.env.JWT_SECRET,
