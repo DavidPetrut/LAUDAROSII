@@ -101,6 +101,13 @@ export default function MatrixPage() {
   const reconcile = useCallback(async () => {
     try { setData(await fetchGrid()); } catch { /* păstrăm optimistul */ }
   }, [fetchGrid]);
+  // reconciliere „soft": amânată + debounced, ca să NU clipească celula imediat după o acțiune optimistă
+  // (optimistul rămâne pe ecran cu id-ul real; adevărul de pe server se sincronizează în liniște).
+  const softTimer = useRef(null);
+  const softReconcile = useCallback(() => {
+    clearTimeout(softTimer.current);
+    softTimer.current = setTimeout(() => reconcile(), 900);
+  }, [reconcile]);
   useEffect(() => { load(); }, [load]);
   // cine poate administra echipele (buton „Echipe" + modal #9)
   useEffect(() => { peopleApi.me().then((r) => { setCanManage(!!r?.capabilities?.manageServiceTypes); setCanAddPlan(!!r?.capabilities?.addPlan); }).catch(() => {}); }, []);
@@ -224,10 +231,11 @@ export default function MatrixPage() {
     const doMirror = mirror && pereche;
     if (doMirror) patchCell(pereche.teamId, pereche.positionId, sel.colIdx, (c) => push(c, `tmp-b-${Date.now()}`));
     try {
-      await plansApi.assign(sel.planId, { personId: p.id, teamId: sel.teamId, positionId: sel.positionId, status: "unconfirmed", timeIds: tIds });
+      const r = await plansApi.assign(sel.planId, { personId: p.id, teamId: sel.teamId, positionId: sel.positionId, status: "unconfirmed", timeIds: tIds });
+      if (r?.id) patchCell(sel.teamId, sel.positionId, sel.colIdx, (c) => ({ ...c, people: c.people.map((x) => String(x.assignmentId).startsWith("tmp-a-") ? { ...x, assignmentId: r.id } : x) }));
       if (doMirror) await plansApi.assign(sel.planId, { personId: p.id, teamId: pereche.teamId, positionId: pereche.positionId, status: "unconfirmed", timeIds: tIds });
       flash(doMirror ? `Asignat + ${pereche.teamName} (fără email).` : "Asignat (neconfirmat, fără email).");
-      reconcile(); refreshRec(); loadCov();
+      refreshRec(); loadCov(); softReconcile();
     } catch (e) { flash(e?.message || "Eroare."); reconcile(); }
     finally { setAssigning(false); }
   }
@@ -245,7 +253,7 @@ export default function MatrixPage() {
   }
   async function removePerson(planId, teamId, positionId, colIdx, assignmentId) {
     patchCell(teamId, positionId, colIdx, (c) => ({ ...c, people: c.people.filter((x) => String(x.assignmentId) !== String(assignmentId)) }));
-    try { await plansApi.unassign(planId, assignmentId); flash("Șters."); reconcile(); refreshRec(); loadCov(); }
+    try { await plansApi.unassign(planId, assignmentId); flash("Șters."); refreshRec(); loadCov(); softReconcile(); }
     catch (e) { flash(e?.message || "Eroare."); reconcile(); }
   }
   async function saveEdit(payload) {
@@ -271,9 +279,11 @@ export default function MatrixPage() {
     patchCell(teamId, positionId, colIdx, (c) => ({ ...c, people: [...c.people, { personId: d.personId, assignmentId: tmpId, name: d.name, avatar: d.avatar, initials: d.initials, status: "unconfirmed" }] }));
     if (doMove) patchCell(d.teamId, d.positionId, d.colIdx, (c) => ({ ...c, people: c.people.filter((x) => String(x.assignmentId) !== String(d.assignmentId)) }));
     try {
-      await plansApi.assign(planId, { personId: d.personId, teamId, positionId, status: "unconfirmed" });
+      const r = await plansApi.assign(planId, { personId: d.personId, teamId, positionId, status: "unconfirmed" });
+      // înlocuiește id-ul temporar cu cel real → persoana rămâne pe loc, fără clipire (nu mai reconciliem imediat)
+      if (r?.id) patchCell(teamId, positionId, colIdx, (c) => ({ ...c, people: c.people.map((x) => String(x.assignmentId) === String(tmpId) ? { ...x, assignmentId: r.id } : x) }));
       if (doMove && d.assignmentId) await plansApi.unassign(d.planId, d.assignmentId);
-      flash(doMove ? "Mutat." : "Copiat."); reconcile(); loadCov();
+      flash(doMove ? "Mutat." : "Copiat."); loadCov(); softReconcile();
     } catch (e) { flash(e?.message || "Eroare."); reconcile(); }
   }
   async function changeNeeded(planId, teamId, positionId, colIdx, nextCount) {
