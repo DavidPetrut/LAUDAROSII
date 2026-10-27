@@ -40,6 +40,8 @@ export default function MatrixPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [showStMenu, setShowStMenu] = useState(false);
   const [showDateMenu, setShowDateMenu] = useState(false);
+  const [showAddSt, setShowAddSt] = useState(false);   // „Add Service Type" în dropdown-ul de dată
+  const [stSearch, setStSearch] = useState("");
   const [selectedPlanIds, setSelectedPlanIds] = useState(null); // null = mod fereastră (prev/next); array = checklist explicit
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -286,10 +288,23 @@ export default function MatrixPage() {
   const canEarlier = _selIdxs.length > 0 && Math.min(..._selIdxs) > 0;
   const canLater = _selIdxs.length > 0 && Math.max(..._selIdxs) < optIds.length - 1;
   const canRemove = _cur.length > 1;
-  // checklist limitat: începe la PRIMUL plan afișat + 6 extra după (nu toate planurile pe 5 ani)
-  const _minSel = _selIdxs.length ? Math.min(..._selIdxs) : 0;
-  const _maxSel = _selIdxs.length ? Math.max(..._selIdxs) : 0;
-  const visibleOpts = planOptions.slice(_minSel, Math.min(planOptions.length, _maxSel + 1 + 6));
+  // ─── dropdown dată: secțiuni per service type (checklist limitat la prima dată afișată + 6 extra) ───
+  const selStIds = (data?.selectedStIds || [String(serviceTypeId)]).map(String);
+  const allServiceTypes = data?.serviceTypes || [];
+  const planByStId = {};
+  planOptions.forEach((o) => (planByStId[String(o.stId)] = planByStId[String(o.stId)] || []).push(o));
+  const stSections = selStIds.map((id) => {
+    const opts = planByStId[id] || [];
+    const idxsSel = opts.map((o, i) => (isSel(o.id) ? i : -1)).filter((i) => i >= 0);
+    const minS = idxsSel.length ? Math.min(...idxsSel) : 0;
+    const maxS = idxsSel.length ? Math.max(...idxsSel) : 0;
+    const vis = opts.slice(minS, Math.min(opts.length, maxS + 1 + 6));
+    const stName = opts[0]?.stName || allServiceTypes.find((s) => String(s.id) === id)?.name || "";
+    return { id, stName, vis };
+  });
+  const availableSts = allServiceTypes.filter((s) => !selStIds.includes(String(s.id)) && s.name.toLowerCase().includes(stSearch.trim().toLowerCase()));
+  const addServiceType = (id) => { setStIds((p) => [...new Set([...p.map(String), String(id)])]); setSelectedPlanIds(null); setShowAddSt(false); setStSearch(""); };
+  const removeServiceType = (id) => { if (String(id) === String(serviceTypeId)) return; setStIds((p) => p.filter((x) => String(x) !== String(id))); setSelectedPlanIds(null); };
 
   return (
     <div className={`matrix pc-full ${sel ? "has-side" : ""} ${showSettings ? "has-left" : ""} ${barOpen ? "has-bar" : ""} ${dragActive ? "drag" : ""}`}>
@@ -330,16 +345,38 @@ export default function MatrixPage() {
                   <span className="dm-t">Quick load plans</span>
                   <button className="dm-load" disabled={!canLater} onClick={addLater}>Load next + ›</button>
                 </div>
-                <div className="dm-st">{data?.serviceTypeName || ""}</div>
-                <div className="dm-list">
-                  {visibleOpts.map((o) => (
-                    <label key={o.id} className="dm-row">
-                      <input type="checkbox" checked={isSel(o.id)} onChange={() => togglePlan(o.id)} />
-                      <span className="dm-d">{o.dateLabel}{o.stName && data?.multi ? ` · ${o.stName}` : ""}</span>
-                    </label>
-                  ))}
-                  {visibleOpts.length === 0 && <div className="dm-empty">Niciun plan.</div>}
-                </div>
+                <button className="dm-done" onClick={() => { setShowDateMenu(false); setShowAddSt(false); }}>Done</button>
+                {showAddSt ? (
+                  <div className="dm-add">
+                    <input className="dm-search" placeholder="Caută folder sau service type" value={stSearch} onChange={(e) => setStSearch(e.target.value)} autoFocus />
+                    {availableSts.map((s) => (
+                      <button key={s.id} className="dm-addrow" onClick={() => addServiceType(s.id)}>{s.name}</button>
+                    ))}
+                    {availableSts.length === 0 && <div className="dm-empty">Niciun service type de adăugat.</div>}
+                    <button className="dm-cancel" onClick={() => { setShowAddSt(false); setStSearch(""); }}>‹ Înapoi</button>
+                  </div>
+                ) : (
+                  <>
+                    <button className="dm-addst" onClick={() => setShowAddSt(true)}>+ Add Service Type</button>
+                    {stSections.map((sec) => (
+                      <div key={sec.id} className="dm-sec">
+                        <div className="dm-sechead">
+                          <span className="dm-secn">{sec.stName}</span>
+                          {String(sec.id) !== String(serviceTypeId) && <button className="dm-secx" onClick={() => removeServiceType(sec.id)} title="Scoate service type">×</button>}
+                        </div>
+                        <div className="dm-list">
+                          {sec.vis.map((o) => (
+                            <label key={o.id} className="dm-row">
+                              <input type="checkbox" checked={isSel(o.id)} onChange={() => togglePlan(o.id)} />
+                              <span className="dm-d">{o.dateLabel}</span>
+                            </label>
+                          ))}
+                          {sec.vis.length === 0 && <div className="dm-empty">Niciun plan.</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -602,6 +639,22 @@ export default function MatrixPage() {
         .dm-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 2px 10px; border-bottom: 1px solid var(--border); }
         .dm-t { color: var(--text); font-weight: 700; font-size: 13.5px; white-space: nowrap; }
         .dm-st { color: var(--text-dim); font-size: 12.5px; font-weight: 600; padding: 10px 2px 2px; }
+        .dm-done { width: 100%; margin: 10px 0 4px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 7px; padding: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .dm-done:hover { border-color: var(--primary); }
+        .dm-addst { width: 100%; margin: 8px 0; background: transparent; border: 1px dashed var(--border-strong); color: var(--primary); border-radius: 7px; padding: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .dm-addst:hover { background: rgba(47,129,247,.08); }
+        .dm-add { display: flex; flex-direction: column; gap: 4px; padding-top: 10px; }
+        .dm-search { background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 7px; height: 34px; padding: 0 10px; color: var(--text); font-size: 13px; outline: none; margin-bottom: 6px; }
+        .dm-search:focus { border-color: var(--primary); }
+        .dm-addrow { text-align: left; background: transparent; border: none; color: var(--text); padding: 9px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+        .dm-addrow:hover { background: rgba(255,255,255,.06); }
+        .dm-cancel { text-align: left; margin-top: 6px; background: transparent; border: none; color: var(--text-dim); padding: 8px 10px; cursor: pointer; font-size: 12.5px; }
+        .dm-cancel:hover { color: var(--text); }
+        .dm-sec { padding-top: 10px; }
+        .dm-sechead { display: flex; align-items: center; justify-content: space-between; color: var(--text-dim); font-size: 12.5px; font-weight: 600; padding: 2px 2px 4px; }
+        .dm-secn { color: var(--text); }
+        .dm-secx { background: transparent; border: none; color: var(--text-faint); font-size: 17px; cursor: pointer; line-height: 1; }
+        .dm-secx:hover { color: var(--danger); }
         .dm-load { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 5px 8px; font-size: 11.5px; cursor: pointer; white-space: nowrap; }
         .dm-load:hover:not(:disabled) { color: var(--text); border-color: var(--primary); } .dm-load:disabled { opacity: .35; cursor: default; }
         .dm-list { padding: 6px 2px; display: flex; flex-direction: column; }
