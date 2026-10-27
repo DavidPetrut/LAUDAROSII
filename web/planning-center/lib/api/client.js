@@ -168,6 +168,11 @@ export const peopleApi = {
   // blocaj de biserică (on-break) pus de planificator — ascunde persoana din liste. Fără email.
   setChurchBlock: (id, payload = {}) => api.post(`/people/${id}/church-block`, payload),
   clearChurchBlock: (id) => api.del(`/people/${id}/church-block`),
+  // Lucrări (ministere) → poziții → roster + asignare rapidă (uniformizare People)
+  ministries: () => api.get("/people/ministries"),
+  roster: (id) => api.get(`/people/${id}/roster`),
+  rosterAdd: (personId, positionIds) => api.post("/people/roster/add", { personId, positionIds }),
+  rosterRemove: (personId, positionIds) => api.post("/people/roster/remove", { personId, positionIds }),
 };
 
 /* ─── Reports — server/planning-center/routes/reports.js (editor+, reports.view) ─── */

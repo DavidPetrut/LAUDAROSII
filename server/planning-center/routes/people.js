@@ -271,6 +271,88 @@ router.get("/blocked", requireCan("people.manageBlocks"), async (req, res) => {
   } catch (err) { console.error("[pc] GET /people/blocked:", err.message); res.status(500).json({ error: "Eroare la lista de blocați." }); }
 });
 
+/* ═══════════ LUCRĂRI (ministere) → poziții → roster — uniformizare People ═══════════
+   Ministerul = numele echipei fără „(SIM n)" (SIM-urile se contopesc). Pozițiile se merge-uiesc
+   după nume peste echipele ministerului. Rosterul = pc_teamMembers (cine slujește pe poziție). */
+const cleanMinistry = (name = "") => String(name).replace(/\s*\(\s*(?:sim\s*)?[12]\s*\)\s*$/i, "").trim() || String(name).trim();
+
+router.get("/ministries", requireCan("people.view"), async (req, res) => {
+  try {
+    const teams = await PcTeam.find(scoped(req, { archived: false })).select("name sortOrder").sort({ sortOrder: 1, name: 1 }).lean();
+    const teamIds = teams.map((t) => t._id);
+    const [positions, members] = await Promise.all([
+      PcPosition.find(scoped(req, { teamId: { $in: teamIds } })).select("name teamId sortOrder").sort({ sortOrder: 1 }).lean(),
+      PcTeamMember.find(scoped(req, { teamId: { $in: teamIds } })).select("personId teamId positionIds").lean(),
+    ]);
+    const minOfTeam = Object.fromEntries(teams.map((t) => [String(t._id), cleanMinistry(t.name)]));
+    // persoană → set de positionId-uri (din roster)
+    const posByPerson = {};
+    members.forEach((m) => { const s = posByPerson[String(m.personId)] = posByPerson[String(m.personId)] || new Set(); (m.positionIds || []).forEach((pid) => s.add(String(pid))); });
+    // minister → poziții (după nume) → { positionIds }. Grupăm case-insensitive (numele echipelor sunt inconsistente),
+    // poziția la fel (după nume normalizat), ca să nu avem lucrări/poziții duplicate.
+    const mins = {}; // keyLower → { name (display), order, positions: { posKeyLower → { name, ids:Set, order } } }
+    let ord = 0;
+    positions.forEach((p) => {
+      const minRaw = minOfTeam[String(p.teamId)]; if (!minRaw) return;
+      const mk = minRaw.toLowerCase();
+      const M = mins[mk] = mins[mk] || { name: minRaw, order: ord++, positions: {} };
+      const posName = (p.name || "—").trim();
+      const pk = posName.toLowerCase();
+      const P = M.positions[pk] = M.positions[pk] || { name: posName, ids: new Set(), order: p.sortOrder || 0 };
+      P.ids.add(String(p._id));
+    });
+    // membrii per poziție (persoane al căror roster conține vreun positionId al pozíției merge-uite)
+    const allPersonIds = [...new Set(members.map((m) => String(m.personId)))];
+    const people = await PcPerson.find(scoped(req, { _id: { $in: allPersonIds }, status: "active" })).select("firstName lastName avatar programIntent").lean();
+    const pById = Object.fromEntries(people.map((p) => [String(p._id), p]));
+    const mini = (id) => { const p = pById[id]; return p ? { id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "), avatar: p.avatar || "", initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase(), sim: p.programIntent || "" } : null; };
+
+    const out = Object.values(mins).map((M) => {
+      const positionsArr = Object.values(M.positions).map((P) => {
+        const ids = [...P.ids];
+        const mem = allPersonIds.filter((pid) => { const s = posByPerson[pid]; return s && ids.some((x) => s.has(x)); }).map(mini).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
+        return { name: P.name, positionIds: ids, order: P.order, members: mem };
+      }).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+      const memberCount = new Set(positionsArr.flatMap((p) => p.members.map((m) => String(m.id)))).size;
+      return { name: M.name, order: M.order, memberCount, positions: positionsArr };
+    }).sort((a, b) => b.memberCount - a.memberCount || a.name.localeCompare(b.name));
+
+    res.json({ ministries: out });
+  } catch (err) { console.error("[pc] GET /people/ministries:", err.message); res.status(500).json({ error: "Eroare la lucrări." }); }
+});
+
+/* roster-ul unei persoane: ce positionId-uri are (pt. panoul de asignare rapidă) */
+router.get("/:id/roster", requireCan("people.view"), async (req, res) => {
+  try {
+    const mems = await PcTeamMember.find(scoped(req, { personId: OID(req.params.id) })).select("positionIds").lean();
+    const positionIds = [...new Set(mems.flatMap((m) => (m.positionIds || []).map(String)))];
+    res.json({ positionIds });
+  } catch (err) { console.error("[pc] GET roster:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
+/* adaugă/scoate o persoană din rosterul unor poziții (pc_teamMembers). ZERO email — doar roster. */
+async function rosterMutate(req, res, add) {
+  const personId = OID(req.body?.personId);
+  const positionIds = (Array.isArray(req.body?.positionIds) ? req.body.positionIds : []).map(OID).filter(Boolean);
+  if (!personId || !positionIds.length) return res.status(400).json({ error: "personId/positionIds lipsesc." });
+  const posDocs = await PcPosition.find(scoped(req, { _id: { $in: positionIds } })).select("teamId").lean();
+  const byTeam = {}; posDocs.forEach((p) => (byTeam[String(p.teamId)] = byTeam[String(p.teamId)] || []).push(p._id));
+  for (const [teamId, posIds] of Object.entries(byTeam)) {
+    if (add) {
+      await PcTeamMember.updateOne(
+        { orgId: req.pcOrgId, teamId: OID(teamId), personId },
+        { $setOnInsert: { orgId: req.pcOrgId, teamId: OID(teamId), personId }, $addToSet: { positionIds: { $each: posIds } } },
+        { upsert: true }
+      );
+    } else {
+      await PcTeamMember.updateOne({ orgId: req.pcOrgId, teamId: OID(teamId), personId }, { $pull: { positionIds: { $in: posIds } } });
+    }
+  }
+  res.json({ ok: true });
+}
+router.post("/roster/add", requireCan("services.schedule"), (req, res) => rosterMutate(req, res, true).catch((e) => { console.error("[pc] roster add:", e.message); res.status(500).json({ error: "Eroare." }); }));
+router.post("/roster/remove", requireCan("services.schedule"), (req, res) => rosterMutate(req, res, false).catch((e) => { console.error("[pc] roster remove:", e.message); res.status(500).json({ error: "Eroare." }); }));
+
 /* ───────── GET /:id — profil persoană ───────── */
 router.get("/:id", requireCan("people.view"), async (req, res) => {
   try {

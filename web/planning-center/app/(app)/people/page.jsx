@@ -11,6 +11,8 @@ import { peopleApi, teamsApi } from "@/lib/api/client";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 import MinistryGroupsModal from "@/components/people/MinistryGroupsModal";
 import BlockedPeopleModal from "@/components/people/BlockedPeopleModal";
+import MinistryBoard from "@/components/people/MinistryBoard";
+import QuickAssignModal from "@/components/people/QuickAssignModal";
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "");
 
@@ -25,8 +27,10 @@ export default function PeoplePage() {
   const [err, setErr] = useState("");
   const [sortBy, setSortBy] = useState("firstName");
   const [dir, setDir] = useState("asc");
-  const [group, setGroup] = useState("");          // grupul de slujire selectat ("" = toate)
-  const [groups, setGroups] = useState([]);        // [{ name, teamCount, isDefault }]
+  const [group, setGroup] = useState("");          // lucrarea (minister) selectată ("" = toate)
+  const [groups, setGroups] = useState([]);        // [{ name, teamCount, isDefault }] — pt. modalul de mapare
+  const [ministries, setMinistries] = useState([]); // lucrări → poziții → roster (vederea nouă)
+  const [quickFor, setQuickFor] = useState(null);   // persoana pt. asignare rapidă (din Toate)
   const [canManage, setCanManage] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [canBlock, setCanBlock] = useState(false);   // scheduler: vede/administrează blocajele
@@ -51,6 +55,9 @@ export default function PeoplePage() {
 
   // grupurile de slujire + dacă pot administra maparea (admin)
   const loadGroups = useCallback(() => { teamsApi.ministryGroups().then((r) => setGroups(r.groups || [])).catch(() => {}); }, []);
+  const loadMinistries = useCallback(() => { peopleApi.ministries().then((r) => setMinistries(r.ministries || [])).catch(() => {}); }, []);
+  useEffect(() => { loadMinistries(); }, [loadMinistries]);
+  const activeMinistry = ministries.find((m) => m.name === group) || null;
   const loadBlockedCount = useCallback(() => {
     peopleApi.blocked().then((r) => { setBlockedCount(r.total || 0); setBlockedIds(new Set((r.blocked || []).map((x) => String(x.id)))); }).catch(() => {});
   }, []);
@@ -95,9 +102,9 @@ export default function PeoplePage() {
       <div className="gbar">
         <div className="gchips">
           <button className={`gchip ${group === "" ? "on" : ""}`} onClick={() => setGroup("")}>Toate</button>
-          {groups.map((g) => (
-            <button key={g.name} className={`gchip ${group === g.name ? "on" : ""}`} onClick={() => setGroup(g.name)}>
-              {g.name}{g.teamCount ? <span className="gc-n">{g.teamCount}</span> : null}
+          {ministries.map((m) => (
+            <button key={m.name} className={`gchip ${group === m.name ? "on" : ""}`} onClick={() => setGroup(m.name)}>
+              {m.name}{m.memberCount ? <span className="gc-n">{m.memberCount}</span> : null}
             </button>
           ))}
         </div>
@@ -117,6 +124,10 @@ export default function PeoplePage() {
         </div>
       </div>
 
+      {activeMinistry ? (
+        <MinistryBoard ministry={activeMinistry} onChanged={loadMinistries} />
+      ) : (
+      <>
       <div className="table">
         <div className="thead">
           <div className="c-av" />
@@ -128,7 +139,8 @@ export default function PeoplePage() {
           <div className="c-cr">CREATED ON</div>
         </div>
         {rows.map((p) => (
-          <div key={p.id} className="trow" onClick={() => router.push(`/people/${p.id}`)}>
+          <div key={p.id} className="trow" onClick={() => setQuickFor({ id: p.id, name: `${p.firstName} ${p.lastName}`.trim(), avatar: p.avatar, initials: p.initials })} title="Click: asignează rapid în lucrări">
+            <button className="qa-btn" title="Vezi profilul complet" onClick={(e) => { e.stopPropagation(); router.push(`/people/${p.id}`); }}>⤢</button>
             <div className="c-av">
               <span className={`avw ${blockedIds.has(String(p.id)) ? "locked" : ""}`}>
                 {p.avatar ? <img src={p.avatar} alt="" className="ava" /> : <span className="ava ini">{p.initials}</span>}
@@ -155,6 +167,12 @@ export default function PeoplePage() {
         <span className="pg">{page} / {totalPages}</span>
         <button disabled={!hasMore} onClick={() => setPage(page + 1)}>›</button>
       </div>
+      </>
+      )}
+
+      {quickFor && (
+        <QuickAssignModal person={quickFor} onClose={() => setQuickFor(null)} onChanged={loadMinistries} />
+      )}
 
       {manageOpen && (
         <MinistryGroupsModal
@@ -197,9 +215,11 @@ export default function PeoplePage() {
         .thead, .trow { display: grid; grid-template-columns: 48px 150px 150px minmax(200px,1fr) 150px 140px 130px; align-items: center; }
         .thead { color: var(--text-faint); font-size: var(--fs-colhead); letter-spacing: .5px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
         .sortable { cursor: pointer; } .sortable:hover { color: var(--text-dim); }
-        .trow { padding: 10px 14px; border-bottom: 1px solid var(--border-soft); cursor: pointer; font-size: 13.5px; }
+        .trow { padding: 10px 14px; border-bottom: 1px solid var(--border-soft); cursor: pointer; font-size: 13.5px; position: relative; }
         .trow:last-child { border-bottom: none; }
         .trow:hover { background: var(--row-hover); }
+        .qa-btn { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 2; opacity: 0; background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; width: 28px; height: 26px; cursor: pointer; font-size: 13px; }
+        .trow:hover .qa-btn { opacity: 1; } .qa-btn:hover { color: var(--text); border-color: var(--product); }
         .c-av { display: flex; }
         .avw { position: relative; display: inline-flex; }
         .avw.locked .ava { border: 2px solid var(--primary); }
