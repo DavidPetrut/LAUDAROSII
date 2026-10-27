@@ -39,7 +39,7 @@ export default function MatrixPage() {
   // dacă vii dintr-un plan (buton „Matrix"), ?focus=<planId> → deschide EXACT acel plan (o coloană), peste starea salvată
   const focusId = (typeof window !== "undefined") ? new URLSearchParams(window.location.search).get("focus") : null;
   const [data, setData] = useState(null);
-  const [count, setCount] = useState(() => mstore.count ?? 4);          // „Next plans" (Quantity) — default 4 ca în PCO
+  const [count, setCount] = useState(() => mstore.count ?? 1);          // default 1 coloană (cea mai apropiată); extinzi cu „+"
   const [offset, setOffset] = useState(() => mstore.offset ?? 0);
   const [prev, setPrev] = useState(() => mstore.prev ?? 0);            // „Previous plans" (Quantity)
   const [dateMode, setDateMode] = useState(() => mstore.dateMode ?? false); // Smart Load: Quantity vs Date
@@ -414,7 +414,7 @@ export default function MatrixPage() {
     ],
   }, [serviceTypeId, data, nPlans, teams, sel, target]);
 
-  const gridCols = `220px repeat(${Math.max(1, nPlans)}, minmax(158px, 1fr))`;
+  const gridCols = `220px repeat(${Math.max(1, nPlans)}, 290px)`; // lățime FIXĂ per coloană (ca PCO) → X-scroll, nu stretch
   const dateRange = nPlans ? `${plans[0].dateLabel} – ${plans[nPlans - 1].dateLabel}` : "";
   const _cur = curSel();
   const _selIdxs = _cur.map((id) => optIds.indexOf(id)).filter((i) => i >= 0);
@@ -897,7 +897,7 @@ export default function MatrixPage() {
         .grid-wrap::-webkit-scrollbar-thumb { background: #39434f; border-radius: 9px; border: 4px solid transparent; background-clip: content-box; }
         .grid-wrap::-webkit-scrollbar-thumb:hover { background: #4a5663; background-clip: content-box; }
         .grid-wrap { scrollbar-width: auto; }
-        .grid { display: grid; min-width: max-content; }
+        .grid { display: grid; width: max-content; }
         .cell { border-bottom: 1px solid var(--border-soft); border-right: 1px solid var(--border-soft); font-size: 12.5px; }
         .head { position: sticky; top: 0; z-index: 3; background: var(--surface-2); }
         .corner { position: sticky; left: 0; z-index: 4; }
@@ -916,9 +916,12 @@ export default function MatrixPage() {
         .ph-av.blk { color: var(--danger); }
         .ph-av.busy { color: var(--st-unconfirmed); }
         .teamblock { background: var(--section-head-bg); border-bottom: 1px solid var(--border); border-top: 1px solid var(--border);
-          position: sticky; left: 0; z-index: 2; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; }
-        .tb-toggle { background: transparent; border: none; color: var(--text); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
+          padding: 0; display: flex; align-items: center; justify-content: space-between; }
+        /* titlul echipei rămâne LIPIT la stânga la X-scroll (ca și coloana de poziții), cu fundalul benzii */
+        .tb-toggle { position: sticky; left: 0; z-index: 2; background: var(--section-head-bg); border: none; color: var(--text); font-weight: 700;
+          font-size: 12px; text-transform: uppercase; letter-spacing: .5px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; white-space: nowrap; }
         .tb-caret { color: var(--text-faint); font-size: 10px; } .tb-caret.col { transform: rotate(-90deg); }
+        .tb-actions { position: sticky; right: 0; z-index: 2; background: var(--section-head-bg); padding: 6px 12px; }
         .tb-actions .gear { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 5px; }
         .tb-actions .gear:hover { color: var(--text); background: rgba(255,255,255,.06); }
         .poslabel { position: sticky; left: 0; z-index: 1; background: var(--surface); color: var(--text-dim); cursor: pointer;
