@@ -80,19 +80,52 @@ function pcTitles(req) {
 }
 
 /**
- * Rezolvă permisiunea efectivă (cache pe req). Derivată din nivelul RBAC (total/partial/basic).
+ * Setul EFECTIV de capabilități (cache pe req). „ALL" = acces total (super-admin/developer).
+ * Altfel = UNION: capabilități de bază + „planningAdmin" (dacă e) + capabilitățile tuturor
+ * rolurilor CUSTOM (pc_roles) pe care le are userul în extraRoles. Aici se „stacuiesc" rolurile.
+ */
+async function capabilitySet(req) {
+  if (req._pcCaps) return req._pcCaps;
+  const role = req.user?.role;
+  if (role === "superadmin" || role === "developer") { req._pcCaps = "ALL"; return "ALL"; }
+  const set = new Set(BASIC_CAPS);
+  const extra = Array.isArray(req.user?.extraRoles) ? req.user.extraRoles : [];
+  if (extra.includes("planningAdmin")) PARTIAL_CAPS.forEach((c) => set.add(c)); // rolul pre-creat
+  if (extra.length && req.pcOrgId) {
+    try {
+      const PcRole = require("../models/PcRole");
+      const roles = await PcRole.find({ orgId: req.pcOrgId, key: { $in: extra }, deletedAt: null }).select("capabilities").lean();
+      roles.forEach((r) => (r.capabilities || []).forEach((c) => set.add(c)));
+    } catch (e) { /* fără roluri custom disponibile → doar capabilitățile de bază */ }
+  }
+  req._pcCaps = set;
+  return set;
+}
+
+/**
+ * Rezolvă permisiunea efectivă (cache pe req). Derivată din UNION-ul de capabilități
+ * (bază + roluri custom), ca „pcAccess"/niveluri să rămână coerente pentru UI (/me).
  */
 async function resolveEffective(req) {
   if (req._pcPerm) return req._pcPerm;
-  const access = resolvePcAccess(req);
-  const lv = ACCESS_TO_LEVELS[access] || ACCESS_TO_LEVELS.basic;
+  const caps = await capabilitySet(req);
+  const all = caps === "ALL";
+  const has = (c) => all || caps.has(c);
+  let access = "basic";
+  if (all) access = "total";
+  else if (caps.size > BASIC_CAPS.size) access = "partial"; // are cel puțin un rol custom / planningAdmin
+  const peoplePlansLevel = all ? "orgAdmin"
+    : (has("people.managePermissions") || has("people.create")) ? "administrator"
+      : (has("services.editOrder") || has("services.manageServiceTypes")) ? "editor"
+        : has("services.schedule") ? "scheduler"
+          : "viewer";
   const eff = {
     pcAccess: access,
-    peoplePlansLevel: lv.peoplePlansLevel,
-    songLevel: lv.songLevel,
-    mediaLevel: lv.mediaLevel,
+    peoplePlansLevel,
+    songLevel: all ? "administrator" : has("songs.edit") ? "editor" : "viewer",
+    mediaLevel: all ? "administrator" : has("media.edit") ? "editor" : "viewer",
     fileAccess: { plan: access !== "basic", song: access !== "basic", media: access !== "basic" },
-    isOrgAdmin: access === "total",
+    isOrgAdmin: all,
   };
   req._pcPerm = eff;
   return eff;
@@ -123,10 +156,9 @@ async function getDefaults(req) {
  * Capabilitățile pt. felia People (§5.6). Extensibil aditiv.
  */
 async function can(req, capability) {
-  const access = resolvePcAccess(req);
-  if (access === "total") return true;
-  if (access === "partial") return PARTIAL_CAPS.has(capability);
-  return BASIC_CAPS.has(capability); // basic
+  const caps = await capabilitySet(req);
+  if (caps === "ALL") return true;
+  return caps.has(capability);
 }
 
 /** Middleware: blochează ruta dacă userul n-are capabilitatea. */
@@ -147,6 +179,7 @@ module.exports = {
   SM_RANK,
   atLeast,
   resolvePcAccess,
+  capabilitySet,
   pcTitles,
   resolveEffective,
   getDefaults,

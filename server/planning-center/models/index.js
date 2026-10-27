@@ -14,6 +14,7 @@ module.exports = {
   PcPosition: require("./PcPosition"),
   PcTeamMember: require("./PcTeamMember"),
   PcPermission: require("./PcPermission"),
+  PcRole: require("./PcRole"),
   PcMembershipType: require("./PcMembershipType"),
   PcTagGroup: require("./PcTagGroup"),
   PcTag: require("./PcTag"),
