@@ -123,6 +123,18 @@ export default function PlanDetailPage() {
     catch (e) { flash(e?.message || "Eroare."); reconcileTeams(); }
     finally { setAssigning(false); }
   }
+  async function addGuest(name) {
+    if (!sel) return;
+    setAssigning(true);
+    const tmpId = `tmp-g-${Date.now()}`;
+    patchGroup(sel.teamId, sel.positionId, (g) => ({
+      ...g, needed: Math.max(0, (g.needed || 0) - 1),
+      people: [...g.people, { personId: tmpId, assignmentId: tmpId, name, initials: name.slice(0, 2).toUpperCase(), avatar: "", status: "confirmed", isGuest: true }],
+    }));
+    try { await plansApi.assign(id, { guestName: name, teamId: sel.teamId, positionId: sel.positionId }); flash(`Invitat „${name}" adăugat (Confirmed, fără email).`); reconcileTeams(); refreshRec(); }
+    catch (e) { flash(e?.message || "Eroare."); reconcileTeams(); }
+    finally { setAssigning(false); }
+  }
   async function removePerson(teamId, positionId, assignmentId) {
     patchGroup(teamId, positionId, (g) => ({ ...g, people: g.people.filter((x) => String(x.assignmentId) !== String(assignmentId)) }));
     try { await plansApi.unassign(id, assignmentId); flash("Șters."); reconcileTeams(); refreshRec(); }
@@ -201,6 +213,7 @@ export default function PlanDetailPage() {
         loading={recBusy} groups={rec?.groups || []} alreadyHere={rec?.alreadyHere || []}
         query={recQuery} onQuery={setRecQuery} onPick={assignPerson} onClose={() => { setSel(null); setRec(null); }} assigning={assigning}
         mirror={pereche ? { available: true, label: `Adaugă și la ${pereche.teamName}` } : null}
+        onAddGuest={addGuest}
       />
       {editing && (
         <EditPersonModal person={editing} onClose={() => setEditing(null)} onSave={saveEdit}
@@ -294,6 +307,7 @@ function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded }) {
               <div key={p.assignmentId || pi} className="pers" onClick={() => onEdit(p, g, t)} title={`${p.name} — click: editează status`}>
                 <PersonAvatar person={p} status={p.status} size={24} />
                 <span className="pn">{p.name}</span>
+                {p.isGuest && <span className="gtag">invitat</span>}
                 <button className="prm" title="Șterge" onClick={(e) => { e.stopPropagation(); onRemove(t.teamId, g.positionId, p.assignmentId); }}>×</button>
               </div>
             ))}
@@ -324,6 +338,7 @@ function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded }) {
         .pers { display: flex; align-items: center; gap: 9px; padding: 5px 14px; cursor: pointer; }
         .pers:hover { background: rgba(255,255,255,.05); }
         .pn { color: var(--text); font-size: 13px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .gtag { flex: none; font-size: 9px; color: var(--product); border: 1px solid rgba(87,185,138,.5); border-radius: 10px; padding: 0 5px; text-transform: uppercase; }
         .prm { opacity: 0; background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 2px; }
         .pers:hover .prm { opacity: 1; } .prm:hover { color: var(--danger); }
         .needctl { display: inline-flex; align-items: center; gap: 5px; margin: 2px 14px; }

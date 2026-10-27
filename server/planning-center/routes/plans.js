@@ -523,9 +523,11 @@ router.get("/:id/teams", requireCan("people.view"), async (req, res) => {
       order.forEach((o) => ensure(o.positionId, o.positionName));
       // DECLINED → persoana NU apare pe poziție (cerință user: cine refuză dispare).
       tAssigns.filter((a) => a.status !== "declined").forEach((a) => {
+        const base = a.isGuest
+          ? { name: a.guestName || "Invitat", initials: (a.guestName || "?").slice(0, 2).toUpperCase(), avatar: "" }
+          : personMini(personById[String(a.personId)]);
         ensure(a.positionId, posName[String(a.positionId)]).people.push({
-          ...personMini(personById[String(a.personId)]),
-          personId: a.personId, assignmentId: a._id, status: a.status,
+          ...base, personId: a.personId, assignmentId: a._id, status: a.status, isGuest: !!a.isGuest,
         });
       });
       tNeeded.forEach((n) => { ensure(n.positionId, posName[String(n.positionId)]).needed += (n.count || 0); });
@@ -594,23 +596,29 @@ router.post("/:id/assignments", requireCan("services.schedule"), async (req, res
     const crypto = require("crypto");
     const planId = OID(req.params.id);
     const b = req.body || {};
-    const personId = OID(b.personId), teamId = OID(b.teamId), positionId = OID(b.positionId);
-    if (!personId || !teamId) return res.status(400).json({ error: "personId și teamId sunt necesare." });
-    const status = ["confirmed", "unconfirmed", "declined"].includes(b.status) ? b.status : "unconfirmed";
+    const teamId = OID(b.teamId), positionId = OID(b.positionId);
+    // Invitat one-time: nume liber, FĂRĂ PcPerson (fără istoric). personId = id fictiv unic → nu apare în liste.
+    const guestName = String(b.guestName || "").trim();
+    const isGuest = !!guestName || !!b.isGuest;
+    let personId = OID(b.personId);
+    if (isGuest && !personId) personId = new mongoose.Types.ObjectId();
+    if (!personId || !teamId) return res.status(400).json({ error: "personId/guestName și teamId sunt necesare." });
+    // invitatul apare implicit Confirmed (cerință lider)
+    const status = ["confirmed", "unconfirmed", "declined"].includes(b.status) ? b.status : (isGuest ? "confirmed" : "unconfirmed");
     const doc = {
       planId, personId, teamId, positionId: positionId || null,
       timeIds: Array.isArray(b.timeIds) ? b.timeIds.map(OID).filter(Boolean) : [],
-      status, source: b.source || "manual",
+      status, source: isGuest ? "guest" : (b.source || "manual"),
       prepared: !!b.prepared,
       repliesToPersonId: OID(b.repliesToPersonId) || null,
       notes: b.notes || "",
-      isGuest: !!b.isGuest,
+      isGuest, guestName: isGuest ? guestName : "",
       isTemporaryPosition: !!b.isTemporaryPosition,
       tempPositionName: b.tempPositionName || "",
       responseToken: crypto.randomBytes(18).toString("hex"),
     };
-    // upsert pe (plan, position, person) ca să nu dublăm
-    const existing = positionId
+    // upsert pe (plan, position, person) ca să nu dublăm — invitații sunt mereu noi (id fictiv)
+    const existing = (positionId && !isGuest)
       ? await PcAssignment.findOne(scoped(req, { planId, positionId, personId })).select("_id").lean()
       : null;
     let assignment;

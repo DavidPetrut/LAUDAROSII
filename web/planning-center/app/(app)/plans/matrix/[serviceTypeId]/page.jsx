@@ -133,6 +133,18 @@ export default function MatrixPage() {
     } catch (e) { flash(e?.message || "Eroare."); reconcile(); }
     finally { setAssigning(false); }
   }
+  async function addGuest(name) {
+    if (!sel) return;
+    setAssigning(true);
+    const tmpId = `tmp-g-${Date.now()}`;
+    patchCell(sel.teamId, sel.positionId, sel.colIdx, (c) => ({
+      ...c, needed: Math.max(0, (c.needed || 0) - 1),
+      people: [...c.people, { personId: tmpId, assignmentId: tmpId, name, initials: name.slice(0, 2).toUpperCase(), avatar: "", status: "confirmed", isGuest: true }],
+    }));
+    try { await plansApi.assign(sel.planId, { guestName: name, teamId: sel.teamId, positionId: sel.positionId }); flash(`Invitat „${name}" adăugat (Confirmed, fără email).`); reconcile(); refreshRec(); }
+    catch (e) { flash(e?.message || "Eroare."); reconcile(); }
+    finally { setAssigning(false); }
+  }
   async function removePerson(planId, teamId, positionId, colIdx, assignmentId) {
     patchCell(teamId, positionId, colIdx, (c) => ({ ...c, people: c.people.filter((x) => String(x.assignmentId) !== String(assignmentId)) }));
     try { await plansApi.unassign(planId, assignmentId); flash("Șters."); reconcile(); refreshRec(); }
@@ -268,6 +280,7 @@ export default function MatrixPage() {
                             title={`${pp.name} — click: target view · trage: copiază`}>
                             <PersonAvatar person={pp} status={pp.status} size={22} />
                             <span className="pn">{pp.name}</span>
+                            {pp.isGuest && <span className="gtag">invitat</span>}
                             <button className="ped" title="Editează" onClick={(e) => { e.stopPropagation(); setEditing({ planId: plans[ci].id, teamId: t.teamId, positionId: pos.positionId, colIdx: ci, assignmentId: pp.assignmentId, name: pp.name, avatar: pp.avatar, initials: pp.initials, status: pp.status, teamName: t.name, positionName: pos.name }); }}>✎</button>
                             <button className="prm" title="Șterge" onClick={(e) => { e.stopPropagation(); removePerson(plans[ci].id, t.teamId, pos.positionId, ci, pp.assignmentId); }}>×</button>
                           </div>
@@ -308,6 +321,7 @@ export default function MatrixPage() {
         onClose={closeSide}
         assigning={assigning}
         mirror={pereche ? { available: true, label: `Adaugă și la ${pereche.teamName}` } : null}
+        onAddGuest={addGuest}
       />
 
       {editing && (
@@ -373,6 +387,7 @@ export default function MatrixPage() {
         .person.dim { opacity: .28; }
         .person.hit { background: rgba(47,129,247,.18); box-shadow: inset 0 0 0 1px var(--primary); }
         .pn { color: var(--text); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+        .gtag { flex: none; font-size: 9px; color: var(--product); border: 1px solid rgba(87,185,138,.5); border-radius: 10px; padding: 0 5px; text-transform: uppercase; letter-spacing: .3px; }
         .prm, .ped { opacity: 0; background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 12px; line-height: 1; padding: 0 2px; flex: none; }
         .prm { font-size: 15px; }
         .person:hover .prm, .person:hover .ped { opacity: 1; } .prm:hover { color: var(--danger); } .ped:hover { color: var(--primary); }

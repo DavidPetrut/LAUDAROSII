@@ -17,14 +17,22 @@ function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return
 
 export default function AssignSidebar({
   open, title, neededCount, loading, groups = [], alreadyHere = [],
-  query, onQuery, onPick, onClose, assigning, mirror,
+  query, onQuery, onPick, onClose, assigning, mirror, onAddGuest,
 }) {
   const [sim, setSim] = useState("");          // "", "1", "2"
   const [gender, setGender] = useState("");    // "", "male", "female"
   const [simOn, setSimOn] = useState(false);   // afișează rândul de filtre
   const [mirrorOn, setMirrorOn] = useState(false); // „adaugă și pe echipa pereche (SIM 2)"
-  // resetează bifa de replicare când schimbi poziția/echipa
-  useEffect(() => { setMirrorOn(false); }, [title, mirror?.label]);
+  const [mode, setMode] = useState("member");  // "member" | "guest"
+  const [guestName, setGuestName] = useState("");
+  // resetează la schimbarea poziției/echipei
+  useEffect(() => { setMirrorOn(false); setMode("member"); setGuestName(""); }, [title, mirror?.label]);
+
+  function addGuest() {
+    const n = guestName.trim();
+    if (!n || !onAddGuest) return;
+    onAddGuest(n); setGuestName("");
+  }
 
   // are vreun candidat date de gen? (altfel nu aplicăm filtrul de gen)
   const hasGender = useMemo(
@@ -55,10 +63,19 @@ export default function AssignSidebar({
           <div className="asb-need">{loading ? "…" : neededCount > 0 ? `${neededCount} people still needed` : "Poziție acoperită"}</div>
 
           <div className="asb-tabs">
-            <button className="asb-tab on">Team Member</button>
-            <button className="asb-tab" title="Invitat one-time (în lucru)">Guest</button>
+            <button className={`asb-tab ${mode === "member" ? "on" : ""}`} onClick={() => setMode("member")}>Team Member</button>
+            <button className={`asb-tab ${mode === "guest" ? "on" : ""}`} onClick={() => setMode("guest")} title="Invitat one-time (fără istoric)">Guest</button>
           </div>
 
+          {mode === "guest" ? (
+            <div className="asb-guest">
+              <div className="asb-ghint">Invitat one-time — apare <b>Confirmed</b> pe poziție, fără cont și fără istoric. Fără email.</div>
+              <input className="asb-search" placeholder="Nume invitat (ex. Cristian Barbosu)" value={guestName}
+                onChange={(e) => setGuestName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addGuest(); }} autoFocus />
+              <button className="asb-gbtn" disabled={!guestName.trim() || assigning} onClick={addGuest}>Adaugă invitat</button>
+            </div>
+          ) : (
+          <>
           <div className="asb-searchrow">
             <input className="asb-search" placeholder="Caută după nume, tag sau poziție" value={query} onChange={(e) => onQuery(e.target.value)} />
             <button className={`asb-filt ${simOn ? "on" : ""}`} title="Filtre" onClick={() => setSimOn((v) => !v)}>
@@ -129,6 +146,8 @@ export default function AssignSidebar({
               <div className="asb-muted">Niciun candidat{query ? " pentru căutare" : ""}{sim ? ` (SIM ${sim})` : ""}.</div>
             )}
           </div>
+          </>
+          )}
         </>
       )}
 
@@ -147,6 +166,11 @@ export default function AssignSidebar({
         .asb-tab { flex: 1; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim);
           border-radius: 6px; padding: 7px 0; font-size: 12.5px; cursor: pointer; }
         .asb-tab.on { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+        .asb-guest { padding: 4px 16px 10px; display: flex; flex-direction: column; gap: 10px; }
+        .asb-ghint { color: var(--text-faint); font-size: 12px; line-height: 1.5; }
+        .asb-ghint b { color: var(--product); }
+        .asb-gbtn { background: var(--primary); border: 1px solid var(--primary); color: #fff; border-radius: 6px; height: 34px; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .asb-gbtn:disabled { opacity: .5; cursor: default; }
         .asb-searchrow { display: flex; gap: 8px; padding: 0 16px 10px; }
         .asb-search { flex: 1; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 6px;
           height: 34px; padding: 0 10px; color: var(--text); outline: none; font-size: 13px; }

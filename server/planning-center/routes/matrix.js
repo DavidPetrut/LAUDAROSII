@@ -68,7 +68,11 @@ router.get("/:serviceTypeId", requireCan("services.schedule"), async (req, res) 
           const cells = plans.map(() => ({ people: [], needed: 0 }));
           assigns.filter((a) => String(a.positionId) === String(pos._id) && a.status !== "declined").forEach((a) => {
             const idx = planIndex[String(a.planId)];
-            if (idx != null) cells[idx].people.push({ ...mini(personById[String(a.personId)]), status: a.status, assignmentId: a._id, personId: a.personId });
+            if (idx == null) return;
+            const base = a.isGuest
+              ? { name: a.guestName || "Invitat", initials: (a.guestName || "?").slice(0, 2).toUpperCase(), avatar: "" }
+              : mini(personById[String(a.personId)]);
+            cells[idx].people.push({ ...base, status: a.status, assignmentId: a._id, personId: a.personId, isGuest: !!a.isGuest });
           });
           needed.filter((n) => String(n.positionId) === String(pos._id)).forEach((n) => {
             const idx = planIndex[String(n.planId)];

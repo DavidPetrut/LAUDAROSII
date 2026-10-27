@@ -19,6 +19,7 @@ const schema = pcSchema({
   repliesToPersonId: { type: mongoose.Schema.Types.ObjectId, ref: "PcPerson", default: null },
   notes: { type: String, default: "" },
   isGuest: { type: Boolean, default: false },
+  guestName: { type: String, default: "" }, // invitat one-time: nume liber, fără PcPerson (fără istoric)
   isTemporaryPosition: { type: Boolean, default: false },
   tempPositionName: { type: String, default: "" },
   notificationSentAt: { type: Date, default: null }, // când s-a trimis emailul de programare
