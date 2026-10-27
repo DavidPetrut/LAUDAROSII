@@ -19,7 +19,7 @@ function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return
 export default function AssignSidebar({
   open, title, neededCount, loading, groups = [], alreadyHere = [],
   query, onQuery, onPick, onClose, assigning, mirror, onAddGuest,
-  defaults, positionId, onSaveRules, instructions,
+  defaults, positionId, onSaveRules, instructions, browse = false,
 }) {
   const [sim, setSim] = useState("");          // "", "1", "2"
   const [gender, setGender] = useState("");    // "", "M", "F"
@@ -32,7 +32,9 @@ export default function AssignSidebar({
   const [rulesBusy, setRulesBusy] = useState(false);
   const [posFiles, setPosFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => new Set()); // grupuri închise (collapse/expand headere)
   const fileRef = useRef(null);
+  const toggleGrp = (k) => setCollapsed((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; });
 
   // la schimbarea poziției: reset + PRE-SELECTează filtrele din regulile poziției
   useEffect(() => {
@@ -101,14 +103,16 @@ export default function AssignSidebar({
             <button className="asb-x" onClick={onClose} aria-label="Închide">×</button>
           </div>
 
-          <div className="asb-need">{loading ? "…" : neededCount > 0 ? `${neededCount} people still needed` : "Poziție acoperită"}</div>
+          <div className="asb-need">{browse ? "Vizualizare — toți oamenii" : loading ? "…" : neededCount > 0 ? `${neededCount} people still needed` : "Poziție acoperită"}</div>
 
-          <div className="asb-tabs">
-            <button className={`asb-tab ${mode === "member" ? "on" : ""}`} onClick={() => setMode("member")}>Team Member</button>
-            <button className={`asb-tab ${mode === "guest" ? "on" : ""}`} onClick={() => setMode("guest")} title="Invitat one-time (fără istoric)">Guest</button>
-          </div>
+          {!browse && (
+            <div className="asb-tabs">
+              <button className={`asb-tab ${mode === "member" ? "on" : ""}`} onClick={() => setMode("member")}>Team Member</button>
+              <button className={`asb-tab ${mode === "guest" ? "on" : ""}`} onClick={() => setMode("guest")} title="Invitat one-time (fără istoric)">Guest</button>
+            </div>
+          )}
 
-          {mode === "guest" ? (
+          {mode === "guest" && !browse ? (
             <div className="asb-guest">
               <div className="asb-ghint">Invitat one-time — apare <b>Confirmed</b> pe poziție, fără cont și fără istoric. Fără email.</div>
               <input className="asb-search" placeholder="Nume invitat (ex. Cristian Barbosu)" value={guestName}
@@ -196,8 +200,12 @@ export default function AssignSidebar({
 
             {alreadyHere.length > 0 && (
               <div className="asb-grp">
-                <div className="asb-gl">DEJA AICI</div>
-                {alreadyHere.map((p) => (
+                <button className="asb-gh" onClick={() => toggleGrp("here")}>
+                  <span className="asb-ghl">DEJA AICI</span>
+                  <span className="asb-gn">{alreadyHere.length}</span>
+                  <span className={`asb-gc ${collapsed.has("here") ? "col" : ""}`}>▾</span>
+                </button>
+                {!collapsed.has("here") && alreadyHere.map((p) => (
                   <div key={p.id} className="cand here">
                     <PersonAvatar person={p} size={28} showBadge={false} />
                     <span className="cn">{p.name}</span><span className="here-b">✓</span>
@@ -206,24 +214,31 @@ export default function AssignSidebar({
               </div>
             )}
 
-            {!loading && fGroups.map((g, gi) => (
-              <div key={gi} className="asb-grp">
-                <div className="asb-gl">{g.label}</div>
-                {g.people.map((p) => (
-                  <button key={p.id} className="cand" disabled={assigning} onClick={() => onPick(p, mirror?.available ? mirrorOn : false)} title="Asignează (fără email)">
-                    <PersonAvatar person={p} size={28} showBadge={false} />
-                    <span className="cn">{p.name}</span>
-                    {p.conflict && (
-                      <span className={`cf ${p.conflict.type}`} title={p.conflict.type === "blockout" ? "Blockout" : "Planificat în altă slujire"}>
-                        <span className="cf-dot" />{p.conflict.count > 1 ? p.conflict.count : ""}
-                      </span>
-                    )}
-                    {p.targetLabel && <span className={`tgt ${p.belowTarget ? "below" : "met"}`} title="Pe poziția asta luna asta / target">{p.targetLabel}</span>}
-                    <span className="wk">{p.weeksLabel}</span>
+            {!loading && fGroups.map((g, gi) => {
+              const col = collapsed.has(g.label);
+              return (
+                <div key={gi} className="asb-grp">
+                  <button className="asb-gh" onClick={() => toggleGrp(g.label)}>
+                    <span className="asb-ghl">{g.label}</span>
+                    <span className="asb-gn">{g.people.length}</span>
+                    <span className={`asb-gc ${col ? "col" : ""}`}>▾</span>
                   </button>
-                ))}
-              </div>
-            ))}
+                  {!col && g.people.map((p) => (
+                    <button key={p.id} className="cand" disabled={assigning} onClick={() => onPick(p, mirror?.available ? mirrorOn : false)} title={browse ? "Click pe o căsuță din grilă ca să asignezi" : "Asignează (fără email)"}>
+                      <PersonAvatar person={p} size={28} showBadge={false} />
+                      <span className="cn">{p.name}</span>
+                      {p.conflict && (
+                        <span className={`cf ${p.conflict.type}`} title={p.conflict.type === "blockout" ? "Blockout" : "Planificat în altă slujire"}>
+                          <span className="cf-dot" />{p.conflict.count > 1 ? p.conflict.count : ""}
+                        </span>
+                      )}
+                      {p.targetLabel && <span className={`tgt ${p.belowTarget ? "below" : "met"}`} title="Pe poziția asta luna asta / target">{p.targetLabel}</span>}
+                      <span className="wk">{p.weeksLabel}</span>
+                    </button>
+                  ))}
+                </div>
+              );
+            })}
 
             {!loading && fGroups.length === 0 && alreadyHere.length === 0 && (
               <div className="asb-muted">Niciun candidat{query ? " pentru căutare" : ""}{sim ? ` (SIM ${sim})` : ""}.</div>
@@ -287,8 +302,16 @@ export default function AssignSidebar({
         .chip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
         .chip.dis { opacity: .4; cursor: default; }
         .asb-list { overflow: auto; padding: 0 8px 16px; flex: 1; }
-        .asb-grp { margin-bottom: 12px; }
+        .asb-grp { margin-bottom: 14px; }
         .asb-gl { color: var(--text-faint); font-size: 10.5px; letter-spacing: .5px; padding: 8px 8px 5px; }
+        /* headere de grup collapse/expand (ca în Teams): nume stânga, contor, caret în dreapta de tot */
+        .asb-gh { display: flex; align-items: center; gap: 8px; width: 100%; background: var(--section-head-bg);
+          border: none; border-radius: 7px; padding: 9px 11px; cursor: pointer; margin-bottom: 5px; }
+        .asb-gh:hover { background: #26303c; }
+        .asb-ghl { color: var(--text); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; flex: 1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .asb-gn { color: var(--text-dim); font-size: 11px; background: var(--surface-2); border-radius: 20px; padding: 1px 9px; min-width: 22px; text-align: center; flex: none; }
+        .asb-gc { color: var(--text-faint); font-size: 10px; transition: transform .12s; flex: none; }
+        .asb-gc.col { transform: rotate(-90deg); }
         .cand { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: transparent;
           border: none; cursor: pointer; padding: 6px 8px; border-radius: 7px; }
         .cand:hover { background: rgba(255,255,255,.055); }

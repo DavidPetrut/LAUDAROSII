@@ -42,6 +42,8 @@ export default function MatrixPage() {
   const [showDateMenu, setShowDateMenu] = useState(false);
   const [showAddSt, setShowAddSt] = useState(false);   // „Add Service Type" în dropdown-ul de dată
   const [stSearch, setStSearch] = useState("");
+  const [dmCol, setDmCol] = useState(() => new Set());  // secțiuni ST colapsate în dropdown-ul de dată
+  const toggleDmSec = (id) => setDmCol((s) => { const n = new Set(s); n.has(String(id)) ? n.delete(String(id)) : n.add(String(id)); return n; });
   const [selectedPlanIds, setSelectedPlanIds] = useState(null); // null = mod fereastră (prev/next); array = checklist explicit
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -56,6 +58,7 @@ export default function MatrixPage() {
   const [toast, setToast] = useState("");
   const [editing, setEditing] = useState(null);
   const [barOpen, setBarOpen] = useState(false);   // bara de jos „listă live"
+  const [browse, setBrowse] = useState(false);     // sidebar dreapta în mod „vizualizare toți oamenii" (fără poziție)
   const [cov, setCov] = useState(null);
   const [covBusy, setCovBusy] = useState(false);
   const [barFilters, setBarFilters] = useState({ ministry: null, gender: "", sim: "" }); // filtre tag-uri bară
@@ -153,7 +156,7 @@ export default function MatrixPage() {
   }, [sel, teams]);
 
   const openCell = useCallback(async (planId, teamId, positionId, positionName, colIdx) => {
-    setTarget(null); setTargetSched(null);
+    setTarget(null); setTargetSched(null); setBrowse(false);
     lastSelRef.current = { planId, teamId, positionId, positionName, colIdx };
     setSel({ planId, teamId, positionId, positionName, colIdx });
     // bara „listă live" moștenește filtrul de slujire din poziția selectată (se poate scoate cu × din tag)
@@ -172,13 +175,27 @@ export default function MatrixPage() {
     finally { setRecBusy(false); }
   }, [data?.teams]);
 
-  // căutare în bară (debounced)
+  // „Vizualizare toți oamenii" — bara dreapta deschisă FĂRĂ poziție (toggle din iconul de sus).
+  // Reutilizează /recommend fără teamId/positionId → întoarce toți candidații grupați (fără conflict / cu conflict).
+  const openBrowse = useCallback(async () => {
+    const pid = (data?.plans || [])[0]?.id;
+    if (!pid) { flash("Niciun plan."); return; }
+    setBrowse(true); setSel(null); setTarget(null); setTargetSched(null);
+    setRec(null); setRecQuery(""); setRecBusy(true);
+    try { setRec(await plansApi.recommend(pid)); }
+    catch (e) { setErr(e?.message || "Eroare."); }
+    finally { setRecBusy(false); }
+  }, [data?.plans]);
+
+  // căutare în bară (debounced) — merge și în mod „vizualizare" (fără poziție)
   useEffect(() => {
-    if (!sel) return;
+    if (!sel && !browse) return;
     clearTimeout(recTimer.current);
     recTimer.current = setTimeout(async () => {
+      const pid = sel?.planId || (data?.plans || [])[0]?.id;
+      if (!pid) return;
       setRecBusy(true);
-      try { setRec(await plansApi.recommend(sel.planId, { teamId: sel.teamId, positionId: sel.positionId, q: recQuery })); }
+      try { setRec(await plansApi.recommend(pid, sel ? { teamId: sel.teamId, positionId: sel.positionId, q: recQuery } : { q: recQuery })); }
       finally { setRecBusy(false); }
     }, 280);
     return () => clearTimeout(recTimer.current);
@@ -186,7 +203,7 @@ export default function MatrixPage() {
   }, [recQuery]);
 
   async function assignPerson(p, mirror) {
-    if (!sel) return;
+    if (!sel) { flash("Click pe o căsuță (poziție) din grilă ca să asignezi pe cineva."); return; }
     setAssigning(true);
     const push = (c, id) => ({ ...c, people: [...c.people, { personId: p.id, assignmentId: id, name: p.name, avatar: p.avatar, initials: p.initials, status: "unconfirmed" }], needed: Math.max(0, (c.needed || 0) - 1) });
     // optimist: pune persoana în celulă (+ pe pereche dacă bifat)
@@ -269,7 +286,7 @@ export default function MatrixPage() {
   }
 
   const toggle = (id) => setCollapsed((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const closeSide = () => { setSel(null); setRec(null); };
+  const closeSide = () => { setSel(null); setBrowse(false); setRec(null); };
 
   useAiSurface({
     id: "plans.matrix", label: "Matrix — planificare", scope: "page",
@@ -307,7 +324,7 @@ export default function MatrixPage() {
   const removeServiceType = (id) => { if (String(id) === String(serviceTypeId)) return; setStIds((p) => p.filter((x) => String(x) !== String(id))); setSelectedPlanIds(null); };
 
   return (
-    <div className={`matrix pc-full ${sel ? "has-side" : ""} ${showSettings ? "has-left" : ""} ${barOpen ? "has-bar" : ""} ${dragActive ? "drag" : ""}`}>
+    <div className={`matrix pc-full ${(sel || browse) ? "has-side" : ""} ${showSettings ? "has-left" : ""} ${barOpen ? "has-bar" : ""} ${dragActive ? "drag" : ""}`}>
       {/* ───── bara de sus ───── */}
       <div className="mtop">
         <div className="mt-left">
@@ -358,23 +375,31 @@ export default function MatrixPage() {
                 ) : (
                   <>
                     <button className="dm-addst" onClick={() => setShowAddSt(true)}>+ Add Service Type</button>
-                    {stSections.map((sec) => (
-                      <div key={sec.id} className="dm-sec">
-                        <div className="dm-sechead">
-                          <span className="dm-secn">{sec.stName}</span>
-                          {String(sec.id) !== String(serviceTypeId) && <button className="dm-secx" onClick={() => removeServiceType(sec.id)} title="Scoate service type">×</button>}
+                    {stSections.map((sec) => {
+                      const col = dmCol.has(String(sec.id));
+                      const nSel = sec.vis.filter((o) => isSel(o.id)).length;
+                      return (
+                        <div key={sec.id} className="dm-sec">
+                          <div className="dm-sechead" onClick={() => toggleDmSec(sec.id)}>
+                            <span className={`dm-seccar ${col ? "col" : ""}`}>▾</span>
+                            <span className="dm-secn">{sec.stName}</span>
+                            {nSel > 0 && <span className="dm-secb">{nSel}</span>}
+                            {String(sec.id) !== String(serviceTypeId) && <button className="dm-secx" onClick={(e) => { e.stopPropagation(); removeServiceType(sec.id); }} title="Scoate service type">×</button>}
+                          </div>
+                          {!col && (
+                            <div className="dm-list">
+                              {sec.vis.map((o) => (
+                                <label key={o.id} className="dm-row">
+                                  <input type="checkbox" checked={isSel(o.id)} onChange={() => togglePlan(o.id)} />
+                                  <span className="dm-d">{o.dateLabel}</span>
+                                </label>
+                              ))}
+                              {sec.vis.length === 0 && <div className="dm-empty">Niciun plan.</div>}
+                            </div>
+                          )}
                         </div>
-                        <div className="dm-list">
-                          {sec.vis.map((o) => (
-                            <label key={o.id} className="dm-row">
-                              <input type="checkbox" checked={isSel(o.id)} onChange={() => togglePlan(o.id)} />
-                              <span className="dm-d">{o.dateLabel}</span>
-                            </label>
-                          ))}
-                          {sec.vis.length === 0 && <div className="dm-empty">Niciun plan.</div>}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </>
                 )}
               </div>
@@ -394,8 +419,8 @@ export default function MatrixPage() {
             onClick={() => setBarOpen((v) => !v)}>
             👥 Listă live
           </button>
-          <button className={`plan-btn ${sel ? "on" : ""}`} title="Deschide bara de asignare (ultima poziție)"
-            onClick={() => { const l = lastSelRef.current; if (sel) return; if (l) openCell(l.planId, l.teamId, l.positionId, l.positionName, l.colIdx); else flash("Click pe o poziție în grilă pentru a deschide bara."); }}>
+          <button className={`plan-btn ${(sel || browse) ? "on" : ""}`} title="Vizualizează toți oamenii (toggle). Click pe o căsuță → se schimbă pe acea poziție."
+            onClick={() => { if (sel || browse) closeSide(); else openBrowse(); }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2.5" y="3" width="11" height="11" rx="1.5" /><path d="M2.5 6h11M5.5 1.5v2.5M10.5 1.5v2.5M8 8.5v3M6.5 10h3" /></svg>
           </button>
         </div>
@@ -535,8 +560,9 @@ export default function MatrixPage() {
 
       {/* ───── bara GLOBALĂ de asignare (dreapta) ───── */}
       <AssignSidebar
-        open={!!sel}
-        title={sel?.positionName || ""}
+        open={!!sel || browse}
+        browse={browse}
+        title={sel?.positionName || (browse ? "Toți oamenii" : "")}
         neededCount={rec?.neededCount || 0}
         loading={recBusy}
         groups={rec?.groups || []}
@@ -554,7 +580,7 @@ export default function MatrixPage() {
       <CoverageBar
         open={barOpen} onToggle={() => setBarOpen((v) => !v)} cov={cov} loading={covBusy}
         filters={barFilters} onRemoveFilter={(t) => setBarFilters((f) => ({ ...f, [t]: t === "ministry" ? null : "" }))}
-        style={{ left: showSettings ? 316 : 0, right: sel ? 340 : 0 }}
+        style={{ left: showSettings ? 316 : 0, right: (sel || browse) ? 348 : 0 }}
         onPersonDragStart={(p) => { dragRef.current = { personId: p.id, name: p.name, avatar: p.avatar, initials: p.initials, fromBar: true, move: false }; setDragActive(true); }}
         onPersonDragEnd={() => setDragActive(false)}
       />
@@ -653,9 +679,14 @@ export default function MatrixPage() {
         .dm-cancel { text-align: left; margin-top: 6px; background: transparent; border: none; color: var(--text-dim); padding: 8px 10px; cursor: pointer; font-size: 12.5px; }
         .dm-cancel:hover { color: var(--text); }
         .dm-sec { padding-top: 10px; }
-        .dm-sechead { display: flex; align-items: center; justify-content: space-between; color: var(--text-dim); font-size: 12.5px; font-weight: 600; padding: 2px 2px 4px; }
-        .dm-secn { color: var(--text); }
-        .dm-secx { background: transparent; border: none; color: var(--text-faint); font-size: 17px; cursor: pointer; line-height: 1; }
+        .dm-sechead { display: flex; align-items: center; gap: 8px; color: var(--text-dim); font-size: 12.5px; font-weight: 700;
+          background: var(--section-head-bg); border-radius: 7px; padding: 8px 10px; cursor: pointer; }
+        .dm-sechead:hover { background: #26303c; }
+        .dm-seccar { color: var(--text-faint); font-size: 10px; transition: transform .12s; flex: none; }
+        .dm-seccar.col { transform: rotate(-90deg); }
+        .dm-secn { color: var(--text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .dm-secb { color: var(--text-dim); font-size: 11px; background: var(--surface-2); border-radius: 20px; padding: 1px 9px; min-width: 22px; text-align: center; flex: none; }
+        .dm-secx { background: transparent; border: none; color: var(--text-faint); font-size: 17px; cursor: pointer; line-height: 1; flex: none; padding: 0 2px; }
         .dm-secx:hover { color: var(--danger); }
         .dm-load { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 5px 8px; font-size: 11.5px; cursor: pointer; white-space: nowrap; }
         .dm-load:hover:not(:disabled) { color: var(--text); border-color: var(--primary); } .dm-load:disabled { opacity: .35; cursor: default; }
@@ -683,8 +714,10 @@ export default function MatrixPage() {
         .cell { border-bottom: 1px solid var(--border-soft); border-right: 1px solid var(--border-soft); font-size: 12.5px; }
         .head { position: sticky; top: 0; z-index: 3; background: var(--surface-2); }
         .corner { position: sticky; left: 0; z-index: 4; }
-        .planhead { padding: 8px 12px; }
-        .planhead.selcol { background: rgba(47,129,247,.12); }
+        .planhead { padding: 8px 12px; background: var(--surface-2); }
+        /* tint-ul de coloană selectată se compune PESTE fundalul opac (altfel header-ul devine translucid
+           și se vede conținutul care derulează pe sub — vizibil mai ales pe ultima coloană). */
+        .planhead.selcol { background: linear-gradient(rgba(47,129,247,.14), rgba(47,129,247,.14)), var(--surface-2); }
         .ph-st { color: var(--text-faint); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .ph-date { color: var(--text); font-size: 12.5px; font-weight: 600; margin-top: 2px; }
         .teamblock { background: var(--section-head-bg); border-bottom: 1px solid var(--border); border-top: 1px solid var(--border);

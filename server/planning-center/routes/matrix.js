@@ -121,7 +121,7 @@ router.get("/:serviceTypeId", requireCan("services.schedule"), async (req, res) 
       serviceTypes: allSts.map((s) => ({ id: s._id, name: s.name })),
       hasPrev, hasNext,
       // pt. dropdown-ul „Quick load plans" (checklist): toate planurile + care sunt afișate acum
-      planOptions: allPlans.map((p) => ({ id: p._id, stName: stName[String(p.serviceTypeId)] || "", dateLabel: fmtDate(p.sortDate, tz), selected: planIds.some((id) => String(id) === String(p._id)) })),
+      planOptions: allPlans.map((p) => ({ id: p._id, stId: p.serviceTypeId, stName: stName[String(p.serviceTypeId)] || "", dateLabel: fmtDate(p.sortDate, tz), selected: planIds.some((id) => String(id) === String(p._id)) })),
       plans: plans.map((p) => ({ id: p._id, stId: p.serviceTypeId, stName: stName[String(p.serviceTypeId)] || "", dateLabel: fmtDate(p.sortDate, tz), weekday: fmtWeekday(p.sortDate, tz) })),
       teams: teamRows,
     });
