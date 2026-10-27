@@ -239,8 +239,11 @@ router.get("/:serviceTypeId/coverage", requireCan("services.schedule"), async (r
     const poolIds = await PcAssignment.distinct("personId", poolMatch);
 
     const people = await PcPerson.find(scoped(req, { _id: { $in: poolIds }, status: "active", schedulingStatus: { $in: ["available", null] } }))
-      .collation({ locale: "ro", strength: 1 }).select("firstName lastName avatar").lean();
+      .collation({ locale: "ro", strength: 1 }).select("firstName lastName avatar programIntent").lean();
     const pid = people.map((p) => p._id);
+    // SIM-ul echipei filtrate (din nume) → recomandăm întâi oamenii de pe acel SIM în Lista live
+    const selTeam = teamId ? teams.find((t) => String(t._id) === String(teamId)) : null;
+    const teamSim = (() => { const m = String(selTeam?.name || "").match(/\(\s*(?:sim\s*)?([12])\s*\)/i); return m ? m[1] : ""; })();
 
     // asignări în INTERVAL (distinct pe plan)
     const winMatch = scoped(req, { personId: { $in: pid }, planId: { $in: planIds }, status: { $ne: "declined" } });
@@ -264,14 +267,16 @@ router.get("/:serviceTypeId/coverage", requireCan("services.schedule"), async (r
       return {
         id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "),
         initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase(), avatar: p.avatar || "",
-        scheduled: sched, blocked, free,
+        programIntent: p.programIntent || "", scheduled: sched, blocked, free,
       };
     }).filter(Boolean);
 
-    // buckets: 0× (neplanificați) … 4×+; în fiecare, cei mai „liberi" întâi
+    // prioritate SIM: oamenii de pe SIM-ul echipei filtrate apar primii
+    const simRank = (r) => (teamSim && r.programIntent === teamSim ? 0 : 1);
+    // buckets: 0× (neplanificați) … 4×+; în fiecare, întâi SIM-ul echipei, apoi cei mai „liberi"
     const bucket = (n, last) => ({
       times: n, label: n === 0 ? "Neplanificați" : (last ? `${n}×+` : `${n}×`),
-      people: rows.filter((r) => last ? r.scheduled >= n : r.scheduled === n).sort((a, b) => b.free - a.free || a.name.localeCompare(b.name)),
+      people: rows.filter((r) => last ? r.scheduled >= n : r.scheduled === n).sort((a, b) => (simRank(a) - simRank(b)) || (b.free - a.free) || a.name.localeCompare(b.name)),
     });
     const buckets = [bucket(0), bucket(1), bucket(2), bucket(3), bucket(4, true)];
 

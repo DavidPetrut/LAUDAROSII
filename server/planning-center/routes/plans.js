@@ -828,6 +828,9 @@ router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) =
     const dayStart = new Date(planDate); dayStart.setHours(0, 0, 0, 0);
     const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
     const pos = positionId ? await PcPosition.findOne(scoped(req, { _id: positionId })).lean() : null;
+    // SIM-ul poziției = SIM-ul echipei (din nume, ex. „Asimilare (SIM 2)") → recomandăm întâi oamenii de pe acel SIM
+    const teamR = teamId ? await PcTeam.findOne(scoped(req, { _id: teamId })).select("name").lean() : null;
+    const teamSim = (() => { const m = String(teamR?.name || "").match(/\(\s*(?:sim\s*)?([12])\s*\)/i); return m ? m[1] : ""; })();
 
     // orele de serviciu ale planului (pt. selectorul de oră la asignare / split-teams)
     const tzR = await campusTz(req);
@@ -911,17 +914,20 @@ router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) =
       return {
         id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "),
         initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase(), avatar: p.avatar || "",
-        gender: p.gender || "", weeksLabel, dueSort: lastAtPosWeeks == null ? 9999 : lastAtPosWeeks,
+        gender: p.gender || "", programIntent: p.programIntent || "", weeksLabel, dueSort: lastAtPosWeeks == null ? 9999 : lastAtPosWeeks,
         monthCount, targetPerMonth, belowTarget,
         targetLabel: targetPerMonth > 0 ? `${monthCount}/${targetPerMonth}` : "",
         conflict, conflicts, alreadyHere, churchBlocked,
       };
     }).filter((r) => !r.churchBlocked); // exclude din liste pe cei cu blocaj de biserică
 
-    // grupare + sortare: fără conflict — întâi sub target (cine n-a atins cota), apoi „due" (demult), apoi nume
+    // prioritate SIM: dacă poziția e pe un program (SIM1/SIM2), oamenii de pe ACEL SIM apar primii
+    // (atât fără conflict, cât și cu conflict). Fără marker de SIM → fără prioritate (0).
+    const simRank = (r) => (teamSim && r.programIntent === teamSim ? 0 : 1);
+    // grupare + sortare: fără conflict — întâi SIM-ul poziției, apoi sub target, apoi „due" (demult), apoi nume
     const noConf = rows.filter((r) => !r.conflict && !r.alreadyHere)
-      .sort((a, b) => (b.belowTarget - a.belowTarget) || (b.dueSort - a.dueSort) || a.name.localeCompare(b.name));
-    const withConf = rows.filter((r) => r.conflict && !r.alreadyHere).sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => (simRank(a) - simRank(b)) || (b.belowTarget - a.belowTarget) || (b.dueSort - a.dueSort) || a.name.localeCompare(b.name));
+    const withConf = rows.filter((r) => r.conflict && !r.alreadyHere).sort((a, b) => (simRank(a) - simRank(b)) || a.name.localeCompare(b.name));
     const here = rows.filter((r) => r.alreadyHere);
     const needed = positionId ? (await PcNeededPosition.findOne(scoped(req, { planId, positionId })).select("count").lean())?.count || 0 : 0;
     res.json({
