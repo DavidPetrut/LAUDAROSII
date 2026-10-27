@@ -460,6 +460,10 @@ router.post("/", requireCan("people.create"), async (req, res) => {
     if (!b.firstName || !String(b.firstName).trim()) {
       return res.status(400).json({ error: "Prenumele este obligatoriu." });
     }
+    // Genul e OBLIGATORIU (ca în PCO la Add Person) — e folosit de regulile de recomandare.
+    if (!["M", "F"].includes(b.gender)) {
+      return res.status(400).json({ error: "Genul (M/F) este obligatoriu." });
+    }
     // Validare email simplă (ca PCO: „invalid formatting").
     const emails = (Array.isArray(b.emails) ? b.emails : []).filter((e) => e && e.address);
     for (const e of emails) {
@@ -477,6 +481,7 @@ router.post("/", requireCan("people.create"), async (req, res) => {
       phones: (Array.isArray(b.phones) ? b.phones : []).filter((p) => p && p.number),
       addresses: Array.isArray(b.addresses) ? b.addresses : [],
       gender: ["M", "F"].includes(b.gender) ? b.gender : "",
+      programIntent: ["1", "2"].includes(String(b.programIntent)) ? String(b.programIntent) : "",
       birthdate: b.birthdate ? new Date(b.birthdate) : null,
       anniversary: b.anniversary ? new Date(b.anniversary) : null,
       maritalStatus: b.maritalStatus || "",
@@ -496,6 +501,16 @@ router.post("/", requireCan("people.create"), async (req, res) => {
           media: !!b.accessIntent.fileAccess?.media,
         },
       };
+    }
+    // Unificare cu contul MOBILE (sursa de adevăr): dacă există deja un user în aplicație cu
+    // același email, legăm profilul la el (userId) — nu creăm un cont separat. Fără email.
+    const primaryEmail = (emails.find((e) => e.primary) || emails[0])?.address;
+    if (primaryEmail) {
+      try {
+        const User = require("../../models/User");
+        const u = await User.findOne({ email: String(primaryEmail).toLowerCase(), deletedAt: null }).select("_id").lean();
+        if (u) doc.userId = u._id;
+      } catch { /* legarea e best-effort */ }
     }
     const person = await PcPerson.create(stamp(req, doc));
     res.status(201).json(toRow(person.toObject()));

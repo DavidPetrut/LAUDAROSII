@@ -66,6 +66,9 @@ router.put("/me", authMiddleware, async (req, res) => {
       { new: true }
     ).select("-passwordHash");
 
+    // propagă overwrite-ul (nume/telefon/poză) în profilul PC linkat. Non-blocant, fără email.
+    try { require("../planning-center/services/peopleSync").syncPersonFromUser(user).catch(() => {}); } catch {}
+
     res.json(user);
   } catch (error) {
     res.status(500).json({ error: "Eroare la actualizare" });
@@ -225,6 +228,8 @@ router.delete("/:id", authMiddleware, isSuperAdmin, async (req, res) => {
     // Rara, dar tot auditata. Implicit facem soft-delete recuperabil.
     if (req.query.purge === "true") {
       await cleanupUserData(req.params.id);
+      // PURGE: șterge FIZIC profilul din PC People (istoricul de asignări rămâne). Fără email.
+      try { await require("../planning-center/services/peopleSync").removePersonForUser(req.params.id, { hard: true }); } catch (e) { console.error("[pc] purge sync:", e.message); }
       await User.findByIdAndDelete(req.params.id);
       await writeAudit({
         action: "user.purge",
@@ -242,6 +247,9 @@ router.delete("/:id", authMiddleware, isSuperAdmin, async (req, res) => {
     user.status.isActive = false;
     user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
+
+    // soft-delete recuperabil → iese din PC People (recuperabil), istoricul rămâne. Fără email.
+    try { await require("../planning-center/services/peopleSync").removePersonForUser(req.params.id); } catch (e) { console.error("[pc] soft-delete sync:", e.message); }
 
     await writeAudit({
       action: "user.soft-delete",

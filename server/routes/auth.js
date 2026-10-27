@@ -54,6 +54,10 @@ router.post("/register", authLimiter, async (req, res) => {
 
     await user.save();
 
+    // MOBILE = sursa de adevăr: contul apare automat în PCO (People) și devine asignabil.
+    // Non-blocant: dacă sync-ul PC eșuează, înregistrarea NU cade. ZERO emailuri.
+    try { require("../planning-center/services/peopleSync").syncPersonFromUser(user).catch(() => {}); } catch {}
+
     const token = jwt.sign(
       { id: user._id, role: user.role, tv: user.tokenVersion },
       process.env.JWT_SECRET,
