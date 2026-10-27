@@ -5,7 +5,7 @@
  * dreapta = „Service Types" — secțiuni colapsabile, fiecare cu tabel (Upcoming | TITLE | LAST UPDATED)
  * de date-planuri + „Add plan" + dropdown „Matrix". Date REALE din /api/pc/v1/plans.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { plansApi } from "@/lib/api/client";
 import { getStoredUser } from "@/lib/auth/auth";
@@ -21,6 +21,7 @@ export default function PlansPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [collapsed, setCollapsed] = useState(() => new Set()); // service types colapsate
+  const didInitCollapse = useRef(false); // colapsăm TOT o singură dată (la primul load), apoi respectăm alegerea userului
   const [limits, setLimits] = useState({}); // stId → câte planuri afișate (default 10)
   const [addFor, setAddFor] = useState(null); // {id, name} service type pt. Add Plans
   const [addDate, setAddDate] = useState("");
@@ -49,7 +50,13 @@ export default function PlansPage() {
   const orgName = useMemo(() => getStoredUser()?.org?.name || "Vertical București", []);
 
   const load = useCallback(async () => {
-    try { const r = await plansApi.list(); setServiceTypes(r.serviceTypes || []); }
+    try {
+      const r = await plansApi.list();
+      const sts = r.serviceTypes || [];
+      setServiceTypes(sts);
+      // Collapsed by default: la primul load colapsăm toate service type-urile.
+      if (!didInitCollapse.current) { setCollapsed(new Set(sts.map((s) => s.id))); didInitCollapse.current = true; }
+    }
     catch (e) { setErr(e?.message || "Eroare la încărcare."); }
     finally { setLoading(false); }
   }, []);
