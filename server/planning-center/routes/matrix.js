@@ -7,7 +7,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const {
   PcServiceType, PcPlan, PcPlanTime, PcAssignment, PcNeededPosition,
-  PcTeam, PcPosition, PcPerson, PcOrg, PcCampus,
+  PcTeam, PcPosition, PcPerson, PcOrg, PcCampus, PcBlockout,
 } = require("../models");
 const { scoped } = require("../core/orgScope");
 const { requireCan } = require("../core/permissions");
@@ -154,6 +154,85 @@ router.post("/:serviceTypeId/emails", requireCan("services.schedule"), async (re
   } catch (err) {
     console.error("[pc] POST /matrix/:serviceTypeId/emails:", err.message);
     res.status(500).json({ error: "Eroare la emailuri: " + err.message });
+  }
+});
+
+/* ───────── GET /:serviceTypeId/coverage — raport „persoane neplanificate" (live) ─────────
+   Pe un interval de N planuri + (opțional) o echipă: fiecare persoană care slujește în acest
+   service type, câte planuri are în interval (0×/1×/2×/3×/4×+), câte îi sunt blocate (blockout)
+   și de câte ori mai POATE fi planificată (free = N − planificat − blocat). Pool = cine a fost
+   vreodată asignat în acest ST (pc_team_members e gol la import). Doar READ. ZERO scrieri. */
+router.get("/:serviceTypeId/coverage", requireCan("services.schedule"), async (req, res) => {
+  try {
+    const stId = OID(req.params.serviceTypeId);
+    const count = Math.min(26, Math.max(1, parseInt(req.query.count, 10) || 4));
+    const teamId = OID(req.query.teamId);
+    const tz = await campusTz(req);
+    const st = await PcServiceType.findOne(scoped(req, { _id: stId })).select("name").lean();
+
+    // interval = aceleași planuri ca grila (viitoare întâi, completate cu recente)
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    let plans = await PcPlan.find(scoped(req, { serviceTypeId: stId, sortDate: { $gte: todayStart } })).sort({ sortDate: 1 }).limit(count).lean();
+    if (plans.length < count) {
+      const extra = await PcPlan.find(scoped(req, { serviceTypeId: stId, sortDate: { $lt: todayStart } })).sort({ sortDate: -1 }).limit(count - plans.length).lean();
+      plans = [...extra.reverse(), ...plans];
+    }
+    const planIds = plans.map((p) => p._id);
+    const planKeys = plans.map((p) => new Date(p.sortDate).toISOString().slice(0, 10));
+
+    // echipele (pentru filtrul din pagină)
+    const teams = await PcTeam.find(scoped(req, { serviceTypeId: stId, archived: false })).sort({ sortOrder: 1 }).select("name").lean();
+
+    // pool: cine a slujit vreodată în acest ST (sau pe echipa selectată)
+    const allPlanIds = (await PcPlan.find(scoped(req, { serviceTypeId: stId })).select("_id").lean()).map((p) => p._id);
+    const poolMatch = scoped(req, { planId: { $in: allPlanIds }, status: { $ne: "declined" } });
+    if (teamId) poolMatch.teamId = teamId;
+    const poolIds = await PcAssignment.distinct("personId", poolMatch);
+
+    const people = await PcPerson.find(scoped(req, { _id: { $in: poolIds }, status: "active", schedulingStatus: { $in: ["available", null] } }))
+      .collation({ locale: "ro", strength: 1 }).select("firstName lastName avatar").lean();
+    const pid = people.map((p) => p._id);
+
+    // asignări în INTERVAL (distinct pe plan)
+    const winMatch = scoped(req, { personId: { $in: pid }, planId: { $in: planIds }, status: { $ne: "declined" } });
+    if (teamId) winMatch.teamId = teamId;
+    const winAssigns = await PcAssignment.find(winMatch).select("personId planId").lean();
+    const schedBy = {};
+    winAssigns.forEach((a) => (schedBy[String(a.personId)] = schedBy[String(a.personId)] || new Set()).add(String(a.planId)));
+
+    // blockouts
+    const blk = await PcBlockout.find(scoped(req, { personId: { $in: pid } })).select("personId startDate endDate").lean();
+    const blkBy = {}; blk.forEach((b) => (blkBy[String(b.personId)] = blkBy[String(b.personId)] || []).push(b));
+
+    const rows = people.map((p) => {
+      const sched = schedBy[String(p._id)] ? schedBy[String(p._id)].size : 0;
+      const myBlk = blkBy[String(p._id)] || [];
+      const blocked = planKeys.filter((dk) => myBlk.some((b) => (!b.startDate || b.startDate <= dk) && (!b.endDate || b.endDate >= dk))).length;
+      const free = Math.max(0, count - sched - blocked);
+      return {
+        id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "),
+        initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase(), avatar: p.avatar || "",
+        scheduled: sched, blocked, free,
+      };
+    });
+
+    // buckets: 0× (neplanificați) … 4×+; în fiecare, cei mai „liberi" întâi
+    const bucket = (n, last) => ({
+      times: n, label: n === 0 ? "Neplanificați" : (last ? `${n}×+` : `${n}×`),
+      people: rows.filter((r) => last ? r.scheduled >= n : r.scheduled === n).sort((a, b) => b.free - a.free || a.name.localeCompare(b.name)),
+    });
+    const buckets = [bucket(0), bucket(1), bucket(2), bucket(3), bucket(4, true)];
+
+    res.json({
+      serviceTypeName: st?.name || "", serviceTypeId: stId, teamId: teamId || null, count,
+      interval: plans.length ? `${fmtDate(plans[0].sortDate, tz)} – ${fmtDate(plans[plans.length - 1].sortDate, tz)}` : "",
+      teams: teams.map((t) => ({ teamId: t._id, name: t.name })),
+      total: rows.length,
+      buckets,
+    });
+  } catch (err) {
+    console.error("[pc] GET /matrix/:serviceTypeId/coverage:", err.message);
+    res.status(500).json({ error: "Eroare la raportul de acoperire: " + err.message });
   }
 });
 

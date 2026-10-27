@@ -24,13 +24,19 @@
 8. **Backend** — `/plans/:id/teams` returnează acum TOATE pozițiile (și goale, cu „Needed") + `assignmentId`
    / `personId` / status per om → Teams devine interactiv ca Matrix.
 
+### Ce am mai adăugat (azi, partea 3)
+9. **Raport „persoane neplanificate" LIVE** ✅ — buton „👥 Neplanificați" în Matrix deschide în **tab nou**
+   `/plans/coverage/:serviceTypeId`: coloane pe câte ori e planificată fiecare persoană în interval
+   (**Neplanificați / 1× / 2× / 3× / 4×+**), filtre **interval (N planuri) + slujire/echipă**,
+   **auto-refresh la 8s** (dispar pe măsură ce planifici în cealaltă filă). Fiecare card: **„mai poate ×N"**
+   (de câte ori mai poate fi planificat = N − planificat − blocat, ține cont de **blockouts** ⛔) + contor.
+   Backend `GET /matrix/:id/coverage` — DOAR READ. (cererea mare a liderului, finalul Word) ✅
+
 ### Ce a mai rămas (ți-l las clar)
 - **Gen real pe oameni** — PCO nu-l dă în export (câmp gol). Când îl avem (manual/heuristic), filtrul de Gen
   se activează automat. SIM merge deja (din nume).
 - **EditPersonModal — email/Service Times/Rehearsal/timeline real**: grila/Teams nu trimit încă aceste
   câmpuri; modalul le afișează doar când există. Le pot popula (mic adaos backend).
-- **Raport „persoane neplanificate" live** (cererea mare a liderului, finalul Word): fereastră nouă pe
-  interval+slujire, dispar pe măsură ce planifici, contor 1×/2×/3×/4×, max vs alocat. **Următorul pas mare.**
 - **Add Plans: Copy Times From + Templates** (Impact/Special/No Template).
 - **SIM1→SIM2 checkbox la assign** (acum e buton ⧉ pe echipă — merge; checkbox-ul e plus de confort).
 - **Blockout rules** (planificat+email→nu poți blockout; planificat+blockout→auto-decline) + **churchBlock**

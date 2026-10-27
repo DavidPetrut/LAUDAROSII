@@ -193,6 +193,10 @@ export default function MatrixPage() {
         <div className="mt-center">{dateRange}</div>
         <div className="mt-right">
           {target && <button className="exit-target" onClick={() => { setTarget(null); setTargetSched(null); }}>⌖ Exit target view</button>}
+          <button className="cover-btn" title="Persoane neplanificate (tab nou)"
+            onClick={() => window.open(`/plans/coverage/${serviceTypeId}?count=${count}`, "_blank")}>
+            👥 Neplanificați
+          </button>
           <label className="cnt">Planuri
             <select value={count} onChange={(e) => setCount(parseInt(e.target.value, 10))}>{[4, 6, 8, 10, 12].map((n) => <option key={n} value={n}>{n}</option>)}</select>
           </label>
@@ -321,6 +325,8 @@ export default function MatrixPage() {
         .mt-center { flex: 1; text-align: center; color: var(--text); font-size: 15px; font-weight: 600; }
         .mt-right { display: flex; align-items: center; gap: 12px; }
         .exit-target { background: rgba(47,129,247,.14); border: 1px solid var(--primary); color: #9cc4f5; border-radius: 6px; padding: 5px 10px; font-size: 12.5px; cursor: pointer; }
+        .cover-btn { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 5px 11px; font-size: 12.5px; cursor: pointer; }
+        .cover-btn:hover { color: var(--text); border-color: var(--primary); }
         .cnt { color: var(--text-dim); font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; }
         .cnt select { background: var(--surface-2); color: var(--text); border: 1px solid var(--border-strong); border-radius: 6px; height: 28px; }
         .grid-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 8px; max-height: calc(100vh - 140px); }

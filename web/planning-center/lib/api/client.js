@@ -142,6 +142,11 @@ export const mediaApi = {
 export const matrixApi = {
   // { serviceTypeId, plans:[{id,dateLabel}], teams:[{teamId,name,positions:[{positionId,name,cells:[{people:[{..,status}],needed}]}]}] }
   grid: (serviceTypeId, count = 4) => api.get(`/matrix/${serviceTypeId}?count=${count}`),
+  // raport „persoane neplanificate" (interval + slujire) — doar READ, fără scrieri
+  coverage: (serviceTypeId, count = 4, teamId) => {
+    const qs = new URLSearchParams(Object.entries({ count, teamId }).filter(([, v]) => v != null && v !== "")).toString();
+    return api.get(`/matrix/${serviceTypeId}/coverage${qs ? `?${qs}` : ""}`);
+  },
   // ATENȚIE: trimite emailuri reale. Se apelează DOAR la acțiune explicită a utilizatorului.
   sendEmails: (serviceTypeId, planIds, teamId) => api.post(`/matrix/${serviceTypeId}/emails`, { planIds, teamId }),
 };
