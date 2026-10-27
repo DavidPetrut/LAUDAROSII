@@ -58,7 +58,7 @@ export default function PeoplePage() {
     loadGroups();
     peopleApi.me().then((r) => {
       setCanManage(!!r?.capabilities?.manageServiceTypes);
-      if (r?.capabilities?.schedule) { setCanBlock(true); loadBlockedCount(); }
+      if (r?.capabilities?.manageBlocks) { setCanBlock(true); loadBlockedCount(); }
     }).catch(() => {});
   }, [loadGroups, loadBlockedCount]);
 

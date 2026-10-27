@@ -97,6 +97,7 @@ router.get("/me", async (req, res) => {
         viewAllPeople: await can(req, "people.viewAll"),
         createPeople: await can(req, "people.create"),
         editContact: await can(req, "people.editContact"),
+        manageBlocks: await can(req, "people.manageBlocks"),
         exportCsv: await can(req, "people.exportCsv"),
         import: await can(req, "people.import"),
         managePermissions: await can(req, "people.managePermissions"),
@@ -241,7 +242,7 @@ router.get("/", requireCan("people.view"), async (req, res) => {
 /* ───────── GET /blocked — oamenii blocați ACUM (real-time), pt. panoul de administrare ─────────
    Gated: doar cine poate planifica vede/administrează blocajele. Două surse:
    status persistent (onBreak/suspended) + church-block activ (type churchBlock, endDate ≥ azi). */
-router.get("/blocked", requireCan("services.schedule"), async (req, res) => {
+router.get("/blocked", requireCan("people.manageBlocks"), async (req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
     const [cbs, statusPeople] = await Promise.all([
@@ -394,7 +395,10 @@ router.patch("/:id", requireCan("services.schedule"), async (req, res) => {
     if (!id) return res.status(400).json({ error: "ID invalid." });
     const set = {};
     if (["M", "F", ""].includes(req.body?.gender)) set.gender = req.body.gender;
-    if (["available", "onBreak", "suspended"].includes(req.body?.schedulingStatus)) set.schedulingStatus = req.body.schedulingStatus;
+    if (["available", "onBreak", "suspended"].includes(req.body?.schedulingStatus)) {
+      if (!(await can(req, "people.manageBlocks"))) return res.status(403).json({ error: "Nu ai dreptul să modifici blocajele." });
+      set.schedulingStatus = req.body.schedulingStatus;
+    }
     if (!Object.keys(set).length) return res.status(400).json({ error: "Nimic de salvat." });
     const p = await PcPerson.findOneAndUpdate(scoped(req, { _id: id }), { $set: set }, { new: true }).select("gender schedulingStatus").lean();
     if (!p) return res.status(404).json({ error: "Persoană inexistentă." });
@@ -404,7 +408,7 @@ router.patch("/:id", requireCan("services.schedule"), async (req, res) => {
 
 /* POST /:id/church-block — planificatorul marchează persoana „blocată de biserică" (on-break):
    nu mai apare în liste. Default: de azi, pe termen nelimitat. DOAR DB, fără email. */
-router.post("/:id/church-block", requireCan("services.schedule"), async (req, res) => {
+router.post("/:id/church-block", requireCan("people.manageBlocks"), async (req, res) => {
   try {
     const personId = OID(req.params.id);
     if (!personId) return res.status(400).json({ error: "ID invalid." });
@@ -420,7 +424,7 @@ router.post("/:id/church-block", requireCan("services.schedule"), async (req, re
 });
 
 /* DELETE /:id/church-block — ridică blocajul de biserică (toate churchBlock active). DOAR DB. */
-router.delete("/:id/church-block", requireCan("services.schedule"), async (req, res) => {
+router.delete("/:id/church-block", requireCan("people.manageBlocks"), async (req, res) => {
   try {
     const personId = OID(req.params.id);
     const today = new Date().toISOString().slice(0, 10);

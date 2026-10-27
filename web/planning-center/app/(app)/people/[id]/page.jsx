@@ -69,7 +69,7 @@ export default function PersonPage() {
     setCb((s) => ({ ...s, start: s.start || today, end: d.toISOString().slice(0, 10) }));
   }
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { peopleApi.me().then((r) => setCanSched(!!r?.capabilities?.schedule)).catch(() => {}); }, []);
+  useEffect(() => { peopleApi.me().then((r) => setCanSched(!!r?.capabilities?.manageBlocks)).catch(() => {}); }, []);
   useEffect(() => { if (tab === "Communication" && !msgs) peopleApi.messages(id).then(setMsgs).catch(() => {}); }, [tab, id, msgs]);
 
   const confirmed = schedule.filter((s) => s.status === "confirmed").length;

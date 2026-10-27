@@ -60,7 +60,7 @@ const ACCESS_TO_LEVELS = {
 
 // Capabilitățile permise pentru „partial" (Planning Admin) — tot pe Plans/Songs/Media + view.
 const PARTIAL_CAPS = new Set([
-  "people.view", "people.viewAll", "people.assignTags",
+  "people.view", "people.viewAll", "people.assignTags", "people.manageBlocks",
   "services.manageServiceTypes", "services.addPlan", "services.editOrder", "services.schedule",
   "songs.edit", "media.edit", "reports.view",
 ]);
