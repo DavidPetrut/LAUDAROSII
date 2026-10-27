@@ -29,7 +29,7 @@ export default function MatrixPage() {
   const router = useRouter();
   const { serviceTypeId } = useParams();
   const [data, setData] = useState(null);
-  const [count, setCount] = useState(8);          // „Next plans" (Quantity)
+  const [count, setCount] = useState(4);          // „Next plans" (Quantity) — default 4 ca în PCO
   const [offset, setOffset] = useState(0);
   const [prev, setPrev] = useState(0);            // „Previous plans" (Quantity)
   const [dateMode, setDateMode] = useState(false); // Smart Load: Quantity vs Date
@@ -282,9 +282,15 @@ export default function MatrixPage() {
           </div>
         </div>
         <div className="mt-center">
-          <button className="darr" disabled={!data?.hasPrev} title="Planuri anterioare" onClick={() => setOffset((o) => o - Math.max(1, nPlans))}>‹</button>
+          <div className="dgrp">
+            <button className="darr" disabled={!data?.hasPrev} title="O săptămână în urmă (mută fereastra)" onClick={() => setOffset((o) => o - 1)}>‹</button>
+            <button className="dadd" disabled={!data?.hasPrev} title="Adaugă o săptămână la stânga (+1 coloană)" onClick={() => setPrev((p) => p + 1)}>+</button>
+          </div>
           <span className="drange">{dateRange}</span>
-          <button className="darr" disabled={!data?.hasNext} title="Planuri următoare" onClick={() => setOffset((o) => o + Math.max(1, nPlans))}>›</button>
+          <div className="dgrp">
+            <button className="dadd" disabled={!data?.hasNext} title="Adaugă o săptămână la dreapta (+1 coloană)" onClick={() => setCount((c) => Math.min(26, c + 1))}>+</button>
+            <button className="darr" disabled={!data?.hasNext} title="O săptămână înainte (mută fereastra)" onClick={() => setOffset((o) => o + 1)}>›</button>
+          </div>
         </div>
         <div className="mt-right">
           {target && <button className="exit-target" onClick={() => { setTarget(null); setTargetSched(null); }}>⌖ Exit target view</button>}
@@ -292,9 +298,6 @@ export default function MatrixPage() {
             onClick={() => setBarOpen((v) => !v)}>
             👥 Listă live
           </button>
-          <label className="cnt">Planuri
-            <select value={count} onChange={(e) => { setCount(parseInt(e.target.value, 10)); setOffset(0); }}>{[4, 6, 8, 10, 12].map((n) => <option key={n} value={n}>{n}</option>)}</select>
-          </label>
         </div>
       </div>
 
@@ -520,9 +523,12 @@ export default function MatrixPage() {
         .stgroup { background: var(--primary); color: #fff; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; padding: 7px 14px; position: sticky; left: 0; z-index: 2; border-top: 1px solid var(--border); }
         .caret { color: var(--text-faint); font-size: 10px; }
         .mt-center { flex: 1; display: flex; align-items: center; justify-content: center; gap: 14px; }
-        .darr { width: 30px; height: 30px; border-radius: 7px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); cursor: pointer; font-size: 17px; line-height: 1; }
-        .darr:hover:not(:disabled) { color: var(--text); border-color: var(--primary); }
-        .darr:disabled { opacity: .35; cursor: default; }
+        .dgrp { display: inline-flex; gap: 4px; }
+        .darr, .dadd { width: 30px; height: 30px; border-radius: 7px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); cursor: pointer; font-size: 17px; line-height: 1; }
+        .dadd { font-size: 16px; font-weight: 600; }
+        .darr:hover:not(:disabled), .dadd:hover:not(:disabled) { color: var(--text); border-color: var(--primary); }
+        .dadd:hover:not(:disabled) { background: rgba(47,129,247,.12); color: #9cc4f5; }
+        .darr:disabled, .dadd:disabled { opacity: .35; cursor: default; }
         .drange { color: var(--text); font-size: 16px; font-weight: 600; min-width: 180px; text-align: center; }
         .mt-right { display: flex; align-items: center; gap: 12px; }
         .exit-target { background: rgba(47,129,247,.14); border: 1px solid var(--primary); color: #9cc4f5; border-radius: 6px; padding: 5px 10px; font-size: 12.5px; cursor: pointer; }

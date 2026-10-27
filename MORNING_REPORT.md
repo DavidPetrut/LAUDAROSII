@@ -119,6 +119,12 @@
 - **Filtre ca TAG-uri colorate** (slujire / gen / SIM) fiecare cu **×** de scos; **nav view-uri în stânga**
   (Toți/Neplanificați/Planificați); moștenesc filtrele din poziția selectată, se scot ușor; carduri polish.
 
+### Navigare dată Matrix ca PCO (azi, partea 16) ✅
+- Controale **`‹ +  …  + ›`** (ca PCO): **săgețile `‹ ›` mută fereastra cu O săptămână** (nu toată deodată);
+  **`+` stânga adaugă o coloană la stânga** (plan mai vechi), **`+` dreapta adaugă la dreapta** (plan mai nou).
+- **Default 4 planuri**; dacă dai `+` crește nr. coloanelor, dacă muți cu săgeata păstrezi nr. de coloane.
+  Scos select-ul „Planuri" redundant (controlat din + și din rotița Settings).
+
 ### Ce a mai rămas (ți-l las clar)
 - **Bara movable** (trage-o oriunde ca tab flotant) — nice-to-have.
 - **Fișiere poziție pe email** (trimis la useri) — sensibil, cu tine.
