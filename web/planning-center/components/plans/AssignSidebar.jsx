@@ -127,40 +127,65 @@ export default function AssignSidebar({
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h12M4 8h8M6 12h4" /></svg>
             </button>
             {onSaveRules && positionId && (
-              <button className={`asb-filt ${rulesOn ? "on" : ""}`} title="Reguli poziție (gen/SIM/target)" onClick={() => setRulesOn((v) => !v)}>⚙</button>
+              <button className={`asb-filt ${rulesOn ? "on" : ""}`} title="Reguli poziție (gen / program / target)" onClick={() => setRulesOn((v) => !v)}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09A1.65 1.65 0 0 0 9 4.6V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+              </button>
             )}
           </div>
 
           {rulesOn && (
             <div className="asb-rules">
-              <div className="rr-t">Reguli poziție — filtrele se pre-selectează la deschidere</div>
-              <div className="ff"><span className="ff-l">Gen</span>
-                {[["any", "Oricine"], ["M", "Băieți"], ["F", "Fete"]].map(([v, l]) => (
-                  <button key={v} className={`chip ${draft.defaultGender === v ? "on" : ""}`} onClick={() => setDraft((d) => ({ ...d, defaultGender: v }))}>{l}</button>
-                ))}
+              <div className="rr-head">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09A1.65 1.65 0 0 0 9 4.6V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+                <span>Reguli poziție</span>
               </div>
-              <div className="ff"><span className="ff-l">SIM</span>
-                {[["any", "Oricare"], ["1", "1"], ["2", "2"]].map(([v, l]) => (
-                  <button key={v} className={`chip ${draft.defaultProgram === v ? "on" : ""}`} onClick={() => setDraft((d) => ({ ...d, defaultProgram: v }))}>{l}</button>
-                ))}
+
+              <div className="rr-sec">
+                <span className="rr-ll">Gen</span>
+                <div className="seg">
+                  {[["any", "Oricine"], ["M", "Băieți"], ["F", "Fete"]].map(([v, l]) => (
+                    <button key={v} className={`seg-b ${draft.defaultGender === v ? "on" : ""}`} onClick={() => setDraft((d) => ({ ...d, defaultGender: v }))}>{l}</button>
+                  ))}
+                </div>
               </div>
-              <div className="ff"><span className="ff-l">Target</span>
-                <input className="rr-num" type="number" min="0" max="31" value={draft.targetPerMonth}
-                  onChange={(e) => setDraft((d) => ({ ...d, targetPerMonth: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
-                <span className="rr-x">×/lună</span>
+
+              <div className="rr-sec">
+                <span className="rr-ll">Program</span>
+                <div className="seg">
+                  {[["any", "Oricare"], ["1", "SIM 1"], ["2", "SIM 2"]].map(([v, l]) => (
+                    <button key={v} className={`seg-b ${draft.defaultProgram === v ? "on" : ""}`} onClick={() => setDraft((d) => ({ ...d, defaultProgram: v }))}>{l}</button>
+                  ))}
+                </div>
               </div>
-              <div className="rr-field">
-                <div className="rr-ll">Instrucțiuni (manual poziție)</div>
-                <textarea className="rr-ta" value={draft.instructions} onChange={(e) => setDraft((d) => ({ ...d, instructions: e.target.value }))} placeholder="Ce trebuie să știe cineva pe această poziție…" />
+
+              <div className="rr-sec">
+                <span className="rr-ll">Target</span>
+                <div className="rr-step">
+                  <button className="rr-sb" onClick={() => setDraft((d) => ({ ...d, targetPerMonth: Math.max(0, (d.targetPerMonth || 0) - 1) }))} aria-label="Scade">−</button>
+                  <input className="rr-num" type="number" min="0" max="31" value={draft.targetPerMonth}
+                    onChange={(e) => setDraft((d) => ({ ...d, targetPerMonth: Math.max(0, Math.min(31, parseInt(e.target.value, 10) || 0)) }))} />
+                  <button className="rr-sb" onClick={() => setDraft((d) => ({ ...d, targetPerMonth: Math.min(31, (d.targetPerMonth || 0) + 1) }))} aria-label="Crește">+</button>
+                  <span className="rr-x">× / lună</span>
+                </div>
               </div>
-              <button className="asb-gbtn" disabled={rulesBusy} onClick={saveRules}>{rulesBusy ? "Se salvează…" : "Salvează regula + instrucțiuni"}</button>
-              <div className="rr-field">
-                <div className="rr-ll">Fișiere (manual)</div>
-                {posFiles.length === 0 && <div className="rr-none">Niciun fișier.</div>}
+
+              <div className="rr-sec col">
+                <span className="rr-ll">Instrucțiuni</span>
+                <textarea className="rr-ta" value={draft.instructions} onChange={(e) => setDraft((d) => ({ ...d, instructions: e.target.value }))} placeholder="Ce trebuie să știe cineva pe poziția asta…" />
+              </div>
+
+              <button className="asb-gbtn" disabled={rulesBusy} onClick={saveRules}>{rulesBusy ? "Se salvează…" : "Salvează"}</button>
+
+              <div className="rr-div" />
+
+              <div className="rr-sec col">
+                <span className="rr-ll">Fișiere (manual)</span>
+                {posFiles.length === 0 && <div className="rr-none">Niciun fișier încă.</div>}
                 {posFiles.map((f) => (
                   <div key={f.id} className="rr-file">
+                    <svg className="rr-fi" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>
                     {f.url ? <a href={f.url} target="_blank" rel="noreferrer">{f.name}</a> : <span>{f.name}</span>}
-                    <button onClick={() => delPosFile(f.id)} title="Șterge">×</button>
+                    <button onClick={() => delPosFile(f.id)} title="Șterge" aria-label="Șterge fișier">×</button>
                   </div>
                 ))}
                 <input ref={fileRef} type="file" style={{ display: "none" }} onChange={(e) => uploadPosFile(e.target.files?.[0])} />
@@ -280,19 +305,40 @@ export default function AssignSidebar({
           background: rgba(47,129,247,.08); border: 1px solid rgba(47,129,247,.3); border-radius: 6px;
           color: var(--text-dim); font-size: 12.5px; cursor: pointer; }
         .asb-mirror input { accent-color: var(--primary); }
-        .asb-rules { margin: 0 16px 10px; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 8px; display: flex; flex-direction: column; gap: 9px; }
-        .rr-t { color: var(--text-faint); font-size: 11px; line-height: 1.4; }
-        .rr-num { width: 52px; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; height: 26px; padding: 0 8px; font-size: 13px; }
+        .asb-rules { margin: 0 16px 10px; padding: 12px 13px; background: var(--surface-2); border: 1px solid var(--border-strong);
+          border-radius: 9px; display: flex; flex-direction: column; gap: 11px; animation: rulesIn .18s ease; }
+        @keyframes rulesIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+        .rr-head { display: flex; align-items: center; gap: 7px; color: var(--text); font-size: 12.5px; font-weight: 600; }
+        .rr-head svg { color: var(--product); flex: none; }
+        .rr-sec { display: flex; align-items: center; gap: 10px; }
+        .rr-sec.col { flex-direction: column; align-items: stretch; gap: 6px; }
+        .rr-ll { color: var(--text-faint); font-size: 10.5px; letter-spacing: .4px; text-transform: uppercase; }
+        .rr-sec > .rr-ll { width: 58px; flex: none; }
+        .seg { display: flex; flex: 1; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 7px; padding: 2px; gap: 2px; }
+        .seg-b { flex: 1; background: transparent; border: none; color: var(--text-dim); font-size: 12px; padding: 5px 0;
+          border-radius: 5px; cursor: pointer; transition: background .13s, color .13s; }
+        .seg-b:hover { color: var(--text); }
+        .seg-b.on { background: var(--primary); color: #fff; font-weight: 600; }
+        .rr-step { display: flex; align-items: center; gap: 6px; }
+        .rr-sb { width: 27px; height: 27px; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-dim);
+          border-radius: 6px; cursor: pointer; font-size: 16px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; transition: border-color .12s, color .12s; }
+        .rr-sb:hover { color: var(--text); border-color: var(--primary); }
+        .rr-num { width: 44px; text-align: center; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text);
+          border-radius: 6px; height: 27px; font-size: 13px; outline: none; -moz-appearance: textfield; }
+        .rr-num::-webkit-inner-spin-button, .rr-num::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        .rr-num:focus { border-color: var(--primary); }
         .rr-x { color: var(--text-faint); font-size: 11.5px; }
-        .rr-field { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
-        .rr-ll { color: var(--text-faint); font-size: 10.5px; letter-spacing: .4px; }
-        .rr-ta { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 6px; color: var(--text); font-size: 12.5px; padding: 7px 9px; min-height: 60px; resize: vertical; font-family: inherit; outline: none; }
+        .rr-ta { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 6px; color: var(--text); font-size: 12.5px;
+          padding: 8px 9px; min-height: 58px; resize: vertical; font-family: inherit; outline: none; line-height: 1.5; }
         .rr-ta:focus { border-color: var(--primary); }
+        .rr-div { height: 1px; background: var(--border); margin: 1px 0; }
         .rr-none { color: var(--text-faint); font-size: 12px; }
-        .rr-file { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; padding: 4px 0; }
-        .rr-file a { color: var(--text-link); } .rr-file a:hover { text-decoration: underline; }
-        .rr-file button { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 15px; } .rr-file button:hover { color: var(--danger); }
-        .rr-up { background: var(--surface); border: 1px dashed var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 7px; cursor: pointer; font-size: 12.5px; }
+        .rr-file { display: flex; align-items: center; gap: 7px; font-size: 12.5px; padding: 3px 0; }
+        .rr-fi { color: var(--text-faint); flex: none; }
+        .rr-file a { color: var(--text-link); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .rr-file a:hover { text-decoration: underline; }
+        .rr-file span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .rr-file button { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 15px; flex: none; line-height: 1; } .rr-file button:hover { color: var(--danger); }
+        .rr-up { background: var(--surface); border: 1px dashed var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 8px; cursor: pointer; font-size: 12.5px; transition: border-color .12s, color .12s; }
         .rr-up:hover { color: var(--primary); border-color: var(--primary); }
         .asb-filters { padding: 0 16px 10px; display: flex; flex-direction: column; gap: 8px; }
         .ff { display: flex; align-items: center; gap: 6px; }
