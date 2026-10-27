@@ -22,6 +22,7 @@ export default function AssignSidebar({
   defaults, positionId, onSaveRules, instructions, browse = false, serviceTimes = [],
 }) {
   const [selTimes, setSelTimes] = useState(() => new Set()); // orele alese la asignare (gol = toate orele / „During All")
+  const [tipFor, setTipFor] = useState(null); // id-ul persoanei cu tooltip-ul de conflict deschis
   const [sim, setSim] = useState("");          // "", "1", "2"
   const [gender, setGender] = useState("");    // "", "M", "F"
   const [simOn, setSimOn] = useState(false);   // afișează rândul de filtre
@@ -94,6 +95,15 @@ export default function AssignSidebar({
   const fGroups = groups
     .map((g) => ({ ...g, people: (g.people || []).filter(filterPerson) }))
     .filter((g) => g.people.length);
+
+  // tooltip conflict: închide la click oriunde în afara iconiței (icoana face stopPropagation)
+  useEffect(() => {
+    if (!tipFor) return;
+    const h = () => setTipFor(null);
+    window.addEventListener("click", h);
+    return () => window.removeEventListener("click", h);
+  }, [tipFor]);
+  const cfList = (p) => (p.conflicts && p.conflicts.length ? p.conflicts : (p.conflict ? [p.conflict] : []));
 
   return (
     <aside className={`asb ${open ? "open" : ""}`} aria-hidden={!open}>
@@ -266,9 +276,12 @@ export default function AssignSidebar({
                     <button key={p.id} className="cand" disabled={assigning} onClick={() => onPick(p, mirror?.available ? mirrorOn : false, [...selTimes])} title={browse ? "Click pe o căsuță din grilă ca să asignezi" : "Asignează (fără email)"}>
                       <PersonAvatar person={p} size={28} showBadge={false} />
                       <span className="cn">{p.name}</span>
-                      {p.conflict && (
-                        <span className={`cf ${p.conflict.type}`} title={p.conflict.type === "blockout" ? "Blockout" : "Planificat în altă slujire"}>
-                          <span className="cf-dot" />{p.conflict.count > 1 ? p.conflict.count : ""}
+                      {cfList(p).length > 0 && (
+                        <span className="cfwrap" title="Click: detalii conflict"
+                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); e.nativeEvent.stopImmediatePropagation(); const r = e.currentTarget.getBoundingClientRect(); const aside = e.currentTarget.closest(".asb"); const ar = aside ? aside.getBoundingClientRect() : { left: 0, top: 0 }; setTipFor(tipFor?.id === p.id ? null : { id: p.id, x: r.left - ar.left, y: r.top - ar.top, items: cfList(p) }); }}>
+                          {cfList(p).map((c, i) => (
+                            <img key={i} className="cf-ic" src={c.type === "blockout" ? "/icons/warn-red.png" : "/icons/warn-yellow.png"} alt={c.label || c.type} draggable={false} />
+                          ))}
                         </span>
                       )}
                       {p.targetLabel && <span className={`tgt ${p.belowTarget ? "below" : "met"}`} title="Pe poziția asta luna asta / target">{p.targetLabel}</span>}
@@ -286,6 +299,20 @@ export default function AssignSidebar({
           </>
           )}
         </>
+      )}
+
+      {tipFor && (
+        <div className="cf-tip" style={{ left: tipFor.x, top: tipFor.y }} onClick={(e) => { e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); }}>
+          {tipFor.items.map((c, i) => (
+            <div key={i} className="cf-row">
+              <span className={`cf-b ${c.type}`}>
+                <img className="cf-ti" src={c.type === "blockout" ? "/icons/warn-red.png" : "/icons/warn-yellow.png"} alt="" draggable={false} />
+                {c.label || (c.type === "blockout" ? "Blockout" : "Planificat în aceeași zi")}
+              </span>
+              {c.detail ? <span className="cf-d">{c.detail}</span> : null}
+            </div>
+          ))}
+        </div>
       )}
 
       <style jsx>{`
@@ -383,10 +410,18 @@ export default function AssignSidebar({
         .cand:hover { background: rgba(255,255,255,.055); }
         .cand:disabled { opacity: .5; cursor: default; }
         .cn { color: var(--text); font-size: 13px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .cf { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 700; }
-        .cf-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-        .cf.blockout { color: var(--danger); } .cf.blockout .cf-dot { background: var(--danger); }
-        .cf.time { color: var(--st-unconfirmed); } .cf.time .cf-dot { background: var(--st-unconfirmed); }
+        .cfwrap { display: inline-flex; align-items: center; gap: 3px; flex: none; cursor: pointer; padding: 2px; margin: -2px; }
+        .cf-ic { width: 15px; height: 15px; object-fit: contain; display: block; }
+        .cf-tip { position: fixed; z-index: 200; transform: translate(-100%, -100%); margin: -5px 0 0 -2px;
+          background: #0c1016; border: 1px solid var(--border-strong); border-radius: 9px; padding: 9px 11px;
+          box-shadow: 0 10px 30px rgba(0,0,0,.55); min-width: 170px; max-width: 260px; display: flex; flex-direction: column; gap: 8px;
+          animation: cftipIn .12s ease; }
+        @keyframes cftipIn { from { opacity: 0; transform: translate(-100%, -100%) scale(.96); } to { opacity: 1; transform: translate(-100%, -100%) scale(1); } }
+        .cf-row { display: flex; flex-direction: column; gap: 2px; }
+        .cf-b { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; }
+        .cf-b.blockout { color: var(--danger); } .cf-b.time { color: var(--st-unconfirmed); }
+        .cf-ti { width: 13px; height: 13px; object-fit: contain; }
+        .cf-d { color: var(--text-dim); font-size: 11.5px; padding-left: 19px; line-height: 1.4; }
         .tgt { font-size: 10px; border-radius: 10px; padding: 0 6px; border: 1px solid; white-space: nowrap; }
         .tgt.below { color: var(--product); border-color: rgba(87,185,138,.5); }
         .tgt.met { color: var(--text-faint); border-color: var(--border-strong); }

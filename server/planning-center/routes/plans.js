@@ -844,11 +844,14 @@ router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) =
     // fereastră ±180z pt. recență + conflicte (bounded); + blockouts care acoperă ziua
     const winStart = new Date(planDate); winStart.setDate(winStart.getDate() - 180);
     const winEnd = new Date(planDate); winEnd.setDate(winEnd.getDate() + 180);
-    const winPlans = await PcPlan.find(scoped(req, { sortDate: { $gte: winStart, $lte: winEnd } })).select("sortDate").lean();
+    const winPlans = await PcPlan.find(scoped(req, { sortDate: { $gte: winStart, $lte: winEnd } })).select("sortDate serviceTypeId").lean();
     const planDateById = Object.fromEntries(winPlans.map((p) => [String(p._id), new Date(p.sortDate)]));
+    const planStById = Object.fromEntries(winPlans.map((p) => [String(p._id), String(p.serviceTypeId || "")]));
+    const stAll = await PcServiceType.find(scoped(req)).select("name").lean();
+    const stNames = Object.fromEntries(stAll.map((s) => [String(s._id), s.name]));
     const [assigns, blockouts] = await Promise.all([
       PcAssignment.find(scoped(req, { personId: { $in: pids }, planId: { $in: winPlans.map((p) => p._id) }, status: { $ne: "declined" } })).select("personId planId positionId").lean(),
-      PcBlockout.find(scoped(req, { personId: { $in: pids } })).select("personId startDate endDate type").lean(),
+      PcBlockout.find(scoped(req, { personId: { $in: pids } })).select("personId startDate endDate type reason").lean(),
     ]);
     const WEEK = 7 * 864e5;
     const byPerson = {}; assigns.forEach((a) => (byPerson[String(a.personId)] = byPerson[String(a.personId)] || []).push(a));
@@ -877,12 +880,21 @@ router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) =
       const myBlk = blkByPerson[String(p._id)] || [];
       // churchBlock (blocat de planificator / on-break) care acoperă ziua → persoana NU apare deloc în listă
       const churchBlocked = myBlk.some((b) => b.type === "churchBlock" && covers(b));
-      const hasBlockout = myBlk.some((b) => b.type !== "churchBlock" && covers(b));
       const weeks = nearest == null ? null : Math.round(nearest / WEEK);
       const weeksLabel = weeks == null ? "" : (weeks >= 0 ? `+${weeks}w` : `${weeks}w`);
-      let conflict = null;
-      if (hasBlockout) conflict = { type: "blockout", count: 1 };
-      else if (sameDayCount > 0) conflict = { type: "time", count: sameDayCount };
+      // CONFLICTE — pot fi MAI MULTE simultan (blockout + planificat în altă slujire), cu motiv/dată
+      const conflicts = [];
+      const sameDay = list.filter((a) => String(a.planId) !== String(planId) && a.date.toISOString().slice(0, 10) === dayKey);
+      if (sameDay.length) {
+        const sts = [...new Set(sameDay.map((a) => stNames[planStById[String(a.planId)]]).filter(Boolean))];
+        conflicts.push({ type: "time", label: "Planificat în aceeași zi", detail: sts.length ? sts.join(", ") : `${sameDay.length} slujire(i)` });
+      }
+      const bk = myBlk.find((b) => b.type !== "churchBlock" && covers(b));
+      if (bk) {
+        const range = bk.startDate === bk.endDate ? bk.startDate : `${bk.startDate} → ${bk.endDate}`;
+        conflicts.push({ type: "blockout", label: "Blockout (indisponibil)", detail: [range, bk.reason].filter(Boolean).join(" · ") });
+      }
+      const conflict = conflicts[0] || null; // compat sortare
       const belowTarget = targetPerMonth > 0 && monthCount < targetPerMonth;
       return {
         id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "),
@@ -890,7 +902,7 @@ router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) =
         gender: p.gender || "", weeksLabel, dueSort: lastAtPosWeeks == null ? 9999 : lastAtPosWeeks,
         monthCount, targetPerMonth, belowTarget,
         targetLabel: targetPerMonth > 0 ? `${monthCount}/${targetPerMonth}` : "",
-        conflict, alreadyHere, churchBlocked,
+        conflict, conflicts, alreadyHere, churchBlocked,
       };
     }).filter((r) => !r.churchBlocked); // exclude din liste pe cei cu blocaj de biserică
 
