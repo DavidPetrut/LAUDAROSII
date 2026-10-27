@@ -41,6 +41,10 @@ export default function MatrixPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [showTeams, setShowTeams] = useState(false);   // modal Teams management (#9)
   const [canManage, setCanManage] = useState(false);   // services.manageServiceTypes
+  const [canAddPlan, setCanAddPlan] = useState(false);  // services.addPlan (quick-add coloană)
+  const [addPlanOpen, setAddPlanOpen] = useState(false);
+  const [newPlanDate, setNewPlanDate] = useState("");
+  const [addingPlan, setAddingPlan] = useState(false);
   const [showStMenu, setShowStMenu] = useState(false);
   const [showDateMenu, setShowDateMenu] = useState(false);
   const [showAddSt, setShowAddSt] = useState(false);   // „Add Service Type" în dropdown-ul de dată
@@ -99,7 +103,7 @@ export default function MatrixPage() {
   }, [fetchGrid]);
   useEffect(() => { load(); }, [load]);
   // cine poate administra echipele (buton „Echipe" + modal #9)
-  useEffect(() => { peopleApi.me().then((r) => setCanManage(!!r?.capabilities?.manageServiceTypes)).catch(() => {}); }, []);
+  useEffect(() => { peopleApi.me().then((r) => { setCanManage(!!r?.capabilities?.manageServiceTypes); setCanAddPlan(!!r?.capabilities?.addPlan); }).catch(() => {}); }, []);
 
   // bara „listă live" — responsive la poziția selectată (teamId) + LIVE (se cere din nou la assign/remove)
   const loadCov = useCallback(async () => {
@@ -282,6 +286,23 @@ export default function MatrixPage() {
     try { await plansApi.setPositionRules(positionId, payload); flash("Reguli poziție salvate."); refreshRec(); }
     catch (e) { flash(e?.message || "Eroare."); }
   }
+  // Quick-add: creează un plan nou (coloană) pe o dată, copiind orele + structura (Needed) din primul plan vizibil.
+  async function addPlanQuick() {
+    const date = newPlanDate;
+    if (!date) return;
+    setAddingPlan(true);
+    const srcId = plans[0]?.id;
+    try {
+      const r = await plansApi.create(serviceTypeId, date, srcId ? { templatePlanId: srcId, copyTimesFromPlanId: srcId } : {});
+      const newId = r?.planId;
+      flash("Plan adăugat (fără oameni/email).");
+      setAddPlanOpen(false); setNewPlanDate(""); setShowDateMenu(false);
+      // arată imediat coloana nouă: trecem pe selecție explicită = planurile curente + cel nou
+      if (newId) setSelectedPlanIds([...new Set([...curSel(), String(newId)])]);
+      else load();
+    } catch (e) { flash(e?.message || "Eroare la adăugarea planului."); }
+    finally { setAddingPlan(false); }
+  }
   async function copySimTeam(fromTeamId) {
     const from = teams.find((t) => String(t.teamId) === String(fromTeamId));
     const cand = teams.filter((t) => String(t.teamId) !== String(fromTeamId));
@@ -365,14 +386,18 @@ export default function MatrixPage() {
   const planByStId = {};
   planOptions.forEach((o) => (planByStId[String(o.stId)] = planByStId[String(o.stId)] || []).push(o));
   const stSections = selStIds.map((id) => {
-    const opts = planByStId[id] || [];
-    const idxsSel = opts.map((o, i) => (isSel(o.id) ? i : -1)).filter((i) => i >= 0);
-    const minS = idxsSel.length ? Math.min(...idxsSel) : 0;
-    const maxS = idxsSel.length ? Math.max(...idxsSel) : 0;
-    const vis = opts.slice(minS, Math.min(opts.length, maxS + 1 + 6));
+    const opts = planByStId[id] || []; // TOATE planurile ST-ului (chooser complet, scrollabil)
     const stName = opts[0]?.stName || allServiceTypes.find((s) => String(s.id) === id)?.name || "";
-    return { id, stName, vis };
+    return { id, stName, vis: opts };
   });
+  // select-all / clear pe un service type (păstrează cel puțin 1 plan în total)
+  const setStAll = (opts, on) => {
+    const ids = opts.map((o) => String(o.id));
+    const base = new Set(curSel());
+    if (on) ids.forEach((x) => base.add(x)); else ids.forEach((x) => base.delete(x));
+    const next = [...base];
+    setSelectedPlanIds(next.length ? next : [String((plans[0] || planOptions[0] || {}).id)].filter(Boolean));
+  };
   const availableSts = allServiceTypes.filter((s) => !selStIds.includes(String(s.id)) && s.name.toLowerCase().includes(stSearch.trim().toLowerCase()));
   const addServiceType = (id) => { setStIds((p) => [...new Set([...p.map(String), String(id)])]); setSelectedPlanIds(null); setShowAddSt(false); setStSearch(""); };
   const removeServiceType = (id) => { if (String(id) === String(serviceTypeId)) return; setStIds((p) => p.filter((x) => String(x) !== String(id))); setSelectedPlanIds(null); };
@@ -434,16 +459,29 @@ export default function MatrixPage() {
                   </div>
                 ) : (
                   <>
-                    <button className="dm-addst" onClick={() => setShowAddSt(true)}>+ Add Service Type</button>
+                    <div className="dm-tools">
+                      <button className="dm-addst" onClick={() => setShowAddSt(true)}>+ Add Service Type</button>
+                      {canAddPlan && !addPlanOpen && <button className="dm-qbtn" onClick={() => { setAddPlanOpen(true); setNewPlanDate(""); }}>＋ Plan nou</button>}
+                    </div>
+                    {canAddPlan && addPlanOpen && (
+                      <div className="dm-qadd">
+                        <input type="date" className="dm-qdate" value={newPlanDate} onChange={(e) => setNewPlanDate(e.target.value)} autoFocus />
+                        <button className="dm-qgo" disabled={!newPlanDate || addingPlan} onClick={addPlanQuick}>{addingPlan ? "Se adaugă…" : "Adaugă plan"}</button>
+                        <button className="dm-qx" onClick={() => { setAddPlanOpen(false); setNewPlanDate(""); }} title="Renunță">×</button>
+                        <div className="dm-qhint">Copiază orele + structura „Needed" din planul curent. Fără oameni/email.</div>
+                      </div>
+                    )}
                     {stSections.map((sec) => {
                       const col = dmCol.has(String(sec.id));
                       const nSel = sec.vis.filter((o) => isSel(o.id)).length;
+                      const allOn = nSel === sec.vis.length && sec.vis.length > 0;
                       return (
                         <div key={sec.id} className="dm-sec">
                           <div className="dm-sechead" onClick={() => toggleDmSec(sec.id)}>
                             <span className={`dm-seccar ${col ? "col" : ""}`}>▾</span>
                             <span className="dm-secn">{sec.stName}</span>
                             {nSel > 0 && <span className="dm-secb">{nSel}</span>}
+                            <button className="dm-sall" onClick={(e) => { e.stopPropagation(); setStAll(sec.vis, !allOn); }} title={allOn ? "Deselectează tot" : "Selectează tot"}>{allOn ? "Niciunul" : "Toate"}</button>
                             {String(sec.id) !== String(serviceTypeId) && <button className="dm-secx" onClick={(e) => { e.stopPropagation(); removeServiceType(sec.id); }} title="Scoate service type">×</button>}
                           </div>
                           {!col && (
@@ -777,9 +815,23 @@ export default function MatrixPage() {
         .dm-secb { color: var(--text-dim); font-size: 11px; background: var(--surface-2); border-radius: 20px; padding: 1px 9px; min-width: 22px; text-align: center; flex: none; }
         .dm-secx { background: transparent; border: none; color: var(--text-faint); font-size: 17px; cursor: pointer; line-height: 1; flex: none; padding: 0 2px; }
         .dm-secx:hover { color: var(--danger); }
+        .dm-sall { background: transparent; border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 5px; padding: 2px 8px; font-size: 10.5px; font-weight: 600; cursor: pointer; flex: none; }
+        .dm-sall:hover { color: var(--text); border-color: var(--primary); }
+        .dm-tools { display: flex; gap: 8px; margin: 8px 0; }
+        .dm-tools .dm-addst { margin: 0; flex: 1; }
+        .dm-qbtn { flex: none; background: var(--primary); border: 1px solid var(--primary); color: #fff; border-radius: 7px; padding: 8px 13px; cursor: pointer; font-size: 13px; font-weight: 600; white-space: nowrap; }
+        .dm-qbtn:hover { opacity: .9; }
+        .dm-qadd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 8px; padding: 10px; margin-bottom: 8px; animation: tmbIn .15s ease; }
+        .dm-qdate { flex: 1; min-width: 130px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 6px; height: 34px; padding: 0 10px; color: var(--text); font-size: 13px; outline: none; color-scheme: dark; }
+        .dm-qdate:focus { border-color: var(--primary); }
+        .dm-qgo { background: var(--primary); border: 1px solid var(--primary); color: #fff; border-radius: 6px; padding: 0 14px; height: 34px; cursor: pointer; font-size: 12.5px; font-weight: 600; }
+        .dm-qgo:disabled { opacity: .5; cursor: default; }
+        .dm-qx { background: transparent; border: none; color: var(--text-faint); font-size: 18px; cursor: pointer; line-height: 1; padding: 0 4px; }
+        .dm-qx:hover { color: var(--text); }
+        .dm-qhint { flex-basis: 100%; color: var(--text-faint); font-size: 11px; line-height: 1.4; }
         .dm-load { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 5px 8px; font-size: 11.5px; cursor: pointer; white-space: nowrap; }
         .dm-load:hover:not(:disabled) { color: var(--text); border-color: var(--primary); } .dm-load:disabled { opacity: .35; cursor: default; }
-        .dm-list { padding: 6px 2px; display: flex; flex-direction: column; }
+        .dm-list { padding: 6px 2px; display: flex; flex-direction: column; max-height: 230px; overflow-y: auto; }
         .dm-row { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--text-dim); }
         .dm-row:hover { background: rgba(255,255,255,.05); } .dm-row input { accent-color: var(--primary); }
         .dm-d { color: var(--text); }
