@@ -11,7 +11,7 @@ const {
   PcArrangement, PcKey, PcSongFile, PcBlockout,
 } = require("../models");
 const { scoped, stamp } = require("../core/orgScope");
-const { requireCan, can } = require("../core/permissions");
+const { requireCan, requireAny, can, CAN_VIEW_MATRIX, CAN_ASSIGN, CAN_MOVE, CAN_NEEDED, CAN_POSITION_RULES } = require("../core/permissions");
 const { wallToUtc } = require("../lib/time");
 const { DEFAULT_ITEM_ROW_COLORS, rowColorFor } = require("../lib/orderColors");
 
@@ -592,7 +592,7 @@ router.get("/:id/teams", requireCan("people.view"), async (req, res) => {
 });
 
 /* ───────── GET /:id/schedulable — echipe+poziții+oameni pt. „Add People" ───────── */
-router.get("/:id/schedulable", requireCan("services.schedule"), async (req, res) => {
+router.get("/:id/schedulable", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
   try {
     const planId = OID(req.params.id);
     const plan = await PcPlan.findOne(scoped(req, { _id: planId })).select("serviceTypeId").lean();
@@ -621,7 +621,7 @@ router.get("/:id/schedulable", requireCan("services.schedule"), async (req, res)
 });
 
 /* ───────── POST /:id/assignments — programează o persoană pe o poziție ───────── */
-router.post("/:id/assignments", requireCan("services.schedule"), async (req, res) => {
+router.post("/:id/assignments", requireAny(CAN_ASSIGN), async (req, res) => {
   try {
     const crypto = require("crypto");
     const planId = OID(req.params.id);
@@ -676,7 +676,7 @@ router.post("/:id/assignments", requireCan("services.schedule"), async (req, res
 
 /* ───────── PATCH /:id/assignments/:aid — editează o asignare (status/poziție/note/times) ─────────
    Modalul „Editing Scheduled Person". NU trimite email (schimbarea de status e locală). */
-router.patch("/:id/assignments/:aid", requireCan("services.schedule"), async (req, res) => {
+router.patch("/:id/assignments/:aid", requireAny(CAN_ASSIGN), async (req, res) => {
   try {
     const planId = OID(req.params.id);
     const cur = await PcAssignment.findOne(scoped(req, { _id: OID(req.params.aid) })).lean();
@@ -714,7 +714,7 @@ router.patch("/:id/assignments/:aid", requireCan("services.schedule"), async (re
 });
 
 /* ───────── DELETE /:id/assignments/:aid ───────── */
-router.delete("/:id/assignments/:aid", requireCan("services.schedule"), async (req, res) => {
+router.delete("/:id/assignments/:aid", requireAny(CAN_MOVE), async (req, res) => {
   try {
     const a = await PcAssignment.findOneAndUpdate(scoped(req, { _id: OID(req.params.aid) }), { $set: { deletedAt: new Date() } }).select("_id").lean();
     if (!a) return res.status(404).json({ error: "Programare inexistentă." });
@@ -768,7 +768,7 @@ router.get("/:id/assignments/:aid", requireCan("people.view"), async (req, res) 
 
 /* ───────── PATCH /positions/:positionId/rules — reguli de recomandare per poziție (lider) ─────────
    defaultGender (M/F/any), defaultProgram/SIM (1/2/any), targetPerMonth (de câte ori/lună), instructions. */
-router.patch("/positions/:positionId/rules", requireCan("services.schedule"), async (req, res) => {
+router.patch("/positions/:positionId/rules", requireAny(CAN_POSITION_RULES), async (req, res) => {
   try {
     const positionId = OID(req.params.positionId);
     if (!positionId) return res.status(400).json({ error: "ID invalid." });
@@ -797,7 +797,7 @@ router.get("/positions/:positionId/files", requireCan("people.view"), async (req
     res.json({ files: files.map((f) => ({ id: f._id, name: f.name, kind: f.kind, url: f.url || null })) });
   } catch (err) { console.error("[pc] GET position files:", err.message); res.status(500).json({ error: "Eroare." }); }
 });
-router.post("/positions/:positionId/files", requireCan("services.schedule"), async (req, res) => {
+router.post("/positions/:positionId/files", requireAny(CAN_POSITION_RULES), async (req, res) => {
   try {
     const positionId = OID(req.params.positionId);
     const pos = await PcPosition.findOne(scoped(req, { _id: positionId })).select("_id").lean();
@@ -808,7 +808,7 @@ router.post("/positions/:positionId/files", requireCan("services.schedule"), asy
     res.status(201).json({ id: doc._id, name: doc.name, url: doc.url || null, kind: doc.kind });
   } catch (err) { console.error("[pc] POST position file:", err.message); res.status(500).json({ error: "Eroare la fișier." }); }
 });
-router.delete("/positions/:positionId/files/:fileId", requireCan("services.schedule"), async (req, res) => {
+router.delete("/positions/:positionId/files/:fileId", requireAny(CAN_POSITION_RULES), async (req, res) => {
   try {
     const f = await PcPlanFile.findOneAndUpdate(scoped(req, { _id: OID(req.params.fileId), positionId: OID(req.params.positionId) }), { $set: { deletedAt: new Date() } }).select("_id").lean();
     if (!f) return res.status(404).json({ error: "Fișier inexistent." });
@@ -817,7 +817,7 @@ router.delete("/positions/:positionId/files/:fileId", requireCan("services.sched
 });
 
 /* ───────── GET /positions/:positionId/roster — cine e în rosterul poziției (pt. „+ adaugă pe poziție") ───────── */
-router.get("/positions/:positionId/roster", requireCan("services.schedule"), async (req, res) => {
+router.get("/positions/:positionId/roster", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
   try {
     const positionId = OID(req.params.positionId);
     if (!positionId) return res.status(400).json({ error: "ID invalid." });
@@ -834,7 +834,7 @@ router.get("/positions/:positionId/roster", requireCan("services.schedule"), asy
 
 /* ───────── GET /:id/recommend — bara dreaptă: candidați pt. o poziție, cu „due" + conflicte ─────────
    Sortare: fără conflict întâi, apoi cei care n-au mai fost de mult pe poziție (due). FĂRĂ email. */
-router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) => {
+router.get("/:id/recommend", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
   try {
     const planId = OID(req.params.id);
     const teamId = OID(req.query.teamId), positionId = OID(req.query.positionId);
@@ -971,7 +971,7 @@ router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) =
 
 /* ───────── POST /:id/assignments/copy — replică asignările unei echipe pe alta (SIM1→SIM2) ─────────
    Potrivește pozițiile după NUME. Status unconfirmed, FĂRĂ email. Idempotent (nu dublează). */
-router.post("/:id/assignments/copy", requireCan("services.schedule"), async (req, res) => {
+router.post("/:id/assignments/copy", requireAny(CAN_MOVE), async (req, res) => {
   try {
     const crypto = require("crypto");
     const planId = OID(req.params.id);
@@ -1006,7 +1006,7 @@ router.post("/:id/assignments/copy", requireCan("services.schedule"), async (req
 
 /* ───────── PUT /:id/needed — setează câte persoane sunt necesare pe (echipă, poziție) ─────────
    Celula „Needed" din Matrix (−/N/+). Upsert PcNeededPosition. FĂRĂ email. */
-router.put("/:id/needed", requireCan("services.schedule"), async (req, res) => {
+router.put("/:id/needed", requireAny(CAN_NEEDED), async (req, res) => {
   try {
     const planId = OID(req.params.id);
     const teamId = OID(req.body?.teamId), positionId = OID(req.body?.positionId);

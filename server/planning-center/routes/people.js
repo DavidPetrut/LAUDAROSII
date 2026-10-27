@@ -21,7 +21,7 @@ const {
   PcCampus,
 } = require("../models");
 const { scoped, stamp } = require("../core/orgScope");
-const { can, requireCan, resolveEffective, pcTitles } = require("../core/permissions");
+const { can, requireCan, requireAny, resolveEffective, pcTitles, CAN_ROSTER } = require("../core/permissions");
 const { syncPeopleIfStale } = require("../services/seed");
 
 const router = express.Router();
@@ -382,8 +382,8 @@ async function rosterMutate(req, res, add) {
   }
   res.json({ ok: true });
 }
-router.post("/roster/add", requireCan("services.schedule"), (req, res) => rosterMutate(req, res, true).catch((e) => { console.error("[pc] roster add:", e.message); res.status(500).json({ error: "Eroare." }); }));
-router.post("/roster/remove", requireCan("services.schedule"), (req, res) => rosterMutate(req, res, false).catch((e) => { console.error("[pc] roster remove:", e.message); res.status(500).json({ error: "Eroare." }); }));
+router.post("/roster/add", requireAny(CAN_ROSTER), (req, res) => rosterMutate(req, res, true).catch((e) => { console.error("[pc] roster add:", e.message); res.status(500).json({ error: "Eroare." }); }));
+router.post("/roster/remove", requireAny(CAN_ROSTER), (req, res) => rosterMutate(req, res, false).catch((e) => { console.error("[pc] roster remove:", e.message); res.status(500).json({ error: "Eroare." }); }));
 
 /* ───────── GET /:id — profil persoană ───────── */
 router.get("/:id", requireCan("people.view"), async (req, res) => {

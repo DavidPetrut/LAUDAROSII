@@ -18,7 +18,7 @@ const {
   PcTeam, PcPosition, PcServiceType, PcNeededPosition, PcAssignment, PcTeamMember,
 } = require("../models");
 const { scoped, stamp } = require("../core/orgScope");
-const { requireCan } = require("../core/permissions");
+const { requireCan, requireAny, CAN_MANAGE_TEAMS } = require("../core/permissions");
 
 const router = express.Router();
 const OID = (v) => (mongoose.Types.ObjectId.isValid(v) ? new mongoose.Types.ObjectId(v) : null);
@@ -127,7 +127,7 @@ router.get("/", requireCan("people.view"), async (req, res) => {
 });
 
 /* ───────── POST / — creează o echipă într-un service type ───────── */
-router.post("/", requireCan("services.manageServiceTypes"), async (req, res) => {
+router.post("/", requireAny(CAN_MANAGE_TEAMS), async (req, res) => {
   try {
     const stId = OID(req.body?.serviceTypeId);
     const name = String(req.body?.name || "").trim().slice(0, 120);
@@ -148,7 +148,7 @@ router.post("/", requireCan("services.manageServiceTypes"), async (req, res) => 
 });
 
 /* ───────── POST /reorder — reordonează echipele unui service type ───────── */
-router.post("/reorder", requireCan("services.manageServiceTypes"), async (req, res) => {
+router.post("/reorder", requireAny(CAN_MANAGE_TEAMS), async (req, res) => {
   try {
     const ids = Array.isArray(req.body?.orderedIds) ? req.body.orderedIds : [];
     const ops = ids.map((id, i) => ({
@@ -160,7 +160,7 @@ router.post("/reorder", requireCan("services.manageServiceTypes"), async (req, r
 });
 
 /* ───────── PATCH /:teamId — redenumire / grup / flags / defaults de planificare ───────── */
-router.patch("/:teamId", requireCan("services.manageServiceTypes"), async (req, res) => {
+router.patch("/:teamId", requireAny(CAN_MANAGE_TEAMS), async (req, res) => {
   try {
     const b = req.body || {};
     const set = {};
@@ -186,7 +186,7 @@ router.patch("/:teamId", requireCan("services.manageServiceTypes"), async (req, 
 });
 
 /* ───────── DELETE /:teamId — soft-delete cu cascadă reversibilă (poziții/needed/asignări/membri) ───────── */
-router.delete("/:teamId", requireCan("services.manageServiceTypes"), async (req, res) => {
+router.delete("/:teamId", requireAny(CAN_MANAGE_TEAMS), async (req, res) => {
   try {
     const teamId = OID(req.params.teamId);
     const t = await PcTeam.findOneAndUpdate(scoped(req, { _id: teamId }), { $set: { deletedAt: new Date() } }).select("_id").lean();
@@ -203,7 +203,7 @@ router.delete("/:teamId", requireCan("services.manageServiceTypes"), async (req,
 });
 
 /* ───────── POST /:teamId/positions — adaugă poziție ───────── */
-router.post("/:teamId/positions", requireCan("services.manageServiceTypes"), async (req, res) => {
+router.post("/:teamId/positions", requireAny(CAN_MANAGE_TEAMS), async (req, res) => {
   try {
     const teamId = OID(req.params.teamId);
     const name = String(req.body?.name || "").trim().slice(0, 120);
@@ -217,7 +217,7 @@ router.post("/:teamId/positions", requireCan("services.manageServiceTypes"), asy
 });
 
 /* ───────── PATCH /:teamId/positions/:positionId — redenumire poziție ───────── */
-router.patch("/:teamId/positions/:positionId", requireCan("services.manageServiceTypes"), async (req, res) => {
+router.patch("/:teamId/positions/:positionId", requireAny(CAN_MANAGE_TEAMS), async (req, res) => {
   try {
     const name = String(req.body?.name || "").trim().slice(0, 120);
     if (!name) return res.status(400).json({ error: "Numele nu poate fi gol." });
@@ -231,7 +231,7 @@ router.patch("/:teamId/positions/:positionId", requireCan("services.manageServic
 });
 
 /* ───────── DELETE /:teamId/positions/:positionId — soft-delete poziție + needed + asignări ───────── */
-router.delete("/:teamId/positions/:positionId", requireCan("services.manageServiceTypes"), async (req, res) => {
+router.delete("/:teamId/positions/:positionId", requireAny(CAN_MANAGE_TEAMS), async (req, res) => {
   try {
     const teamId = OID(req.params.teamId), positionId = OID(req.params.positionId);
     const p = await PcPosition.findOneAndUpdate(scoped(req, { _id: positionId, teamId }), { $set: { deletedAt: new Date() } }).select("_id").lean();
@@ -246,7 +246,7 @@ router.delete("/:teamId/positions/:positionId", requireCan("services.manageServi
 });
 
 /* ───────── POST /:teamId/positions/reorder — reordonează pozițiile unei echipe ───────── */
-router.post("/:teamId/positions/reorder", requireCan("services.manageServiceTypes"), async (req, res) => {
+router.post("/:teamId/positions/reorder", requireAny(CAN_MANAGE_TEAMS), async (req, res) => {
   try {
     const teamId = OID(req.params.teamId);
     const ids = Array.isArray(req.body?.orderedIds) ? req.body.orderedIds : [];

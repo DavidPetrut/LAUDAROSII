@@ -60,9 +60,11 @@ const ACCESS_TO_LEVELS = {
 
 // Capabilitățile permise pentru „partial" (Planning Admin) — tot pe Plans/Songs/Media + view.
 const PARTIAL_CAPS = new Set([
-  "people.view", "people.viewAll", "people.assignTags", "people.manageBlocks",
+  "people.view", "people.viewAll", "people.assignTags", "people.manageBlocks", "people.roster",
   "services.manageServiceTypes", "services.addPlan", "services.editOrder", "services.schedule",
-  "songs.edit", "media.edit", "reports.view",
+  "services.viewMatrix", "services.assign", "services.move", "services.editNeeded",
+  "services.blockouts", "services.manageTeams", "services.positionRules",
+  "songs.edit", "songs.import", "media.edit", "reports.view",
 ]);
 // „basic" — doar vizualizare: vede directorul de oameni (toți), citește planuri/songs/media, își vede
 // propriul schedule și răspunde la propriile programări. NU editează nimic.
@@ -161,6 +163,13 @@ async function can(req, capability) {
   return caps.has(capability);
 }
 
+/** Are userul CEL PUȚIN UNA din capabilități? (pt. granular + umbrella, ex. assign SAU schedule). */
+async function canAny(req, capabilities) {
+  const caps = await capabilitySet(req);
+  if (caps === "ALL") return true;
+  return (capabilities || []).some((c) => caps.has(c));
+}
+
 /** Middleware: blochează ruta dacă userul n-are capabilitatea. */
 function requireCan(capability) {
   return async (req, res, next) => {
@@ -174,6 +183,31 @@ function requireCan(capability) {
   };
 }
 
+/** Middleware: trece dacă userul are ORICARE din capabilitățile date (granular SAU umbrella). */
+function requireAny(...capabilities) {
+  const list = capabilities.flat();
+  return async (req, res, next) => {
+    try {
+      if (await canAny(req, list)) return next();
+      return res.status(403).json({ error: "Nu ai permisiunea necesară pentru această acțiune." });
+    } catch (err) {
+      console.error("[pc] requireAny error:", err.message);
+      return res.status(500).json({ error: "Eroare la verificarea permisiunilor." });
+    }
+  };
+}
+
+// Grupuri de capabilități pt. gating (umbrella + granular). „services.schedule" = tot ce ține de planificare.
+const CAN_VIEW_MATRIX = ["services.viewMatrix", "services.assign", "services.move", "services.editNeeded", "services.blockouts", "services.schedule", "services.manageTeams"];
+const CAN_ASSIGN = ["services.assign", "services.schedule"];
+const CAN_MOVE = ["services.move", "services.assign", "services.schedule"];
+const CAN_NEEDED = ["services.editNeeded", "services.schedule"];
+const CAN_ROSTER = ["people.roster", "services.assign", "services.schedule"];
+const CAN_MANAGE_TEAMS = ["services.manageTeams", "services.manageServiceTypes"];
+const CAN_POSITION_RULES = ["services.positionRules", "services.manageServiceTypes", "services.schedule"];
+const CAN_BLOCKOUTS = ["services.blockouts", "people.manageBlocks", "services.schedule"];
+const CAN_SONG_IMPORT = ["songs.import", "songs.edit"];
+
 module.exports = {
   PP_RANK,
   SM_RANK,
@@ -184,5 +218,16 @@ module.exports = {
   resolveEffective,
   getDefaults,
   can,
+  canAny,
   requireCan,
+  requireAny,
+  CAN_VIEW_MATRIX,
+  CAN_ASSIGN,
+  CAN_MOVE,
+  CAN_NEEDED,
+  CAN_ROSTER,
+  CAN_MANAGE_TEAMS,
+  CAN_POSITION_RULES,
+  CAN_BLOCKOUTS,
+  CAN_SONG_IMPORT,
 };

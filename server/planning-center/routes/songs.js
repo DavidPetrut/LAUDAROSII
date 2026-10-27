@@ -11,7 +11,7 @@ const {
   PcTagGroup, PcTag,
 } = require("../models");
 const { scoped, stamp } = require("../core/orgScope");
-const { requireCan } = require("../core/permissions");
+const { requireCan, requireAny, CAN_SONG_IMPORT } = require("../core/permissions");
 
 const router = express.Router();
 
@@ -110,7 +110,7 @@ router.post("/", requireCan("songs.edit"), async (req, res) => {
 const seqToArr = (s) => String(s || "").split(",").map((x) => x.trim()).filter(Boolean);
 
 /* POST /import-pco-pdf/parse — urcă un PDF PCO, întoarce {title,key,bpm,meter,sequence,chordpro,warnings}. NU scrie în DB. */
-router.post("/import-pco-pdf/parse", requireCan("songs.edit"), (req, res) => {
+router.post("/import-pco-pdf/parse", requireAny(CAN_SONG_IMPORT), (req, res) => {
   if (!_multer) return res.status(503).json({ error: "Import PDF indisponibil: rulează `npm install multer pdfjs-dist` în server/." });
   _multer.single("file")(req, res, async (err) => {
     try {
@@ -125,7 +125,7 @@ router.post("/import-pco-pdf/parse", requireCan("songs.edit"), (req, res) => {
 });
 
 /* POST /import-pco-pdf/commit — creează song + aranjament + ChordPro din datele (confirmate) de preview. */
-router.post("/import-pco-pdf/commit", requireCan("songs.edit"), async (req, res) => {
+router.post("/import-pco-pdf/commit", requireAny(CAN_SONG_IMPORT), async (req, res) => {
   try {
     const b = req.body || {};
     const title = String(b.title || "").trim();

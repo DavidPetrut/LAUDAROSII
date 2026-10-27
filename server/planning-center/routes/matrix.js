@@ -10,7 +10,7 @@ const {
   PcTeam, PcPosition, PcPerson, PcOrg, PcCampus, PcBlockout, PcTeamMember,
 } = require("../models");
 const { scoped } = require("../core/orgScope");
-const { requireCan } = require("../core/permissions");
+const { requireCan, requireAny, CAN_VIEW_MATRIX } = require("../core/permissions");
 
 const router = express.Router();
 const OID = (v) => (mongoose.Types.ObjectId.isValid(v) ? new mongoose.Types.ObjectId(v) : null);
@@ -33,7 +33,7 @@ const fmtTime = (d, tz) => (d ? new Intl.DateTimeFormat("en-US", { timeZone: tz,
 const mini = (p) => (p ? { id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "), avatar: p.avatar || "", initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase() } : null);
 
 /* ───────── GET /:serviceTypeId — grila matrix ───────── */
-router.get("/:serviceTypeId", requireCan("services.schedule"), async (req, res) => {
+router.get("/:serviceTypeId", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
   try {
     const clamp = (v, lo, hi, d) => { const n = parseInt(v, 10); return isNaN(n) ? d : Math.max(lo, Math.min(hi, n)); };
     const tz = await campusTz(req);
@@ -202,7 +202,7 @@ router.post("/:serviceTypeId/emails", requireCan("services.schedule"), async (re
    service type, câte planuri are în interval (0×/1×/2×/3×/4×+), câte îi sunt blocate (blockout)
    și de câte ori mai POATE fi planificată (free = N − planificat − blocat). Pool = cine a fost
    vreodată asignat în acest ST (pc_team_members e gol la import). Doar READ. ZERO scrieri. */
-router.get("/:serviceTypeId/coverage", requireCan("services.schedule"), async (req, res) => {
+router.get("/:serviceTypeId/coverage", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
   try {
     const stId = OID(req.params.serviceTypeId);
     const count = Math.min(26, Math.max(1, parseInt(req.query.count, 10) || 4));
@@ -301,7 +301,7 @@ router.get("/:serviceTypeId/coverage", requireCan("services.schedule"), async (r
 /* ───────── GET /:serviceTypeId/person-availability — disponibilitatea unei persoane (target-mode #11) ─────────
    Pentru planurile vizibile (?planIds=): per plan → blockout / deja planificat în acest plan / ocupat în
    altă parte în aceeași zi. Alimentează indicatorii din antet + „click ca să-l planific". Doar READ. */
-router.get("/:serviceTypeId/person-availability", requireCan("services.schedule"), async (req, res) => {
+router.get("/:serviceTypeId/person-availability", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
   try {
     const personId = OID(req.query.personId);
     const planIds = String(req.query.planIds || "").split(",").map((s) => s.trim()).filter(Boolean).map(OID).filter(Boolean);
