@@ -418,7 +418,7 @@ export default function MatrixPage() {
         assigning={assigning}
         mirror={pereche ? { available: true, label: `Adaugă și la ${pereche.teamName}` } : null}
         onAddGuest={addGuest}
-        defaults={rec?.defaults} positionId={sel?.positionId} onSaveRules={saveRules}
+        defaults={rec?.defaults} positionId={sel?.positionId} onSaveRules={saveRules} instructions={rec?.instructions}
       />
 
       {editing && (

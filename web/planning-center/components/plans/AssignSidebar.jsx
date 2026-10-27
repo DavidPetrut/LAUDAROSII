@@ -9,8 +9,9 @@
  * Filtrarea SIM se face după numărul din nume „(1)"/„(2)" — exact cum cere liderul.
  * Gen: dacă există date de gen pe candidați, filtrează; altfel toggle-ul rămâne inactiv.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PersonAvatar from "./PersonAvatar";
+import { plansApi } from "@/lib/api/client";
 
 /* numărul SIM din coada numelui: „Ion Pop (2)" → "2"; fără paranteză → "" */
 function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return m ? m[1] : ""; }
@@ -27,8 +28,11 @@ export default function AssignSidebar({
   const [mode, setMode] = useState("member");  // "member" | "guest"
   const [guestName, setGuestName] = useState("");
   const [rulesOn, setRulesOn] = useState(false);
-  const [draft, setDraft] = useState({ defaultGender: "any", defaultProgram: "any", targetPerMonth: 0 });
+  const [draft, setDraft] = useState({ defaultGender: "any", defaultProgram: "any", targetPerMonth: 0, instructions: "" });
   const [rulesBusy, setRulesBusy] = useState(false);
+  const [posFiles, setPosFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
 
   // la schimbarea poziției: reset + PRE-SELECTează filtrele din regulile poziției
   useEffect(() => {
@@ -36,9 +40,29 @@ export default function AssignSidebar({
     const g = defaults?.gender && defaults.gender !== "any" ? defaults.gender : "";
     const p = defaults?.program && defaults.program !== "any" ? defaults.program : "";
     setGender(g); setSim(p); setSimOn(!!(g || p));
-    setDraft({ defaultGender: defaults?.gender || "any", defaultProgram: defaults?.program || "any", targetPerMonth: defaults?.targetPerMonth || 0 });
+    setDraft({ defaultGender: defaults?.gender || "any", defaultProgram: defaults?.program || "any", targetPerMonth: defaults?.targetPerMonth || 0, instructions: instructions || "" });
     // eslint-disable-next-line
-  }, [title, positionId, defaults?.gender, defaults?.program, defaults?.targetPerMonth]);
+  }, [title, positionId, defaults?.gender, defaults?.program, defaults?.targetPerMonth, instructions]);
+
+  // fișierele poziției (manual) — încărcate când deschizi panoul de reguli
+  useEffect(() => {
+    if (!rulesOn || !positionId) return;
+    plansApi.positionFiles(positionId).then((r) => setPosFiles(r.files || [])).catch(() => setPosFiles([]));
+  }, [rulesOn, positionId]);
+
+  async function uploadPosFile(file) {
+    if (!file || !positionId) return;
+    setUploading(true);
+    try {
+      const up = await plansApi.uploadFile(file);
+      const url = up?.url || up?.secure_url || up?.location || "";
+      const r = await plansApi.addPositionFile(positionId, { name: file.name, url, kind: "upload" });
+      setPosFiles((f) => [...f, { id: r.id, name: r.name || file.name, url: r.url || url, kind: "upload" }]);
+    } catch { /* ignoră */ } finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
+  }
+  async function delPosFile(fid) {
+    try { await plansApi.deletePositionFile(positionId, fid); setPosFiles((f) => f.filter((x) => String(x.id) !== String(fid))); } catch {}
+  }
 
   function addGuest() {
     const n = guestName.trim();
@@ -121,7 +145,23 @@ export default function AssignSidebar({
                   onChange={(e) => setDraft((d) => ({ ...d, targetPerMonth: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
                 <span className="rr-x">×/lună</span>
               </div>
-              <button className="asb-gbtn" disabled={rulesBusy} onClick={saveRules}>{rulesBusy ? "Se salvează…" : "Salvează regula"}</button>
+              <div className="rr-field">
+                <div className="rr-ll">Instrucțiuni (manual poziție)</div>
+                <textarea className="rr-ta" value={draft.instructions} onChange={(e) => setDraft((d) => ({ ...d, instructions: e.target.value }))} placeholder="Ce trebuie să știe cineva pe această poziție…" />
+              </div>
+              <button className="asb-gbtn" disabled={rulesBusy} onClick={saveRules}>{rulesBusy ? "Se salvează…" : "Salvează regula + instrucțiuni"}</button>
+              <div className="rr-field">
+                <div className="rr-ll">Fișiere (manual)</div>
+                {posFiles.length === 0 && <div className="rr-none">Niciun fișier.</div>}
+                {posFiles.map((f) => (
+                  <div key={f.id} className="rr-file">
+                    {f.url ? <a href={f.url} target="_blank" rel="noreferrer">{f.name}</a> : <span>{f.name}</span>}
+                    <button onClick={() => delPosFile(f.id)} title="Șterge">×</button>
+                  </div>
+                ))}
+                <input ref={fileRef} type="file" style={{ display: "none" }} onChange={(e) => uploadPosFile(e.target.files?.[0])} />
+                <button className="rr-up" disabled={uploading} onClick={() => fileRef.current?.click()}>{uploading ? "Se încarcă…" : "+ Încarcă fișier"}</button>
+              </div>
             </div>
           )}
 
@@ -229,6 +269,16 @@ export default function AssignSidebar({
         .rr-t { color: var(--text-faint); font-size: 11px; line-height: 1.4; }
         .rr-num { width: 52px; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; height: 26px; padding: 0 8px; font-size: 13px; }
         .rr-x { color: var(--text-faint); font-size: 11.5px; }
+        .rr-field { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+        .rr-ll { color: var(--text-faint); font-size: 10.5px; letter-spacing: .4px; }
+        .rr-ta { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 6px; color: var(--text); font-size: 12.5px; padding: 7px 9px; min-height: 60px; resize: vertical; font-family: inherit; outline: none; }
+        .rr-ta:focus { border-color: var(--primary); }
+        .rr-none { color: var(--text-faint); font-size: 12px; }
+        .rr-file { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; padding: 4px 0; }
+        .rr-file a { color: var(--text-link); } .rr-file a:hover { text-decoration: underline; }
+        .rr-file button { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 15px; } .rr-file button:hover { color: var(--danger); }
+        .rr-up { background: var(--surface); border: 1px dashed var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 7px; cursor: pointer; font-size: 12.5px; }
+        .rr-up:hover { color: var(--primary); border-color: var(--primary); }
         .asb-filters { padding: 0 16px 10px; display: flex; flex-direction: column; gap: 8px; }
         .ff { display: flex; align-items: center; gap: 6px; }
         .ff-l { color: var(--text-faint); font-size: 10.5px; letter-spacing: .5px; width: 32px; }

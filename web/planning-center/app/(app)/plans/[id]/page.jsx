@@ -204,9 +204,12 @@ export default function PlanDetailPage() {
             <div className="lcard">
               <div className="lc-h">Rolul meu</div>
               {head.myAssignments.map((a) => (
-                <div key={a.assignmentId} className={`myrow ${a.confirmed ? "ok" : a.declined ? "no" : ""}`}>
-                  <span className="myic">{a.confirmed ? "✓" : a.declined ? "✕" : "?"}</span>
-                  <span className="myl">{a.label}{a.team ? ` · ${a.team}` : ""}</span>
+                <div key={a.assignmentId} className="myitem">
+                  <div className={`myrow ${a.confirmed ? "ok" : a.declined ? "no" : ""}`}>
+                    <span className="myic">{a.confirmed ? "✓" : a.declined ? "✕" : "?"}</span>
+                    <span className="myl">{a.label}{a.team ? ` · ${a.team}` : ""}</span>
+                  </div>
+                  {a.instructions && <div className="myinstr">{a.instructions}</div>}
                 </div>
               ))}
             </div>
@@ -239,7 +242,7 @@ export default function PlanDetailPage() {
         query={recQuery} onQuery={setRecQuery} onPick={assignPerson} onClose={() => { setSel(null); setRec(null); }} assigning={assigning}
         mirror={pereche ? { available: true, label: `Adaugă și la ${pereche.teamName}` } : null}
         onAddGuest={addGuest}
-        defaults={rec?.defaults} positionId={sel?.positionId} onSaveRules={saveRules}
+        defaults={rec?.defaults} positionId={sel?.positionId} onSaveRules={saveRules} instructions={rec?.instructions}
       />
       {editing && (
         <EditPersonModal person={editing} onClose={() => setEditing(null)} onSave={saveEdit}
@@ -265,6 +268,8 @@ export default function PlanDetailPage() {
         .myrow .myic { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: var(--st-unconfirmed); color: #1d1600; flex: none; }
         .myrow.ok .myic { background: var(--product); color: #0b2018; } .myrow.no .myic { background: var(--danger); color: #fff; }
         .myl { color: var(--text); }
+        .myitem { margin-bottom: 4px; }
+        .myinstr { color: var(--text-dim); font-size: 12px; line-height: 1.5; white-space: pre-wrap; margin: 4px 0 8px 26px; padding: 8px 10px; background: var(--surface-2); border-radius: 6px; border-left: 2px solid var(--primary); }
         .pd-main { min-width: 0; }
         @media (max-width: 900px) { .pd-layout { grid-template-columns: 1fr; } .pd-left { position: static; } }
         .datenav { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 8px; padding: 4px 6px; }

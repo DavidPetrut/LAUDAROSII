@@ -11,7 +11,7 @@ const {
   PcArrangement, PcKey, PcSongFile, PcBlockout,
 } = require("../models");
 const { scoped, stamp } = require("../core/orgScope");
-const { requireCan } = require("../core/permissions");
+const { requireCan, can } = require("../core/permissions");
 const { wallToUtc } = require("../lib/time");
 const { DEFAULT_ITEM_ROW_COLORS, rowColorFor } = require("../lib/orderColors");
 
@@ -153,15 +153,17 @@ router.get("/:id", requireCan("people.view"), async (req, res) => {
       const posIds = mine.map((a) => a.positionId).filter(Boolean);
       const teamIds = mine.map((a) => a.teamId);
       const [positions, teams] = await Promise.all([
-        PcPosition.find(scoped(req, { _id: { $in: posIds } })).select("name").lean(),
+        PcPosition.find(scoped(req, { _id: { $in: posIds } })).select("name instructions").lean(),
         PcTeam.find(scoped(req, { _id: { $in: teamIds } })).select("name").lean(),
       ]);
       const posName = Object.fromEntries(positions.map((p) => [String(p._id), p.name]));
+      const posInstr = Object.fromEntries(positions.map((p) => [String(p._id), p.instructions || ""]));
       const teamName = Object.fromEntries(teams.map((t) => [String(t._id), t.name]));
       myAssignments = mine.map((a) => ({
         assignmentId: String(a._id),
         label: posName[String(a.positionId)] || "Poziție",
         team: teamName[String(a.teamId)] || "",
+        instructions: posInstr[String(a.positionId)] || "",   // „manualul" poziției, vizibil userului
         confirmed: a.status === "confirmed",
         declined: a.status === "declined",
       }));
@@ -745,6 +747,34 @@ router.patch("/positions/:positionId/rules", requireCan("services.schedule"), as
   }
 });
 
+/* ───────── Fișiere/„manual" per POZIȚIE (lider încarcă; userii le văd după rol) ─────────
+   Reutilizabile pe toate planurile acelei poziții. Instrucțiunile text sunt pe PcPosition.instructions. */
+router.get("/positions/:positionId/files", requireCan("people.view"), async (req, res) => {
+  try {
+    const positionId = OID(req.params.positionId);
+    const files = await PcPlanFile.find(scoped(req, { positionId, scope: "position" })).sort({ sortOrder: 1 }).lean();
+    res.json({ files: files.map((f) => ({ id: f._id, name: f.name, kind: f.kind, url: f.url || null })) });
+  } catch (err) { console.error("[pc] GET position files:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+router.post("/positions/:positionId/files", requireCan("services.schedule"), async (req, res) => {
+  try {
+    const positionId = OID(req.params.positionId);
+    const pos = await PcPosition.findOne(scoped(req, { _id: positionId })).select("_id").lean();
+    if (!pos) return res.status(404).json({ error: "Poziție inexistentă." });
+    const name = String(req.body?.name || "").trim();
+    if (!name) return res.status(400).json({ error: "Nume fișier lipsă." });
+    const doc = await PcPlanFile.create(stamp(req, { positionId, scope: "position", name, url: String(req.body?.url || "").trim(), kind: req.body?.kind || "upload" }));
+    res.status(201).json({ id: doc._id, name: doc.name, url: doc.url || null, kind: doc.kind });
+  } catch (err) { console.error("[pc] POST position file:", err.message); res.status(500).json({ error: "Eroare la fișier." }); }
+});
+router.delete("/positions/:positionId/files/:fileId", requireCan("services.schedule"), async (req, res) => {
+  try {
+    const f = await PcPlanFile.findOneAndUpdate(scoped(req, { _id: OID(req.params.fileId), positionId: OID(req.params.positionId) }), { $set: { deletedAt: new Date() } }).select("_id").lean();
+    if (!f) return res.status(404).json({ error: "Fișier inexistent." });
+    res.json({ ok: true });
+  } catch (err) { console.error("[pc] DELETE position file:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
 /* ───────── GET /:id/recommend — bara dreaptă: candidați pt. o poziție, cu „due" + conflicte ─────────
    Sortare: fără conflict întâi, apoi cei care n-au mai fost de mult pe poziție (due). FĂRĂ email. */
 router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) => {
@@ -1052,6 +1082,30 @@ router.get("/:id/files", requireCan("people.view"), async (req, res) => {
       arrFiles.forEach((f) => pushTo(`${title} · ARRANGEMENT ATTACHMENTS`, f));
       keyFiles.forEach((f) => pushTo(`${title} · KEY ATTACHMENTS`, f));
     });
+
+    // 3) Fișiere per POZIȚIE (manual/instrucțiuni) — DUPĂ ROL: planificatorii văd toate pozițiile planului,
+    //    userii doar pozițiile pe care sunt asignați pe acest plan.
+    const isPlanner = await can(req, "services.schedule");
+    let posIds = [];
+    if (isPlanner) {
+      const [aPos, nPos] = await Promise.all([
+        PcAssignment.distinct("positionId", scoped(req, { planId: id })),
+        PcNeededPosition.distinct("positionId", scoped(req, { planId: id })),
+      ]);
+      posIds = [...new Set([...aPos, ...nPos].map(String).filter((x) => x && x !== "null"))].map(OID).filter(Boolean);
+    } else {
+      const vpid = await viewerPersonId(req);
+      if (vpid) posIds = [...new Set((await PcAssignment.distinct("positionId", scoped(req, { planId: id, personId: vpid, status: { $ne: "declined" } }))).map(String).filter((x) => x && x !== "null"))].map(OID).filter(Boolean);
+    }
+    if (posIds.length) {
+      const [posFiles, posDocs] = await Promise.all([
+        PcPlanFile.find(scoped(req, { positionId: { $in: posIds }, scope: "position" })).sort({ sortOrder: 1 }).lean(),
+        PcPosition.find(scoped(req, { _id: { $in: posIds } })).select("name").lean(),
+      ]);
+      const posNm = Object.fromEntries(posDocs.map((p) => [String(p._id), p.name]));
+      posFiles.forEach((f) => pushTo(`POZIȚIE · ${posNm[String(f.positionId)] || "—"}`, f));
+    }
+
     res.json({ groups: Object.entries(groups).map(([label, items]) => ({ label, files: items })) });
   } catch (err) {
     console.error("[pc] GET /plans/:id/files:", err.message);

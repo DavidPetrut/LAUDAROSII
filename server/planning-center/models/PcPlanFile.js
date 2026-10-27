@@ -9,7 +9,8 @@ const schema = pcSchema({
   planId: { type: mongoose.Schema.Types.ObjectId, ref: "PcPlan", default: null },
   serviceTypeId: { type: mongoose.Schema.Types.ObjectId, ref: "PcServiceType", default: null },
   itemId: { type: mongoose.Schema.Types.ObjectId, ref: "PcPlanItem", default: null },
-  scope: { type: String, enum: ["serviceType", "plan", "item", "song"], default: "plan" },
+  positionId: { type: mongoose.Schema.Types.ObjectId, ref: "PcPosition", default: null }, // „manual"/fișiere per poziție
+  scope: { type: String, enum: ["serviceType", "plan", "item", "song", "position"], default: "plan" },
   groupLabel: { type: String, default: "" }, // ex. numele cântecului pt. scope song
   name: { type: String, required: true },
   kind: { type: String, default: "upload" }, // upload|link|youtube|vimeo|chordChart|audio|stageLayout

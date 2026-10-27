@@ -92,7 +92,16 @@
 - **Matrix combinat multi-ST** — coloane = planurile tuturor ST-urilor selectate (pe dată), **secțiuni per ST**
   (super-header colorat); backend generalizat (`?sts=...&prev=&next=&from=&to=`). Săgețile ‹/› paginează fereastra.
 
+### Manual + fișiere per poziție (azi, partea 13) ✅
+- **Instrucțiuni per poziție** („manualul") — în bara ⚙ reguli: textarea Instrucțiuni (salvat pe `PcPosition.instructions`);
+  userul le vede în plan, în sidebar-ul stânga sub **„Rolul meu"** (doar pentru pozițiile lui).
+- **Fișiere per poziție** — upload din bara ⚙ (→ Cloudinary), listă + ștergere; apar la **Files** în plan
+  **DUPĂ ROL**: planificatorii văd toate pozițiile planului, userii doar pozițiile lor
+  (`PcPlanFile` scope „position"; `GET/POST/DELETE /plans/positions/:id/files`).
+- **Primit pe email** — DEFERRED (sensibil, cu tine).
+
 ### Ce a mai rămas (ți-l las clar)
+- **Fișiere poziție pe email** (trimis la useri) — sensibil, cu tine.
 - **Salvare custom matrix** (persistent, nu doar în sesiune) + tab **Sections** (ce secțiuni poziții arăți).
 - **Notes permission-based** (ascuns la user normal) + **Files upload** (lider încarcă document) — RBAC/upload.
 - **Create account / registration** (admin creează cont persoană, ca în PCO) + gen obligatoriu la înregistrare.

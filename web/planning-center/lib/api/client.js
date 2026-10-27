@@ -112,6 +112,11 @@ export const plansApi = {
   setNeeded: (id, teamId, positionId, count) => api.put(`/plans/${id}/needed`, { teamId, positionId, count }),
   // reguli de recomandare per poziție (gen/program/target/instrucțiuni)
   setPositionRules: (positionId, payload) => api.patch(`/plans/positions/${positionId}/rules`, payload),
+  // „manual"/fișiere per poziție
+  positionFiles: (positionId) => api.get(`/plans/positions/${positionId}/files`),
+  addPositionFile: (positionId, payload) => api.post(`/plans/positions/${positionId}/files`, payload),
+  deletePositionFile: (positionId, fileId) => api.del(`/plans/positions/${positionId}/files/${fileId}`),
+  uploadFile: (file) => { const fd = new FormData(); fd.append("file", file); fd.append("name", file.name); return api.post("/uploads", fd); },
 };
 
 /* ─── People (tab People) — server/planning-center/routes/people.js ─── */
