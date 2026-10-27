@@ -506,10 +506,15 @@ router.get("/:id/teams", requireCan("people.view"), async (req, res) => {
     if (!id) return res.status(400).json({ error: "ID invalid" });
     const plan = await PcPlan.findOne(scoped(req, { _id: id })).select("serviceTypeId").lean();
     if (!plan) return res.status(404).json({ error: "Plan inexistent." });
-    const [assignments, needed] = await Promise.all([
+    const tz = await campusTz(req);
+    const [assignments, needed, planTimes] = await Promise.all([
       PcAssignment.find(scoped(req, { planId: id })).lean(),
       PcNeededPosition.find(scoped(req, { planId: id })).lean(),
+      PcPlanTime.find(scoped(req, { planId: id, type: "service" })).sort({ startsAt: 1 }).lean(),
     ]);
+    // orele de serviciu (pt. „Needed per oră" / split-teams)
+    const fmtTime = (d) => (d ? new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit" }).format(new Date(d)) : "");
+    const serviceTimes = planTimes.map((t) => ({ id: String(t._id), label: t.name ? `${fmtTime(t.startsAt)} ${t.name}` : fmtTime(t.startsAt) }));
     // TEAMS pre-concepute: TOATE echipele service type-ului (nu doar cele cu asignări) → apar si cele goale.
     const teams = await PcTeam.find(scoped(req, { serviceTypeId: plan.serviceTypeId, archived: false })).sort({ sortOrder: 1 }).lean();
     const teamIds = teams.map((t) => t._id);
@@ -538,7 +543,7 @@ router.get("/:id/teams", requireCan("people.view"), async (req, res) => {
       const groups = {}; // positionId|__none → {positionId, positionName, people[], needed}
       const ensure = (positionId, positionName) => {
         const key = positionId ? String(positionId) : "__none";
-        return (groups[key] = groups[key] || { positionId: positionId || null, positionName: positionName || "", people: [], needed: 0 });
+        return (groups[key] = groups[key] || { positionId: positionId || null, positionName: positionName || "", people: [], needed: 0, timeNeeds: {} });
       };
       order.forEach((o) => ensure(o.positionId, o.positionName));
       // #1: DECLINED RĂMÂNE pe poziție (pt. admin — evidență); la user (mobil) se va ascunde.
@@ -550,7 +555,12 @@ router.get("/:id/teams", requireCan("people.view"), async (req, res) => {
           ...base, personId: a.personId, assignmentId: a._id, status: a.status, isGuest: !!a.isGuest,
         });
       });
-      tNeeded.forEach((n) => { ensure(n.positionId, posName[String(n.positionId)]).needed += (n.count || 0); });
+      tNeeded.forEach((n) => {
+        const grp = ensure(n.positionId, posName[String(n.positionId)]);
+        grp.needed += (n.count || 0);
+        const k = n.timeId ? String(n.timeId) : "plan"; // „plan" = Needed pe tot planul (nelegat de o oră)
+        grp.timeNeeds[k] = (grp.timeNeeds[k] || 0) + (n.count || 0);
+      });
       // Păstrăm pozițiile chiar goale (le arătăm cu „Needed"); scoatem doar „__none" dacă e complet gol.
       if (groups.__none && !groups.__none.people.length && !groups.__none.needed) delete groups.__none;
       // ordonăm: întâi după ordinea pozițiilor, apoi ce a rămas
@@ -574,7 +584,7 @@ router.get("/:id/teams", requireCan("people.view"), async (req, res) => {
       const data = buildTeam(t);
       (myLedTeamIds.has(String(t._id)) || myAssignedTeamIds.has(String(t._id)) ? myTeams : otherTeams).push(data);
     });
-    res.json({ myTeams, otherTeams });
+    res.json({ myTeams, otherTeams, serviceTimes });
   } catch (err) {
     console.error("[pc] GET /plans/:id/teams:", err.message);
     res.status(500).json({ error: "Eroare la încărcarea echipelor." });
@@ -649,9 +659,12 @@ router.post("/:id/assignments", requireCan("services.schedule"), async (req, res
     } else {
       assignment = (await PcAssignment.create(stamp(req, doc))).toObject();
     }
-    // scade un „Needed" dacă există pe poziția asta
+    // scade un „Needed" dacă există pe poziția asta: întâi al orei la care e asignat (dacă există target pe acea oră), altfel plan-wide
     if (positionId) {
-      const np = await PcNeededPosition.findOne(scoped(req, { planId, teamId, positionId, count: { $gt: 0 } }));
+      const tid = (doc.timeIds && doc.timeIds[0]) || null;
+      let np = tid ? await PcNeededPosition.findOne(scoped(req, { planId, teamId, positionId, timeId: tid, count: { $gt: 0 } })) : null;
+      if (!np) np = await PcNeededPosition.findOne(scoped(req, { planId, teamId, positionId, timeId: null, count: { $gt: 0 } }));
+      if (!np) np = await PcNeededPosition.findOne(scoped(req, { planId, teamId, positionId, count: { $gt: 0 } }));
       if (np) { np.count -= 1; await np.save(); }
     }
     res.status(201).json({ id: assignment._id });
@@ -935,16 +948,18 @@ router.put("/:id/needed", requireCan("services.schedule"), async (req, res) => {
   try {
     const planId = OID(req.params.id);
     const teamId = OID(req.body?.teamId), positionId = OID(req.body?.positionId);
+    const timeId = OID(req.body?.timeId); // null = Needed pe tot planul (comportament vechi); setat = Needed pe o oră
     const count = Math.max(0, Math.min(99, parseInt(req.body?.count, 10) || 0));
     if (!teamId || !positionId) return res.status(400).json({ error: "teamId și positionId sunt necesare." });
+    const filter = scoped(req, { planId, teamId, positionId, timeId: timeId || null });
     if (count === 0) {
-      await PcNeededPosition.deleteMany(scoped(req, { planId, teamId, positionId }));
+      await PcNeededPosition.deleteMany(filter);
     } else {
-      const existing = await PcNeededPosition.findOne(scoped(req, { planId, teamId, positionId }));
+      const existing = await PcNeededPosition.findOne(filter);
       if (existing) { existing.count = count; await existing.save(); }
-      else await PcNeededPosition.create(stamp(req, { planId, teamId, positionId, count }));
+      else await PcNeededPosition.create(stamp(req, { planId, teamId, positionId, timeId: timeId || null, count }));
     }
-    res.json({ ok: true, count });
+    res.json({ ok: true, count, timeId: timeId ? String(timeId) : null });
   } catch (err) {
     console.error("[pc] PUT /plans/:id/needed:", err.message);
     res.status(500).json({ error: "Eroare la Needed: " + err.message });

@@ -110,7 +110,7 @@ export const plansApi = {
   // replică o echipă pe alta (SIM1→SIM2), după nume poziție
   copyTeam: (id, fromTeamId, toTeamId) => api.post(`/plans/${id}/assignments/copy`, { fromTeamId, toTeamId }),
   // setează câte persoane sunt necesare pe (echipă, poziție) — celula Needed
-  setNeeded: (id, teamId, positionId, count) => api.put(`/plans/${id}/needed`, { teamId, positionId, count }),
+  setNeeded: (id, teamId, positionId, count, timeId) => api.put(`/plans/${id}/needed`, { teamId, positionId, count, timeId: timeId || undefined }),
   // reguli de recomandare per poziție (gen/program/target/instrucțiuni)
   setPositionRules: (positionId, payload) => api.patch(`/plans/positions/${positionId}/rules`, payload),
   // „manual"/fișiere per poziție

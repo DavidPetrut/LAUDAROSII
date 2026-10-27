@@ -181,10 +181,15 @@ export default function PlanDetailPage() {
     try { await plansApi.setPositionRules(positionId, payload); flash("Reguli poziție salvate."); refreshRec(); }
     catch (e) { flash(e?.message || "Eroare."); }
   }
-  async function changeNeeded(teamId, positionId, nextCount) {
+  async function changeNeeded(teamId, positionId, timeId, nextCount) {
     const n = Math.max(0, nextCount);
-    patchGroup(teamId, positionId, (g) => ({ ...g, needed: n }));
-    try { await plansApi.setNeeded(id, teamId, positionId, n); reconcileTeams(); }
+    patchGroup(teamId, positionId, (g) => {
+      if (!timeId) return { ...g, needed: n }; // plan-wide (fără oră)
+      const tn = { ...(g.timeNeeds || {}), [timeId]: n };
+      const agg = Object.values(tn).reduce((s, x) => s + (x || 0), 0);
+      return { ...g, timeNeeds: tn, needed: agg };
+    });
+    try { await plansApi.setNeeded(id, teamId, positionId, n, timeId); reconcileTeams(); }
     catch (e) { flash(e?.message || "Eroare."); reconcileTeams(); }
   }
 
@@ -420,7 +425,8 @@ function CountIcon({ s }) {
 }
 
 /* ── Teams (interactiv) ── echipele = coloane în carusel orizontal ── */
-function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded }) {
+function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes = [] }) {
+  const perTime = serviceTimes.length >= 2; // Needed pe fiecare oră de serviciu
   return (
     <div className="tcol">
       <div className="tc-head">
@@ -447,15 +453,35 @@ function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded }) {
                 <button className="prm" title="Șterge" onClick={(e) => { e.stopPropagation(); onRemove(t.teamId, g.positionId, p.assignmentId); }}>×</button>
               </div>
             ))}
-            {g.needed > 0 && (
-              <div className="needctl">
-                <button onClick={() => onNeeded(t.teamId, g.positionId, g.needed - 1)}>−</button>
-                <span className="needn">{g.needed} Needed</span>
-                <button onClick={() => onNeeded(t.teamId, g.positionId, g.needed + 1)}>+</button>
+            {perTime ? (
+              <div className="needtimes">
+                {serviceTimes.map((st) => {
+                  const cnt = (g.timeNeeds && g.timeNeeds[st.id]) || 0;
+                  return (
+                    <div key={st.id} className="needtime">
+                      <span className="nt-lbl">{st.label}</span>
+                      <div className="needctl">
+                        <button onClick={() => onNeeded(t.teamId, g.positionId, st.id, cnt - 1)} disabled={cnt <= 0}>−</button>
+                        <span className={`needn ${cnt > 0 ? "" : "zero"}`}>{cnt}</span>
+                        <button onClick={() => onNeeded(t.teamId, g.positionId, st.id, cnt + 1)}>+</button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            )}
-            {g.needed === 0 && (!g.people || !g.people.length) && (
-              <button className="needadd" onClick={() => onNeeded(t.teamId, g.positionId, 1)}>+ Needed</button>
+            ) : (
+              <>
+                {g.needed > 0 && (
+                  <div className="needctl">
+                    <button onClick={() => onNeeded(t.teamId, g.positionId, null, g.needed - 1)}>−</button>
+                    <span className="needn">{g.needed} Needed</span>
+                    <button onClick={() => onNeeded(t.teamId, g.positionId, null, g.needed + 1)}>+</button>
+                  </div>
+                )}
+                {g.needed === 0 && (!g.people || !g.people.length) && (
+                  <button className="needadd" onClick={() => onNeeded(t.teamId, g.positionId, null, 1)}>+ Needed</button>
+                )}
+              </>
             )}
           </div>
         );
@@ -486,6 +512,10 @@ function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded }) {
         .needctl button:hover { color: var(--text); }
         .needadd { margin: 2px 14px; background: var(--surface-2); border: 1px dashed var(--border-strong); color: var(--text-faint); border-radius: 5px; cursor: pointer; font-size: 11px; padding: 3px 10px; }
         .needadd:hover { color: var(--primary); border-color: var(--primary); }
+        .needtimes { display: flex; flex-direction: column; gap: 3px; margin: 3px 14px 4px; }
+        .needtime { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .nt-lbl { color: var(--text-faint); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .needn.zero { color: var(--text-faint); }
         .pos-empty { color: var(--text-faint); font-size: 12px; padding: 10px 14px; }
       `}</style>
     </div>
@@ -495,7 +525,7 @@ function TeamsTab({ data, sel, onOpenCell, onEdit, onRemove, onNeeded }) {
   if (!data) return <div className="muted">Se încarcă…</div>;
   const my = data.myTeams || [], other = data.otherTeams || [];
   if (!my.length && !other.length) return <div className="muted">Nicio echipă pe acest plan.</div>;
-  const props = { sel, onOpenCell, onEdit, onRemove, onNeeded };
+  const props = { sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes: data.serviceTimes || [] };
   return (
     <div className="teams">
       {my.length > 0 && <><div className="grp-label">MY TEAMS</div><div className="carousel">{my.map((t) => <TeamCol key={t.teamId} t={t} {...props} />)}</div></>}
