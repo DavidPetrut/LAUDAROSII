@@ -11,7 +11,7 @@
   --surface-2: #1c222b;     /* inputuri, hover pe surface */
   --surface-3: #232a34;     /* dropdown-uri, elemente ridicate */
   --modal-bg: #1b212a;      /* fundal modal */
-  --row-hover: #151b22;     /* hover pe rânduri de tabel */
+  --row-hover: #1a222c;     /* hover pe rânduri de tabel (vizibil, nu aproape identic cu fundalul) */
 
   /* Borduri / separatoare */
   --border: #232a33;        /* linii între rânduri, borduri carduri */
@@ -19,9 +19,9 @@
   --border-strong: #2d3640; /* borduri inputuri / modale */
 
   /* Text */
-  --text: #e7e9ec;          /* text principal */
-  --text-dim: #9aa4b0;      /* text secundar (sub-titlu, meta) */
-  --text-faint: #6b7580;    /* headere coloane, placeholder */
+  --text: #e9ebee;          /* text principal */
+  --text-dim: #a2abb6;      /* text secundar (sub-titlu, meta) — ușor mai clar */
+  --text-faint: #868f9b;    /* headere coloane, placeholder, hint-uri — ridicat la ~5:1 contrast (AA) */
   --text-link: #5aa2d8;     /* porțiuni colorate din titluri / linkuri */
 
   /* Accente */
