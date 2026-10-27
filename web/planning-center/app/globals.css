@@ -121,3 +121,14 @@ button { font-family: inherit; }
 }
 .pc-pad { padding: 0 20px; }         /* gutter mic pt. pagini „listă" (People, Plans) */
 /* Matrix/Teams gestionează singure padding-ul intern (panoul lipit dreapta). */
+
+/* =============================================================================
+   Print — „Printează" din meniul planului. Ascunde chrome-ul (nav, AI, bare,
+   bara de asignare) și lasă conținutul pe toată lățimea, fundal alb.
+   ============================================================================= */
+@media print {
+  .nav, .ai-fab, .ai-panel, .covbar, .asb, .cb-handle { display: none !important; }
+  html, body { background: #fff !important; color: #111 !important; }
+  main { max-width: none !important; margin: 0 !important; padding: 0 !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

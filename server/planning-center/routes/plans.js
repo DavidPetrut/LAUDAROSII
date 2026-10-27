@@ -185,6 +185,23 @@ router.get("/:id", requireCan("people.view"), async (req, res) => {
   }
 });
 
+/* ───────── PATCH /:id — editează planul (deocamdată: redenumire titlu) ───────── */
+router.patch("/:id", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const id = OID(req.params.id);
+    if (!id) return res.status(400).json({ error: "ID invalid" });
+    const set = {};
+    if (req.body?.title !== undefined) set.title = String(req.body.title).trim().slice(0, 200);
+    if (!Object.keys(set).length) return res.status(400).json({ error: "Nimic de salvat." });
+    const plan = await PcPlan.findOneAndUpdate(scoped(req, { _id: id }), { $set: set }, { new: true }).select("_id title").lean();
+    if (!plan) return res.status(404).json({ error: "Planul nu există" });
+    res.json({ ok: true, title: plan.title || "" });
+  } catch (err) {
+    console.error("[pc] PATCH /plans/:id:", err.message);
+    res.status(500).json({ error: "Eroare la redenumire." });
+  }
+});
+
 /** Rezolvă liderii (persoană SAU poziție→persoana programată) pt. o listă de itemi. */
 async function resolveItemLeaders(req, planId, items) {
   const personIds = [], positionIds = [];

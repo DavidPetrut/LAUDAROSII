@@ -43,7 +43,29 @@ export default function PlanDetailPage() {
   const [assigning, setAssigning] = useState(false);
   const [editing, setEditing] = useState(null);
 
+  // meniu 3-puncte (rename / print / copy link)
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [renameVal, setRenameVal] = useState("");
+
   const flash = (m) => { setToast(m); setTimeout(() => setToast(""), 2400); };
+
+  function startRename() { setRenameVal(head?.title || ""); setRenaming(true); setMenuOpen(false); }
+  async function saveRename() {
+    const t = renameVal.trim();
+    setRenaming(false);
+    if (!t || t === (head?.title || "")) return;
+    const prev = head?.title;
+    setHead((h) => ({ ...h, title: t })); // optimist
+    try { await plansApi.update(id, { title: t }); flash("Plan redenumit."); }
+    catch (e) { setHead((h) => ({ ...h, title: prev })); flash(e?.message || "Eroare la redenumire."); }
+  }
+  function printPlan() { setMenuOpen(false); setTimeout(() => window.print(), 60); }
+  async function copyLink() {
+    setMenuOpen(false);
+    try { await navigator.clipboard.writeText(window.location.href); flash("Link copiat."); }
+    catch { flash("Nu am putut copia linkul."); }
+  }
 
   const loadHead = useCallback(async () => {
     try { setHead(await plansApi.get(id)); }
@@ -185,7 +207,14 @@ export default function PlanDetailPage() {
         </button>
         <div className="titles">
           <div className="st">{head?.serviceTypeName}</div>
-          <h1 className="title">{head?.title || "Plan"}</h1>
+          {renaming ? (
+            <input className="title-inp" value={renameVal} autoFocus
+              onChange={(e) => setRenameVal(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") saveRename(); if (e.key === "Escape") setRenaming(false); }}
+              onBlur={saveRename} />
+          ) : (
+            <h1 className="title" onDoubleClick={startRename} title="Dublu-click pt. redenumire">{head?.title || "Plan"}</h1>
+          )}
           <div className="datenav">
             <button className="darr" disabled={!head?.prevId} title="Plan anterior" onClick={() => head?.prevId && router.push(`/plans/${head.prevId}`)}>‹</button>
             <span className="date">{head?.dateLabel}</span>
@@ -194,6 +223,30 @@ export default function PlanDetailPage() {
         </div>
         <div className="topright">
           <button className="mx" onClick={() => head && router.push(`/plans/matrix/${head.serviceTypeId || ""}`)}>Matrix ▾</button>
+          <div className="menu-wrap">
+            <button className="kebab" title="Mai multe" aria-label="Mai multe acțiuni" onClick={() => setMenuOpen((v) => !v)}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.45" /><circle cx="8" cy="8" r="1.45" /><circle cx="8" cy="13" r="1.45" /></svg>
+            </button>
+            {menuOpen && (
+              <>
+                <div className="menu-back" onClick={() => setMenuOpen(false)} />
+                <div className="menu" role="menu">
+                  <button className="mi" onClick={startRename} role="menuitem">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+                    Redenumește
+                  </button>
+                  <button className="mi" onClick={printPlan} role="menuitem">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v8H6z" /></svg>
+                    Printează
+                  </button>
+                  <button className="mi" onClick={copyLink} role="menuitem">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" /><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" /></svg>
+                    Copiază link
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -277,9 +330,30 @@ export default function PlanDetailPage() {
         .darr:hover:not(:disabled) { color: var(--text); background: rgba(255,255,255,.06); }
         .darr:disabled { opacity: .35; cursor: default; }
         .date { color: var(--text); font-size: 14px; font-weight: 600; min-width: 120px; text-align: center; }
-        .topright { margin-left: auto; }
+        .topright { margin-left: auto; display: flex; align-items: center; gap: 8px; }
         .mx { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; height: 32px; padding: 0 14px; cursor: pointer; font-weight: 600; font-size: 13px; }
         .mx:hover { border-color: var(--primary); }
+        .title-inp { font-size: 22px; font-weight: 600; margin: 2px 0 0; background: var(--surface-2); border: 1px solid var(--primary);
+          border-radius: 6px; color: var(--text); padding: 2px 9px; outline: none; width: 100%; max-width: 480px; font-family: inherit; }
+        /* meniu 3-puncte */
+        .menu-wrap { position: relative; }
+        .kebab { width: 34px; height: 32px; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-2);
+          border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; cursor: pointer; transition: color .12s, border-color .12s; }
+        .kebab:hover { color: var(--text); border-color: var(--product); }
+        .menu-back { position: fixed; inset: 0; z-index: 44; }
+        .menu { position: absolute; right: 0; top: 38px; z-index: 45; min-width: 182px; background: var(--surface-3);
+          border: 1px solid var(--border-strong); border-radius: 9px; box-shadow: 0 14px 40px rgba(0,0,0,.45); padding: 5px;
+          display: flex; flex-direction: column; animation: menuIn .14s ease; }
+        @keyframes menuIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
+        .mi { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: transparent; border: none;
+          color: var(--text); font-size: 13px; padding: 9px 11px; border-radius: 6px; cursor: pointer; }
+        .mi:hover { background: var(--surface-2); }
+        .mi svg { color: var(--text-dim); flex: none; }
+        @media print {
+          .back, .topright, .datenav, .pd-left, .pd-tabs, .toast { display: none !important; }
+          .pd-layout { display: block !important; }
+          .title { font-size: 20px; }
+        }
         .date { color: var(--text); font-size: 14px; min-width: 90px; text-align: center; }
         .mine { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 4px; }
         .chip { background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 20px; padding: 4px 12px; font-size: 12.5px; color: var(--text-dim); }

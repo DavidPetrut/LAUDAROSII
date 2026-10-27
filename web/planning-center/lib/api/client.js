@@ -89,6 +89,7 @@ export const plansApi = {
   // date = prima dată; opts: { quantity, copyTimesFromPlanId, templatePlanId } (batch N planuri săptămânale)
   create: (serviceTypeId, date, opts = {}) => api.post("/plans", { serviceTypeId, date, ...opts }),
   get: (id) => api.get(`/plans/${id}`),
+  update: (id, payload) => api.patch(`/plans/${id}`, payload), // ex. { title } — redenumire plan
   teams: (id) => api.get(`/plans/${id}/teams`),
   times: (id) => api.get(`/plans/${id}/times`),
   order: (id) => api.get(`/plans/${id}/order`),
