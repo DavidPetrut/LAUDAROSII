@@ -71,15 +71,13 @@ export default function TopNav() {
         .links { display: flex; align-items: center; gap: 10px; }
         /* NOTĂ: <Link> e componentă, nu element DOM, deci styled-jsx NU-i aplică scoping-ul.
            De aceea regulile .link trebuie :global() (ancorate sub .nav ca să rămână locale). */
-        /* Fiecare tab = buton fizic vizibil (fundal + bordură), nu doar text. */
+        /* Stil PCO: inactiv = text curat (bine spațiat); hover/activ = pill rotunjit suav. */
         .nav :global(.link) { padding: 7px 16px; border-radius: 8px; color: var(--text-dim); font-size: 13.5px; font-weight: 500;
-          background: var(--surface-3); border: 1px solid var(--border-strong);
-          transition: background .12s, color .12s, border-color .12s, box-shadow .12s; }
-        .nav :global(.link:hover) { color: var(--text); background: #2b3440; border-color: #3a4552; }
-        /* Activ = evident (albastru primary + text alb), nu subtil. */
-        .nav :global(.link.active) { color: var(--primary-ink); background: var(--primary); border-color: var(--primary); font-weight: 600;
-          box-shadow: 0 2px 8px rgba(47,129,247,.35); }
-        .nav :global(.link.active:hover) { background: var(--primary-hover); border-color: var(--primary-hover); color: var(--primary-ink); }
+          background: transparent; border: 1px solid transparent;
+          transition: background .12s, color .12s; }
+        .nav :global(.link:hover) { color: var(--text); background: var(--surface-2); }
+        /* Activ = pill neutru suav (ca în PCO), NU culoare stridentă. */
+        .nav :global(.link.active) { color: var(--text); background: var(--surface-3); font-weight: 600; }
         .right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
         .icon-btn { background: transparent; border: none; color: var(--text-dim); cursor: pointer; padding: 6px; border-radius: 6px; }
         .icon-btn:hover { color: var(--text); background: rgba(255,255,255,.05); }
