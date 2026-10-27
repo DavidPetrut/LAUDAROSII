@@ -85,9 +85,16 @@
   mutate **sub titlu** (pill, ca PCO). Taburile principale: **Order / Teams**. Notes marcat **„doar admin"**,
   Files: „Nu există fișiere pentru acest plan.".
 
+### Custom Matrix (azi, partea 12) ✅
+- **Rotița ⚙ + dropdown service type** — schimbi matrix-ul la alt service type sau „+ New Custom Matrix".
+- **Panou Settings** (stânga, ca PCO): Name, **SMART LOAD** — **Quantity** (Previous plans / Next plans, steppers)
+  sau **Date** (From N săpt. în urmă, To N săpt. înainte) — și **Service Types** (checkbox-uri multi-select).
+- **Matrix combinat multi-ST** — coloane = planurile tuturor ST-urilor selectate (pe dată), **secțiuni per ST**
+  (super-header colorat); backend generalizat (`?sts=...&prev=&next=&from=&to=`). Săgețile ‹/› paginează fereastra.
+
 ### Ce a mai rămas (ți-l las clar)
-- **Notes permission-based** (ascuns la user normal) + **Files upload** (lider încarcă document) — logică RBAC/upload.
-- **Custom Matrix (#7b)** — rotița settings: alege alt matrix / creează custom (Quantity/Date smart load, multi service type).
+- **Salvare custom matrix** (persistent, nu doar în sesiune) + tab **Sections** (ce secțiuni poziții arăți).
+- **Notes permission-based** (ascuns la user normal) + **Files upload** (lider încarcă document) — RBAC/upload.
 - **Create account / registration** (admin creează cont persoană, ca în PCO) + gen obligatoriu la înregistrare.
 - **Instrucțiuni per poziție** („manualul" de onboarding) — câmpul există + PATCH-ul îl salvează; mai lipsește
   UI-ul de editare + afișarea la user (in-app/email/push).

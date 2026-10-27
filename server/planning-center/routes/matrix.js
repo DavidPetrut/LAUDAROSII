@@ -35,27 +35,48 @@ const mini = (p) => (p ? { id: p._id, name: [p.firstName, p.lastName].filter(Boo
 /* ───────── GET /:serviceTypeId — grila matrix ───────── */
 router.get("/:serviceTypeId", requireCan("services.schedule"), async (req, res) => {
   try {
-    const stId = OID(req.params.serviceTypeId);
-    const count = Math.min(12, Math.max(1, parseInt(req.query.count, 10) || 4));
-    const offset = parseInt(req.query.offset, 10) || 0; // #7: săgeți ‹/› — decalează fereastra cu N planuri
+    const clamp = (v, lo, hi, d) => { const n = parseInt(v, 10); return isNaN(n) ? d : Math.max(lo, Math.min(hi, n)); };
     const tz = await campusTz(req);
-    const stDoc = await PcServiceType.findOne(scoped(req, { _id: stId })).select("name").lean();
 
-    // toate planurile sortate; fereastra default începe la primul plan ≥ azi, apoi se decalează cu `offset`
+    // Custom Matrix: una sau mai multe service types (`?sts=id1,id2`); default = cel din URL.
+    const stIds = [...new Set([String(req.params.serviceTypeId), ...String(req.query.sts || "").split(",")].map((s) => s.trim()).filter(Boolean))].map(OID).filter(Boolean);
+    const multi = stIds.length > 1;
+    const [selSts, allSts] = await Promise.all([
+      PcServiceType.find(scoped(req, { _id: { $in: stIds } })).select("name sortOrder").sort({ sortOrder: 1 }).lean(),
+      PcServiceType.find(scoped(req)).select("name sortOrder").sort({ sortOrder: 1 }).lean(),
+    ]);
+    const stName = Object.fromEntries(selSts.map((s) => [String(s._id), s.name]));
+
+    // Smart Load: Date (from/to ISO) sau Quantity (prev/next + săgeți offset). count = compat vechi.
+    const offset = parseInt(req.query.offset, 10) || 0;
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(req.query.from || "") ? req.query.from : null;
+    const to = /^\d{4}-\d{2}-\d{2}$/.test(req.query.to || "") ? req.query.to : null;
+    const count = clamp(req.query.count, 1, 26, 8);
+    const prev = clamp(req.query.prev, 0, 26, 0);
+    const next = clamp(req.query.next, 0, 26, count);
+
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    const allPlans = await PcPlan.find(scoped(req, { serviceTypeId: stId })).sort({ sortDate: 1 }).select("_id sortDate").lean();
-    const maxStart = Math.max(0, allPlans.length - count);
-    let todayIdx = allPlans.findIndex((p) => new Date(p.sortDate) >= todayStart);
-    if (todayIdx < 0) todayIdx = maxStart;
-    let startIdx = Math.max(0, Math.min(todayIdx + offset, maxStart));
-    const plans = allPlans.slice(startIdx, startIdx + count);
-    const hasPrev = startIdx > 0;
-    const hasNext = startIdx + count < allPlans.length;
+    const allPlans = await PcPlan.find(scoped(req, { serviceTypeId: { $in: stIds } })).sort({ sortDate: 1 }).select("_id sortDate serviceTypeId").lean();
+
+    let plans, hasPrev = false, hasNext = false;
+    if (from && to) {
+      const lo = new Date(from + "T00:00:00"), hi = new Date(to + "T23:59:59");
+      plans = allPlans.filter((p) => { const d = new Date(p.sortDate); return d >= lo && d <= hi; });
+    } else {
+      const total = Math.max(1, prev + next);
+      let todayIdx = allPlans.findIndex((p) => new Date(p.sortDate) >= todayStart);
+      if (todayIdx < 0) todayIdx = allPlans.length;
+      const maxStart = Math.max(0, allPlans.length - total);
+      const startIdx = Math.max(0, Math.min(Math.max(0, todayIdx - prev) + offset, maxStart));
+      plans = allPlans.slice(startIdx, startIdx + total);
+      hasPrev = startIdx > 0;
+      hasNext = startIdx + total < allPlans.length;
+    }
     const planIds = plans.map((p) => p._id);
     const planIndex = Object.fromEntries(plans.map((p, i) => [String(p._id), i]));
 
     const [teams, assigns, needed] = await Promise.all([
-      PcTeam.find(scoped(req, { serviceTypeId: stId, archived: false })).sort({ sortOrder: 1 }).lean(),
+      PcTeam.find(scoped(req, { serviceTypeId: { $in: stIds }, archived: false })).sort({ sortOrder: 1 }).lean(),
       PcAssignment.find(scoped(req, { planId: { $in: planIds } })).lean(),
       PcNeededPosition.find(scoped(req, { planId: { $in: planIds } })).lean(),
     ]);
@@ -66,11 +87,11 @@ router.get("/:serviceTypeId", requireCan("services.schedule"), async (req, res) 
     const teamRows = teams.map((t) => {
       const tPos = positions.filter((p) => String(p.teamId) === String(t._id));
       return {
-        teamId: t._id,
-        name: t.name,
+        teamId: t._id, name: t.name,
+        stId: t.serviceTypeId, stName: stName[String(t.serviceTypeId)] || "",
         positions: tPos.map((pos) => {
           const cells = plans.map(() => ({ people: [], needed: 0 }));
-          // #1: declined RĂMÂNE vizibil (pt. admin/planificator — evidență). La user (mobil) se va ascunde.
+          // #1: declined RĂMÂNE vizibil (admin). Celulele se umplu doar pe coloanele ST-ului acestei echipe (automat prin planId).
           assigns.filter((a) => String(a.positionId) === String(pos._id)).forEach((a) => {
             const idx = planIndex[String(a.planId)];
             if (idx == null) return;
@@ -89,10 +110,12 @@ router.get("/:serviceTypeId", requireCan("services.schedule"), async (req, res) 
     });
 
     res.json({
-      serviceTypeId: stId,
-      serviceTypeName: stDoc?.name || "",
+      serviceTypeId: stIds[0],
+      serviceTypeName: multi ? `${selSts.length} service types` : (stName[String(stIds[0])] || ""),
+      multi, selectedStIds: stIds.map(String),
+      serviceTypes: allSts.map((s) => ({ id: s._id, name: s.name })),
       hasPrev, hasNext,
-      plans: plans.map((p) => ({ id: p._id, dateLabel: fmtDate(p.sortDate, tz), weekday: fmtWeekday(p.sortDate, tz) })),
+      plans: plans.map((p) => ({ id: p._id, stId: p.serviceTypeId, stName: stName[String(p.serviceTypeId)] || "", dateLabel: fmtDate(p.sortDate, tz), weekday: fmtWeekday(p.sortDate, tz) })),
       teams: teamRows,
     });
   } catch (err) {

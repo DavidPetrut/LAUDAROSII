@@ -28,8 +28,16 @@ export default function MatrixPage() {
   const router = useRouter();
   const { serviceTypeId } = useParams();
   const [data, setData] = useState(null);
-  const [count, setCount] = useState(8);
+  const [count, setCount] = useState(8);          // „Next plans" (Quantity)
   const [offset, setOffset] = useState(0);
+  const [prev, setPrev] = useState(0);            // „Previous plans" (Quantity)
+  const [dateMode, setDateMode] = useState(false); // Smart Load: Quantity vs Date
+  const [fromW, setFromW] = useState(1);          // Date: N săptămâni în urmă
+  const [toW, setToW] = useState(4);              // Date: N săptămâni înainte
+  const [stIds, setStIds] = useState(() => [String(serviceTypeId)]); // Custom Matrix: service types incluse
+  const [matrixName, setMatrixName] = useState("");
+  const [showSettings, setShowSettings] = useState(false);
+  const [showStMenu, setShowStMenu] = useState(false);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [collapsed, setCollapsed] = useState(() => new Set());
@@ -46,7 +54,15 @@ export default function MatrixPage() {
   const recTimer = useRef(null);
 
   // reconciliere silențioasă (fără loading flag) — ține bara deschisă și scroll-ul pe loc
-  const fetchGrid = useCallback(() => matrixApi.grid(serviceTypeId, count, offset), [serviceTypeId, count, offset]);
+  const isoWeeks = (n) => { const d = new Date(); d.setDate(d.getDate() + n * 7); return d.toISOString().slice(0, 10); };
+  const fetchGrid = useCallback(() => {
+    const opts = { offset };
+    if (dateMode) { opts.from = isoWeeks(-Math.abs(fromW)); opts.to = isoWeeks(Math.abs(toW)); }
+    else { opts.prev = prev; opts.next = count; }
+    const extra = stIds.filter((x) => String(x) !== String(serviceTypeId));
+    if (extra.length) opts.sts = extra.join(",");
+    return matrixApi.grid(serviceTypeId, opts);
+  }, [serviceTypeId, count, offset, prev, dateMode, fromW, toW, stIds]);
   const load = useCallback(async () => {
     setLoading(true);
     try { setData(await fetchGrid()); setErr(""); }
@@ -218,17 +234,31 @@ export default function MatrixPage() {
   const dateRange = nPlans ? `${plans[0].dateLabel} – ${plans[nPlans - 1].dateLabel}` : "";
 
   return (
-    <div className={`matrix pc-full ${sel ? "has-side" : ""}`}>
+    <div className={`matrix pc-full ${sel ? "has-side" : ""} ${showSettings ? "has-left" : ""}`}>
       {/* ───── bara de sus ───── */}
       <div className="mtop">
         <div className="mt-left">
           <button className="back" onClick={() => router.push("/plans")} title="Înapoi"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M10 3L5 8l5 5" /></svg></button>
-          <span className="st-pick">{data?.serviceTypeName || "Matrix"} <span className="caret">▾</span></span>
+          <button className={`gearbtn ${showSettings ? "on" : ""}`} title="Settings / Custom Matrix" onClick={() => { setShowSettings((v) => !v); setShowStMenu(false); }}>⚙</button>
+          <div className="st-pick-wrap">
+            <button className="st-pick" onClick={() => { setShowStMenu((v) => !v); setShowSettings(false); }}>{data?.serviceTypeName || "Matrix"} <span className="caret">▾</span></button>
+            {showStMenu && (
+              <div className="st-menu">
+                <div className="stm-l">SERVICE TYPES</div>
+                {(data?.serviceTypes || []).map((s) => (
+                  <button key={s.id} className={`stm-i ${String(s.id) === String(serviceTypeId) ? "on" : ""}`} onClick={() => { setShowStMenu(false); router.push(`/plans/matrix/${s.id}`); }}>
+                    {s.name}{String(s.id) === String(serviceTypeId) ? " ✓" : ""}
+                  </button>
+                ))}
+                <button className="stm-new" onClick={() => { setShowStMenu(false); setShowSettings(true); }}>+ New Custom Matrix</button>
+              </div>
+            )}
+          </div>
         </div>
         <div className="mt-center">
-          <button className="darr" disabled={!data?.hasPrev} title="Planuri anterioare" onClick={() => setOffset((o) => o - count)}>‹</button>
+          <button className="darr" disabled={!data?.hasPrev} title="Planuri anterioare" onClick={() => setOffset((o) => o - Math.max(1, nPlans))}>‹</button>
           <span className="drange">{dateRange}</span>
-          <button className="darr" disabled={!data?.hasNext} title="Planuri următoare" onClick={() => setOffset((o) => o + count)}>›</button>
+          <button className="darr" disabled={!data?.hasNext} title="Planuri următoare" onClick={() => setOffset((o) => o + Math.max(1, nPlans))}>›</button>
         </div>
         <div className="mt-right">
           {target && <button className="exit-target" onClick={() => { setTarget(null); setTargetSched(null); }}>⌖ Exit target view</button>}
@@ -244,6 +274,56 @@ export default function MatrixPage() {
 
       {err && <div className="err">{err}</div>}
 
+      {/* ───── Settings / Custom Matrix (panou stânga) ───── */}
+      {showSettings && (
+        <aside className="settings">
+          <div className="set-head">
+            <input className="set-name" placeholder="My Custom Matrix" value={matrixName} onChange={(e) => setMatrixName(e.target.value)} />
+            <button className="set-x" onClick={() => setShowSettings(false)} aria-label="Închide">×</button>
+          </div>
+          <div className="set-sec">SMART LOAD</div>
+          <div className="set-modes">
+            <button className={`set-mode ${!dateMode ? "on" : ""}`} onClick={() => setDateMode(false)}>Quantity</button>
+            <button className={`set-mode ${dateMode ? "on" : ""}`} onClick={() => setDateMode(true)}>Date</button>
+          </div>
+          {!dateMode ? (
+            <>
+              <div className="set-row"><span className="set-l">Previous plans</span>
+                <span className="stepper"><button onClick={() => { setPrev(Math.max(0, prev - 1)); setOffset(0); }}>−</button><b>{prev}</b><button onClick={() => { setPrev(prev + 1); setOffset(0); }}>+</button></span>
+              </div>
+              <div className="set-row"><span className="set-l">Next plans</span>
+                <span className="stepper"><button onClick={() => { setCount(Math.max(1, count - 1)); setOffset(0); }}>−</button><b>{count}</b><button onClick={() => { setCount(count + 1); setOffset(0); }}>+</button></span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="set-row"><span className="set-l">From</span>
+                <span className="stepper"><button onClick={() => setFromW(Math.max(0, fromW - 1))}>−</button><b>{fromW}</b><button onClick={() => setFromW(fromW + 1)}>+</button></span>
+                <span className="set-x2">week(s) ago</span>
+              </div>
+              <div className="set-row"><span className="set-l">To</span>
+                <span className="stepper"><button onClick={() => setToW(Math.max(0, toW - 1))}>−</button><b>{toW}</b><button onClick={() => setToW(toW + 1)}>+</button></span>
+                <span className="set-x2">weeks from now</span>
+              </div>
+            </>
+          )}
+          <div className="set-sec">SERVICE TYPES</div>
+          <div className="set-sts">
+            {(data?.serviceTypes || []).map((s) => {
+              const isBase = String(s.id) === String(serviceTypeId);
+              const on = isBase || stIds.map(String).includes(String(s.id));
+              return (
+                <label key={s.id} className="set-st">
+                  <input type="checkbox" checked={on} disabled={isBase}
+                    onChange={() => { setStIds((p) => on ? p.filter((x) => String(x) !== String(s.id)) : [...p, String(s.id)]); setOffset(0); }} />
+                  {s.name}{isBase ? " (de bază)" : ""}
+                </label>
+              );
+            })}
+          </div>
+        </aside>
+      )}
+
       {/* ───── grila (scroll orizontal = carusel) ───── */}
       <div className="grid-wrap">
         {loading && !data ? <div className="empty">Se încarcă matrix-ul…</div> : nPlans === 0 ? <div className="empty">Niciun plan pentru acest service type.</div> : (
@@ -251,13 +331,17 @@ export default function MatrixPage() {
             <div className="cell head corner" />
             {plans.map((p, i) => (
               <div key={p.id} className={`cell head planhead ${sel?.colIdx === i ? "selcol" : ""}`}>
-                <div className="ph-st">{data?.serviceTypeName}</div>
+                <div className="ph-st">{p.stName || data?.serviceTypeName}</div>
                 <div className="ph-date">{p.weekday ? `${p.weekday} · ` : ""}{p.dateLabel}</div>
               </div>
             ))}
 
-            {teams.flatMap((t) => {
-              const out = [
+            {teams.flatMap((t, ti) => {
+              const out = [];
+              if (data?.multi && (ti === 0 || teams[ti - 1].stId !== t.stId)) {
+                out.push(<div key={`sth-${t.stId}`} className="stgroup" style={{ gridColumn: `1 / span ${nPlans + 1}` }}>{t.stName}</div>);
+              }
+              out.push(
                 <div key={`team-${t.teamId}`} className="teamblock" style={{ gridColumn: `1 / span ${nPlans + 1}` }}>
                   <button className="tb-toggle" onClick={() => toggle(t.teamId)}>
                     <span className={`tb-caret ${collapsed.has(t.teamId) ? "col" : ""}`}>▾</span>{t.name}
@@ -265,8 +349,8 @@ export default function MatrixPage() {
                   <div className="tb-actions">
                     <button className="gear" title="Copiază pe echipa pereche (SIM1→SIM2)" onClick={() => copySimTeam(t.teamId)}>⧉</button>
                   </div>
-                </div>,
-              ];
+                </div>
+              );
               if (collapsed.has(t.teamId)) return out;
               (t.positions || []).forEach((pos) => {
                 out.push(<div key={`${t.teamId}-${pos.positionId}-n`} className="cell poslabel" title={`${pos.name} — click: deschide bara de asignare`} onClick={() => openCell(plans[0].id, t.teamId, pos.positionId, pos.name, 0)}>{pos.name}</div>);
@@ -362,11 +446,40 @@ export default function MatrixPage() {
       <style jsx>{`
         .matrix { padding: 14px 16px 40px; transition: padding-right .16s ease; }
         .matrix.has-side { padding-right: 356px; }  /* loc pt. bara lipită dreapta */
+        .matrix.has-left { padding-left: 336px; }   /* loc pt. panoul Settings din stânga */
         .mtop { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
         .mt-left { display: flex; align-items: center; gap: 8px; }
         .back { background: transparent; border: none; color: var(--text-dim); cursor: pointer; padding: 5px; }
         .back:hover { color: var(--text); }
-        .st-pick { background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 6px; padding: 6px 12px; color: var(--text); font-size: 13.5px; font-weight: 600; }
+        .gearbtn { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); width: 32px; height: 32px; border-radius: 6px; cursor: pointer; font-size: 15px; }
+        .gearbtn.on, .gearbtn:hover { color: var(--text); border-color: var(--primary); }
+        .st-pick-wrap { position: relative; }
+        .st-pick { background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 6px; padding: 6px 12px; color: var(--text); font-size: 13.5px; font-weight: 600; cursor: pointer; }
+        .st-pick:hover { border-color: var(--primary); }
+        .st-menu { position: absolute; left: 0; top: 38px; z-index: 50; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 8px; padding: 6px; min-width: 260px; box-shadow: 0 8px 28px rgba(0,0,0,.45); display: flex; flex-direction: column; max-height: 60vh; overflow: auto; }
+        .stm-l { color: var(--text-faint); font-size: 10px; letter-spacing: .5px; padding: 6px 8px 4px; }
+        .stm-i { text-align: left; background: transparent; border: none; color: var(--text-dim); padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+        .stm-i:hover { background: rgba(255,255,255,.06); color: var(--text); } .stm-i.on { color: var(--text); font-weight: 600; }
+        .stm-new { text-align: left; margin-top: 4px; border-top: 1px solid var(--border); background: transparent; border-left: none; border-right: none; border-bottom: none; color: var(--primary); padding: 9px 10px; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .stm-new:hover { background: rgba(47,129,247,.1); }
+        .settings { position: fixed; top: var(--nav-h); left: 0; bottom: 0; width: 316px; background: var(--surface); border-right: 1px solid var(--border); z-index: 45; padding: 16px; overflow: auto; box-shadow: 8px 0 24px rgba(0,0,0,.28); }
+        .set-head { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; }
+        .set-name { flex: 1; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 6px; height: 34px; padding: 0 10px; color: var(--text); font-size: 14px; font-weight: 600; outline: none; }
+        .set-name:focus { border-color: var(--primary); }
+        .set-x { background: transparent; border: none; color: var(--text-faint); font-size: 22px; cursor: pointer; line-height: 1; }
+        .set-sec { color: var(--text-faint); font-size: 10.5px; letter-spacing: .6px; margin: 16px 0 8px; }
+        .set-modes { display: flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; margin-bottom: 10px; }
+        .set-mode { flex: 1; background: var(--surface-2); border: none; color: var(--text-dim); padding: 8px 0; cursor: pointer; font-size: 13px; border-right: 1px solid var(--border-strong); }
+        .set-mode:last-child { border-right: none; } .set-mode.on { background: var(--primary); color: #fff; font-weight: 600; }
+        .set-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: 13px; color: var(--text-dim); }
+        .set-l { flex: 1; } .set-x2 { color: var(--text-faint); font-size: 12px; }
+        .stepper { display: inline-flex; align-items: center; gap: 2px; }
+        .stepper button { width: 26px; height: 26px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .stepper button:hover { color: var(--text); } .stepper b { min-width: 28px; text-align: center; color: var(--text); font-size: 13px; }
+        .set-sts { display: flex; flex-direction: column; gap: 2px; }
+        .set-st { display: flex; align-items: center; gap: 8px; color: var(--text-dim); font-size: 13px; padding: 6px 4px; cursor: pointer; }
+        .set-st input { accent-color: var(--primary); }
+        .stgroup { background: var(--primary); color: #fff; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; padding: 7px 14px; position: sticky; left: 0; z-index: 2; border-top: 1px solid var(--border); }
         .caret { color: var(--text-faint); font-size: 10px; }
         .mt-center { flex: 1; display: flex; align-items: center; justify-content: center; gap: 14px; }
         .darr { width: 30px; height: 30px; border-radius: 7px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); cursor: pointer; font-size: 17px; line-height: 1; }

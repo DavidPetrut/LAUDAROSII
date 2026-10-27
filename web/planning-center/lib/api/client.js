@@ -150,7 +150,11 @@ export const mediaApi = {
 /* ─── Matrix (planificare multi-plan) — server/planning-center/routes/matrix.js ─── */
 export const matrixApi = {
   // { serviceTypeId, plans:[{id,dateLabel}], teams:[{teamId,name,positions:[{positionId,name,cells:[{people:[{..,status}],needed}]}]}] }
-  grid: (serviceTypeId, count = 4, offset = 0) => api.get(`/matrix/${serviceTypeId}?count=${count}${offset ? `&offset=${offset}` : ""}`),
+  // opts: { count, offset, prev, next, from, to, sts } — Custom Matrix (Smart Load + multi service type)
+  grid: (serviceTypeId, opts = {}) => {
+    const qs = new URLSearchParams(Object.entries(opts).filter(([, v]) => v != null && v !== "")).toString();
+    return api.get(`/matrix/${serviceTypeId}${qs ? `?${qs}` : ""}`);
+  },
   // raport „persoane neplanificate" (interval + slujire) — doar READ, fără scrieri
   coverage: (serviceTypeId, count = 4, teamId) => {
     const qs = new URLSearchParams(Object.entries({ count, teamId }).filter(([, v]) => v != null && v !== "")).toString();
