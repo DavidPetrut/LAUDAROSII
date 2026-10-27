@@ -25,7 +25,7 @@ export default function CoveragePage() {
 
   const load = useCallback(async (silent) => {
     if (!silent) setLoading(true);
-    try { setData(await matrixApi.coverage(serviceTypeId, count, teamId)); setErr(""); setLastSync(new Date()); }
+    try { setData(await matrixApi.coverage(serviceTypeId, { count, teamId })); setErr(""); setLastSync(new Date()); }
     catch (e) { setErr(e?.message || "Eroare la raport."); }
     finally { setLoading(false); }
   }, [serviceTypeId, count, teamId]);

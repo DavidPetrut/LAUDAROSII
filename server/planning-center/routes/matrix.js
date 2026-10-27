@@ -203,12 +203,21 @@ router.get("/:serviceTypeId/coverage", requireCan("services.schedule"), async (r
     const tz = await campusTz(req);
     const st = await PcServiceType.findOne(scoped(req, { _id: stId })).select("name").lean();
 
-    // interval = aceleași planuri ca grila (viitoare întâi, completate cu recente)
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    let plans = await PcPlan.find(scoped(req, { serviceTypeId: stId, sortDate: { $gte: todayStart } })).sort({ sortDate: 1 }).limit(count).lean();
-    if (plans.length < count) {
-      const extra = await PcPlan.find(scoped(req, { serviceTypeId: stId, sortDate: { $lt: todayStart } })).sort({ sortDate: -1 }).limit(count - plans.length).lean();
-      plans = [...extra.reverse(), ...plans];
+    // interval = EXACT fereastra din Matrix. Dacă vin `planIds`, le folosim (sincron cu grila);
+    // altfel fallback: viitoare întâi, completate cu recente.
+    const explicitIds = String(req.query.planIds || "").split(",").map((s) => s.trim()).filter(Boolean).map(OID).filter(Boolean);
+    let plans;
+    if (explicitIds.length) {
+      const found = await PcPlan.find(scoped(req, { _id: { $in: explicitIds } })).select("sortDate").lean();
+      const byId = Object.fromEntries(found.map((p) => [String(p._id), p]));
+      plans = explicitIds.map((id) => byId[String(id)]).filter(Boolean);
+    } else {
+      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+      plans = await PcPlan.find(scoped(req, { serviceTypeId: stId, sortDate: { $gte: todayStart } })).sort({ sortDate: 1 }).limit(count).lean();
+      if (plans.length < count) {
+        const extra = await PcPlan.find(scoped(req, { serviceTypeId: stId, sortDate: { $lt: todayStart } })).sort({ sortDate: -1 }).limit(count - plans.length).lean();
+        plans = [...extra.reverse(), ...plans];
+      }
     }
     const planIds = plans.map((p) => p._id);
     const planKeys = plans.map((p) => new Date(p.sortDate).toISOString().slice(0, 10));
@@ -244,7 +253,7 @@ router.get("/:serviceTypeId/coverage", requireCan("services.schedule"), async (r
       if (myBlk.some((b) => b.type === "churchBlock" && planKeys.some((dk) => covers(b, dk)))) return null;
       const sched = schedBy[String(p._id)] ? schedBy[String(p._id)].size : 0;
       const blocked = planKeys.filter((dk) => myBlk.some((b) => b.type !== "churchBlock" && covers(b, dk))).length;
-      const free = Math.max(0, count - sched - blocked);
+      const free = Math.max(0, plans.length - sched - blocked);
       return {
         id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "),
         initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase(), avatar: p.avatar || "",

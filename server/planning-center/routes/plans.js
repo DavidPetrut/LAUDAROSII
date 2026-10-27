@@ -620,13 +620,15 @@ router.post("/:id/assignments", requireCan("services.schedule"), async (req, res
       tempPositionName: b.tempPositionName || "",
       responseToken: crypto.randomBytes(18).toString("hex"),
     };
-    // upsert pe (plan, position, person) ca să nu dublăm — invitații sunt mereu noi (id fictiv)
+    // upsert pe (plan, position, person) ca să nu dublăm — invitații sunt mereu noi (id fictiv).
+    // IMPORTANT: căutăm INCLUSIV asignări șterse soft (deletedAt setat), altfel indexul unic
+    // {orgId,planId,positionId,personId} dă E11000 când repui pe cineva șters anterior. Le REÎNVIEM.
     const existing = (positionId && !isGuest)
-      ? await PcAssignment.findOne(scoped(req, { planId, positionId, personId })).select("_id").lean()
+      ? await PcAssignment.findOne({ orgId: req.pcOrgId, planId, positionId, personId }).select("_id").lean()
       : null;
     let assignment;
     if (existing) {
-      assignment = await PcAssignment.findOneAndUpdate(scoped(req, { _id: existing._id }), { $set: doc }, { new: true }).lean();
+      assignment = await PcAssignment.findOneAndUpdate({ _id: existing._id }, { $set: { ...doc, deletedAt: null } }, { new: true }).lean();
     } else {
       assignment = (await PcAssignment.create(stamp(req, doc))).toObject();
     }

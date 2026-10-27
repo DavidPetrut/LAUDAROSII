@@ -54,6 +54,7 @@ export default function MatrixPage() {
   const [barOpen, setBarOpen] = useState(false);   // bara de jos „listă live"
   const [cov, setCov] = useState(null);
   const [covBusy, setCovBusy] = useState(false);
+  const [barFilters, setBarFilters] = useState({ ministry: null, gender: "", sim: "" }); // filtre tag-uri bară
   const [dragActive, setDragActive] = useState(false); // feedback drag (Kanban)
   const dragRef = useRef(null);
   const recTimer = useRef(null);
@@ -82,10 +83,11 @@ export default function MatrixPage() {
   // bara „listă live" — responsive la poziția selectată (teamId) + LIVE (se cere din nou la assign/remove)
   const loadCov = useCallback(async () => {
     if (!barOpen) return;
+    const ids = (data?.plans || []).map((p) => p.id).join(","); // EXACT fereastra din Matrix
     setCovBusy(true);
-    try { setCov(await matrixApi.coverage(serviceTypeId, count, sel?.teamId)); } catch {}
+    try { setCov(await matrixApi.coverage(serviceTypeId, { planIds: ids, teamId: barFilters.ministry?.teamId })); } catch {}
     finally { setCovBusy(false); }
-  }, [barOpen, serviceTypeId, count, sel?.teamId]);
+  }, [barOpen, serviceTypeId, data?.plans, barFilters.ministry?.teamId]);
   useEffect(() => { loadCov(); }, [loadCov]);
 
   const plans = data?.plans || [];
@@ -129,11 +131,21 @@ export default function MatrixPage() {
   const openCell = useCallback(async (planId, teamId, positionId, positionName, colIdx) => {
     setTarget(null); setTargetSched(null);
     setSel({ planId, teamId, positionId, positionName, colIdx });
+    // bara „listă live" moștenește filtrul de slujire din poziția selectată (se poate scoate cu × din tag)
+    const tName = (data?.teams || []).find((t) => String(t.teamId) === String(teamId))?.name || "";
+    setBarFilters((f) => ({ ...f, ministry: { teamId, name: tName } }));
     setRec(null); setRecQuery(""); setRecBusy(true);
-    try { setRec(await plansApi.recommend(planId, { teamId, positionId })); }
+    try {
+      const r = await plansApi.recommend(planId, { teamId, positionId });
+      setRec(r);
+      // moștenește gen/SIM din regula poziției (dacă setate)
+      const g = r?.defaults?.gender && r.defaults.gender !== "any" ? r.defaults.gender : "";
+      const s = r?.defaults?.program && r.defaults.program !== "any" ? r.defaults.program : "";
+      setBarFilters((f) => ({ ...f, gender: g, sim: s }));
+    }
     catch (e) { setErr(e?.message || "Eroare la recomandări."); }
     finally { setRecBusy(false); }
-  }, []);
+  }, [data?.teams]);
 
   // căutare în bară (debounced)
   useEffect(() => {
@@ -438,7 +450,8 @@ export default function MatrixPage() {
 
       <CoverageBar
         open={barOpen} onToggle={() => setBarOpen((v) => !v)} cov={cov} loading={covBusy}
-        selLabel={sel?.positionName || ""} onRefresh={loadCov}
+        filters={barFilters} onRemoveFilter={(t) => setBarFilters((f) => ({ ...f, [t]: t === "ministry" ? null : "" }))}
+        style={{ left: showSettings ? 316 : 0, right: sel ? 340 : 0 }}
         onPersonDragStart={(p) => { dragRef.current = { personId: p.id, name: p.name, avatar: p.avatar, initials: p.initials, fromBar: true, move: false }; setDragActive(true); }}
         onPersonDragEnd={() => setDragActive(false)}
       />

@@ -109,6 +109,16 @@
 - **Drag & drop din bară → celulă Matrix** (asignează instant) + **feedback Kanban** (celulele se evidențiază la drag,
   cardul tras se estompează). (Movable-anywhere = nice-to-have, lăsat pt. mai târziu.)
 
+### Fixuri bară „listă live" (azi, partea 15) ✅
+- **BUG CRITIC rezolvat** — drag din bară dădea `E11000 duplicate key` (și persoana dispărea): indexul unic
+  nu ignora asignările șterse soft → acum le **REÎNVIEM** la re-asignare (merge drag + re-planificare).
+- **Bara NU mai acoperă sidebar-urile** — se oprește înainte (inset dinamic dreapta/stânga).
+- **Scos butonul refresh** — totul e LIVE (se actualizează la orice schimbare).
+- **Intervalul barei = EXACT fereastra din Matrix** — trimit `planIds` vizibile; dacă sus sunt 6 săptămâni,
+  numără pe 6 (free = nr. planuri − alocat − blocat). Rezolvă „nu se vedeau planificații".
+- **Filtre ca TAG-uri colorate** (slujire / gen / SIM) fiecare cu **×** de scos; **nav view-uri în stânga**
+  (Toți/Neplanificați/Planificați); moștenesc filtrele din poziția selectată, se scot ușor; carduri polish.
+
 ### Ce a mai rămas (ți-l las clar)
 - **Bara movable** (trage-o oriunde ca tab flotant) — nice-to-have.
 - **Fișiere poziție pe email** (trimis la useri) — sensibil, cu tine.

@@ -160,9 +160,9 @@ export const matrixApi = {
     const qs = new URLSearchParams(Object.entries(opts).filter(([, v]) => v != null && v !== "")).toString();
     return api.get(`/matrix/${serviceTypeId}${qs ? `?${qs}` : ""}`);
   },
-  // raport „persoane neplanificate" (interval + slujire) — doar READ, fără scrieri
-  coverage: (serviceTypeId, count = 4, teamId) => {
-    const qs = new URLSearchParams(Object.entries({ count, teamId }).filter(([, v]) => v != null && v !== "")).toString();
+  // raport „persoane neplanificate" (interval + slujire) — doar READ. opts: { planIds, teamId, count }
+  coverage: (serviceTypeId, opts = {}) => {
+    const qs = new URLSearchParams(Object.entries(opts).filter(([, v]) => v != null && v !== "")).toString();
     return api.get(`/matrix/${serviceTypeId}/coverage${qs ? `?${qs}` : ""}`);
   },
   // ATENȚIE: trimite emailuri reale. Se apelează DOAR la acțiune explicită a utilizatorului.
