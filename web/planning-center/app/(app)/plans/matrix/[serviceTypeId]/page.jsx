@@ -58,6 +58,7 @@ export default function MatrixPage() {
   const [assigning, setAssigning] = useState(false);
   const [target, setTarget] = useState(null);
   const [targetSched, setTargetSched] = useState(null);
+  const [targetAvail, setTargetAvail] = useState({}); // planId → {blockout,here,busy,busyLabel} (target-mode)
   const [toast, setToast] = useState("");
   const [editing, setEditing] = useState(null);
   const [barOpen, setBarOpen] = useState(false);   // bara de jos „listă live"
@@ -286,10 +287,48 @@ export default function MatrixPage() {
     } catch (e) { flash(e?.message || "Eroare."); }
   }
 
+  const loadAvail = useCallback(async (personId) => {
+    const ids = (data?.plans || []).map((p) => p.id).join(",");
+    if (!personId || !ids) { setTargetAvail({}); return; }
+    try { const r = await matrixApi.personAvailability(serviceTypeId, { personId, planIds: ids }); setTargetAvail(r.availability || {}); }
+    catch { setTargetAvail({}); }
+  }, [serviceTypeId, data?.plans]);
+
   function pickTarget(pp) {
-    if (target && String(target.personId) === String(pp.personId)) { setTarget(null); setTargetSched(null); return; }
-    setTarget({ personId: pp.personId, name: pp.name }); setTargetSched(null);
+    if (target && String(target.personId) === String(pp.personId)) { setTarget(null); setTargetSched(null); setTargetAvail({}); return; }
+    setTarget({ personId: pp.personId, name: pp.name, avatar: pp.avatar || "", initials: pp.initials || "" });
+    setTargetSched(null); setTargetAvail({}); setBarOpen(true); // deschide „Listă live" pe tabul persoanei
     peopleApi.schedule(pp.personId).then((r) => setTargetSched(r.schedule || [])).catch(() => setTargetSched([]));
+    loadAvail(pp.personId);
+  }
+  const clearTarget = () => { setTarget(null); setTargetSched(null); setTargetAvail({}); };
+  // reîncarcă disponibilitatea când se schimbă fereastra de planuri (navigare) cât timp e target activ
+  useEffect(() => { if (target?.personId) loadAvail(target.personId); }, [target?.personId, loadAvail]);
+  // Esc = ieși din target-mode
+  useEffect(() => {
+    if (!target) return;
+    const onKey = (e) => { if (e.key === "Escape") { setTarget(null); setTargetSched(null); setTargetAvail({}); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [target]);
+
+  // TARGET-MODE: click pe o celulă → planifică persoana-target acolo (rapid, cross-plan). ZERO email.
+  async function assignTargetToCell(planId, teamId, positionId, colIdx, cell) {
+    if (!target) return;
+    const av = targetAvail[String(planId)];
+    if (av?.blockout) { flash(`⌖ ${target.name} e blocat la această dată (blockout).`); return; }
+    if ((cell?.people || []).some((x) => String(x.personId) === String(target.personId))) { flash("Deja pe această poziție."); return; }
+    setAssigning(true);
+    patchCell(teamId, positionId, colIdx, (c) => ({
+      ...c, needed: Math.max(0, (c.needed || 0) - 1),
+      people: [...c.people, { personId: target.personId, assignmentId: `tmp-t-${Date.now()}`, name: target.name, avatar: target.avatar || "", initials: (target.name || "?").split(" ").map((s) => s[0]).join("").slice(0, 2).toUpperCase(), status: "unconfirmed" }],
+    }));
+    try {
+      await plansApi.assign(planId, { personId: target.personId, teamId, positionId, status: "unconfirmed" });
+      flash(`⌖ ${target.name} planificat (neconfirmat, fără email).`);
+      reconcile(); loadCov(); loadAvail(target.personId);
+    } catch (e) { flash(e?.message || "Eroare."); reconcile(); }
+    finally { setAssigning(false); }
   }
 
   const toggle = (id) => setCollapsed((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -427,7 +466,6 @@ export default function MatrixPage() {
           </div>
         </div>
         <div className="mt-right">
-          {target && <button className="exit-target" onClick={() => { setTarget(null); setTargetSched(null); }}>⌖ Exit target view</button>}
           <button className={`cover-btn ${barOpen ? "on" : ""}`} title="Listă live (bară jos) — persoane care mai pot fi asignate"
             onClick={() => setBarOpen((v) => !v)}>
             👥 Listă live
@@ -440,6 +478,14 @@ export default function MatrixPage() {
       </div>
 
       {err && <div className="err">{err}</div>}
+
+      {target && (
+        <div className="tmode-bar">
+          <span className="tmb-ic">⌖</span>
+          <span className="tmb-tx"><b>Mod target: {target.name}</b> — click pe o poziție liberă ca să-l planifici rapid pe mai multe date. Esc / × pentru ieșire.</span>
+          <button className="tmb-x" onClick={() => { setTarget(null); setTargetSched(null); setTargetAvail({}); }}>Ieși din target ×</button>
+        </div>
+      )}
 
       {/* ───── Settings / Custom Matrix (panou stânga) ───── */}
       {showSettings && (
@@ -496,12 +542,21 @@ export default function MatrixPage() {
         {loading && !data ? <div className="empty">Se încarcă matrix-ul…</div> : nPlans === 0 ? <div className="empty">Niciun plan pentru acest service type.</div> : (
           <div className="grid" style={{ gridTemplateColumns: gridCols }}>
             <div className="cell head corner" />
-            {plans.map((p, i) => (
-              <div key={p.id} className={`cell head planhead ${sel?.colIdx === i ? "selcol" : ""}`}>
-                <div className="ph-st">{p.stName || data?.serviceTypeName}</div>
-                <div className="ph-date">{p.weekday ? `${p.weekday} · ` : ""}{p.dateLabel}</div>
-              </div>
-            ))}
+            {plans.map((p, i) => {
+              const av = target ? targetAvail[String(p.id)] : null;
+              const avk = av?.blockout ? "blk" : av?.busy ? "busy" : av ? "free" : "";
+              return (
+                <div key={p.id} className={`cell head planhead ${sel?.colIdx === i ? "selcol" : ""} ${avk ? "av-" + avk : ""}`}>
+                  <div className="ph-st">{p.stName || data?.serviceTypeName}</div>
+                  <div className="ph-date">{p.weekday ? `${p.weekday} · ` : ""}{p.dateLabel}</div>
+                  {av && (
+                    <div className={`ph-av ${avk}`} title={av.blockout ? "Blockout — indisponibil" : av.busy ? `Ocupat: ${av.busyLabel || "altă slujire"}` : "Liber — click pe o poziție ca să-l planifici"}>
+                      {av.blockout ? "⛔ blocat" : av.busy ? "● ocupat" : "✓ liber"}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
 
             {teams.flatMap((t, ti) => {
               const out = [];
@@ -523,10 +578,13 @@ export default function MatrixPage() {
                 out.push(<div key={`${t.teamId}-${pos.positionId}-n`} className="cell poslabel" title={`${pos.name} — click: deschide bara de asignare`} onClick={() => openCell(plans[0].id, t.teamId, pos.positionId, pos.name, 0)}>{pos.name}</div>);
                 (pos.cells || []).forEach((c, ci) => {
                   const isSel = sel && sel.positionId === pos.positionId && sel.colIdx === ci;
+                  const av = target ? targetAvail[String(plans[ci].id)] : null;
+                  const tHere = target && (c.people || []).some((x) => String(x.personId) === String(target.personId));
+                  const tCls = target ? (av?.blockout ? "t-blk" : tHere ? "t-here" : av?.busy ? "t-busy" : "t-free") : "";
                   out.push(
                     <div key={`${t.teamId}-${pos.positionId}-${ci}`}
-                      className={`cell datacell ${isSel ? "sel" : ""}`}
-                      onClick={(e) => { if (e.target.closest(".person")) return; openCell(plans[ci].id, t.teamId, pos.positionId, pos.name, ci); }}
+                      className={`cell datacell ${isSel ? "sel" : ""} ${tCls}`}
+                      onClick={(e) => { if (e.target.closest(".person")) return; if (target) { assignTargetToCell(plans[ci].id, t.teamId, pos.positionId, ci, c); return; } openCell(plans[ci].id, t.teamId, pos.positionId, pos.name, ci); }}
                       onDragOver={(e) => { if (dragRef.current) e.preventDefault(); }}
                       onDrop={() => dropOnCell(plans[ci].id, t.teamId, pos.positionId, ci)}>
                       {(c.people || []).map((pp, pi) => {
@@ -561,6 +619,11 @@ export default function MatrixPage() {
                           <button className="needadd" title="Adaugă Needed" onClick={() => changeNeeded(plans[ci].id, t.teamId, pos.positionId, ci, 1)}>+ Needed</button>
                         )}
                       </div>
+                      {target && !tHere && !av?.blockout && (
+                        <div className="tghost" title={`Planifică pe ${target.name} aici`}>
+                          <span>＋ {(target.name || "").split(" ")[0]}</span>
+                        </div>
+                      )}
                     </div>
                   );
                 });
@@ -597,6 +660,7 @@ export default function MatrixPage() {
         style={{ left: showSettings ? 316 : 0, right: (sel || browse) ? 348 : 0 }}
         onPersonDragStart={(p) => { dragRef.current = { personId: p.id, name: p.name, avatar: p.avatar, initials: p.initials, fromBar: true, move: false }; setDragActive(true); }}
         onPersonDragEnd={() => setDragActive(false)}
+        target={target} targetSched={targetSched} targetAvail={targetAvail} onCloseTarget={clearTarget}
       />
 
       {editing && (
@@ -606,17 +670,6 @@ export default function MatrixPage() {
           onSave={saveEdit}
           onRemove={() => { removePerson(editing.planId, editing.teamId, editing.positionId, editing.colIdx, editing.assignmentId); setEditing(null); }}
         />
-      )}
-
-      {target && (
-        <div className="tpanel">
-          <div className="tp-head"><span>⌖ {target.name}</span><button onClick={() => { setTarget(null); setTargetSched(null); }}>×</button></div>
-          <div className="tp-sub">Unde mai e planificat (viitor)</div>
-          {targetSched == null ? <div className="tp-muted">Se încarcă…</div> : targetSched.length === 0 ? <div className="tp-muted">Nicăieri în viitor.</div> :
-            targetSched.map((s, i) => (
-              <div key={i} className="tp-row"><span className="tp-ic">{s.status === "confirmed" ? "✅" : "❔"}</span><span className="tp-d">{s.dateLabel}</span><span className="tp-s">{s.serviceTypeName}</span></div>
-            ))}
-        </div>
       )}
 
       {showTeams && (
@@ -720,7 +773,6 @@ export default function MatrixPage() {
         .dm-d { color: var(--text); }
         .dm-empty { color: var(--text-faint); font-size: 12px; padding: 10px; }
         .mt-right { display: flex; align-items: center; gap: 12px; }
-        .exit-target { background: rgba(47,129,247,.14); border: 1px solid var(--primary); color: #9cc4f5; border-radius: 6px; padding: 5px 10px; font-size: 12.5px; cursor: pointer; }
         .cover-btn { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 5px 11px; font-size: 12.5px; cursor: pointer; }
         .cover-btn:hover { color: var(--text); border-color: var(--primary); }
         .cover-btn.on { background: rgba(47,129,247,.14); border-color: var(--primary); color: #9cc4f5; }
@@ -744,6 +796,14 @@ export default function MatrixPage() {
         .planhead.selcol { background: linear-gradient(rgba(47,129,247,.14), rgba(47,129,247,.14)), var(--surface-2); }
         .ph-st { color: var(--text-faint); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .ph-date { color: var(--text); font-size: 12.5px; font-weight: 600; margin-top: 2px; }
+        /* chip disponibilitate target în antet */
+        .planhead.av-free { box-shadow: inset 0 -2px 0 rgba(87,185,138,.6); }
+        .planhead.av-blk { box-shadow: inset 0 -2px 0 rgba(248,81,73,.6); }
+        .planhead.av-busy { box-shadow: inset 0 -2px 0 rgba(210,153,34,.6); }
+        .ph-av { margin-top: 4px; font-size: 10px; font-weight: 700; letter-spacing: .2px; display: inline-block; }
+        .ph-av.free { color: var(--product); }
+        .ph-av.blk { color: var(--danger); }
+        .ph-av.busy { color: var(--st-unconfirmed); }
         .teamblock { background: var(--section-head-bg); border-bottom: 1px solid var(--border); border-top: 1px solid var(--border);
           position: sticky; left: 0; z-index: 2; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; }
         .tb-toggle { background: transparent; border: none; color: var(--text); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
@@ -756,6 +816,15 @@ export default function MatrixPage() {
         .datacell { padding: 6px 8px; background: var(--bg); min-height: 38px; cursor: pointer; display: flex; flex-direction: column; gap: 3px; }
         .datacell:hover { background: var(--row-hover); }
         .datacell.sel { background: rgba(47,129,247,.10); box-shadow: inset 0 0 0 1px var(--primary); }
+        /* target-mode: colorăm celulele după disponibilitatea persoanei-target */
+        .datacell.t-free { cursor: copy; }
+        .datacell.t-free:hover { background: rgba(87,185,138,.14); box-shadow: inset 0 0 0 1px rgba(87,185,138,.55); }
+        .datacell.t-busy:hover { background: rgba(210,153,34,.12); }
+        .datacell.t-blk { background: rgba(248,81,73,.07); cursor: not-allowed; }
+        .datacell.t-blk:hover { background: rgba(248,81,73,.1); }
+        .datacell.t-here { background: rgba(47,129,247,.08); }
+        .tghost { opacity: 0; display: flex; align-items: center; gap: 4px; color: var(--product); font-size: 11px; font-weight: 600; padding: 1px 3px; transition: opacity .12s; pointer-events: none; }
+        .datacell.t-free:hover .tghost { opacity: .9; }
         .person { display: flex; align-items: center; gap: 7px; padding: 2px 3px; border-radius: 5px; cursor: grab; }
         .person:hover { background: rgba(255,255,255,.055); }
         .person.dim { opacity: .28; }
@@ -777,15 +846,14 @@ export default function MatrixPage() {
         .datacell:hover .needadd { opacity: 1; }
         .needadd:hover { color: var(--primary); border-color: var(--primary); }
         .empty { padding: 40px; color: var(--text-faint); }
-        .tpanel { position: fixed; bottom: 18px; left: 18px; width: 260px; max-height: 50vh; overflow: auto; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 10px; padding: 12px 14px; z-index: 55; box-shadow: 0 8px 28px rgba(0,0,0,.45); }
-        .tp-head { display: flex; align-items: center; justify-content: space-between; color: var(--text); font-weight: 600; font-size: 13px; }
-        .tp-head button { background: transparent; border: none; color: var(--text-faint); font-size: 18px; cursor: pointer; line-height: 1; }
-        .tp-sub { color: var(--text-faint); font-size: 11px; margin: 4px 0 8px; }
-        .tp-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12.5px; border-bottom: 1px solid var(--border-soft); }
-        .tp-d { color: var(--text); width: 64px; } .tp-s { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .tp-muted { color: var(--text-faint); font-size: 12px; padding: 4px 0; }
         .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text); padding: 10px 18px; border-radius: 8px; font-size: 13px; z-index: 60; box-shadow: 0 8px 28px rgba(0,0,0,.4); }
         .err { background: rgba(229,83,75,.12); border: 1px solid rgba(229,83,75,.4); color: #f0a7a2; padding: 10px 12px; border-radius: 6px; margin-bottom: 12px; }
+        .tmode-bar { display: flex; align-items: center; gap: 11px; background: linear-gradient(90deg, rgba(87,185,138,.14), rgba(47,129,247,.1)); border: 1px solid rgba(87,185,138,.4); border-radius: 9px; padding: 9px 14px; margin-bottom: 10px; animation: tmbIn .18s ease; }
+        @keyframes tmbIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
+        .tmb-ic { color: var(--product); font-size: 17px; flex: none; }
+        .tmb-tx { color: var(--text-dim); font-size: 12.5px; flex: 1; } .tmb-tx b { color: var(--text); }
+        .tmb-x { flex: none; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 5px 11px; font-size: 12px; cursor: pointer; }
+        .tmb-x:hover { color: var(--text); border-color: var(--product); }
       `}</style>
     </div>
   );

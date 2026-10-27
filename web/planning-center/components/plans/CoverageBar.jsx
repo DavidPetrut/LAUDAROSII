@@ -1,12 +1,13 @@
 "use client";
 /**
  * CoverageBar — „Listă LIVE" ca BARĂ DE JOS (collapse/expand din jos, animație).
- * Header: „Listă live" + TAG-uri de filtre colorate (slujire / gen / SIM), fiecare cu × de scos.
- * Navigație VIEW-uri în stânga (Toți / Neplanificați / Planificați). Coloane după câte ori e planificat
- * (0/1/2/3/4×+) cu „mai poate ×N" (max − alocat − blocat). Carduri trăgibile direct în Matrix.
- * Nu are buton de refresh — se actualizează LIVE. Nu acoperă sidebar-ul (inset prin `style`).
+ * Header = TAB-uri: „Listă live" (mereu) + un tab DINAMIC cu persoana targetată (doar când e target activ).
+ *   · Tab „Listă live": filtre colorate + view-uri (Toți/Neplanificați/Planificați) + coloane 0/1/2/3/4×+.
+ *   · Tab persoană (#11 target-mode): detalii despre persoana targetată — statistici (slujiri, liber/ocupat/
+ *     blocat în fereastră) + unde mai e planificată (viitor). Apare la click pe o persoană, dispare la detarget.
+ * Carduri trăgibile direct în Matrix. Nu are refresh — LIVE. Nu acoperă sidebar-ul (inset prin `style`).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PersonAvatar from "./PersonAvatar";
 
 const VIEWS = [
@@ -19,8 +20,19 @@ const VIEWS = [
 function hueOf(s = "") { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360; return h; }
 function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return m ? m[1] : ""; }
 
-export default function CoverageBar({ open, onToggle, cov, loading, filters = {}, onRemoveFilter, onPersonDragStart, onPersonDragEnd, style }) {
+export default function CoverageBar({
+  open, onToggle, cov, loading, filters = {}, onRemoveFilter, onPersonDragStart, onPersonDragEnd, style,
+  target = null, targetSched = null, targetAvail = {}, onCloseTarget,
+}) {
   const [view, setView] = useState("all");
+  const [tab, setTab] = useState("live"); // "live" | "person"
+
+  // target activ → deschide bara + sari pe tabul persoanei; detarget → înapoi la „Listă live"
+  useEffect(() => {
+    if (target) { setTab("person"); if (!open) onToggle?.(); }
+    else setTab("live");
+    // eslint-disable-next-line
+  }, [target?.personId]);
 
   // filtrare client-side: gen + SIM (slujirea se filtrează în backend prin teamId)
   const keepPerson = (p) => {
@@ -32,35 +44,85 @@ export default function CoverageBar({ open, onToggle, cov, loading, filters = {}
     .filter(VIEWS.find((v) => v.id === view).keep)
     .map((b) => ({ ...b, people: (b.people || []).filter(keepPerson) }));
   const total = buckets.reduce((s, b) => s + b.people.length, 0);
-
   const mh = filters.ministry ? hueOf(filters.ministry.name) : 0;
+
+  // statistici fereastră (din disponibilitatea per plan)
+  const av = Object.values(targetAvail || {});
+  const stat = {
+    window: av.length,
+    here: av.filter((a) => a.here).length,
+    free: av.filter((a) => !a.blockout && !a.here).length,
+    blocked: av.filter((a) => a.blockout).length,
+    busy: av.filter((a) => a.busy && !a.here).length,
+  };
+  const activePerson = tab === "person" && target;
 
   return (
     <div className={`covbar ${open ? "open" : ""}`} style={style}>
-      {/* mâner */}
+      {/* mâner + TAB-uri */}
       <div className="cb-handle" onClick={onToggle}>
         <span className="cb-grip" />
-        <span className="cb-ht">Listă live</span>
-        {filters.ministry && (
+        <div className="cb-tabs" onClick={(e) => e.stopPropagation()}>
+          <button className={`cb-tab ${tab === "live" ? "on" : ""}`} onClick={() => { if (!open) onToggle(); setTab("live"); }}>Listă live</button>
+          {target && (
+            <button className={`cb-tab person ${tab === "person" ? "on" : ""}`} onClick={() => { if (!open) onToggle(); setTab("person"); }}>
+              <span className="cb-tgt">⌖</span>{target.name}
+              <span className="cb-tabx" title="Ieși din target" onClick={(e) => { e.stopPropagation(); onCloseTarget?.(); }}>×</span>
+            </button>
+          )}
+        </div>
+        {tab === "live" && filters.ministry && (
           <span className="cb-tag min" style={{ "--h": mh }} onClick={(e) => { e.stopPropagation(); onRemoveFilter?.("ministry"); }} title="Scoate filtrul de slujire">
             {filters.ministry.name}<span className="tx">×</span>
           </span>
         )}
-        {filters.gender && (
+        {tab === "live" && filters.gender && (
           <span className="cb-tag gen" onClick={(e) => { e.stopPropagation(); onRemoveFilter?.("gender"); }} title="Scoate filtrul de gen">
             {filters.gender === "M" ? "Băieți" : "Fete"}<span className="tx">×</span>
           </span>
         )}
-        {filters.sim && (
+        {tab === "live" && filters.sim && (
           <span className="cb-tag sim" onClick={(e) => { e.stopPropagation(); onRemoveFilter?.("sim"); }} title="Scoate filtrul SIM">
             SIM {filters.sim}<span className="tx">×</span>
           </span>
         )}
-        <span className="cb-hn">{total} persoane</span>
+        <span className="cb-hn">{activePerson ? `${stat.free} libere în fereastră` : `${total} persoane`}</span>
         <span className="cb-caret">{open ? "▾" : "▴"}</span>
       </div>
 
-      {open && (
+      {open && activePerson && (
+        <div className="cb-body person">
+          <div className="pp-side">
+            <div className="pp-who">
+              <PersonAvatar person={target} size={52} showBadge={false} />
+              <div className="pp-name">{target.name}</div>
+            </div>
+            <div className="pp-stats">
+              <div className="pp-stat"><b>{targetSched == null ? "…" : targetSched.length}</b><span>slujiri viitoare</span></div>
+              <div className="pp-stat free"><b>{stat.free}</b><span>libere (fereastră)</span></div>
+              <div className="pp-stat here"><b>{stat.here}</b><span>planificat (fereastră)</span></div>
+              <div className="pp-stat blk"><b>{stat.blocked}</b><span>blocate (fereastră)</span></div>
+            </div>
+            <div className="pp-hint">⌖ Click pe o poziție <b>liberă</b> din grilă ca să-l planifici rapid pe mai multe date. Esc pentru ieșire.</div>
+          </div>
+          <div className="pp-main">
+            <div className="pp-mh">Unde e planificat (viitor)</div>
+            <div className="pp-list">
+              {targetSched == null ? <div className="cb-muted">Se încarcă…</div> :
+                targetSched.length === 0 ? <div className="pp-empty">Nicăieri planificat în viitor — complet liber.</div> :
+                targetSched.map((s, i) => (
+                  <div key={i} className="pp-row">
+                    <span className={`pp-ic ${s.status === "confirmed" ? "ok" : "pend"}`}>{s.status === "confirmed" ? "✓" : "?"}</span>
+                    <span className="pp-d">{s.dateLabel}</span>
+                    <span className="pp-s">{s.serviceTypeName}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {open && !activePerson && (
         <div className="cb-body">
           <nav className="cb-nav">
             {VIEWS.map((v) => (
@@ -102,7 +164,17 @@ export default function CoverageBar({ open, onToggle, cov, loading, filters = {}
         .cb-handle { height: var(--cbar-h); flex: none; display: flex; align-items: center; gap: 10px; background: var(--surface-2);
           border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0; color: var(--text); cursor: pointer; padding: 0 18px; font-size: 13px; }
         .cb-grip { width: 36px; height: 4px; border-radius: 3px; background: var(--border-strong); flex: none; }
-        .cb-ht { font-weight: 700; letter-spacing: .2px; }
+        .cb-tabs { display: flex; align-items: center; gap: 4px; }
+        .cb-tab { display: inline-flex; align-items: center; gap: 7px; background: transparent; border: none; color: var(--text-dim);
+          font-size: 13px; font-weight: 700; letter-spacing: .2px; cursor: pointer; padding: 6px 12px; border-radius: 8px 8px 0 0; position: relative; }
+        .cb-tab:hover { color: var(--text); background: rgba(255,255,255,.04); }
+        .cb-tab.on { color: var(--text); background: var(--surface); box-shadow: inset 0 -2px 0 var(--primary); }
+        .cb-tab.person { animation: tabIn .18s ease; }
+        .cb-tab.person.on { box-shadow: inset 0 -2px 0 var(--product); }
+        @keyframes tabIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+        .cb-tgt { color: var(--product); font-size: 13px; }
+        .cb-tabx { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; border-radius: 50%; font-size: 12px; color: var(--text-faint); margin-left: 2px; }
+        .cb-tabx:hover { background: rgba(255,255,255,.14); color: var(--text); }
         .cb-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; border-radius: 20px; padding: 3px 6px 3px 11px; cursor: pointer; white-space: nowrap; }
         .cb-tag .tx { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; font-size: 12px; opacity: .8; }
         .cb-tag:hover .tx { opacity: 1; background: rgba(255,255,255,.18); }
@@ -133,6 +205,30 @@ export default function CoverageBar({ open, onToggle, cov, loading, filters = {}
         .cb-name { color: var(--text); font-size: 13px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .cb-free { flex: none; color: #0b2018; background: var(--product); border-radius: 20px; padding: 1px 8px; font-size: 11px; font-weight: 700; }
         .cb-blk { flex: none; color: var(--danger); font-size: 11px; font-weight: 600; }
+        /* ── tab persoană (target) ── */
+        .cb-body.person { padding: 0; animation: tabIn .18s ease; }
+        .pp-side { width: 300px; flex: none; border-right: 1px solid var(--border); padding: 18px 18px 14px; display: flex; flex-direction: column; gap: 16px; overflow: auto; }
+        .pp-who { display: flex; align-items: center; gap: 12px; }
+        .pp-name { color: var(--text); font-size: 17px; font-weight: 600; }
+        .pp-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+        .pp-stat { background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 11px 12px; display: flex; flex-direction: column; gap: 2px; }
+        .pp-stat b { color: var(--text); font-size: 21px; font-weight: 700; line-height: 1; }
+        .pp-stat span { color: var(--text-faint); font-size: 10.5px; letter-spacing: .2px; }
+        .pp-stat.free b { color: var(--product); } .pp-stat.free { border-color: rgba(87,185,138,.4); }
+        .pp-stat.here b { color: var(--st-unconfirmed); }
+        .pp-stat.blk b { color: var(--danger); } .pp-stat.blk { border-color: rgba(248,81,73,.35); }
+        .pp-hint { color: var(--text-faint); font-size: 11.5px; line-height: 1.55; margin-top: auto; }
+        .pp-hint b { color: var(--product); }
+        .pp-main { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 14px 18px; }
+        .pp-mh { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; margin-bottom: 10px; }
+        .pp-list { overflow: auto; display: flex; flex-direction: column; gap: 4px; }
+        .pp-empty { color: var(--text-faint); font-size: 12.5px; padding: 8px 2px; }
+        .pp-row { display: flex; align-items: center; gap: 11px; padding: 9px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; }
+        .pp-ic { width: 20px; height: 20px; flex: none; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+        .pp-ic.ok { background: rgba(87,185,138,.18); color: var(--product); }
+        .pp-ic.pend { background: rgba(210,153,34,.18); color: var(--st-unconfirmed); }
+        .pp-d { color: var(--text); font-size: 13px; font-weight: 600; min-width: 64px; }
+        .pp-s { color: var(--text-dim); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       `}</style>
     </div>
   );

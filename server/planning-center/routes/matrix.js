@@ -288,4 +288,62 @@ router.get("/:serviceTypeId/coverage", requireCan("services.schedule"), async (r
   }
 });
 
+/* ───────── GET /:serviceTypeId/person-availability — disponibilitatea unei persoane (target-mode #11) ─────────
+   Pentru planurile vizibile (?planIds=): per plan → blockout / deja planificat în acest plan / ocupat în
+   altă parte în aceeași zi. Alimentează indicatorii din antet + „click ca să-l planific". Doar READ. */
+router.get("/:serviceTypeId/person-availability", requireCan("services.schedule"), async (req, res) => {
+  try {
+    const personId = OID(req.query.personId);
+    const planIds = String(req.query.planIds || "").split(",").map((s) => s.trim()).filter(Boolean).map(OID).filter(Boolean);
+    if (!personId || !planIds.length) return res.status(400).json({ error: "personId/planIds lipsesc." });
+
+    const dk = (d) => new Date(d).toISOString().slice(0, 10);
+    const targetPlans = await PcPlan.find(scoped(req, { _id: { $in: planIds } })).select("sortDate serviceTypeId").lean();
+    const dateOf = {}; targetPlans.forEach((p) => (dateOf[String(p._id)] = dk(p.sortDate)));
+
+    const blk = await PcBlockout.find(scoped(req, { personId })).select("startDate endDate type").lean();
+    const covers = (b, d) => (!b.startDate || b.startDate <= d) && (!b.endDate || b.endDate >= d);
+
+    // toate asignările (ne-refuzate) ale persoanei → grupate pe zi (pt. „ocupat în aceeași zi")
+    const myAssigns = await PcAssignment.find(scoped(req, { personId, status: { $ne: "declined" } })).select("planId teamId positionId isGuest").lean();
+    const aPlanIds = [...new Set(myAssigns.map((a) => String(a.planId)))].map(OID).filter(Boolean);
+    const [aPlans, teams, poss, sts] = await Promise.all([
+      PcPlan.find(scoped(req, { _id: { $in: aPlanIds } })).select("sortDate serviceTypeId").lean(),
+      PcTeam.find(scoped(req, { _id: { $in: myAssigns.map((a) => a.teamId).filter(Boolean) } })).select("name").lean(),
+      PcPosition.find(scoped(req, { _id: { $in: myAssigns.map((a) => a.positionId).filter(Boolean) } })).select("name").lean(),
+      PcServiceType.find(scoped(req)).select("name").lean(),
+    ]);
+    const aPlanById = Object.fromEntries(aPlans.map((p) => [String(p._id), p]));
+    const teamN = Object.fromEntries(teams.map((t) => [String(t._id), t.name]));
+    const posN = Object.fromEntries(poss.map((p) => [String(p._id), p.name]));
+    const stN = Object.fromEntries(sts.map((s) => [String(s._id), s.name]));
+
+    const byDate = {};
+    myAssigns.forEach((a) => {
+      const pl = aPlanById[String(a.planId)]; if (!pl) return;
+      (byDate[dk(pl.sortDate)] = byDate[dk(pl.sortDate)] || []).push({
+        planId: String(a.planId),
+        label: [posN[String(a.positionId)], teamN[String(a.teamId)] || stN[String(pl.serviceTypeId)]].filter(Boolean).join(" · "),
+      });
+    });
+
+    const availability = {};
+    for (const [pid, d] of Object.entries(dateOf)) {
+      const dayList = byDate[d] || [];
+      const here = dayList.some((x) => x.planId === pid);
+      const sameDay = dayList.filter((x) => x.planId !== pid);
+      availability[pid] = {
+        blockout: blk.some((b) => covers(b, d)),
+        here,
+        busy: sameDay.length > 0,
+        busyLabel: [...new Set(sameDay.map((x) => x.label).filter(Boolean))].slice(0, 3).join("; "),
+      };
+    }
+    res.json({ personId, availability });
+  } catch (err) {
+    console.error("[pc] GET /matrix/:serviceTypeId/person-availability:", err.message);
+    res.status(500).json({ error: "Eroare la disponibilitate." });
+  }
+});
+
 module.exports = router;

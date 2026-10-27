@@ -218,6 +218,9 @@ export const matrixApi = {
     const qs = new URLSearchParams(Object.entries(opts).filter(([, v]) => v != null && v !== "")).toString();
     return api.get(`/matrix/${serviceTypeId}/coverage${qs ? `?${qs}` : ""}`);
   },
+  // disponibilitatea unei persoane pe planurile vizibile (target-mode #11): per plan blockout/here/busy. READ.
+  personAvailability: (serviceTypeId, { personId, planIds }) =>
+    api.get(`/matrix/${serviceTypeId}/person-availability?personId=${encodeURIComponent(personId)}&planIds=${encodeURIComponent(planIds)}`),
   // ATENȚIE: trimite emailuri reale. Se apelează DOAR la acțiune explicită a utilizatorului.
   sendEmails: (serviceTypeId, planIds, teamId) => api.post(`/matrix/${serviceTypeId}/emails`, { planIds, teamId }),
 };
