@@ -117,13 +117,29 @@ export default function PeoplePage() {
           {query && <button className="sx" title="Șterge" onClick={() => setQuery("")}>×</button>}
         </div>
 
-        <div className="ptabs">
-          <button className={`ptab ${parent === "" ? "on" : ""}`} onClick={() => { setParent(""); }}>Toate</button>
-          {parents.map((g) => (
-            <button key={g.name} className={`ptab ${parent === g.name ? "on" : ""}`} onClick={() => setParent(g.name)}>
-              {g.name}{g.memberCount ? <span className="pt-n">{g.memberCount}</span> : null}
-            </button>
-          ))}
+        <div className="nav">
+          {/* breadcrumb: pe măsură ce intri, părintele se micșorează într-un crumb la stânga */}
+          <button className={`crumb ${parent === "" ? "cur" : ""}`} onClick={() => setParent("")} title="Toți oamenii">Toate</button>
+          {parent !== "" && (
+            <>
+              <span className="sep">›</span>
+              <span className="crumb cur par">{parent}</span>
+            </>
+          )}
+          {/* chip-urile nivelului curent (animate la fiecare schimbare de nivel) */}
+          <div className="chips" key={parent || "root"}>
+            {parent === ""
+              ? parents.map((g) => (
+                  <button key={g.name} className="chip" onClick={() => setParent(g.name)}>
+                    {g.name}{g.memberCount ? <span className="ch-n">{g.memberCount}</span> : null}
+                  </button>
+                ))
+              : childMinistries.map((m) => (
+                  <button key={m.name} className={`chip ${group === m.name ? "on" : ""}`} onClick={() => setGroup(m.name)}>
+                    {m.name}{m.memberCount ? <span className="ch-n">{m.memberCount}</span> : null}
+                  </button>
+                ))}
+          </div>
         </div>
 
         <div className="gright">
@@ -141,17 +157,6 @@ export default function PeoplePage() {
           )}
         </div>
       </div>
-
-      {/* RÂND NIVEL 2: lucrările din părintele selectat */}
-      {parent !== "" && childMinistries.length > 0 && (
-        <div className="ltabs">
-          {childMinistries.map((m) => (
-            <button key={m.name} className={`ltab ${group === m.name ? "on" : ""}`} onClick={() => setGroup(m.name)}>
-              {m.name}{m.memberCount ? <span className="lt-n">{m.memberCount}</span> : null}
-            </button>
-          ))}
-        </div>
-      )}
 
       {err && <div className="err">{err}</div>}
 
@@ -180,10 +185,10 @@ export default function PeoplePage() {
             <div className="c-ac" onClick={(e) => e.stopPropagation()}>
               <button className="aic" title="Slujiri — asignează rapid"
                 onClick={() => setQuickFor({ id: p.id, name, avatar: p.avatar, initials: p.initials })}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+                <img src="/icons/planificare.png" alt="Slujiri" draggable={false} />
               </button>
               <button className="aic" title="Deschide profilul" onClick={() => openProfile(p.id)}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" /></svg>
+                <img src="/icons/profile.png" alt="Profil" draggable={false} />
               </button>
             </div>
             <div className="c-av">
@@ -247,14 +252,23 @@ export default function PeoplePage() {
         .search:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(47,129,247,.12); }
         .sx { position: absolute; right: 8px; background: transparent; border: none; color: var(--text-faint); font-size: 17px; cursor: pointer; line-height: 1; padding: 2px 4px; border-radius: 5px; }
         .sx:hover { color: var(--text); }
-        .ptabs { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
-        .ptab { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 15px; border-radius: 18px;
+        .nav { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; flex-wrap: wrap; }
+        .crumb { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border-radius: 14px;
+          background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); font-size: 12px;
+          cursor: pointer; white-space: nowrap; transition: all .18s cubic-bezier(.4,0,.2,1); }
+        .crumb:hover { color: var(--text); border-color: var(--product); }
+        .crumb.cur { color: var(--text); font-weight: 600; }
+        .crumb.par { background: var(--surface-3); border-color: var(--product); cursor: default; }
+        .sep { color: var(--text-faint); font-size: 14px; flex: none; }
+        .chips { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; animation: chipsIn .24s cubic-bezier(.4,0,.2,1); }
+        @keyframes chipsIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
+        .chip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 15px; border-radius: 18px;
           background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); font-size: 13px;
-          cursor: pointer; transition: color .12s, background .12s, border-color .12s; }
-        .ptab:hover { color: var(--text); }
-        .ptab.on { background: var(--surface-3); border-color: var(--product); color: var(--text); font-weight: 600; }
-        .pt-n { background: var(--surface); border-radius: 10px; padding: 0 7px; font-size: 11px; color: var(--text-faint); }
-        .ptab.on .pt-n { color: var(--product); }
+          cursor: pointer; white-space: nowrap; transition: color .12s, background .12s, border-color .12s, transform .12s; }
+        .chip:hover { color: var(--text); transform: translateY(-1px); }
+        .chip.on { background: var(--surface-3); border-color: var(--product); color: var(--text); font-weight: 600; }
+        .ch-n { background: var(--surface); border-radius: 10px; padding: 0 7px; font-size: 11px; color: var(--text-faint); }
+        .chip.on .ch-n { color: var(--product); }
         .gright { margin-left: auto; display: flex; align-items: center; gap: 8px; }
         .gmanage, .gblocked { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 13px;
           border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim);
@@ -262,16 +276,7 @@ export default function PeoplePage() {
         .gmanage:hover, .gblocked:hover { color: var(--text); border-color: var(--product); }
         .gb-n { background: rgba(229,83,75,.16); color: #f0a7a2; border-radius: 10px; padding: 0 7px; font-size: 11px; font-weight: 600; }
 
-        .ltabs { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 14px; padding: 2px 0 2px; animation: ltIn .18s ease; }
-        @keyframes ltIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-        .ltab { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 13px; border-radius: 8px;
-          background: var(--surface-2); border: 1px solid var(--border); color: var(--text-dim); font-size: 12.5px; cursor: pointer; transition: all .12s; }
-        .ltab:hover { color: var(--text); border-color: var(--border-strong); }
-        .ltab.on { background: rgba(47,129,247,.12); border-color: var(--primary); color: var(--text); font-weight: 600; }
-        .lt-n { background: var(--surface); border-radius: 10px; padding: 0 6px; font-size: 11px; color: var(--text-faint); }
-        .ltab.on .lt-n { color: var(--primary); }
-
-        .pcount { color: var(--text-dim); font-size: 12.5px; margin-bottom: 8px; }
+        .pcount { color: var(--text-dim); font-size: 12.5px; margin: 6px 0 8px; }
         .table { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
         .thead, .trow { display: grid; grid-template-columns: 76px 44px 150px 150px 230px 140px 110px 110px 1fr; align-items: center; }
         .thead { color: var(--text-faint); font-size: var(--fs-colhead); letter-spacing: .5px; padding: 11px 14px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
@@ -279,10 +284,11 @@ export default function PeoplePage() {
         .trow { padding: 9px 14px; border-bottom: 1px solid var(--border-soft); cursor: pointer; font-size: 13.5px; }
         .trow:last-child { border-bottom: none; }
         .trow:hover { background: var(--row-hover); }
-        .c-ac { display: flex; align-items: center; gap: 6px; }
-        .aic { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 7px;
-          background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); cursor: pointer; transition: all .12s; }
-        .aic:hover { color: var(--product); border-color: var(--product); background: var(--surface-3); }
+        .c-ac { display: flex; align-items: center; gap: 8px; }
+        .aic { display: inline-flex; align-items: center; justify-content: center; padding: 0; background: transparent; border: none;
+          cursor: pointer; border-radius: 50%; transition: transform .12s, filter .12s; opacity: .9; }
+        .aic img { width: 26px; height: 26px; display: block; border-radius: 50%; }
+        .aic:hover { transform: translateY(-1px) scale(1.08); opacity: 1; filter: drop-shadow(0 2px 5px rgba(47,129,247,.35)); }
         .c-av { display: flex; }
         .avw { position: relative; display: inline-flex; }
         .avw.locked .ava { border: 2px solid var(--primary); }
