@@ -195,6 +195,11 @@ export const scheduleApi = {
   my: () => api.get("/schedule/my"),
   calendar: (year, month) => api.get(`/schedule/calendar?year=${year}&month=${month}`),
   blockouts: () => api.get("/schedule/blockouts"),
+  // adaugă blockout personal (interval, all-day/ore, repeat, motiv). Backend face auto-decline pe zile acoperite.
+  addBlockout: (payload) => api.post("/schedule/blockouts", payload),
+  removeBlockout: (id) => api.del(`/schedule/blockouts/${id}`),
+  // programări în interval (pt. previzualizarea conflictelor în modal) — READ
+  conflicts: (start, end) => api.get(`/schedule/blockouts/conflicts?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end || start)}`),
 };
 
 /* ─── Media — server/planning-center/routes/media.js ─── */

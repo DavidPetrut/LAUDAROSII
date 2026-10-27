@@ -183,6 +183,7 @@ const isoShift = (ds, days) => { const d = new Date(ds + "T12:00:00Z"); d.setUTC
 const dtoBlockout = (b) => ({
   id: b._id, startDate: b.startDate, endDate: b.endDate, allDay: b.allDay,
   startTime: b.startTime, endTime: b.endTime, repeat: b.repeat, reason: b.reason,
+  type: b.type || "personal", // personal vs churchBlock (blocat de echipă) — pt. UI (non-deletabil self)
   label: b.startDate === b.endDate ? b.startDate : `${b.startDate} → ${b.endDate}`,
 });
 
