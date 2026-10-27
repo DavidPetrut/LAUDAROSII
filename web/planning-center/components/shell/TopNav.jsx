@@ -22,7 +22,23 @@ export default function TopNav() {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState(null);
+  const [lastPaths, setLastPaths] = useState({}); // ultima locație per secțiune (ex. /plans → /plans/matrix/X)
   useEffect(() => { setUser(getStoredUser()); }, []);
+
+  // la mount: încarcă ultimele locații salvate (session) pt. fiecare secțiune
+  useEffect(() => {
+    const o = {};
+    NAV.forEach((n) => { try { const v = sessionStorage.getItem("pc:nav:" + n.href); if (v) o[n.href] = v; } catch {} });
+    setLastPaths(o);
+  }, []);
+  // reține locația curentă pentru secțiunea ei (ca să te întorci unde ai rămas când revii pe tab)
+  useEffect(() => {
+    const base = NAV.find((n) => pathname === n.href || pathname.startsWith(n.href + "/"))?.href;
+    if (base && pathname !== base) {
+      try { sessionStorage.setItem("pc:nav:" + base, pathname); } catch {}
+      setLastPaths((p) => ({ ...p, [base]: pathname }));
+    }
+  }, [pathname]);
 
   function logout() { clearSession(); router.replace("/login"); }
 
@@ -40,8 +56,10 @@ export default function TopNav() {
         <nav className="links">
           {NAV.map((n) => {
             const active = pathname === n.href || pathname.startsWith(n.href + "/");
+            // dacă nu ești pe secțiune și ai o locație salvată acolo, linkul te duce înapoi acolo
+            const href = !active && lastPaths[n.href] ? lastPaths[n.href] : n.href;
             return (
-              <Link key={n.href} href={n.href} className={`link ${active ? "active" : ""}`}>{n.label}</Link>
+              <Link key={n.href} href={href} className={`link ${active ? "active" : ""}`}>{n.label}</Link>
             );
           })}
         </nav>

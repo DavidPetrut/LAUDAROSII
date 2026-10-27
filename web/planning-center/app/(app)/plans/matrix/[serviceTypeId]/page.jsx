@@ -29,14 +29,21 @@ const eq = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").tr
 export default function MatrixPage() {
   const router = useRouter();
   const { serviceTypeId } = useParams();
+  // stare de vizualizare salvată per service type (session) → revii și e unde ai rămas, nu resetat
+  const MKEY = `pc:matrix:${serviceTypeId}`;
+  const mstoreRef = useRef(null);
+  if (mstoreRef.current === null) {
+    try { mstoreRef.current = (typeof window !== "undefined") ? JSON.parse(sessionStorage.getItem(MKEY) || "{}") : {}; } catch { mstoreRef.current = {}; }
+  }
+  const mstore = mstoreRef.current;
   const [data, setData] = useState(null);
-  const [count, setCount] = useState(4);          // „Next plans" (Quantity) — default 4 ca în PCO
-  const [offset, setOffset] = useState(0);
-  const [prev, setPrev] = useState(0);            // „Previous plans" (Quantity)
-  const [dateMode, setDateMode] = useState(false); // Smart Load: Quantity vs Date
-  const [fromW, setFromW] = useState(1);          // Date: N săptămâni în urmă
-  const [toW, setToW] = useState(4);              // Date: N săptămâni înainte
-  const [stIds, setStIds] = useState(() => [String(serviceTypeId)]); // Custom Matrix: service types incluse
+  const [count, setCount] = useState(() => mstore.count ?? 4);          // „Next plans" (Quantity) — default 4 ca în PCO
+  const [offset, setOffset] = useState(() => mstore.offset ?? 0);
+  const [prev, setPrev] = useState(() => mstore.prev ?? 0);            // „Previous plans" (Quantity)
+  const [dateMode, setDateMode] = useState(() => mstore.dateMode ?? false); // Smart Load: Quantity vs Date
+  const [fromW, setFromW] = useState(() => mstore.fromW ?? 1);          // Date: N săptămâni în urmă
+  const [toW, setToW] = useState(() => mstore.toW ?? 4);              // Date: N săptămâni înainte
+  const [stIds, setStIds] = useState(() => (mstore.stIds?.length ? mstore.stIds.map(String) : [String(serviceTypeId)])); // Custom Matrix: service types incluse
   const [matrixName, setMatrixName] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [showTeams, setShowTeams] = useState(false);   // modal Teams management (#9)
@@ -51,10 +58,10 @@ export default function MatrixPage() {
   const [stSearch, setStSearch] = useState("");
   const [dmCol, setDmCol] = useState(() => new Set());  // secțiuni ST colapsate în dropdown-ul de dată
   const toggleDmSec = (id) => setDmCol((s) => { const n = new Set(s); n.has(String(id)) ? n.delete(String(id)) : n.add(String(id)); return n; });
-  const [selectedPlanIds, setSelectedPlanIds] = useState(null); // null = mod fereastră (prev/next); array = checklist explicit
+  const [selectedPlanIds, setSelectedPlanIds] = useState(() => mstore.selectedPlanIds ?? null); // null = mod fereastră (prev/next); array = checklist explicit
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-  const [collapsed, setCollapsed] = useState(() => new Set());
+  const [collapsed, setCollapsed] = useState(() => new Set(mstore.collapsed || []));
   const [sel, setSel] = useState(null);           // {planId, teamId, positionId, positionName, colIdx}
   const [rec, setRec] = useState(null);
   const [recBusy, setRecBusy] = useState(false);
@@ -76,6 +83,7 @@ export default function MatrixPage() {
   const dragRef = useRef(null);
   const lastSelRef = useRef(null); // ultima poziție deschisă — pt. butonul „planning"
   const recTimer = useRef(null);
+  const recCache = useRef(new Map()); // cache SWR pt. /recommend (cheie: plan|team|poziție) → bara se deschide instant
 
   // reconciliere silențioasă (fără loading flag) — ține bara deschisă și scroll-ul pe loc
   const isoWeeks = (n) => { const d = new Date(); d.setDate(d.getDate() + n * 7); return d.toISOString().slice(0, 10); };
@@ -109,6 +117,10 @@ export default function MatrixPage() {
     softTimer.current = setTimeout(() => reconcile(), 900);
   }, [reconcile]);
   useEffect(() => { load(); }, [load]);
+  // salvează starea de vizualizare (session) → la revenirea pe tab, e unde ai rămas
+  useEffect(() => {
+    try { sessionStorage.setItem(MKEY, JSON.stringify({ count, offset, prev, dateMode, fromW, toW, stIds, selectedPlanIds, collapsed: [...collapsed] })); } catch {}
+  }, [MKEY, count, offset, prev, dateMode, fromW, toW, stIds, selectedPlanIds, collapsed]);
   // cine poate administra echipele (buton „Echipe" + modal #9)
   useEffect(() => { peopleApi.me().then((r) => { setCanManage(!!r?.capabilities?.manageServiceTypes); setCanAddPlan(!!r?.capabilities?.addPlan); }).catch(() => {}); }, []);
 
@@ -160,7 +172,11 @@ export default function MatrixPage() {
 
   const refreshRec = useCallback(async () => {
     if (!sel) return;
-    try { setRec(await plansApi.recommend(sel.planId, { teamId: sel.teamId, positionId: sel.positionId, q: recQuery })); } catch {}
+    try {
+      const r = await plansApi.recommend(sel.planId, { teamId: sel.teamId, positionId: sel.positionId, q: recQuery });
+      setRec(r);
+      if (!recQuery) recCache.current.set(`${sel.planId}|${sel.teamId}|${sel.positionId}`, r); // ține cache-ul proaspăt
+    } catch {}
   }, [sel, recQuery]);
 
   // echipa pereche (SIM) + poziția cu același nume — pt. bifa „adaugă și la SIM 2"
@@ -181,16 +197,21 @@ export default function MatrixPage() {
     // bara „listă live" moștenește filtrul de slujire din poziția selectată (se poate scoate cu × din tag)
     const tName = (data?.teams || []).find((t) => String(t.teamId) === String(teamId))?.name || "";
     setBarFilters((f) => ({ ...f, ministry: { teamId, name: tName } }));
-    setRec(null); setRecQuery(""); setRecBusy(true);
-    try {
-      const r = await plansApi.recommend(planId, { teamId, positionId });
-      setRec(r);
-      // moștenește gen/SIM din regula poziției (dacă setate)
+    setRecQuery("");
+    const applyDefaults = (r) => {
       const g = r?.defaults?.gender && r.defaults.gender !== "any" ? r.defaults.gender : "";
       const s = r?.defaults?.program && r.defaults.program !== "any" ? r.defaults.program : "";
       setBarFilters((f) => ({ ...f, gender: g, sim: s }));
+    };
+    // SWR: dacă avem cache pentru celulă, arătăm INSTANT, apoi revalidăm silențios în fundal
+    const key = `${planId}|${teamId}|${positionId}`;
+    const cached = recCache.current.get(key);
+    if (cached) { setRec(cached); applyDefaults(cached); setRecBusy(false); } else { setRec(null); setRecBusy(true); }
+    try {
+      const r = await plansApi.recommend(planId, { teamId, positionId });
+      recCache.current.set(key, r); setRec(r); applyDefaults(r);
     }
-    catch (e) { setErr(e?.message || "Eroare la recomandări."); }
+    catch (e) { if (!cached) setErr(e?.message || "Eroare la recomandări."); }
     finally { setRecBusy(false); }
   }, [data?.teams]);
 
