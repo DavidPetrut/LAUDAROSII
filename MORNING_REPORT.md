@@ -100,7 +100,17 @@
   (`PcPlanFile` scope „position"; `GET/POST/DELETE /plans/positions/:id/files`).
 - **Primit pe email** — DEFERRED (sensibil, cu tine).
 
+### Listă LIVE ca bară de jos (azi, partea 14) ✅
+- **Bară de jos colapsabilă** (`CoverageBar`) — butonul „👥 Listă live" din Matrix o deschide/închide din JOS
+  (animație height), **în același ecran** (nu mai tab extern). View-uri stânga: **Toți / Neplanificați / Planificați**.
+- **LIVE** — se actualizează automat cât planifici (la assign/remove/drag/guest).
+- **Responsive la poziția selectată** — când deschizi o poziție, bara aduce slujirea/SIM-ul potrivit (label „· Conectori").
+- **„mai poate ×N"** (max − alocat − blocat) + ⛔ blocate; coloane după câte ori e planificat (0/1/2/3/4×+).
+- **Drag & drop din bară → celulă Matrix** (asignează instant) + **feedback Kanban** (celulele se evidențiază la drag,
+  cardul tras se estompează). (Movable-anywhere = nice-to-have, lăsat pt. mai târziu.)
+
 ### Ce a mai rămas (ți-l las clar)
+- **Bara movable** (trage-o oriunde ca tab flotant) — nice-to-have.
 - **Fișiere poziție pe email** (trimis la useri) — sensibil, cu tine.
 - **Salvare custom matrix** (persistent, nu doar în sesiune) + tab **Sections** (ce secțiuni poziții arăți).
 - **Notes permission-based** (ascuns la user normal) + **Files upload** (lider încarcă document) — RBAC/upload.

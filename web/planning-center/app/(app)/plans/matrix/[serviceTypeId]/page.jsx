@@ -15,6 +15,7 @@ import { useAiSurface } from "@/lib/ai/useAiSurface";
 import PersonAvatar from "@/components/plans/PersonAvatar";
 import AssignSidebar from "@/components/plans/AssignSidebar";
 import EditPersonModal from "@/components/plans/EditPersonModal";
+import CoverageBar from "@/components/plans/CoverageBar";
 
 /* numele echipei pereche: „Asimilare (SIM 1)" ↔ „Asimilare (SIM 2)" */
 function perecheName(name = "") {
@@ -50,6 +51,10 @@ export default function MatrixPage() {
   const [targetSched, setTargetSched] = useState(null);
   const [toast, setToast] = useState("");
   const [editing, setEditing] = useState(null);
+  const [barOpen, setBarOpen] = useState(false);   // bara de jos „listă live"
+  const [cov, setCov] = useState(null);
+  const [covBusy, setCovBusy] = useState(false);
+  const [dragActive, setDragActive] = useState(false); // feedback drag (Kanban)
   const dragRef = useRef(null);
   const recTimer = useRef(null);
 
@@ -73,6 +78,15 @@ export default function MatrixPage() {
     try { setData(await fetchGrid()); } catch { /* păstrăm optimistul */ }
   }, [fetchGrid]);
   useEffect(() => { load(); }, [load]);
+
+  // bara „listă live" — responsive la poziția selectată (teamId) + LIVE (se cere din nou la assign/remove)
+  const loadCov = useCallback(async () => {
+    if (!barOpen) return;
+    setCovBusy(true);
+    try { setCov(await matrixApi.coverage(serviceTypeId, count, sel?.teamId)); } catch {}
+    finally { setCovBusy(false); }
+  }, [barOpen, serviceTypeId, count, sel?.teamId]);
+  useEffect(() => { loadCov(); }, [loadCov]);
 
   const plans = data?.plans || [];
   const teams = data?.teams || [];
@@ -146,7 +160,7 @@ export default function MatrixPage() {
       await plansApi.assign(sel.planId, { personId: p.id, teamId: sel.teamId, positionId: sel.positionId, status: "unconfirmed" });
       if (doMirror) await plansApi.assign(sel.planId, { personId: p.id, teamId: pereche.teamId, positionId: pereche.positionId, status: "unconfirmed" });
       flash(doMirror ? `Asignat + ${pereche.teamName} (fără email).` : "Asignat (neconfirmat, fără email).");
-      reconcile(); refreshRec();
+      reconcile(); refreshRec(); loadCov();
     } catch (e) { flash(e?.message || "Eroare."); reconcile(); }
     finally { setAssigning(false); }
   }
@@ -158,13 +172,13 @@ export default function MatrixPage() {
       ...c, needed: Math.max(0, (c.needed || 0) - 1),
       people: [...c.people, { personId: tmpId, assignmentId: tmpId, name, initials: name.slice(0, 2).toUpperCase(), avatar: "", status: "confirmed", isGuest: true }],
     }));
-    try { await plansApi.assign(sel.planId, { guestName: name, teamId: sel.teamId, positionId: sel.positionId }); flash(`Invitat „${name}" adăugat (Confirmed, fără email).`); reconcile(); refreshRec(); }
+    try { await plansApi.assign(sel.planId, { guestName: name, teamId: sel.teamId, positionId: sel.positionId }); flash(`Invitat „${name}" adăugat (Confirmed, fără email).`); reconcile(); refreshRec(); loadCov(); }
     catch (e) { flash(e?.message || "Eroare."); reconcile(); }
     finally { setAssigning(false); }
   }
   async function removePerson(planId, teamId, positionId, colIdx, assignmentId) {
     patchCell(teamId, positionId, colIdx, (c) => ({ ...c, people: c.people.filter((x) => String(x.assignmentId) !== String(assignmentId)) }));
-    try { await plansApi.unassign(planId, assignmentId); flash("Șters."); reconcile(); refreshRec(); }
+    try { await plansApi.unassign(planId, assignmentId); flash("Șters."); reconcile(); refreshRec(); loadCov(); }
     catch (e) { flash(e?.message || "Eroare."); reconcile(); }
   }
   async function saveEdit({ status, notes }) {
@@ -185,7 +199,7 @@ export default function MatrixPage() {
     try {
       await plansApi.assign(planId, { personId: d.personId, teamId, positionId, status: "unconfirmed" });
       if (d.move && d.assignmentId) await plansApi.unassign(d.planId, d.assignmentId);
-      flash(d.move ? "Mutat." : "Copiat."); reconcile();
+      flash(d.move ? "Mutat." : "Copiat."); reconcile(); loadCov();
     } catch (e) { flash(e?.message || "Eroare."); reconcile(); }
   }
   async function changeNeeded(planId, teamId, positionId, colIdx, nextCount) {
@@ -234,7 +248,7 @@ export default function MatrixPage() {
   const dateRange = nPlans ? `${plans[0].dateLabel} – ${plans[nPlans - 1].dateLabel}` : "";
 
   return (
-    <div className={`matrix pc-full ${sel ? "has-side" : ""} ${showSettings ? "has-left" : ""}`}>
+    <div className={`matrix pc-full ${sel ? "has-side" : ""} ${showSettings ? "has-left" : ""} ${barOpen ? "has-bar" : ""} ${dragActive ? "drag" : ""}`}>
       {/* ───── bara de sus ───── */}
       <div className="mtop">
         <div className="mt-left">
@@ -262,9 +276,9 @@ export default function MatrixPage() {
         </div>
         <div className="mt-right">
           {target && <button className="exit-target" onClick={() => { setTarget(null); setTargetSched(null); }}>⌖ Exit target view</button>}
-          <button className="cover-btn" title="Persoane neplanificate (tab nou)"
-            onClick={() => window.open(`/plans/coverage/${serviceTypeId}?count=${count}`, "_blank")}>
-            👥 Neplanificați
+          <button className={`cover-btn ${barOpen ? "on" : ""}`} title="Listă live (bară jos) — persoane care mai pot fi asignate"
+            onClick={() => setBarOpen((v) => !v)}>
+            👥 Listă live
           </button>
           <label className="cnt">Planuri
             <select value={count} onChange={(e) => { setCount(parseInt(e.target.value, 10)); setOffset(0); }}>{[4, 6, 8, 10, 12].map((n) => <option key={n} value={n}>{n}</option>)}</select>
@@ -368,7 +382,8 @@ export default function MatrixPage() {
                         return (
                           <div key={pp.assignmentId || pi} className={`person ${dim ? "dim" : ""} ${hit ? "hit" : ""}`}
                             draggable
-                            onDragStart={() => { dragRef.current = { personId: pp.personId, assignmentId: pp.assignmentId, planId: plans[ci].id, teamId: t.teamId, positionId: pos.positionId, colIdx: ci, name: pp.name, avatar: pp.avatar, initials: pp.initials, move: false }; }}
+                            onDragStart={() => { dragRef.current = { personId: pp.personId, assignmentId: pp.assignmentId, planId: plans[ci].id, teamId: t.teamId, positionId: pos.positionId, colIdx: ci, name: pp.name, avatar: pp.avatar, initials: pp.initials, move: false }; setDragActive(true); }}
+                            onDragEnd={() => setDragActive(false)}
                             onClick={() => pickTarget(pp)}
                             title={`${pp.name} — click: target view · trage: copiază`}>
                             <PersonAvatar person={pp} status={pp.status} size={22} />
@@ -421,6 +436,13 @@ export default function MatrixPage() {
         defaults={rec?.defaults} positionId={sel?.positionId} onSaveRules={saveRules} instructions={rec?.instructions}
       />
 
+      <CoverageBar
+        open={barOpen} onToggle={() => setBarOpen((v) => !v)} cov={cov} loading={covBusy}
+        selLabel={sel?.positionName || ""} onRefresh={loadCov}
+        onPersonDragStart={(p) => { dragRef.current = { personId: p.id, name: p.name, avatar: p.avatar, initials: p.initials, fromBar: true, move: false }; setDragActive(true); }}
+        onPersonDragEnd={() => setDragActive(false)}
+      />
+
       {editing && (
         <EditPersonModal
           person={editing}
@@ -447,6 +469,9 @@ export default function MatrixPage() {
         .matrix { padding: 14px 16px 40px; transition: padding-right .16s ease; }
         .matrix.has-side { padding-right: 356px; }  /* loc pt. bara lipită dreapta */
         .matrix.has-left { padding-left: 336px; }   /* loc pt. panoul Settings din stânga */
+        .matrix.has-bar { padding-bottom: 44vh; }   /* loc pt. bara „listă live" din jos */
+        .matrix.drag .datacell { box-shadow: inset 0 0 0 1px rgba(47,129,247,.3); background: rgba(47,129,247,.04); }
+        .matrix.drag .datacell:hover { box-shadow: inset 0 0 0 2px var(--primary); background: rgba(47,129,247,.12); }
         .mtop { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
         .mt-left { display: flex; align-items: center; gap: 8px; }
         .back { background: transparent; border: none; color: var(--text-dim); cursor: pointer; padding: 5px; }
@@ -490,6 +515,7 @@ export default function MatrixPage() {
         .exit-target { background: rgba(47,129,247,.14); border: 1px solid var(--primary); color: #9cc4f5; border-radius: 6px; padding: 5px 10px; font-size: 12.5px; cursor: pointer; }
         .cover-btn { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; padding: 5px 11px; font-size: 12.5px; cursor: pointer; }
         .cover-btn:hover { color: var(--text); border-color: var(--primary); }
+        .cover-btn.on { background: rgba(47,129,247,.14); border-color: var(--primary); color: #9cc4f5; }
         .cnt { color: var(--text-dim); font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; }
         .cnt select { background: var(--surface-2); color: var(--text); border: 1px solid var(--border-strong); border-radius: 6px; height: 28px; }
         .grid-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 8px; max-height: calc(100vh - 140px); }
