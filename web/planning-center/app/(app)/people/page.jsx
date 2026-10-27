@@ -1,20 +1,25 @@
 "use client";
 /**
  * Pagina People — tab-ul „People" din PCO Services.
- * Nivel 1 = taburi „părinte" (Toate / Asimilare / Vertical Kids / Laudă și Închinare / Media / Grupuri mici),
- * nivel 2 = lucrările reale din acel părinte, nivel 3 = pozițiile → roster (MinistryBoard).
- * „Toate" = tabelul plat cu toți oamenii (coloană Actions: slujire + profil). Date REALE din /api/pc/v1/people.
+ * Nivel 1 = taburi „părinte" (breadcrumb animat), nivel 2 = lucrările reale, nivel 3 = poziții → roster.
+ * „Toate" = tabelul plat; acțiunile (slujire/profil) apar la HOVER în stânga; „Filtre" = alegi coloanele
+ * vizibile (SIM, Sex opționale). Click pe rând = profil. Date REALE din /api/pc/v1/people.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { peopleApi, teamsApi } from "@/lib/api/client";
+import { peopleApi } from "@/lib/api/client";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
-import MinistryGroupsModal from "@/components/people/MinistryGroupsModal";
 import BlockedPeopleModal from "@/components/people/BlockedPeopleModal";
 import MinistryBoard from "@/components/people/MinistryBoard";
 import QuickAssignModal from "@/components/people/QuickAssignModal";
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "");
+
+// coloane opționale (cele de bază apar mereu); ordinea din tabel e fixă
+const OPT_COLS = [
+  { key: "sim", label: "SIM (1 / 2)" },
+  { key: "sex", label: "Sex (F / M)" },
+];
 
 export default function PeoplePage() {
   const router = useRouter();
@@ -27,20 +32,25 @@ export default function PeoplePage() {
   const [err, setErr] = useState("");
   const [sortBy, setSortBy] = useState("firstName");
   const [dir, setDir] = useState("asc");
-  const [parent, setParent] = useState("");         // tab de nivel 1 ("" = Toate)
-  const [group, setGroup] = useState("");           // lucrarea (minister) selectată în nivelul 2
-  const [mapGroups, setMapGroups] = useState([]);   // pt. modalul de mapare echipe→grupuri (admin)
-  const [ministries, setMinistries] = useState([]); // lucrări → poziții → roster (cu .group = părinte)
-  const [parents, setParents] = useState([]);       // [{ name, memberCount, ministryCount }] taburi nivel 1
-  const [quickFor, setQuickFor] = useState(null);   // persoana pt. asignare rapidă (din Toate)
-  const [canManage, setCanManage] = useState(false);
-  const [manageOpen, setManageOpen] = useState(false);
+  const [parent, setParent] = useState("");
+  const [group, setGroup] = useState("");
+  const [ministries, setMinistries] = useState([]);
+  const [parents, setParents] = useState([]);
+  const [quickFor, setQuickFor] = useState(null);
   const [canBlock, setCanBlock] = useState(false);
   const [blockedOpen, setBlockedOpen] = useState(false);
   const [blockedCount, setBlockedCount] = useState(0);
   const [blockedIds, setBlockedIds] = useState(() => new Set());
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [cols, setCols] = useState(() => {
+    try { const s = JSON.parse(sessionStorage.getItem("pc.pcols")); return new Set(Array.isArray(s) ? s : ["sim"]); } catch { return new Set(["sim"]); }
+  });
   const limit = 40;
   const tRef = useRef(null);
+
+  const showSim = cols.has("sim"), showSex = cols.has("sex");
+  const gridCols = `44px 150px 150px 230px 140px ${showSim ? "84px " : ""}110px 120px ${showSex ? "64px " : ""}1fr`;
+  const toggleCol = (k) => setCols((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); try { sessionStorage.setItem("pc.pcols", JSON.stringify([...n])); } catch {} return n; });
 
   const load = useCallback(async (p = page) => {
     setLoading(true);
@@ -52,17 +62,14 @@ export default function PeoplePage() {
   }, [query, page, sortBy, dir]);
   useEffect(() => { if (parent === "") load(page); /* eslint-disable-line */ }, [page, sortBy, dir, parent]);
 
-  const loadGroups = useCallback(() => { teamsApi.ministryGroups().then((r) => setMapGroups(r.groups || [])).catch(() => {}); }, []);
   const loadMinistries = useCallback(() => {
     peopleApi.ministries().then((r) => { setMinistries(r.ministries || []); setParents(r.groups || []); }).catch(() => {});
   }, []);
   useEffect(() => { loadMinistries(); }, [loadMinistries]);
 
-  // lucrările din părintele selectat (nivel 2) + lucrarea activă
   const childMinistries = useMemo(() => (parent ? ministries.filter((m) => m.group === parent) : []), [ministries, parent]);
   const activeMinistry = useMemo(() => ministries.find((m) => m.name === group) || null, [ministries, group]);
 
-  // schimbare părinte → auto-selectează prima lucrare din el (sau golește pt. Toate)
   useEffect(() => {
     if (parent === "") { setGroup(""); return; }
     const kids = ministries.filter((m) => m.group === parent);
@@ -74,14 +81,9 @@ export default function PeoplePage() {
     peopleApi.blocked().then((r) => { setBlockedCount(r.total || 0); setBlockedIds(new Set((r.blocked || []).map((x) => String(x.id)))); }).catch(() => {});
   }, []);
   useEffect(() => {
-    loadGroups();
-    peopleApi.me().then((r) => {
-      setCanManage(!!r?.capabilities?.manageServiceTypes);
-      if (r?.capabilities?.manageBlocks) { setCanBlock(true); loadBlockedCount(); }
-    }).catch(() => {});
-  }, [loadGroups, loadBlockedCount]);
+    peopleApi.me().then((r) => { if (r?.capabilities?.manageBlocks) { setCanBlock(true); loadBlockedCount(); } }).catch(() => {});
+  }, [loadBlockedCount]);
 
-  // căutare debounced (doar pe „Toate") → resetează la pagina 1
   useEffect(() => {
     if (parent !== "") return;
     clearTimeout(tRef.current);
@@ -108,7 +110,6 @@ export default function PeoplePage() {
 
   return (
     <div className="people pc-full pc-pad">
-      {/* RÂND CONTROL: căutare (stânga) · taburi nivel 1 · acțiuni (dreapta) */}
       <div className="ctl">
         <div className="srch">
           <svg className="si" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
@@ -118,15 +119,8 @@ export default function PeoplePage() {
         </div>
 
         <div className="nav">
-          {/* breadcrumb: pe măsură ce intri, părintele se micșorează într-un crumb la stânga */}
           <button className={`crumb ${parent === "" ? "cur" : ""}`} onClick={() => setParent("")} title="Toți oamenii">Toate</button>
-          {parent !== "" && (
-            <>
-              <span className="sep">›</span>
-              <span className="crumb cur par">{parent}</span>
-            </>
-          )}
-          {/* chip-urile nivelului curent (animate la fiecare schimbare de nivel) */}
+          {parent !== "" && (<><span className="sep">›</span><span className="crumb cur par">{parent}</span></>)}
           <div className="chips" key={parent || "root"}>
             {parent === ""
               ? parents.map((g) => (
@@ -149,11 +143,27 @@ export default function PeoplePage() {
               Blocați{blockedCount ? <span className="gb-n">{blockedCount}</span> : null}
             </button>
           )}
-          {canManage && (
-            <button className="gmanage" onClick={() => setManageOpen(true)} title="Mapează echipele la grupuri">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09A1.65 1.65 0 0 0 9 4.6V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
-              Grupuri de slujire
-            </button>
+          {parent === "" && (
+            <div className="filt-wrap">
+              <button className={`gfilt ${filtersOpen ? "on" : ""}`} onClick={() => setFiltersOpen((v) => !v)} title="Coloane vizibile">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M3 5h18M6 12h12M10 19h4" /></svg>
+                Filtre{cols.size ? <span className="gf-n">{cols.size}</span> : null}
+              </button>
+              {filtersOpen && (
+                <>
+                  <div className="filt-bd" onClick={() => setFiltersOpen(false)} />
+                  <div className="filt-pop">
+                    <div className="fp-h">Coloane</div>
+                    <div className="fp-locked">Prenume · Nume · Email · Telefon · Permisiuni · Creat<span>(mereu)</span></div>
+                    {OPT_COLS.map((c) => (
+                      <button key={c.key} className={`fp-row ${cols.has(c.key) ? "on" : ""}`} onClick={() => toggleCol(c.key)}>
+                        <span className={`fp-ck ${cols.has(c.key) ? "on" : ""}`}>{cols.has(c.key) ? "✓" : ""}</span>{c.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -167,28 +177,30 @@ export default function PeoplePage() {
       <>
       <div className="pcount">{loading ? "…" : `${total} persoane`}</div>
       <div className="table">
-        <div className="thead">
-          <div className="c-ac">ACȚIUNI</div>
+        <div className="thead" style={{ gridTemplateColumns: gridCols }}>
           <div className="c-av" />
           <div className="c-fn sortable" onClick={() => sort("firstName")}>PRENUME {sortBy === "firstName" ? (dir === "asc" ? "↑" : "↓") : ""}</div>
           <div className="c-ln sortable" onClick={() => sort("lastName")}>NUME {sortBy === "lastName" ? (dir === "asc" ? "↑" : "↓") : ""}</div>
           <div className="c-em">EMAIL</div>
           <div className="c-ph">TELEFON</div>
+          {showSim && <div className="c-sim">SIM</div>}
           <div className="c-pm">PERMISIUNI</div>
           <div className="c-cr">CREAT</div>
+          {showSex && <div className="c-sx">SEX</div>}
           <div className="c-sp" />
         </div>
         {rows.map((p) => {
           const name = `${p.firstName || ""} ${p.lastName || ""}`.trim();
           return (
-          <div key={p.id} className="trow" onClick={() => openProfile(p.id)} title="Click: deschide profilul">
-            <div className="c-ac" onClick={(e) => e.stopPropagation()}>
+          <div key={p.id} className="trow" style={{ gridTemplateColumns: gridCols }} onClick={() => openProfile(p.id)} title="Click: deschide profilul">
+            {/* bară de acțiuni la HOVER, în stânga */}
+            <div className="hbar" onClick={(e) => e.stopPropagation()}>
               <button className="aic" title="Slujiri — asignează rapid"
-                onClick={() => setQuickFor({ id: p.id, name, avatar: p.avatar, initials: p.initials })}>
-                <img src="/icons/planificare.png" alt="Slujiri" draggable={false} />
+                onClick={() => setQuickFor({ id: p.id, name, avatar: p.avatar, initials: p.initials, sim: p.sim })}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
               </button>
               <button className="aic" title="Deschide profilul" onClick={() => openProfile(p.id)}>
-                <img src="/icons/profile.png" alt="Profil" draggable={false} />
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" /></svg>
               </button>
             </div>
             <div className="c-av">
@@ -205,8 +217,10 @@ export default function PeoplePage() {
             <div className="c-ln">{p.lastName}</div>
             <div className="c-em" title={p.email}>{p.email}</div>
             <div className="c-ph">{p.phone}</div>
+            {showSim && <div className="c-sim">{p.sim ? <span className="simb">SIM {p.sim}</span> : <span className="dash">—</span>}</div>}
             <div className="c-pm">{p.permission}</div>
             <div className="c-cr">{fmtDate(p.createdAt)}</div>
+            {showSex && <div className="c-sx">{p.gender === "F" ? <span className="sxb f">F</span> : p.gender === "M" ? <span className="sxb m">M</span> : <span className="dash">—</span>}</div>}
             <div className="c-sp" />
           </div>
           );
@@ -226,19 +240,8 @@ export default function PeoplePage() {
         <QuickAssignModal person={quickFor} onClose={() => setQuickFor(null)} onChanged={loadMinistries} />
       )}
 
-      {manageOpen && (
-        <MinistryGroupsModal
-          groups={mapGroups.map((g) => g.name)}
-          onClose={() => setManageOpen(false)}
-          onChanged={() => { loadGroups(); load(page); }}
-        />
-      )}
-
       {blockedOpen && (
-        <BlockedPeopleModal
-          onClose={() => setBlockedOpen(false)}
-          onChanged={() => { loadBlockedCount(); load(page); }}
-        />
+        <BlockedPeopleModal onClose={() => setBlockedOpen(false)} onChanged={() => { loadBlockedCount(); load(page); }} />
       )}
 
       <style jsx>{`
@@ -252,6 +255,7 @@ export default function PeoplePage() {
         .search:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(47,129,247,.12); }
         .sx { position: absolute; right: 8px; background: transparent; border: none; color: var(--text-faint); font-size: 17px; cursor: pointer; line-height: 1; padding: 2px 4px; border-radius: 5px; }
         .sx:hover { color: var(--text); }
+
         .nav { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; flex-wrap: wrap; }
         .crumb { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border-radius: 14px;
           background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); font-size: 12px;
@@ -269,27 +273,43 @@ export default function PeoplePage() {
         .chip.on { background: var(--surface-3); border-color: var(--product); color: var(--text); font-weight: 600; }
         .ch-n { background: var(--surface); border-radius: 10px; padding: 0 7px; font-size: 11px; color: var(--text-faint); }
         .chip.on .ch-n { color: var(--product); }
+
         .gright { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-        .gmanage, .gblocked { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 13px;
+        .gblocked, .gfilt { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 13px;
           border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim);
           font-size: 12.5px; cursor: pointer; transition: color .12s, border-color .12s; }
-        .gmanage:hover, .gblocked:hover { color: var(--text); border-color: var(--product); }
+        .gblocked:hover, .gfilt:hover, .gfilt.on { color: var(--text); border-color: var(--product); }
         .gb-n { background: rgba(229,83,75,.16); color: #f0a7a2; border-radius: 10px; padding: 0 7px; font-size: 11px; font-weight: 600; }
+        .gf-n { background: rgba(47,129,247,.16); color: #9cc4f5; border-radius: 10px; padding: 0 7px; font-size: 11px; font-weight: 600; }
+        .filt-wrap { position: relative; }
+        .filt-bd { position: fixed; inset: 0; z-index: 40; }
+        .filt-pop { position: absolute; right: 0; top: 40px; z-index: 41; width: 230px; background: var(--surface-3);
+          border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: 0 16px 40px rgba(0,0,0,.5); padding: 10px; animation: chipsIn .16s ease; }
+        .fp-h { color: var(--text); font-size: 12px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; margin: 2px 2px 8px; }
+        .fp-locked { color: var(--text-faint); font-size: 11px; line-height: 1.5; padding: 0 2px 8px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+        .fp-locked span { opacity: .7; margin-left: 4px; }
+        .fp-row { display: flex; align-items: center; gap: 9px; width: 100%; background: transparent; border: none; color: var(--text-dim);
+          padding: 8px 8px; border-radius: 7px; cursor: pointer; font-size: 13px; }
+        .fp-row:hover { background: var(--surface-2); color: var(--text); }
+        .fp-row.on { color: var(--text); }
+        .fp-ck { width: 18px; height: 18px; border-radius: 5px; border: 1px solid var(--border-strong); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; }
+        .fp-ck.on { background: var(--primary); border-color: var(--primary); }
 
         .pcount { color: var(--text-dim); font-size: 12.5px; margin: 6px 0 8px; }
         .table { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-        .thead, .trow { display: grid; grid-template-columns: 76px 44px 150px 150px 230px 140px 110px 110px 1fr; align-items: center; }
+        .thead, .trow { display: grid; align-items: center; }
         .thead { color: var(--text-faint); font-size: var(--fs-colhead); letter-spacing: .5px; padding: 11px 14px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
         .sortable { cursor: pointer; } .sortable:hover { color: var(--text-dim); }
-        .trow { padding: 9px 14px; border-bottom: 1px solid var(--border-soft); cursor: pointer; font-size: 13.5px; }
+        .trow { padding: 9px 14px; border-bottom: 1px solid var(--border-soft); cursor: pointer; font-size: 13.5px; position: relative; }
         .trow:last-child { border-bottom: none; }
         .trow:hover { background: var(--row-hover); }
-        .c-ac { display: flex; align-items: center; gap: 8px; }
-        .aic { display: inline-flex; align-items: center; justify-content: center; padding: 0; background: transparent; border: none;
-          cursor: pointer; border-radius: 50%; transition: transform .12s, filter .12s; opacity: .9; }
-        .aic img { width: 26px; height: 26px; display: block; border-radius: 50%; }
-        .aic:hover { transform: translateY(-1px) scale(1.08); opacity: 1; filter: drop-shadow(0 2px 5px rgba(47,129,247,.35)); }
-        .c-av { display: flex; }
+        .hbar { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); z-index: 3; display: flex; gap: 6px; opacity: 0; transition: opacity .12s; }
+        .trow:hover .hbar { opacity: 1; }
+        .trow:hover .c-av { opacity: .12; }
+        .aic { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 7px;
+          background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text-dim); cursor: pointer; transition: all .12s; }
+        .aic:hover { color: var(--product); border-color: var(--product); background: var(--surface-2); transform: translateY(-1px); }
+        .c-av { display: flex; transition: opacity .12s; }
         .avw { position: relative; display: inline-flex; }
         .avw.locked .ava { border: 2px solid var(--primary); }
         .lockc { position: absolute; right: -3px; bottom: -3px; width: 15px; height: 15px; border-radius: 50%; background: var(--primary);
@@ -299,6 +319,10 @@ export default function PeoplePage() {
         .ava.ini { background: #3a4552; color: #fff; font-size: 11px; display: flex; align-items: center; justify-content: center; }
         .c-fn, .c-ln { color: var(--text); }
         .c-em, .c-ph, .c-pm, .c-cr { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 10px; }
+        .simb { color: #9cc4f5; background: rgba(47,129,247,.14); border: 1px solid rgba(47,129,247,.38); border-radius: 10px; padding: 1px 8px; font-size: 11px; font-weight: 600; }
+        .sxb { display: inline-flex; width: 20px; height: 20px; align-items: center; justify-content: center; border-radius: 50%; font-size: 11px; font-weight: 700; }
+        .sxb.f { color: #e6a3d0; background: rgba(214,110,178,.16); } .sxb.m { color: #8fb7f0; background: rgba(47,129,247,.16); }
+        .dash { color: var(--text-faint); }
         .empty { padding: 30px 14px; color: var(--text-faint); }
         .pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 16px; }
         .pager button { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px;

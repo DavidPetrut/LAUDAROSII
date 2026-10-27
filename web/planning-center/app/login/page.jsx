@@ -26,7 +26,7 @@ export default function LoginPage() {
   return (
     <div className="wrap">
       <form className="card" onSubmit={submit}>
-        <div className="logo"><span className="sq" /> services</div>
+        <div className="logo"><img className="sq" src="/logo_vertical.jpg" alt="Vertical" /> services</div>
         <h1>Autentificare</h1>
         <p className="sub">Folosește aceleași date ca în aplicația Vertical.</p>
         {err && <div className="err">{err}</div>}
@@ -42,7 +42,7 @@ export default function LoginPage() {
         .card { width: 360px; max-width: 100%; background: var(--surface); border: 1px solid var(--border);
           border-radius: 12px; padding: 28px; }
         .logo { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 600; margin-bottom: 18px; }
-        .sq { width: 22px; height: 22px; border-radius: 6px; background: var(--product); display: inline-block; }
+        .sq { width: 22px; height: 22px; border-radius: 6px; object-fit: cover; display: inline-block; }
         h1 { font-size: 20px; margin: 0 0 4px; }
         .sub { color: var(--text-dim); font-size: 13px; margin: 0 0 18px; }
         label { display: block; font-size: 12px; color: var(--text-dim); margin: 12px 0 6px; }

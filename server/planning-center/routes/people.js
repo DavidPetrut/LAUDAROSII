@@ -72,6 +72,8 @@ function toRow(p) {
     phone,
     permission: p.role || p.permission || "Viewer",
     createdAt: p.createdAt || null,
+    sim: ["1", "2"].includes(String(p.programIntent)) ? String(p.programIntent) : "", // SIM 1/2 (coloană opțională)
+    gender: ["M", "F"].includes(p.gender) ? p.gender : "",                            // sex (coloană opțională)
     schedulingStatus: p.schedulingStatus || "available", // available | onBreak | suspended
   };
 }
@@ -222,7 +224,7 @@ router.get("/", requireCan("people.view"), async (req, res) => {
         .sort({ [sortField]: sortDir, _id: 1 })
         .skip((pageN - 1) * limitN)
         .limit(limitN)
-        .select("firstName lastName avatar emails phones role permission createdAt schedulingStatus")
+        .select("firstName lastName avatar emails phones role permission createdAt schedulingStatus programIntent gender")
         .lean(),
     ]);
 

@@ -47,7 +47,7 @@ export default function TopNav() {
       <div className="nav-inner">
         <div className="brand">
           <span className="brand-logo" aria-hidden>
-            <svg width="16" height="16" viewBox="0 0 16 16"><g fill="#fff"><circle cx="2.5" cy="3" r="1.3"/><rect x="5.5" y="2.2" width="8.5" height="1.7" rx=".8"/><circle cx="2.5" cy="8" r="1.3"/><rect x="5.5" y="7.2" width="8.5" height="1.7" rx=".8"/><circle cx="2.5" cy="13" r="1.3"/><rect x="5.5" y="12.2" width="8.5" height="1.7" rx=".8"/></g></svg>
+            <img src="/logo_vertical.jpg" alt="Vertical" />
           </span>
           <span className="brand-name">services</span>
           <span className="brand-caret">▾</span>
@@ -82,8 +82,9 @@ export default function TopNav() {
         .nav-inner { height: 100%; width: 100%; margin: 0; padding: 0 20px;
           display: flex; align-items: center; gap: 34px; }
         .brand { display: flex; align-items: center; gap: 7px; }
-        .brand-logo { width: 26px; height: 26px; border-radius: 7px; background: var(--product);
+        .brand-logo { width: 26px; height: 26px; border-radius: 7px; overflow: hidden;
           display: inline-flex; align-items: center; justify-content: center; }
+        .brand-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .brand-name { font-size: 16px; font-weight: 600; letter-spacing: .2px; }
         .brand-caret { color: var(--text-faint); font-size: 10px; }
         .links { display: flex; align-items: center; gap: 10px; }
