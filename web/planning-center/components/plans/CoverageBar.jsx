@@ -143,6 +143,7 @@ export default function CoverageBar({
                       onDragEnd={() => onPersonDragEnd?.()}
                       title={`${p.name} — trage în Matrix pentru a asigna`}>
                       <PersonAvatar person={p} size={26} showBadge={false} />
+                      {p.inRoster && <span className="cb-rost" title="În rosterul echipei" />}
                       <span className="cb-name">{p.name}</span>
                       {p.free > 0 && <span className="cb-free">×{p.free}</span>}
                       {p.blocked > 0 && <span className="cb-blk" title={`${p.blocked} planuri blocate`}>⛔{p.blocked}</span>}
@@ -202,6 +203,7 @@ export default function CoverageBar({
         .cb-card { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 8px; cursor: grab; transition: background .1s; }
         .cb-card:hover { background: rgba(255,255,255,.055); }
         .cb-card:active { cursor: grabbing; opacity: .5; }
+        .cb-rost { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--product); box-shadow: 0 0 0 2px rgba(87,185,138,.22); }
         .cb-name { color: var(--text); font-size: 13px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .cb-free { flex: none; color: #0b2018; background: var(--product); border-radius: 20px; padding: 1px 8px; font-size: 11px; font-weight: 700; }
         .cb-blk { flex: none; color: var(--danger); font-size: 11px; font-weight: 600; }

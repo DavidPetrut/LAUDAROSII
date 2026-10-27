@@ -279,6 +279,7 @@ export default function AssignSidebar({
                           ))}
                         </span>
                       )}
+                      {p.inRoster && <span className="rost" title="În rosterul poziției — slujește oficial aici" />}
                       {p.targetLabel && <span className={`tgt ${p.belowTarget ? "below" : "met"}`} title="Pe poziția asta luna asta / target">{p.targetLabel}</span>}
                       <span className="wk">{p.weeksLabel}</span>
                     </button>
@@ -420,6 +421,7 @@ export default function AssignSidebar({
         .tgt { font-size: 10px; border-radius: 10px; padding: 0 6px; border: 1px solid; white-space: nowrap; }
         .tgt.below { color: var(--product); border-color: rgba(87,185,138,.5); }
         .tgt.met { color: var(--text-faint); border-color: var(--border-strong); }
+        .rost { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--product); box-shadow: 0 0 0 2px rgba(87,185,138,.22); }
         .wk { color: var(--text-faint); font-size: 11px; min-width: 32px; text-align: right; }
         .cand.here { opacity: .75; cursor: default; } .here-b { color: var(--product); }
         .asb-muted { color: var(--text-faint); font-size: 12.5px; padding: 10px 8px; }

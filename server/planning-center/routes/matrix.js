@@ -7,7 +7,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const {
   PcServiceType, PcPlan, PcPlanTime, PcAssignment, PcNeededPosition,
-  PcTeam, PcPosition, PcPerson, PcOrg, PcCampus, PcBlockout,
+  PcTeam, PcPosition, PcPerson, PcOrg, PcCampus, PcBlockout, PcTeamMember,
 } = require("../models");
 const { scoped } = require("../core/orgScope");
 const { requireCan } = require("../core/permissions");
@@ -244,6 +244,10 @@ router.get("/:serviceTypeId/coverage", requireCan("services.schedule"), async (r
     // SIM-ul echipei filtrate (din nume) → recomandăm întâi oamenii de pe acel SIM în Lista live
     const selTeam = teamId ? teams.find((t) => String(t._id) === String(teamId)) : null;
     const teamSim = (() => { const m = String(selTeam?.name || "").match(/\(\s*(?:sim\s*)?([12])\s*\)/i); return m ? m[1] : ""; })();
+    // ROSTER echipei: cine slujește oficial pe echipa filtrată (pc_team_members) → apare primul în Lista live
+    const rosterIds = teamId
+      ? new Set((await PcTeamMember.find(scoped(req, { teamId })).select("personId").lean()).map((m) => String(m.personId)))
+      : new Set();
 
     // asignări în INTERVAL (distinct pe plan)
     const winMatch = scoped(req, { personId: { $in: pid }, planId: { $in: planIds }, status: { $ne: "declined" } });
@@ -267,16 +271,17 @@ router.get("/:serviceTypeId/coverage", requireCan("services.schedule"), async (r
       return {
         id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "),
         initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase(), avatar: p.avatar || "",
-        programIntent: p.programIntent || "", scheduled: sched, blocked, free,
+        programIntent: p.programIntent || "", inRoster: rosterIds.has(String(p._id)), scheduled: sched, blocked, free,
       };
     }).filter(Boolean);
 
-    // prioritate SIM: oamenii de pe SIM-ul echipei filtrate apar primii
+    // prioritate: ROSTERUL echipei întâi (cine slujește oficial acolo), apoi SIM-ul echipei filtrate
+    const rosterRank = (r) => (teamId && r.inRoster ? 0 : 1);
     const simRank = (r) => (teamSim && r.programIntent === teamSim ? 0 : 1);
-    // buckets: 0× (neplanificați) … 4×+; în fiecare, întâi SIM-ul echipei, apoi cei mai „liberi"
+    // buckets: 0× (neplanificați) … 4×+; în fiecare, întâi rosterul, apoi SIM-ul echipei, apoi cei mai „liberi"
     const bucket = (n, last) => ({
       times: n, label: n === 0 ? "Neplanificați" : (last ? `${n}×+` : `${n}×`),
-      people: rows.filter((r) => last ? r.scheduled >= n : r.scheduled === n).sort((a, b) => (simRank(a) - simRank(b)) || (b.free - a.free) || a.name.localeCompare(b.name)),
+      people: rows.filter((r) => last ? r.scheduled >= n : r.scheduled === n).sort((a, b) => (rosterRank(a) - rosterRank(b)) || (simRank(a) - simRank(b)) || (b.free - a.free) || a.name.localeCompare(b.name)),
     });
     const buckets = [bucket(0), bucket(1), bucket(2), bucket(3), bucket(4, true)];
 
