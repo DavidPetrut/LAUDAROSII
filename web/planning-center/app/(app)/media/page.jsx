@@ -43,7 +43,7 @@ export default function MediaPage() {
         {!loading && rows.length === 0 && <div className="muted">Niciun element media.</div>}
       </div>
       <style jsx>{`
-        .media { padding: 22px 0 60px; }
+        .media { padding: 22px 20px 60px; }
         .page-title { font-size: var(--fs-h1); font-weight: 600; margin: 4px 0 14px; }
         .search { background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 6px; height: 34px; padding: 0 12px; color: var(--text); width: 300px; outline: none; font-size: 13px; }
         .count { color: var(--text-dim); font-size: 13px; margin: 14px 0; }

@@ -86,7 +86,8 @@ export const songsApi = {
 export const plansApi = {
   // { serviceTypes: [{ id, name, plans: [{ id, title, dateLabel, sortDate }] }] }
   list: () => api.get("/plans"),
-  create: (serviceTypeId, date) => api.post("/plans", { serviceTypeId, date }),
+  // date = prima dată; opts: { quantity, copyTimesFromPlanId, templatePlanId } (batch N planuri săptămânale)
+  create: (serviceTypeId, date, opts = {}) => api.post("/plans", { serviceTypeId, date, ...opts }),
   get: (id) => api.get(`/plans/${id}`),
   teams: (id) => api.get(`/plans/${id}/teams`),
   times: (id) => api.get(`/plans/${id}/times`),

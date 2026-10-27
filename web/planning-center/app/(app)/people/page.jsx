@@ -99,7 +99,7 @@ export default function PeoplePage() {
       </div>
 
       <style jsx>{`
-        .people { padding: 20px 0 80px; }
+        .people { padding: 20px 20px 80px; }
         .phead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
         .count { color: var(--text); font-size: 15px; font-weight: 600; }
         .search { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px;

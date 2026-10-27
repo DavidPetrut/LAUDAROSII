@@ -133,7 +133,7 @@ export default function PersonPage() {
       )}
 
       <style jsx>{`
-        .wrap { padding: 20px 0 60px; }
+        .wrap { padding: 20px 20px 60px; }
         .head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
         .back { background: transparent; border: none; color: var(--text-dim); font-size: 22px; cursor: pointer; }
         .av { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; }

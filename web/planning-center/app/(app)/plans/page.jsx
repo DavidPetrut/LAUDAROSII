@@ -25,6 +25,8 @@ export default function PlansPage() {
   const [addFor, setAddFor] = useState(null); // {id, name} service type pt. Add Plans
   const [addDate, setAddDate] = useState("");
   const [addQty, setAddQty] = useState(1);
+  const [addCopyTimes, setAddCopyTimes] = useState(""); // planId sursă pt. ore
+  const [addTemplate, setAddTemplate] = useState("");   // planId „template" (structura/Needed)
   const [addBusy, setAddBusy] = useState(false);
   const PAGE = 10;
 
@@ -32,12 +34,12 @@ export default function PlansPage() {
     if (!addFor || !addDate) return;
     setAddBusy(true);
     try {
-      const base = new Date(addDate);
-      for (let i = 0; i < Math.max(1, Math.min(12, addQty)); i++) {
-        const d = new Date(base); d.setDate(base.getDate() + i * 7);
-        await plansApi.create(addFor.id, d.toISOString().slice(0, 10));
-      }
-      setAddFor(null); setAddDate(""); setAddQty(1); await load();
+      await plansApi.create(addFor.id, addDate, {
+        quantity: Math.max(1, Math.min(52, addQty)),
+        copyTimesFromPlanId: addCopyTimes || undefined,
+        templatePlanId: addTemplate || undefined,
+      });
+      setAddFor(null); setAddDate(""); setAddQty(1); setAddCopyTimes(""); setAddTemplate(""); await load();
     } catch (e) { setErr(e?.message || "Eroare la adăugare."); }
     finally { setAddBusy(false); }
   }
@@ -209,11 +211,29 @@ export default function PlansPage() {
           <div className="dlg" onClick={(e) => e.stopPropagation()}>
             <h3>Add Plans</h3>
             <div className="dsub">{addFor.name}</div>
-            <div className="frow">
-              <label>Quantity<select value={addQty} onChange={(e) => setAddQty(parseInt(e.target.value, 10))}>{Array.from({ length: 12 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
-              <label>Starting On<input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} /></label>
-            </div>
-            <p className="dhint">Creează {addQty} plan{addQty > 1 ? "uri" : ""} săptămânal{addQty > 1 ? "e" : ""} începând cu data aleasă (orele se copiază din template-ul service type-ului).</p>
+            {(() => {
+              const stPlans = (serviceTypes.find((s) => String(s.id) === String(addFor.id))?.plans || [])
+                .slice().sort((a, b) => new Date(b.sortDate || 0) - new Date(a.sortDate || 0)).slice(0, 30);
+              return (
+                <>
+                  <div className="frow">
+                    <label>Quantity<select value={addQty} onChange={(e) => setAddQty(parseInt(e.target.value, 10))}>{Array.from({ length: 24 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
+                    <label>Copy Times From<select value={addCopyTimes} onChange={(e) => setAddCopyTimes(e.target.value)}>
+                      <option value="">Template service type</option>
+                      {stPlans.map((p) => <option key={p.id} value={p.id}>{p.dateLabel || p.title}</option>)}
+                    </select></label>
+                    <label>Starting On<input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} /></label>
+                  </div>
+                  <div className="frow">
+                    <label>Template (structură · Needed)<select value={addTemplate} onChange={(e) => setAddTemplate(e.target.value)}>
+                      <option value="">Fără template</option>
+                      {stPlans.map((p) => <option key={p.id} value={p.id}>{p.title ? `${p.title} (${p.dateLabel})` : p.dateLabel}</option>)}
+                    </select></label>
+                  </div>
+                </>
+              );
+            })()}
+            <p className="dhint">Creează {addQty} plan{addQty > 1 ? "uri" : ""} săptămânal{addQty > 1 ? "e" : ""} începând cu data aleasă (se păstrează ziua săptămânii).{addCopyTimes ? " Orele se copiază din planul ales." : " Orele vin din template-ul service type-ului."}{addTemplate ? " Structura (pozițiile Needed) se copiază din template." : ""} Fără oameni/email.</p>
             <div className="dact">
               <button className="c" onClick={() => setAddFor(null)} disabled={addBusy}>Cancel</button>
               <button className="s" onClick={submitAddPlans} disabled={addBusy || !addDate}>{addBusy ? "Se adaugă…" : `Add ${addQty}`}</button>
@@ -223,9 +243,10 @@ export default function PlansPage() {
       )}
 
       <style jsx>{`
-        .plans { padding: 18px 0 80px; }
+        .plans { padding: 18px 20px 80px; }
         .ov { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; z-index: 60; }
-        .dlg { background: var(--modal-bg); border: 1px solid var(--border-strong); border-radius: 10px; padding: 20px; width: 440px; max-width: 92vw; }
+        .dlg { background: var(--modal-bg); border: 1px solid var(--border-strong); border-radius: 10px; padding: 20px; width: 540px; max-width: 94vw; }
+        .frow + .frow { margin-top: 12px; }
         .dlg h3 { margin: 0 0 3px; font-size: 16px; color: var(--text); }
         .dsub { color: var(--text-dim); font-size: 13px; margin-bottom: 16px; }
         .frow { display: flex; gap: 14px; }

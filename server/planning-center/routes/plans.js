@@ -81,18 +81,48 @@ router.post("/", requireCan("services.addPlan"), async (req, res) => {
     const st = await PcServiceType.findOne(scoped(req, { _id: stId })).lean();
     if (!st) return res.status(404).json({ error: "Service type inexistent." });
     const tz = await campusTz(req);
-    const template = (st.serviceTimeTemplate && st.serviceTimeTemplate.length) ? st.serviceTimeTemplate : [{ start: "09:00", end: "10:00" }];
+    const defTemplate = (st.serviceTimeTemplate && st.serviceTimeTemplate.length) ? st.serviceTimeTemplate : [{ start: "09:00", end: "10:00" }];
 
-    const sortDate = wallToUtc(req.body.date, template[0].start, tz) || new Date(req.body.date);
-    const plan = await PcPlan.create(stamp(req, { serviceTypeId: stId, sortDate }));
-    for (const t of template) {
-      await PcPlanTime.create(stamp(req, {
-        planId: plan._id, type: "service", name: "",
-        startsAt: wallToUtc(req.body.date, t.start, tz) || sortDate,
-        endsAt: t.end ? wallToUtc(req.body.date, t.end, tz) : null,
-      }));
+    // Opțiuni Add Plans (ca în PCO): câte planuri, de unde copiez orele, ce plan e „template" (structura/Needed).
+    const quantity = Math.max(1, Math.min(52, parseInt(req.body?.quantity, 10) || 1));
+    const copyTimesId = OID(req.body?.copyTimesFromPlanId);
+    const templateId = OID(req.body?.templatePlanId);
+
+    // sursa ORELOR: „Copy Times From" > „Template" > template-ul service type-ului
+    const clean = (o) => { const { _id, planId, orgId, createdAt, updatedAt, __v, deletedAt, ...rest } = o; return rest; };
+    const dateStrOf = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(d));
+    const addWeeksStr = (ds, w) => { const [y, m, d] = ds.split("-").map(Number); const dt = new Date(Date.UTC(y, m - 1, d)); dt.setUTCDate(dt.getUTCDate() + 7 * w); return dt.toISOString().slice(0, 10); };
+
+    let srcTimes = null, srcDateStr = null;
+    const srcTimesPlanId = copyTimesId || templateId;
+    if (srcTimesPlanId) {
+      const pl = await PcPlan.findOne(scoped(req, { _id: srcTimesPlanId, serviceTypeId: stId })).select("sortDate").lean();
+      if (pl) { srcTimes = await PcPlanTime.find(scoped(req, { planId: srcTimesPlanId })).lean(); srcDateStr = dateStrOf(pl.sortDate); }
     }
-    res.status(201).json({ planId: plan._id });
+    // STRUCTURA (Needed per poziție) din planul „template"
+    const srcNeeded = templateId ? await PcNeededPosition.find(scoped(req, { planId: templateId })).lean() : null;
+
+    const created = [];
+    for (let i = 0; i < quantity; i++) {
+      const dayStr = addWeeksStr(req.body.date, i); // păstrează ziua săptămânii (+7*i)
+      let sortDate, times; // times = [{type,name,startsAt,endsAt}]
+      if (srcTimes && srcTimes.length) {
+        // decalaj zile sursă→nou (păstrează ora + ziua relativă, ex. repetiție sâmbătă înainte de duminică)
+        const deltaMs = Date.parse(dayStr + "T00:00:00Z") - Date.parse(srcDateStr + "T00:00:00Z");
+        const shift = (d) => (d ? new Date(new Date(d).getTime() + deltaMs) : d);
+        times = srcTimes.map((t) => ({ ...clean(t), startsAt: shift(t.startsAt), endsAt: shift(t.endsAt) }));
+        const firstSvc = times.find((t) => t.type === "service") || times[0];
+        sortDate = firstSvc?.startsAt || wallToUtc(dayStr, defTemplate[0].start, tz);
+      } else {
+        sortDate = wallToUtc(dayStr, defTemplate[0].start, tz) || new Date(dayStr);
+        times = defTemplate.map((t) => ({ type: "service", name: "", startsAt: wallToUtc(dayStr, t.start, tz) || sortDate, endsAt: t.end ? wallToUtc(dayStr, t.end, tz) : null }));
+      }
+      const plan = await PcPlan.create(stamp(req, { serviceTypeId: stId, sortDate }));
+      for (const t of times) await PcPlanTime.create(stamp(req, { ...t, planId: plan._id }));
+      if (srcNeeded) for (const n of srcNeeded) await PcNeededPosition.create(stamp(req, { ...clean(n), planId: plan._id }));
+      created.push(plan._id);
+    }
+    res.status(201).json({ ok: true, created: created.length, planId: created[0], planIds: created });
   } catch (err) {
     console.error("[pc] POST /plans:", err.message);
     res.status(500).json({ error: "Eroare la crearea planului: " + err.message });
