@@ -115,6 +115,7 @@ export const plansApi = {
   // reguli de recomandare per poziție (gen/program/target/instrucțiuni)
   setPositionRules: (positionId, payload) => api.patch(`/plans/positions/${positionId}/rules`, payload),
   // „manual"/fișiere per poziție
+  positionRoster: (positionId) => api.get(`/plans/positions/${positionId}/roster`),
   positionFiles: (positionId) => api.get(`/plans/positions/${positionId}/files`),
   addPositionFile: (positionId, payload) => api.post(`/plans/positions/${positionId}/files`, payload),
   deletePositionFile: (positionId, fileId) => api.del(`/plans/positions/${positionId}/files/${fileId}`),

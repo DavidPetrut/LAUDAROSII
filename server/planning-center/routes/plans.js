@@ -816,6 +816,22 @@ router.delete("/positions/:positionId/files/:fileId", requireCan("services.sched
   } catch (err) { console.error("[pc] DELETE position file:", err.message); res.status(500).json({ error: "Eroare." }); }
 });
 
+/* ───────── GET /positions/:positionId/roster — cine e în rosterul poziției (pt. „+ adaugă pe poziție") ───────── */
+router.get("/positions/:positionId/roster", requireCan("services.schedule"), async (req, res) => {
+  try {
+    const positionId = OID(req.params.positionId);
+    if (!positionId) return res.status(400).json({ error: "ID invalid." });
+    const mems = await PcTeamMember.find(scoped(req, { positionIds: positionId })).select("personId").lean();
+    const ids = [...new Set(mems.map((m) => String(m.personId)))].map(OID);
+    const people = await PcPerson.find(scoped(req, { _id: { $in: ids }, status: "active" }))
+      .collation({ locale: "ro", strength: 1 }).sort({ firstName: 1 }).select("firstName lastName avatar programIntent").lean();
+    res.json({ people: people.map((p) => ({
+      id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "), avatar: p.avatar || "",
+      initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase(), programIntent: p.programIntent || "",
+    })) });
+  } catch (err) { console.error("[pc] GET position roster:", err.message); res.status(500).json({ error: "Eroare la roster." }); }
+});
+
 /* ───────── GET /:id/recommend — bara dreaptă: candidați pt. o poziție, cu „due" + conflicte ─────────
    Sortare: fără conflict întâi, apoi cei care n-au mai fost de mult pe poziție (due). FĂRĂ email. */
 router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) => {

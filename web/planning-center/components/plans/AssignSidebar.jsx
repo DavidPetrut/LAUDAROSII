@@ -11,7 +11,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import PersonAvatar from "./PersonAvatar";
-import { plansApi } from "@/lib/api/client";
+import { plansApi, peopleApi } from "@/lib/api/client";
 
 /* numărul SIM din coada numelui: „Ion Pop (2)" → "2"; fără paranteză → "" */
 function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return m ? m[1] : ""; }
@@ -19,8 +19,14 @@ function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return
 export default function AssignSidebar({
   open, title, neededCount, loading, groups = [], alreadyHere = [],
   query, onQuery, onPick, onClose, assigning, mirror, onAddGuest,
-  defaults, positionId, onSaveRules, instructions, browse = false, serviceTimes = [],
+  defaults, positionId, onSaveRules, instructions, browse = false, serviceTimes = [], onRosterChanged,
 }) {
+  const [addOn, setAddOn] = useState(false);      // panoul „+ adaugă om pe poziție"
+  const [addQ, setAddQ] = useState("");
+  const [addRes, setAddRes] = useState([]);       // rezultate căutare (toți oamenii)
+  const [roster, setRoster] = useState([]);       // cine e deja în rosterul poziției
+  const [rosterBusy, setRosterBusy] = useState(false);
+  const addRef = useRef(null);
   const [selTimes, setSelTimes] = useState(() => new Set()); // orele alese la asignare (gol = toate orele / „During All")
   const [tipFor, setTipFor] = useState(null); // id-ul persoanei cu tooltip-ul de conflict deschis
   const [sim, setSim] = useState("");          // "", "1", "2"
@@ -41,6 +47,7 @@ export default function AssignSidebar({
   // la schimbarea poziției: reset + PRE-SELECTează filtrele din regulile poziției
   useEffect(() => {
     setMirrorOn(false); setMode("member"); setGuestName(""); setRulesOn(false); setSelTimes(new Set());
+    setAddOn(false); setAddQ(""); setAddRes([]); setRoster([]);
     const g = defaults?.gender && defaults.gender !== "any" ? defaults.gender : "";
     const p = defaults?.program && defaults.program !== "any" ? defaults.program : "";
     setGender(g); setSim(p); setSimOn(!!(g || p));
@@ -73,6 +80,35 @@ export default function AssignSidebar({
     if (!n || !onAddGuest) return;
     onAddGuest(n); setGuestName("");
   }
+
+  // ─── „+ adaugă om pe poziție" (editează rosterul poziției din Matrix/Teams) ───
+  const loadRoster = () => { if (positionId) peopleApi.positionRoster(positionId).then((r) => setRoster(r.people || [])).catch(() => setRoster([])); };
+  useEffect(() => { if (addOn) loadRoster(); /* eslint-disable-line */ }, [addOn, positionId]);
+  useEffect(() => {
+    if (!addOn) return;
+    clearTimeout(addRef.current);
+    const s = addQ.trim();
+    if (!s) { setAddRes([]); return; }
+    addRef.current = setTimeout(async () => {
+      try {
+        const r = await peopleApi.list({ q: s, limit: 8 });
+        const have = new Set(roster.map((x) => String(x.id)));
+        setAddRes((r.results || []).filter((x) => !have.has(String(x.id))));
+      } catch { setAddRes([]); }
+    }, 260);
+    return () => clearTimeout(addRef.current);
+    // eslint-disable-next-line
+  }, [addQ, addOn, roster]);
+  async function rosterAddPerson(p) {
+    if (!positionId) return;
+    setRosterBusy(true);
+    try { await peopleApi.rosterAdd(p.id, [positionId]); setAddQ(""); setAddRes([]); loadRoster(); onRosterChanged?.(); } catch {} finally { setRosterBusy(false); }
+  }
+  async function rosterRemovePerson(p) {
+    if (!positionId) return;
+    try { await peopleApi.rosterRemove(p.id, [positionId]); setRoster((r) => r.filter((x) => String(x.id) !== String(p.id))); onRosterChanged?.(); } catch {}
+  }
+  const personName = (p) => p.name || [p.firstName, p.lastName].filter(Boolean).join(" ");
   async function saveRules() {
     if (!onSaveRules) return;
     setRulesBusy(true);
@@ -130,12 +166,55 @@ export default function AssignSidebar({
             <button className={`asb-filt ${simOn ? "on" : ""}`} title="Filtre (SIM / Gen)" onClick={() => setSimOn((v) => !v)}>
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h12M4 8h8M6 12h4" /></svg>
             </button>
+            {positionId && !browse && (
+              <button className={`asb-filt ${addOn ? "on" : ""}`} title="Adaugă un om pe poziție (roster)" onClick={() => setAddOn((v) => !v)}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><circle cx="9" cy="8" r="3.4" /><path d="M3.5 20v-1a5 5 0 0 1 5-5h1" /><path d="M18 13v6M15 16h6" /></svg>
+              </button>
+            )}
             {onSaveRules && positionId && (
               <button className={`asb-filt ${rulesOn ? "on" : ""}`} title="Reguli poziție (gen / program / target)" onClick={() => setRulesOn((v) => !v)}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09A1.65 1.65 0 0 0 9 4.6V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
               </button>
             )}
           </div>
+
+          {addOn && (
+            <div className="asb-add">
+              <div className="aa-h">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><circle cx="9" cy="8" r="3.4" /><path d="M3.5 20v-1a5 5 0 0 1 5-5h1" /><path d="M18 13v6M15 16h6" /></svg>
+                <span>Adaugă pe poziție</span>
+              </div>
+              <div className="aa-hint">Caută pe oricine și pune-l în rosterul poziției. Apoi apare primul la recomandări, gata de asignat.</div>
+              <div className="aa-searchwrap">
+                <input className="asb-search" placeholder="Caută orice persoană…" value={addQ} onChange={(e) => setAddQ(e.target.value)} autoFocus />
+                {addQ && <button className="aa-sx" onClick={() => { setAddQ(""); setAddRes([]); }}>×</button>}
+              </div>
+              {addRes.length > 0 && (
+                <div className="aa-res">
+                  {addRes.map((r) => (
+                    <button key={r.id} className="aa-ri" disabled={rosterBusy} onClick={() => rosterAddPerson(r)}>
+                      {r.avatar ? <img className="aa-av" src={r.avatar} alt="" /> : <span className="aa-av ini">{r.initials}</span>}
+                      <span className="aa-rn">{personName(r)}</span>
+                      <span className="aa-plus">+ adaugă</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="aa-rosterh">În roster{roster.length ? ` · ${roster.length}` : ""}</div>
+              <div className="aa-roster">
+                {roster.length === 0 && <div className="aa-none">Nimeni în roster încă. Caută mai sus.</div>}
+                {roster.map((p) => (
+                  <div key={p.id} className="aa-m">
+                    {p.avatar ? <img className="aa-av" src={p.avatar} alt="" /> : <span className="aa-av ini">{p.initials}</span>}
+                    <span className="aa-mn">{personName(p)}</span>
+                    <button className="aa-asg" disabled={assigning} title="Asignează pe poziție"
+                      onClick={() => onPick?.({ id: p.id, name: personName(p), avatar: p.avatar, initials: p.initials }, mirror?.available ? mirrorOn : false, [...selTimes])}>Asignează</button>
+                    <button className="aa-rm" title="Scoate din roster" onClick={() => rosterRemovePerson(p)}>×</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {rulesOn && (
             <div className="asb-rules">
@@ -345,6 +424,30 @@ export default function AssignSidebar({
         .asb-rules { margin: 0 16px 10px; padding: 12px 13px; background: var(--surface-2); border: 1px solid var(--border-strong);
           border-radius: 9px; display: flex; flex-direction: column; gap: 11px; animation: rulesIn .18s ease; }
         @keyframes rulesIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+        .asb-add { margin: 0 16px 10px; padding: 12px 13px; background: var(--surface-2); border: 1px solid var(--primary);
+          border-radius: 9px; display: flex; flex-direction: column; gap: 9px; animation: rulesIn .18s ease; }
+        .aa-h { display: flex; align-items: center; gap: 7px; color: var(--text); font-size: 12.5px; font-weight: 600; }
+        .aa-hint { color: var(--text-faint); font-size: 11px; line-height: 1.45; }
+        .aa-searchwrap { position: relative; display: flex; }
+        .aa-sx { position: absolute; right: 8px; top: 7px; background: transparent; border: none; color: var(--text-faint); font-size: 15px; cursor: pointer; }
+        .aa-sx:hover { color: var(--text); }
+        .aa-res { display: flex; flex-direction: column; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 4px; }
+        .aa-ri { display: flex; align-items: center; gap: 9px; background: transparent; border: none; padding: 7px 8px; border-radius: 6px; cursor: pointer; }
+        .aa-ri:hover { background: var(--surface-2); }
+        .aa-av { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex: none; }
+        .aa-av.ini { background: #3a4552; color: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; }
+        .aa-rn { color: var(--text); font-size: 13px; flex: 1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .aa-plus { color: var(--product); font-size: 11.5px; font-weight: 600; flex: none; }
+        .aa-rosterh { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; margin-top: 2px; }
+        .aa-roster { display: flex; flex-direction: column; gap: 4px; max-height: 190px; overflow: auto; }
+        .aa-none { color: var(--text-faint); font-size: 12px; padding: 4px 2px; }
+        .aa-m { display: flex; align-items: center; gap: 9px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; }
+        .aa-mn { color: var(--text); font-size: 13px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .aa-asg { flex: none; background: rgba(47,129,247,.14); border: 1px solid var(--primary); color: #9cc4f5; border-radius: 6px; height: 26px; padding: 0 10px; font-size: 11.5px; font-weight: 600; cursor: pointer; }
+        .aa-asg:hover { background: var(--primary); color: #fff; } .aa-asg:disabled { opacity: .5; cursor: default; }
+        .aa-rm { flex: none; background: transparent; border: none; color: var(--text-faint); font-size: 17px; line-height: 1; cursor: pointer; padding: 0 3px; border-radius: 5px; }
+        .aa-rm:hover { color: var(--danger); background: rgba(248,81,73,.1); }
         .rr-head { display: flex; align-items: center; gap: 7px; color: var(--text); font-size: 12.5px; font-weight: 600; }
         .rr-head svg { color: var(--product); flex: none; }
         .rr-sec { display: flex; align-items: center; gap: 10px; }

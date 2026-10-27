@@ -765,6 +765,7 @@ export default function MatrixPage() {
         onAddGuest={addGuest}
         defaults={rec?.defaults} positionId={sel?.positionId} onSaveRules={saveRules} instructions={rec?.instructions}
         serviceTimes={rec?.serviceTimes || []}
+        onRosterChanged={refreshRec}
       />
 
       <CoverageBar

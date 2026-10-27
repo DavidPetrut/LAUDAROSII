@@ -333,6 +333,7 @@ export default function PlanDetailPage() {
         onAddGuest={addGuest}
         defaults={rec?.defaults} positionId={sel?.positionId} onSaveRules={saveRules} instructions={rec?.instructions}
         serviceTimes={rec?.serviceTimes || []}
+        onRosterChanged={refreshRec}
       />
       {editing && (
         <EditPersonModal person={editing} onClose={() => setEditing(null)} onSave={saveEdit}
