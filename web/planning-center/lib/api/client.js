@@ -128,8 +128,17 @@ export const servicesApi = {
   deleteNoteCategory: (id, catId) => api.del(`/service-types/${id}/note-categories/${catId}`),
 };
 
+/* ─── Teams + grupuri de slujire — server/planning-center/routes/teams.js ─── */
+export const teamsApi = {
+  list: () => api.get("/teams"),
+  ministryGroups: () => api.get("/teams/ministry-groups"),
+  setGroup: (teamId, ministryGroup) => api.patch(`/teams/${teamId}`, { ministryGroup }),
+};
+
 /* ─── People (tab People) — server/planning-center/routes/people.js ─── */
 export const peopleApi = {
+  // { person, permission, capabilities, myTeamIds } — eu + ce pot face
+  me: () => api.get("/people/me"),
   // { results:[{id,firstName,lastName,email,phone,permission,createdAt,...}], total, page, limit, hasMore }
   list: (params = {}) => {
     const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== "")).toString();

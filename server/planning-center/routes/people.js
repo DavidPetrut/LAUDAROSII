@@ -193,6 +193,17 @@ router.get("/", requireCan("people.view"), async (req, res) => {
       filter._id = filter._id ? { $in: ids.filter((id) => (filter._id.$in || []).some((x) => String(x) === String(id))) } : { $in: ids };
     }
 
+    // Filtru „grup de slujire" (cele 5 mari): oameni din echipele care au acel ministryGroup.
+    const mg = String(req.query.ministryGroup || "").trim();
+    if (mg) {
+      const grpTeams = await PcTeam.find(scoped(req, { ministryGroup: mg, archived: false })).select("_id").lean();
+      const mems = await PcTeamMember.find(scoped(req, { teamId: { $in: grpTeams.map((t) => t._id) } })).select("personId").lean();
+      const ids = mems.map((m) => m.personId);
+      filter._id = filter._id
+        ? { $in: (filter._id.$in || []).filter((x) => ids.some((id) => String(id) === String(x))) }
+        : { $in: ids };
+    }
+
     // Filtru Tags.
     const tagIdList = String(tagIds).split(",").map((s) => s.trim()).filter(Boolean).map(OID).filter(Boolean);
     if (tagIdList.length) filter.tagIds = { $all: tagIdList };

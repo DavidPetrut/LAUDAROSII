@@ -16,6 +16,7 @@ router.use("/v1/people/import", require("./peopleImport")); // ÎNAINTE de /v1/p
 router.use("/v1/people", require("./people"));
 router.use("/v1/plans", require("./plans"));
 router.use("/v1/service-types", require("./services"));
+router.use("/v1/teams", require("./teams"));
 router.use("/v1/songs", require("./songs"));
 router.use("/v1/media", require("./media"));
 router.use("/v1/uploads", require("./uploads"));

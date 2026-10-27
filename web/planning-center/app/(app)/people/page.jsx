@@ -7,8 +7,9 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { peopleApi } from "@/lib/api/client";
+import { peopleApi, teamsApi } from "@/lib/api/client";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
+import MinistryGroupsModal from "@/components/people/MinistryGroupsModal";
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "");
 
@@ -23,18 +24,32 @@ export default function PeoplePage() {
   const [err, setErr] = useState("");
   const [sortBy, setSortBy] = useState("firstName");
   const [dir, setDir] = useState("asc");
+  const [group, setGroup] = useState("");          // grupul de slujire selectat ("" = toate)
+  const [groups, setGroups] = useState([]);        // [{ name, teamCount, isDefault }]
+  const [canManage, setCanManage] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   const limit = 40;
   const tRef = useRef(null);
 
   const load = useCallback(async (p = page) => {
     setLoading(true);
     try {
-      const r = await peopleApi.list({ q: query, page: p, limit, sortBy, dir });
+      const r = await peopleApi.list({ q: query, page: p, limit, sortBy, dir, ministryGroup: group || undefined });
       setRows(r.results || []); setTotal(r.total || 0); setHasMore(!!r.hasMore); setErr("");
     } catch (e) { setErr(e?.message || "Eroare la încărcare."); }
     finally { setLoading(false); }
-  }, [query, page, sortBy, dir]);
+  }, [query, page, sortBy, dir, group]);
   useEffect(() => { load(page); /* eslint-disable-line */ }, [page, sortBy, dir]);
+
+  // la schimbarea grupului → resetează la pagina 1 și reîncarcă
+  useEffect(() => { setPage(1); load(1); /* eslint-disable-line */ }, [group]);
+
+  // grupurile de slujire + dacă pot administra maparea (admin)
+  const loadGroups = useCallback(() => { teamsApi.ministryGroups().then((r) => setGroups(r.groups || [])).catch(() => {}); }, []);
+  useEffect(() => {
+    loadGroups();
+    peopleApi.me().then((r) => setCanManage(!!r?.capabilities?.manageServiceTypes)).catch(() => {});
+  }, [loadGroups]);
 
   // căutare debounced → resetează la pagina 1
   useEffect(() => {
@@ -65,6 +80,23 @@ export default function PeoplePage() {
         <input className="search" placeholder="Caută după nume sau email" value={query} onChange={(e) => setQuery(e.target.value)} />
       </div>
       {err && <div className="err">{err}</div>}
+
+      <div className="gbar">
+        <div className="gchips">
+          <button className={`gchip ${group === "" ? "on" : ""}`} onClick={() => setGroup("")}>Toate</button>
+          {groups.map((g) => (
+            <button key={g.name} className={`gchip ${group === g.name ? "on" : ""}`} onClick={() => setGroup(g.name)}>
+              {g.name}{g.teamCount ? <span className="gc-n">{g.teamCount}</span> : null}
+            </button>
+          ))}
+        </div>
+        {canManage && (
+          <button className="gmanage" onClick={() => setManageOpen(true)} title="Mapează echipele la grupuri">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09A1.65 1.65 0 0 0 9 4.6V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+            Grupuri de slujire
+          </button>
+        )}
+      </div>
 
       <div className="table">
         <div className="thead">
@@ -98,8 +130,29 @@ export default function PeoplePage() {
         <button disabled={!hasMore} onClick={() => setPage(page + 1)}>›</button>
       </div>
 
+      {manageOpen && (
+        <MinistryGroupsModal
+          groups={groups.map((g) => g.name)}
+          onClose={() => setManageOpen(false)}
+          onChanged={() => { loadGroups(); load(page); }}
+        />
+      )}
+
       <style jsx>{`
         .people { padding: 20px 20px 80px; }
+        .gbar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+        .gchips { display: flex; gap: 7px; flex-wrap: wrap; }
+        .gchip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 13px; border-radius: 15px;
+          background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); font-size: 12.5px;
+          cursor: pointer; transition: color .12s, background .12s, border-color .12s; }
+        .gchip:hover { color: var(--text); }
+        .gchip.on { background: var(--surface-3); border-color: var(--product); color: var(--text); font-weight: 600; }
+        .gc-n { background: var(--surface); border-radius: 10px; padding: 0 6px; font-size: 11px; color: var(--text-faint); }
+        .gchip.on .gc-n { color: var(--product); }
+        .gmanage { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 13px;
+          border-radius: 6px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim);
+          font-size: 12.5px; cursor: pointer; transition: color .12s, border-color .12s; }
+        .gmanage:hover { color: var(--text); border-color: var(--product); }
         .phead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
         .count { color: var(--text); font-size: 15px; font-weight: 600; }
         .search { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px;
