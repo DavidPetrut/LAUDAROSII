@@ -19,8 +19,9 @@ function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return
 export default function AssignSidebar({
   open, title, neededCount, loading, groups = [], alreadyHere = [],
   query, onQuery, onPick, onClose, assigning, mirror, onAddGuest,
-  defaults, positionId, onSaveRules, instructions, browse = false,
+  defaults, positionId, onSaveRules, instructions, browse = false, serviceTimes = [],
 }) {
+  const [selTimes, setSelTimes] = useState(() => new Set()); // orele alese la asignare (gol = toate orele / „During All")
   const [sim, setSim] = useState("");          // "", "1", "2"
   const [gender, setGender] = useState("");    // "", "M", "F"
   const [simOn, setSimOn] = useState(false);   // afișează rândul de filtre
@@ -38,7 +39,7 @@ export default function AssignSidebar({
 
   // la schimbarea poziției: reset + PRE-SELECTează filtrele din regulile poziției
   useEffect(() => {
-    setMirrorOn(false); setMode("member"); setGuestName(""); setRulesOn(false);
+    setMirrorOn(false); setMode("member"); setGuestName(""); setRulesOn(false); setSelTimes(new Set());
     const g = defaults?.gender && defaults.gender !== "any" ? defaults.gender : "";
     const p = defaults?.program && defaults.program !== "any" ? defaults.program : "";
     setGender(g); setSim(p); setSimOn(!!(g || p));
@@ -220,6 +221,19 @@ export default function AssignSidebar({
             </div>
           )}
 
+          {serviceTimes.length >= 2 && !browse && mode === "member" && (
+            <div className="asb-times">
+              <span className="at-l">Ore</span>
+              <div className="at-chips">
+                <button className={`atc ${selTimes.size === 0 ? "on" : ""}`} onClick={() => setSelTimes(new Set())} title="Toate orele (During All)">Toate</button>
+                {serviceTimes.map((st) => (
+                  <button key={st.id} className={`atc ${selTimes.has(st.id) ? "on" : ""}`} title={st.label}
+                    onClick={() => setSelTimes((s) => { const n = new Set(s); n.has(st.id) ? n.delete(st.id) : n.add(st.id); return n; })}>{st.label}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="asb-list">
             {loading && <div className="asb-muted">Se caută…</div>}
 
@@ -249,7 +263,7 @@ export default function AssignSidebar({
                     <span className={`asb-gc ${col ? "col" : ""}`}>▾</span>
                   </button>
                   {!col && g.people.map((p) => (
-                    <button key={p.id} className="cand" disabled={assigning} onClick={() => onPick(p, mirror?.available ? mirrorOn : false)} title={browse ? "Click pe o căsuță din grilă ca să asignezi" : "Asignează (fără email)"}>
+                    <button key={p.id} className="cand" disabled={assigning} onClick={() => onPick(p, mirror?.available ? mirrorOn : false, [...selTimes])} title={browse ? "Click pe o căsuță din grilă ca să asignezi" : "Asignează (fără email)"}>
                       <PersonAvatar person={p} size={28} showBadge={false} />
                       <span className="cn">{p.name}</span>
                       {p.conflict && (
@@ -347,6 +361,12 @@ export default function AssignSidebar({
           border-radius: 20px; padding: 3px 12px; font-size: 12px; cursor: pointer; }
         .chip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
         .chip.dis { opacity: .4; cursor: default; }
+        .asb-times { display: flex; align-items: flex-start; gap: 8px; padding: 0 16px 10px; }
+        .at-l { color: var(--text-faint); font-size: 10.5px; letter-spacing: .5px; padding-top: 6px; flex: none; }
+        .at-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .atc { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 14px; padding: 3px 11px; font-size: 11.5px; cursor: pointer; }
+        .atc:hover { color: var(--text); }
+        .atc.on { background: var(--primary); border-color: var(--primary); color: #fff; }
         .asb-list { overflow: auto; padding: 0 8px 16px; flex: 1; }
         .asb-grp { margin-bottom: 14px; }
         .asb-gl { color: var(--text-faint); font-size: 10.5px; letter-spacing: .5px; padding: 8px 8px 5px; }

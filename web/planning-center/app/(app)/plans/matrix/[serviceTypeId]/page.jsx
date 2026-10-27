@@ -202,17 +202,18 @@ export default function MatrixPage() {
     // eslint-disable-next-line
   }, [recQuery]);
 
-  async function assignPerson(p, mirror) {
+  async function assignPerson(p, mirror, timeIds) {
     if (!sel) { flash("Click pe o căsuță (poziție) din grilă ca să asignezi pe cineva."); return; }
     setAssigning(true);
+    const tIds = Array.isArray(timeIds) && timeIds.length ? timeIds : undefined; // gol = toate orele
     const push = (c, id) => ({ ...c, people: [...c.people, { personId: p.id, assignmentId: id, name: p.name, avatar: p.avatar, initials: p.initials, status: "unconfirmed" }], needed: Math.max(0, (c.needed || 0) - 1) });
     // optimist: pune persoana în celulă (+ pe pereche dacă bifat)
     patchCell(sel.teamId, sel.positionId, sel.colIdx, (c) => push(c, `tmp-a-${Date.now()}`));
     const doMirror = mirror && pereche;
     if (doMirror) patchCell(pereche.teamId, pereche.positionId, sel.colIdx, (c) => push(c, `tmp-b-${Date.now()}`));
     try {
-      await plansApi.assign(sel.planId, { personId: p.id, teamId: sel.teamId, positionId: sel.positionId, status: "unconfirmed" });
-      if (doMirror) await plansApi.assign(sel.planId, { personId: p.id, teamId: pereche.teamId, positionId: pereche.positionId, status: "unconfirmed" });
+      await plansApi.assign(sel.planId, { personId: p.id, teamId: sel.teamId, positionId: sel.positionId, status: "unconfirmed", timeIds: tIds });
+      if (doMirror) await plansApi.assign(sel.planId, { personId: p.id, teamId: pereche.teamId, positionId: pereche.positionId, status: "unconfirmed", timeIds: tIds });
       flash(doMirror ? `Asignat + ${pereche.teamName} (fără email).` : "Asignat (neconfirmat, fără email).");
       reconcile(); refreshRec(); loadCov();
     } catch (e) { flash(e?.message || "Eroare."); reconcile(); }
@@ -575,6 +576,7 @@ export default function MatrixPage() {
         mirror={pereche ? { available: true, label: `Adaugă și la ${pereche.teamName}` } : null}
         onAddGuest={addGuest}
         defaults={rec?.defaults} positionId={sel?.positionId} onSaveRules={saveRules} instructions={rec?.instructions}
+        serviceTimes={rec?.serviceTimes || []}
       />
 
       <CoverageBar

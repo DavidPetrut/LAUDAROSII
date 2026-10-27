@@ -820,6 +820,12 @@ router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) =
     const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
     const pos = positionId ? await PcPosition.findOne(scoped(req, { _id: positionId })).lean() : null;
 
+    // orele de serviciu ale planului (pt. selectorul de oră la asignare / split-teams)
+    const tzR = await campusTz(req);
+    const sTimesR = await PcPlanTime.find(scoped(req, { planId, type: "service" })).sort({ startsAt: 1 }).lean();
+    const fmtTR = (d) => (d ? new Intl.DateTimeFormat("en-GB", { timeZone: tzR, hour: "2-digit", minute: "2-digit" }).format(new Date(d)) : "");
+    const serviceTimes = sTimesR.map((t) => ({ id: String(t._id), label: t.name ? `${fmtTR(t.startsAt)} ${t.name}` : fmtTR(t.startsAt) }));
+
     // candidați: activi, disponibili (schedulingStatus available/gol). Gen/program NU se filtrează hard în
     // backend (datele de gen/program lipsesc din import → ar goli lista); se PRE-SELECTează în bară și se
     // aplică acolo (SIM din nume, gen doar dacă există date). Regula se întoarce în `defaults`.
@@ -896,6 +902,7 @@ router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) =
       alreadyHere: here,
       defaults: { gender: pos?.defaultGender || "any", program: pos?.defaultProgram || "any", targetPerMonth },
       instructions: pos?.instructions || "",
+      serviceTimes,
       groups: [
         { label: "FĂRĂ CONFLICT", people: noConf },
         ...(withConf.length ? [{ label: `${withConf.length} CU CONFLICT`, people: withConf }] : []),

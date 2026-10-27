@@ -138,16 +138,17 @@ export default function PlanDetailPage() {
     if (pt && pg) pereche = { teamId: pt.teamId, teamName: pt.name, positionId: pg.positionId };
   }
 
-  async function assignPerson(p, mirror) {
+  async function assignPerson(p, mirror, timeIds) {
     if (!sel) return;
     setAssigning(true);
+    const tIds = Array.isArray(timeIds) && timeIds.length ? timeIds : undefined; // gol = toate orele (During All)
     const push = (g, tid) => ({ ...g, needed: Math.max(0, (g.needed || 0) - 1), people: [...g.people, { personId: p.id, assignmentId: tid, name: p.name, avatar: p.avatar, initials: p.initials, status: "unconfirmed" }] });
     patchGroup(sel.teamId, sel.positionId, (g) => push(g, `tmp-a-${Date.now()}`));
     const doMirror = mirror && pereche;
     if (doMirror) patchGroup(pereche.teamId, pereche.positionId, (g) => push(g, `tmp-b-${Date.now()}`));
     try {
-      await plansApi.assign(id, { personId: p.id, teamId: sel.teamId, positionId: sel.positionId, status: "unconfirmed" });
-      if (doMirror) await plansApi.assign(id, { personId: p.id, teamId: pereche.teamId, positionId: pereche.positionId, status: "unconfirmed" });
+      await plansApi.assign(id, { personId: p.id, teamId: sel.teamId, positionId: sel.positionId, status: "unconfirmed", timeIds: tIds });
+      if (doMirror) await plansApi.assign(id, { personId: p.id, teamId: pereche.teamId, positionId: pereche.positionId, status: "unconfirmed", timeIds: tIds });
       flash(doMirror ? `Asignat + ${pereche.teamName} (fără email).` : "Asignat (fără email)."); reconcileTeams(); refreshRec();
     }
     catch (e) { flash(e?.message || "Eroare."); reconcileTeams(); }
@@ -301,6 +302,7 @@ export default function PlanDetailPage() {
         mirror={pereche ? { available: true, label: `Adaugă și la ${pereche.teamName}` } : null}
         onAddGuest={addGuest}
         defaults={rec?.defaults} positionId={sel?.positionId} onSaveRules={saveRules} instructions={rec?.instructions}
+        serviceTimes={rec?.serviceTimes || []}
       />
       {editing && (
         <EditPersonModal person={editing} onClose={() => setEditing(null)} onSave={saveEdit}
