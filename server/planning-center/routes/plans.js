@@ -669,6 +669,38 @@ router.delete("/:id/assignments/:aid", requireCan("services.schedule"), async (r
   }
 });
 
+/* ───────── GET /:id/assignments/:aid — detaliu complet pt. „Editing Scheduled Person" ─────────
+   email + Service/Rehearsal Times (bifate = în timeIds) + timeline (Prepared/Sent/Read/Responded). READ. */
+router.get("/:id/assignments/:aid", requireCan("people.view"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id), aid = OID(req.params.aid);
+    const a = await PcAssignment.findOne(scoped(req, { _id: aid, planId })).lean();
+    if (!a) return res.status(404).json({ error: "Programare inexistentă." });
+    const tz = await campusTz(req);
+    const [person, pos, team, times] = await Promise.all([
+      PcPerson.findOne(scoped(req, { _id: a.personId })).select("firstName lastName avatar emails").lean(),
+      a.positionId ? PcPosition.findOne(scoped(req, { _id: a.positionId })).select("name").lean() : null,
+      a.teamId ? PcTeam.findOne(scoped(req, { _id: a.teamId })).select("name").lean() : null,
+      PcPlanTime.find(scoped(req, { planId })).sort({ startsAt: 1 }).lean(),
+    ]);
+    const checked = new Set((a.timeIds || []).map(String));
+    const tlabel = (t) => `${fmtWeekday(t.startsAt, tz)} ${fmtTime(t.startsAt, tz)}${t.name ? " · " + t.name : ""}`;
+    // bifat = în timeIds; dacă asignarea n-are timeIds setate, considerăm toate bifate (default PCO)
+    const mapTimes = (type) => times.filter((t) => t.type === type).map((t) => ({ id: t._id, label: tlabel(t), checked: checked.size ? checked.has(String(t._id)) : true }));
+    const fdt = (d) => (d ? `${fmtDate(d, tz)} ${fmtTime(d, tz)}` : "");
+    res.json({
+      email: person?.emails?.find((e) => e.primary)?.address || person?.emails?.[0]?.address || "",
+      teamName: team?.name || "", positionName: a.isTemporaryPosition ? (a.tempPositionName || "") : (pos?.name || ""),
+      status: a.status, notes: a.notes || "", prepared: !!a.prepared,
+      serviceTimes: mapTimes("service"), rehearsalTimes: mapTimes("rehearsal"),
+      timeline: { preparedAt: fdt(a.preparedAt), sentAt: fdt(a.notificationSentAt), readAt: fdt(a.readAt), respondedAt: fdt(a.acceptedAt || a.declinedAt) },
+    });
+  } catch (err) {
+    console.error("[pc] GET /plans/:id/assignments/:aid:", err.message);
+    res.status(500).json({ error: "Eroare la detaliul programării." });
+  }
+});
+
 /* ───────── GET /:id/recommend — bara dreaptă: candidați pt. o poziție, cu „due" + conflicte ─────────
    Sortare: fără conflict întâi, apoi cei care n-au mai fost de mult pe poziție (due). FĂRĂ email. */
 router.get("/:id/recommend", requireCan("services.schedule"), async (req, res) => {

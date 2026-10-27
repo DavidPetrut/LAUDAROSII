@@ -102,6 +102,8 @@ export const plansApi = {
   },
   // asignează o persoană (DOAR DB, status unconfirmed implicit — NU trimite email)
   assign: (id, payload) => api.post(`/plans/${id}/assignments`, payload),
+  // detaliu complet pt. modalul „Editing Scheduled Person" (email + times + timeline)
+  getAssignment: (id, aid) => api.get(`/plans/${id}/assignments/${aid}`),
   updateAssignment: (id, aid, payload) => api.patch(`/plans/${id}/assignments/${aid}`, payload),
   unassign: (id, aid) => api.del(`/plans/${id}/assignments/${aid}`),
   // replică o echipă pe alta (SIM1→SIM2), după nume poziție

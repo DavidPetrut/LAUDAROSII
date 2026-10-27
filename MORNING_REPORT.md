@@ -50,11 +50,14 @@
     `POST /schedule/blockouts`: **planificat + email trimis → NU poți pune blockout** (eroare „vorbește cu
     planificatorul"); **planificat (fără email) + blockout → auto-decline** (DOAR DB, ZERO email/notificare).
 
+### Ce am mai adăugat (azi, partea 7)
+13. **EditPersonModal cu date REALE** ✅ — la deschidere trage `GET /plans/:id/assignments/:aid`:
+    **email**, **Service Times** + **Rehearsal Times** (bifate = în `timeIds`), **Notes** reale și
+    **timeline Notifications** (Prepared/Sent/Read/Responded cu datele reale). Exact ca poza 261. READ.
+
 ### Ce a mai rămas (ți-l las clar)
 - **Gen real pe oameni** — PCO nu-l dă în export (câmp gol). Când îl avem (manual/heuristic), filtrul de Gen
   se activează automat. SIM merge deja (din nume).
-- **EditPersonModal — email/Service Times/Rehearsal/timeline real**: grila/Teams nu trimit încă aceste
-  câmpuri; modalul le afișează doar când există. Le pot popula (mic adaos backend).
 - **Invitați (guests) one-time** — taxonomie de „gust" fără istoric (apare automat ca Confirmed). Nu e făcut.
 - **Email** (global templates + logo Vertical) — **strict cu tine**, nimic trimis automat.
 - **Deploy:** backend-ul (plans.js teams) cere redeploy Render ca Teams să ia forma nouă (push-ul declanșează).

@@ -188,7 +188,7 @@ export default function PlanDetailPage() {
         <div className="body">
           {tab === "Order" && <OrderTab data={cur} />}
           {tab === "Teams" && <TeamsTab data={cur} sel={sel} onOpenCell={openCell}
-            onEdit={(pp, g, t) => setEditing({ teamId: t.teamId, positionId: g.positionId, assignmentId: pp.assignmentId, name: pp.name, avatar: pp.avatar, initials: pp.initials, status: pp.status, teamName: t.name, positionName: g.positionName })}
+            onEdit={(pp, g, t) => setEditing({ planId: id, teamId: t.teamId, positionId: g.positionId, assignmentId: pp.assignmentId, name: pp.name, avatar: pp.avatar, initials: pp.initials, status: pp.status, teamName: t.name, positionName: g.positionName })}
             onRemove={removePerson} onNeeded={changeNeeded} />}
           {tab === "Times" && <TimesTab data={cur} />}
           {tab === "Notes" && <NotesTab data={cur} />}

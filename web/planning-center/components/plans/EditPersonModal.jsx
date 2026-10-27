@@ -6,28 +6,34 @@
  * timeline Notifications (Prepared → Sent → Read → Pending) · Remove / Cancel / Save.
  * Totul se salvează LOCAL (updateAssignment) — ZERO email trimis de aici.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PersonAvatar from "./PersonAvatar";
+import { plansApi } from "@/lib/api/client";
 
 const SEG = [["confirmed", "Confirmed"], ["unconfirmed", "Pending"], ["declined", "Declined"]];
-
-function TimelineDot({ label, done, when }) {
-  return (
-    <div className={`tl-step ${done ? "done" : ""}`}>
-      <span className="tl-dot" />
-      <span className="tl-l">{label}</span>
-      <span className="tl-w">{when || "—"}</span>
-    </div>
-  );
-}
 
 export default function EditPersonModal({ person, onClose, onSave, onRemove }) {
   const [status, setStatus] = useState(person?.status || "unconfirmed");
   const [notes, setNotes] = useState(person?.notes || "");
   const [busy, setBusy] = useState(false);
-  if (!person) return null;
+  const [detail, setDetail] = useState(null);
+  const [notesTouched, setNotesTouched] = useState(false);
 
-  const tl = person.timeline || {};
+  // detaliu real (email + Service/Rehearsal Times + timeline). Nu pt. optimistul temporar („tmp-…").
+  useEffect(() => {
+    const real = person?.assignmentId && !String(person.assignmentId).startsWith("tmp-");
+    if (!real || !person?.planId) return;
+    let alive = true;
+    plansApi.getAssignment(person.planId, person.assignmentId)
+      .then((d) => { if (!alive) return; setDetail(d); if (!notesTouched && d.notes != null) setNotes(d.notes); })
+      .catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line
+  }, [person?.planId, person?.assignmentId]);
+
+  if (!person) return null;
+  const info = { ...person, ...(detail || {}) }; // date reale suprascriu partialul
+  const tl = info.timeline || {};
   const hasTl = tl.preparedAt || tl.sentAt || tl.readAt || tl.respondedAt;
 
   async function save() {
@@ -47,9 +53,9 @@ export default function EditPersonModal({ person, onClose, onSave, onRemove }) {
           <PersonAvatar person={person} size={46} showBadge={false} />
           <div className="who-t">
             <div className="who-n">{person.name}</div>
-            {person.email && <div className="who-e">{person.email}</div>}
-            {(person.teamName || person.positionName) && (
-              <div className="who-r">{[person.positionName, person.teamName].filter(Boolean).join(" · ")}</div>
+            {info.email && <div className="who-e">{info.email}</div>}
+            {(info.teamName || info.positionName) && (
+              <div className="who-r">{[info.positionName, info.teamName].filter(Boolean).join(" · ")}</div>
             )}
           </div>
         </div>
@@ -62,32 +68,32 @@ export default function EditPersonModal({ person, onClose, onSave, onRemove }) {
               ))}
             </div>
 
-            {(person.teamName || person.positionName) && (
+            {(info.teamName || info.positionName) && (
               <div className="frow2">
-                <label className="fl">Team<div className="fv">{person.teamName || "—"}</div></label>
-                <label className="fl">Position<div className="fv">{person.positionName || "—"}</div></label>
+                <label className="fl">Team<div className="fv">{info.teamName || "—"}</div></label>
+                <label className="fl">Position<div className="fv">{info.positionName || "—"}</div></label>
               </div>
             )}
 
             <label className="fl full">Notes
-              <textarea className="fnotes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notă internă (opțional)…" />
+              <textarea className="fnotes" value={notes} onChange={(e) => { setNotes(e.target.value); setNotesTouched(true); }} placeholder="Notă internă (opțional)…" />
             </label>
           </div>
 
           <div className="colR">
-            {(person.serviceTimes?.length > 0) && (
+            {(info.serviceTimes?.length > 0) && (
               <div className="tgroup">
                 <div className="tg-l">Service Times</div>
-                {person.serviceTimes.map((t, i) => (
-                  <label key={i} className="tck"><input type="checkbox" defaultChecked={t.checked !== false} readOnly />{t.label}</label>
+                {info.serviceTimes.map((t, i) => (
+                  <label key={i} className="tck"><input type="checkbox" checked={t.checked !== false} readOnly />{t.label}</label>
                 ))}
               </div>
             )}
-            {(person.rehearsalTimes?.length > 0) && (
+            {(info.rehearsalTimes?.length > 0) && (
               <div className="tgroup">
                 <div className="tg-l">Rehearsal Times</div>
-                {person.rehearsalTimes.map((t, i) => (
-                  <label key={i} className="tck"><input type="checkbox" defaultChecked={t.checked !== false} readOnly />{t.label}</label>
+                {info.rehearsalTimes.map((t, i) => (
+                  <label key={i} className="tck"><input type="checkbox" checked={t.checked !== false} readOnly />{t.label}</label>
                 ))}
               </div>
             )}
@@ -95,10 +101,11 @@ export default function EditPersonModal({ person, onClose, onSave, onRemove }) {
               <div className="tg-l">Notifications</div>
               {hasTl ? (
                 <div className="tl">
-                  <TimelineDot label="Prepared" done={!!tl.preparedAt} when={tl.preparedAt} />
-                  <TimelineDot label="Sent" done={!!tl.sentAt} when={tl.sentAt} />
-                  <TimelineDot label="Read" done={!!tl.readAt} when={tl.readAt} />
-                  <TimelineDot label="Responded" done={!!tl.respondedAt} when={tl.respondedAt} />
+                  {[["Prepared", tl.preparedAt], ["Sent", tl.sentAt], ["Read", tl.readAt], ["Responded", tl.respondedAt]].map(([label, when]) => (
+                    <div key={label} className={`tl-step ${when ? "done" : ""}`}>
+                      <span className="tl-dot" /><span className="tl-l">{label}</span><span className="tl-w">{when || "—"}</span>
+                    </div>
+                  ))}
                 </div>
               ) : <div className="tl-none">Niciun email trimis încă. Emailurile le trimiteți voi manual.</div>}
             </div>
