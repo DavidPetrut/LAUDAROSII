@@ -256,7 +256,7 @@ export default function PlanDetailPage() {
           </div>
         </div>
         <div className="topright">
-          <button className="mx" onClick={() => head && router.push(`/plans/matrix/${head.serviceTypeId || ""}`)}>Matrix ▾</button>
+          <button className="mx" onClick={() => head && router.push(`/plans/matrix/${head.serviceTypeId || ""}?focus=${id}`)}>Matrix ▾</button>
           <div className="menu-wrap">
             <button className="kebab" title="Mai multe" aria-label="Mai multe acțiuni" onClick={() => setMenuOpen((v) => !v)}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.45" /><circle cx="8" cy="8" r="1.45" /><circle cx="8" cy="13" r="1.45" /></svg>

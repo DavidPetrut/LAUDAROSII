@@ -36,6 +36,8 @@ export default function MatrixPage() {
     try { mstoreRef.current = (typeof window !== "undefined") ? JSON.parse(sessionStorage.getItem(MKEY) || "{}") : {}; } catch { mstoreRef.current = {}; }
   }
   const mstore = mstoreRef.current;
+  // dacă vii dintr-un plan (buton „Matrix"), ?focus=<planId> → deschide EXACT acel plan (o coloană), peste starea salvată
+  const focusId = (typeof window !== "undefined") ? new URLSearchParams(window.location.search).get("focus") : null;
   const [data, setData] = useState(null);
   const [count, setCount] = useState(() => mstore.count ?? 4);          // „Next plans" (Quantity) — default 4 ca în PCO
   const [offset, setOffset] = useState(() => mstore.offset ?? 0);
@@ -58,7 +60,7 @@ export default function MatrixPage() {
   const [stSearch, setStSearch] = useState("");
   const [dmCol, setDmCol] = useState(() => new Set());  // secțiuni ST colapsate în dropdown-ul de dată
   const toggleDmSec = (id) => setDmCol((s) => { const n = new Set(s); n.has(String(id)) ? n.delete(String(id)) : n.add(String(id)); return n; });
-  const [selectedPlanIds, setSelectedPlanIds] = useState(() => mstore.selectedPlanIds ?? null); // null = mod fereastră (prev/next); array = checklist explicit
+  const [selectedPlanIds, setSelectedPlanIds] = useState(() => (focusId ? [focusId] : (mstore.selectedPlanIds ?? null))); // null = mod fereastră (prev/next); array = checklist explicit
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [collapsed, setCollapsed] = useState(() => new Set(mstore.collapsed || []));
@@ -117,6 +119,14 @@ export default function MatrixPage() {
     softTimer.current = setTimeout(() => reconcile(), 900);
   }, [reconcile]);
   useEffect(() => { load(); }, [load]);
+  // focus-ul se aplică O singură dată → scoatem ?focus din URL (fără reload), ca re-mount-ul să nu-l reaplice
+  useEffect(() => {
+    if (focusId && typeof window !== "undefined") {
+      const u = new URL(window.location.href); u.searchParams.delete("focus");
+      window.history.replaceState({}, "", u.pathname + u.search);
+    }
+    // eslint-disable-next-line
+  }, []);
   // salvează starea de vizualizare (session) → la revenirea pe tab, e unde ai rămas
   useEffect(() => {
     try { sessionStorage.setItem(MKEY, JSON.stringify({ count, offset, prev, dateMode, fromW, toW, stIds, selectedPlanIds, collapsed: [...collapsed] })); } catch {}
@@ -417,9 +427,15 @@ export default function MatrixPage() {
   const planByStId = {};
   planOptions.forEach((o) => (planByStId[String(o.stId)] = planByStId[String(o.stId)] || []).push(o));
   const stSections = selStIds.map((id) => {
-    const opts = planByStId[id] || []; // TOATE planurile ST-ului (chooser complet, scrollabil)
+    const opts = planByStId[id] || [];
+    const idxsSel = opts.map((o, i) => (isSel(o.id) ? i : -1)).filter((i) => i >= 0);
+    const minS = idxsSel.length ? Math.min(...idxsSel) : 0;
+    const maxS = idxsSel.length ? Math.max(...idxsSel) : 0;
+    // fereastră DINAMICĂ: de la ce e selectat până la ~4 dăți viitoare (+1 trecută pt. context) — NU toate dățile.
+    // Pe măsură ce dai „+", apar mai multe checkbox-uri; „Load prev/next" extinde fereastra.
+    const vis = opts.slice(Math.max(0, minS - 1), Math.min(opts.length, maxS + 1 + 4));
     const stName = opts[0]?.stName || allServiceTypes.find((s) => String(s.id) === id)?.name || "";
-    return { id, stName, vis: opts };
+    return { id, stName, vis };
   });
   // select-all / clear pe un service type (păstrează cel puțin 1 plan în total)
   const setStAll = (opts, on) => {
