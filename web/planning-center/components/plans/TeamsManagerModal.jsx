@@ -8,7 +8,7 @@
  * Totul e optimist + reconciliat; ștergerile au confirmare inline (gate anti-greșeli) și
  * arată câți oameni sunt afectați. Aditiv & compatibil cu importul PCO. ZERO email — doar DB.
  */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Modal from "@/components/ui/Modal";
 import { teamsApi } from "@/lib/api/client";
 
@@ -48,7 +48,8 @@ const ADVANCED = {
 
 export default function TeamsManagerModal({ serviceTypeId, onClose, onChanged, initialData = null }) {
   const [loading, setLoading] = useState(!initialData);
-  const [err, setErr] = useState("");
+  const [err, setErr] = useState("");       // erori de acțiune (salvare/ștergere)
+  const [loadErr, setLoadErr] = useState(""); // eșec la încărcarea inițială
   const [stName, setStName] = useState("");
   const [groups, setGroups] = useState([]);
   const [teams, setTeams] = useState([]);
@@ -65,18 +66,25 @@ export default function TeamsManagerModal({ serviceTypeId, onClose, onChanged, i
 
   const sel = teams.find((t) => String(t.id) === String(selId)) || null;
 
+  const load = useCallback(async () => {
+    setLoading(true); setLoadErr("");
+    try {
+      const r = await teamsApi.manage(serviceTypeId);
+      setStName(r.serviceTypeName || ""); setGroups(r.ministryGroups || []);
+      setTeams(r.teams || []); setSelId((prev) => prev || r.teams?.[0]?.id || null);
+    } catch (e) {
+      // 404 = ruta încă nedeployată pe server (lag după un update) → mesaj prietenos + reîncearcă
+      setLoadErr(/404/.test(e?.message || "") ? "notready" : (e?.message || "Eroare la încărcare."));
+    } finally { setLoading(false); }
+  }, [serviceTypeId]);
+
   useEffect(() => {
     if (initialData) { // preview/harness: date preseed-uite (ca ServiceTypeSettingsModal.initialData)
       setStName(initialData.serviceTypeName || ""); setGroups(initialData.ministryGroups || []);
       setTeams(initialData.teams || []); setSelId(initialData.teams?.[0]?.id || null); return;
     }
-    let alive = true;
-    teamsApi.manage(serviceTypeId)
-      .then((r) => { if (!alive) return; setStName(r.serviceTypeName || ""); setGroups(r.ministryGroups || []); setTeams(r.teams || []); setSelId(r.teams?.[0]?.id || null); })
-      .catch((e) => alive && setErr(e?.message || "Eroare la încărcare."))
-      .finally(() => alive && setLoading(false));
-    return () => { alive = false; };
-  }, [serviceTypeId]);
+    load();
+  }, [load, initialData]);
 
   useEffect(() => { setEditName(sel?.name || ""); setConfirmPos(null); setConfirmTeam(null); setAdvOpen(false); }, [selId]); // eslint-disable-line
 
@@ -166,7 +174,14 @@ export default function TeamsManagerModal({ serviceTypeId, onClose, onChanged, i
   return (
     <Modal title={`Echipe · ${stName || "Service type"}`} onClose={close} width={780}>
       {err && <div className="tm-err" onClick={() => setErr("")}>{err}</div>}
-      {loading ? (
+      {loadErr ? (
+        <div className="tm-fail">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+          <div className="tm-fail-t">{loadErr === "notready" ? "Modulul se activează pe server" : "Nu am putut încărca echipele"}</div>
+          <div className="tm-fail-s">{loadErr === "notready" ? "Un update tocmai s-a publicat — serverul are nevoie de câteva secunde. Reîncearcă imediat." : loadErr}</div>
+          <button className="tm-retry" onClick={load}>Reîncearcă</button>
+        </div>
+      ) : loading ? (
         <div className="tm-load">Se încarcă echipele…</div>
       ) : (
         <div className="tm">
@@ -294,6 +309,12 @@ export default function TeamsManagerModal({ serviceTypeId, onClose, onChanged, i
         .tm-err { background: rgba(248,81,73,.12); border: 1px solid rgba(248,81,73,.4); color: var(--danger); font-size: 12.5px; padding: 8px 11px; border-radius: 7px; margin-bottom: 12px; cursor: pointer; }
         .tm-load, .tm-none, .tm-empty { color: var(--text-faint); font-size: 13px; }
         .tm-load { padding: 28px 0; text-align: center; }
+        .tm-fail { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 46px 20px; animation: cfmIn .18s ease; }
+        .tm-fail > svg { color: var(--st-unconfirmed); opacity: .9; }
+        .tm-fail-t { color: var(--text); font-size: 15px; font-weight: 600; }
+        .tm-fail-s { color: var(--text-faint); font-size: 12.5px; max-width: 380px; line-height: 1.55; }
+        .tm-retry { margin-top: 6px; background: var(--primary); border: 1px solid var(--primary); color: #fff; border-radius: 7px; padding: 8px 20px; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .tm-retry:hover { opacity: .9; }
         .tm { display: grid; grid-template-columns: 240px 1fr; gap: 16px; min-height: 420px; }
         /* rail */
         .tm-rail { border-right: 1px solid var(--border); padding-right: 15px; display: flex; flex-direction: column; }
