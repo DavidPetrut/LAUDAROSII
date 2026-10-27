@@ -16,6 +16,7 @@ import PersonAvatar from "@/components/plans/PersonAvatar";
 import AssignSidebar from "@/components/plans/AssignSidebar";
 import EditPersonModal from "@/components/plans/EditPersonModal";
 import CoverageBar from "@/components/plans/CoverageBar";
+import TeamsManagerModal from "@/components/plans/TeamsManagerModal";
 
 /* numele echipei pereche: „Asimilare (SIM 1)" ↔ „Asimilare (SIM 2)" */
 function perecheName(name = "") {
@@ -38,6 +39,8 @@ export default function MatrixPage() {
   const [stIds, setStIds] = useState(() => [String(serviceTypeId)]); // Custom Matrix: service types incluse
   const [matrixName, setMatrixName] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  const [showTeams, setShowTeams] = useState(false);   // modal Teams management (#9)
+  const [canManage, setCanManage] = useState(false);   // services.manageServiceTypes
   const [showStMenu, setShowStMenu] = useState(false);
   const [showDateMenu, setShowDateMenu] = useState(false);
   const [showAddSt, setShowAddSt] = useState(false);   // „Add Service Type" în dropdown-ul de dată
@@ -92,6 +95,8 @@ export default function MatrixPage() {
     try { setData(await fetchGrid()); } catch { /* păstrăm optimistul */ }
   }, [fetchGrid]);
   useEffect(() => { load(); }, [load]);
+  // cine poate administra echipele (buton „Echipe" + modal #9)
+  useEffect(() => { peopleApi.me().then((r) => setCanManage(!!r?.capabilities?.manageServiceTypes)).catch(() => {}); }, []);
 
   // bara „listă live" — responsive la poziția selectată (teamId) + LIVE (se cere din nou la assign/remove)
   const loadCov = useCallback(async () => {
@@ -331,6 +336,12 @@ export default function MatrixPage() {
         <div className="mt-left">
           <button className="back" onClick={() => router.push("/plans")} title="Înapoi"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M10 3L5 8l5 5" /></svg></button>
           <button className={`gearbtn ${showSettings ? "on" : ""}`} title="Settings / Custom Matrix" onClick={() => { setShowSettings((v) => !v); setShowStMenu(false); }}>⚙</button>
+          {canManage && !data?.multi && (
+            <button className="teamsbtn" title="Administrează echipele și pozițiile" onClick={() => setShowTeams(true)}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+              <span>Echipe</span>
+            </button>
+          )}
           <div className="st-pick-wrap">
             <button className="st-pick" onClick={() => { setShowStMenu((v) => !v); setShowSettings(false); }}>{data?.serviceTypeName || "Matrix"} <span className="caret">▾</span></button>
             {showStMenu && (
@@ -607,6 +618,14 @@ export default function MatrixPage() {
         </div>
       )}
 
+      {showTeams && (
+        <TeamsManagerModal
+          serviceTypeId={serviceTypeId}
+          onClose={() => setShowTeams(false)}
+          onChanged={() => reconcile()}
+        />
+      )}
+
       {toast && <div className="toast">{toast}</div>}
 
       <style jsx>{`
@@ -625,6 +644,8 @@ export default function MatrixPage() {
         .back:hover { color: var(--text); }
         .gearbtn { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); width: 32px; height: 32px; border-radius: 6px; cursor: pointer; font-size: 15px; }
         .gearbtn.on, .gearbtn:hover { color: var(--text); border-color: var(--primary); }
+        .teamsbtn { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); height: 32px; padding: 0 11px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; transition: color .13s, border-color .13s; }
+        .teamsbtn:hover { color: var(--text); border-color: var(--primary); }
         .st-pick-wrap { position: relative; }
         .st-pick { background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 6px; padding: 6px 12px; color: var(--text); font-size: 13.5px; font-weight: 600; cursor: pointer; }
         .st-pick:hover { border-color: var(--primary); }

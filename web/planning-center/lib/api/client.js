@@ -133,6 +133,16 @@ export const teamsApi = {
   list: () => api.get("/teams"),
   ministryGroups: () => api.get("/teams/ministry-groups"),
   setGroup: (teamId, ministryGroup) => api.patch(`/teams/${teamId}`, { ministryGroup }),
+  // ── Teams management (#9) — echipe + poziții la nivel de service type ──
+  manage: (serviceTypeId) => api.get(`/teams/manage?serviceTypeId=${encodeURIComponent(serviceTypeId)}`),
+  create: (payload) => api.post("/teams", payload), // { name, serviceTypeId, ministryGroup? }
+  update: (teamId, payload) => api.patch(`/teams/${teamId}`, payload), // { name?, ministryGroup?, flags?, onDecline?, ... }
+  remove: (teamId) => api.del(`/teams/${teamId}`),
+  reorder: (orderedIds) => api.post("/teams/reorder", { orderedIds }),
+  addPosition: (teamId, name) => api.post(`/teams/${teamId}/positions`, { name }),
+  renamePosition: (teamId, positionId, name) => api.patch(`/teams/${teamId}/positions/${positionId}`, { name }),
+  removePosition: (teamId, positionId) => api.del(`/teams/${teamId}/positions/${positionId}`),
+  reorderPositions: (teamId, orderedIds) => api.post(`/teams/${teamId}/positions/reorder`, { orderedIds }),
 };
 
 /* ─── People (tab People) — server/planning-center/routes/people.js ─── */
