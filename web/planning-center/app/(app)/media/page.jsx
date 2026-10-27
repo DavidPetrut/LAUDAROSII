@@ -27,7 +27,7 @@ export default function MediaPage() {
     getContext: () => ({ total: items.length, q }), actions: [{ id: "search", label: "Caută", params: { q: "string" }, run: ({ q }) => setQ(q || "") }] }, [items, q]);
 
   return (
-    <div className="media">
+    <div className="media pc-full pc-pad">
       <h1 className="page-title">Media</h1>
       <input className="search" placeholder="Caută media" value={q} onChange={(e) => setQ(e.target.value)} />
       {err && <div className="err">{err}</div>}

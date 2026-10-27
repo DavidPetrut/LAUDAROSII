@@ -477,25 +477,33 @@ router.get("/:id/teams", requireCan("people.view"), async (req, res) => {
     );
     const myAssignedTeamIds = new Set(assignments.filter((a) => vpid && String(a.personId) === String(vpid)).map((a) => String(a.teamId)));
 
+    const teamPositions = {}; // teamId → [poziții sortate]
+    positions.forEach((p) => (teamPositions[String(p.teamId)] = teamPositions[String(p.teamId)] || []).push(p));
+
     const buildTeam = (team) => {
       const tAssigns = assignments.filter((a) => String(a.teamId) === String(team._id));
       const tNeeded = needed.filter((n) => String(n.teamId) === String(team._id));
-      // grupare pe poziție. DECLINED → persoana NU apare pe poziție (cerință user: cine refuză dispare).
-      const groups = {};
+      // Toate pozițiile echipei (ca în PCO: fiecare poziție e un rând, chiar goală) + câmp pt. asignări fără poziție.
+      const order = (teamPositions[String(team._id)] || []).map((p) => ({ positionId: p._id, positionName: p.name }));
+      const groups = {}; // positionId|__none → {positionId, positionName, people[], needed}
+      const ensure = (positionId, positionName) => {
+        const key = positionId ? String(positionId) : "__none";
+        return (groups[key] = groups[key] || { positionId: positionId || null, positionName: positionName || "", people: [], needed: 0 });
+      };
+      order.forEach((o) => ensure(o.positionId, o.positionName));
+      // DECLINED → persoana NU apare pe poziție (cerință user: cine refuză dispare).
       tAssigns.filter((a) => a.status !== "declined").forEach((a) => {
-        const key = a.positionId ? String(a.positionId) : "__none";
-        (groups[key] = groups[key] || { positionId: a.positionId, positionName: posName[String(a.positionId)] || "", people: [] }).people.push({
+        ensure(a.positionId, posName[String(a.positionId)]).people.push({
           ...personMini(personById[String(a.personId)]),
-          status: a.status,
+          personId: a.personId, assignmentId: a._id, status: a.status,
         });
       });
-      tNeeded.forEach((n) => {
-        const key = n.positionId ? String(n.positionId) : "__none";
-        const g = (groups[key] = groups[key] || { positionId: n.positionId, positionName: posName[String(n.positionId)] || "", people: [] });
-        for (let i = 0; i < (n.count || 0); i++) g.people.push({ needed: true });
-      });
-      // Poziții rămase complet goale (ex. singura persoană a dat decline) nu se mai afișează.
-      Object.keys(groups).forEach((k) => { if (!groups[k].people.length) delete groups[k]; });
+      tNeeded.forEach((n) => { ensure(n.positionId, posName[String(n.positionId)]).needed += (n.count || 0); });
+      // Păstrăm pozițiile chiar goale (le arătăm cu „Needed"); scoatem doar „__none" dacă e complet gol.
+      if (groups.__none && !groups.__none.people.length && !groups.__none.needed) delete groups.__none;
+      // ordonăm: întâi după ordinea pozițiilor, apoi ce a rămas
+      const ordered = order.map((o) => groups[String(o.positionId)]).filter(Boolean);
+      Object.values(groups).forEach((g) => { if (!ordered.includes(g)) ordered.push(g); });
       return {
         teamId: team._id,
         name: team.name,
@@ -505,7 +513,7 @@ router.get("/:id/teams", requireCan("people.view"), async (req, res) => {
           unconfirmed: tAssigns.filter((a) => a.status === "unconfirmed").length,
         },
         unsentEmails: tAssigns.filter((a) => !a.notificationSentAt && a.status !== "declined").length,
-        groups: Object.values(groups),
+        groups: ordered,
       };
     };
 

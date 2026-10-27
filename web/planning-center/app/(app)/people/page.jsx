@@ -59,7 +59,7 @@ export default function PeoplePage() {
   }, [query, total, page, rows]);
 
   return (
-    <div className="people">
+    <div className="people pc-full pc-pad">
       <div className="phead">
         <span className="count">{loading ? "…" : `${total} people`}</span>
         <input className="search" placeholder="Caută după nume sau email" value={query} onChange={(e) => setQuery(e.target.value)} />

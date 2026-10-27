@@ -31,6 +31,12 @@
   --product: #57b98a;       /* verdele „services" (logo, badge key) */
   --danger: #e5534b;        /* Delete */
 
+  /* Status programare (bifă/semn/declin) — folosit de badge-ul din colțul avatarului */
+  --st-confirmed: #57b98a;
+  --st-unconfirmed: #c9a227;
+  --st-declined: #e5534b;
+  --section-head-bg: #202833; /* fundal rând „titlu slujire" (header poziție/echipă) — vizibil */
+
   /* Dimensiuni / layout */
   --nav-h: 52px;            /* înălțimea barei de sus */
   --radius: 6px;            /* raza colțurilor (carduri, butoane) — PCO e „aproape drept" */
@@ -98,3 +104,16 @@ button { font-family: inherit; }
 }
 .input:focus { border-color: var(--primary); }
 .input::placeholder { color: var(--text-faint); }
+
+/* =============================================================================
+   Planning (Plans / Matrix / Teams): lățime completă ca în PCO.
+   Paginile de planificare ies din containerul centrat (1600px) al shell-ului și
+   ocupă tot ecranul. `.pc-full` = full-bleed până la marginea viewport-ului.
+   ============================================================================= */
+.pc-full {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+}
+.pc-pad { padding: 0 20px; }         /* gutter mic pt. pagini „listă" (People, Plans) */
+/* Matrix/Teams gestionează singure padding-ul intern (panoul lipit dreapta). */

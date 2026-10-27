@@ -1,3 +1,45 @@
+# 🔄 UPDATE (sesiunea de azi — audit UI + arhitectură, partea 2)
+
+> David, am băgat tare cu ce ai reclamat din Word doc + cele 4 mesaje + poze. Tot verificat vizual
+> (am randat componentele cu date mock într-un preview temporar, apoi l-am șters). **Zero emailuri.**
+
+### Ce am rezolvat acum (din feedback-ul tău)
+1. **LĂȚIME COMPLETĂ** — am scos padding-ul îngust. Plans/Matrix/Teams/People/Profil ocupă tot ecranul
+   (`.pc-full` — ies din containerul centrat de 1600px). (mesaj 1+2)
+2. **Bara de asignare = componentă GLOBALĂ lipită în DREAPTA** (`AssignSidebar`). Aceeași în **Matrix ȘI
+   în Teams**: click pe o poziție → se deschide fix în dreapta ecranului, nu deasupra. Grila primește loc
+   la dreapta (nu e acoperită). (mesaj 2+4)
+3. **Avatar + badge status în colț** (`PersonAvatar`) — poza persoanei la stânga + cerculeț mic
+   verde(confirmat)/galben(?)/roșu(×) în colț, exact ca PCO. Am scos iconițele check/? din stânga numelui. (mesaj 3)
+4. **Teams view TERMINAT & interactiv** — echipele = COLOANE în **carusel orizontal** (x-scroll, nu rows
+   urâte jos), fiecare poziție = rând cu **fundal definit** la antet, avatar+status, **Needed −/N/+**,
+   click poziție → bara globală, click persoană → **EditPersonModal**. (mesaj 3+4)
+5. **UX SEAMLESS** — update **OPTIMIST** (persoana apare instant) + **reconciliere silențioasă** (fără flash
+   „Se încarcă", fără reset, bara rămâne deschisă) la assign/remove/edit/needed. (mesaj 2)
+6. **EditPersonModal** (ca poza 261) — Confirmed/Pending/Declined + Team/Position + Notes + Notifications
+   (timeline când există date; altfel „niciun email trimis, le trimiteți voi manual") + Remove/Cancel/Save.
+7. **Filtre în bară** (cerere lider): **SIM 1/2** (citit din „(1)"/„(2)" din nume — funcțional) + **Gen F/B**
+   (UI gata; se activează când avem date de gen) + căutare. Conflicte: roșu=blockout, galben=planificat
+   altundeva, cu număr.
+8. **Backend** — `/plans/:id/teams` returnează acum TOATE pozițiile (și goale, cu „Needed") + `assignmentId`
+   / `personId` / status per om → Teams devine interactiv ca Matrix.
+
+### Ce a mai rămas (ți-l las clar)
+- **Gen real pe oameni** — PCO nu-l dă în export (câmp gol). Când îl avem (manual/heuristic), filtrul de Gen
+  se activează automat. SIM merge deja (din nume).
+- **EditPersonModal — email/Service Times/Rehearsal/timeline real**: grila/Teams nu trimit încă aceste
+  câmpuri; modalul le afișează doar când există. Le pot popula (mic adaos backend).
+- **Raport „persoane neplanificate" live** (cererea mare a liderului, finalul Word): fereastră nouă pe
+  interval+slujire, dispar pe măsură ce planifici, contor 1×/2×/3×/4×, max vs alocat. **Următorul pas mare.**
+- **Add Plans: Copy Times From + Templates** (Impact/Special/No Template).
+- **SIM1→SIM2 checkbox la assign** (acum e buton ⧉ pe echipă — merge; checkbox-ul e plus de confort).
+- **Blockout rules** (planificat+email→nu poți blockout; planificat+blockout→auto-decline) + **churchBlock**
+  albastru (on-break/invitați excluși din liste) — sensibil, **cu tine**.
+- **Email** (global templates + logo Vertical) — **strict cu tine**, nimic trimis automat.
+- **Deploy:** backend-ul (plans.js teams) cere redeploy Render ca Teams să ia forma nouă (push-ul declanșează).
+
+---
+
 # 🌅 Raport de dimineață — Plans / Matrix (sesiune autonomă de noapte)
 
 > Salut David. Am lucrat autonom pe Plans/Matrix cât ai dormit. Mai jos: **ce am făcut**, **cum testezi**,

@@ -51,7 +51,7 @@ export default function PersonPage() {
   if (err) return <div className="wrap"><div className="err">{err}</div></div>;
 
   return (
-    <div className="wrap">
+    <div className="wrap pc-full pc-pad">
       <div className="head">
         <button className="back" onClick={() => router.push("/people")}>‹</button>
         {p?.avatar ? <img src={p.avatar} className="av" alt="" /> : <span className="av ini">{p?.initials}</span>}

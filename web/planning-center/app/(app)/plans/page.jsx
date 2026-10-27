@@ -97,7 +97,7 @@ export default function PlansPage() {
   }, [serviceTypes]);
 
   return (
-    <div className="plans">
+    <div className="plans pc-full pc-pad">
       <div className="phead">
         <h1 className="org-title">{orgName}</h1>
         <div className="matrix-pick">
