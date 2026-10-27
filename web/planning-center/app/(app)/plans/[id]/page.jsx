@@ -15,7 +15,7 @@ import PersonAvatar from "@/components/plans/PersonAvatar";
 import AssignSidebar from "@/components/plans/AssignSidebar";
 import EditPersonModal from "@/components/plans/EditPersonModal";
 
-const TABS = ["Order", "Teams", "Times", "Notes", "Files"];
+const TABS = ["Order", "Teams"]; // Times/Files/Notes mutate în sidebar-ul STÂNGA (ca în PCO)
 
 /* echipa pereche SIM: „Asimilare (SIM 1)" ↔ „Asimilare (SIM 2)" */
 function perecheName(name = "") {
@@ -52,9 +52,17 @@ export default function PlanDetailPage() {
   }, [id]);
   useEffect(() => { loadHead(); }, [loadHead]);
 
+  // sidebar-ul STÂNGA (Times/Files/Notes) se încarcă din start, nu la click pe tab
+  useEffect(() => {
+    ["Times", "Notes", "Files"].forEach((k) => {
+      const fn = { Times: plansApi.times, Notes: plansApi.notes, Files: plansApi.files }[k];
+      fn(id).then((r) => setData((d) => ({ ...d, [k]: r }))).catch(() => {});
+    });
+  }, [id]);
+
   useEffect(() => {
     if (data[tab]) return;
-    const fn = { Order: plansApi.order, Teams: plansApi.teams, Times: plansApi.times, Notes: plansApi.notes, Files: plansApi.files }[tab];
+    const fn = { Order: plansApi.order, Teams: plansApi.teams }[tab];
     if (!fn) return;
     fn(id).then((r) => setData((d) => ({ ...d, [tab]: r }))).catch((e) => setErr(e?.message || "Eroare."));
   }, [tab, id, data]);
@@ -178,39 +186,52 @@ export default function PlanDetailPage() {
         <div className="titles">
           <div className="st">{head?.serviceTypeName}</div>
           <h1 className="title">{head?.title || "Plan"}</h1>
+          <div className="datenav">
+            <button className="darr" disabled={!head?.prevId} title="Plan anterior" onClick={() => head?.prevId && router.push(`/plans/${head.prevId}`)}>‹</button>
+            <span className="date">{head?.dateLabel}</span>
+            <button className="darr" disabled={!head?.nextId} title="Plan următor" onClick={() => head?.nextId && router.push(`/plans/${head.nextId}`)}>›</button>
+          </div>
         </div>
-        <div className="datenav">
-          <button disabled={!head?.prevId} onClick={() => head?.prevId && router.push(`/plans/${head.prevId}`)}>‹</button>
-          <span className="date">{head?.dateLabel}</span>
-          <button disabled={!head?.nextId} onClick={() => head?.nextId && router.push(`/plans/${head.nextId}`)}>›</button>
+        <div className="topright">
           <button className="mx" onClick={() => head && router.push(`/plans/matrix/${head.serviceTypeId || ""}`)}>Matrix ▾</button>
         </div>
       </div>
 
-      {head?.myAssignments?.length > 0 && (
-        <div className="mine">
-          {head.myAssignments.map((a) => (
-            <span key={a.assignmentId} className={`chip ${a.confirmed ? "ok" : a.declined ? "no" : ""}`}>{a.label}{a.team ? ` · ${a.team}` : ""}</span>
-          ))}
-        </div>
-      )}
+      <div className="pd-layout">
+        {/* ── sidebar STÂNGA (ca în PCO): rolul meu + Times/Files/Notes ── */}
+        <aside className="pd-left">
+          {head?.myAssignments?.length > 0 && (
+            <div className="lcard">
+              <div className="lc-h">Rolul meu</div>
+              {head.myAssignments.map((a) => (
+                <div key={a.assignmentId} className={`myrow ${a.confirmed ? "ok" : a.declined ? "no" : ""}`}>
+                  <span className="myic">{a.confirmed ? "✓" : a.declined ? "✕" : "?"}</span>
+                  <span className="myl">{a.label}{a.team ? ` · ${a.team}` : ""}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="lcard"><div className="lc-h">Times</div><TimesTab data={data.Times} /></div>
+          <div className="lcard"><div className="lc-h">Files</div><FilesTab data={data.Files} /></div>
+          <div className="lcard"><div className="lc-h">Notes <span className="lc-tag">doar admin</span></div><NotesTab data={data.Notes} /></div>
+        </aside>
 
-      <div className="tabs">
-        {TABS.map((t) => <button key={t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>{t}</button>)}
+        {/* ── principal: Order / Teams ── */}
+        <div className="pd-main">
+          <div className="tabs">
+            {TABS.map((t) => <button key={t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>{t}</button>)}
+          </div>
+          {err && <div className="err">{err}</div>}
+          {loading ? <div className="empty">Se încarcă…</div> : (
+            <div className="body">
+              {tab === "Order" && <OrderTab data={cur} />}
+              {tab === "Teams" && <TeamsTab data={cur} sel={sel} onOpenCell={openCell}
+                onEdit={(pp, g, t) => setEditing({ planId: id, teamId: t.teamId, positionId: g.positionId, assignmentId: pp.assignmentId, name: pp.name, avatar: pp.avatar, initials: pp.initials, status: pp.status, teamName: t.name, positionName: g.positionName })}
+                onRemove={removePerson} onNeeded={changeNeeded} />}
+            </div>
+          )}
+        </div>
       </div>
-
-      {err && <div className="err">{err}</div>}
-      {loading ? <div className="empty">Se încarcă…</div> : (
-        <div className="body">
-          {tab === "Order" && <OrderTab data={cur} />}
-          {tab === "Teams" && <TeamsTab data={cur} sel={sel} onOpenCell={openCell}
-            onEdit={(pp, g, t) => setEditing({ planId: id, teamId: t.teamId, positionId: g.positionId, assignmentId: pp.assignmentId, name: pp.name, avatar: pp.avatar, initials: pp.initials, status: pp.status, teamName: t.name, positionName: g.positionName })}
-            onRemove={removePerson} onNeeded={changeNeeded} />}
-          {tab === "Times" && <TimesTab data={cur} />}
-          {tab === "Notes" && <NotesTab data={cur} />}
-          {tab === "Files" && <FilesTab data={cur} />}
-        </div>
-      )}
 
       <AssignSidebar
         open={!!sel} title={sel?.positionName || ""} neededCount={rec?.neededCount || 0}
@@ -235,10 +256,25 @@ export default function PlanDetailPage() {
         .titles { flex: 1; }
         .st { color: var(--text-faint); font-size: 12px; }
         .title { font-size: 22px; font-weight: 600; margin: 2px 0 0; }
-        .datenav { display: flex; align-items: center; gap: 8px; }
-        .datenav button { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); height: 30px; min-width: 30px; padding: 0 6px; border-radius: 6px; cursor: pointer; }
-        .datenav button:disabled { opacity: .4; }
-        .mx { font-weight: 600; color: var(--text) !important; }
+        .pd-layout { display: grid; grid-template-columns: 280px 1fr; gap: 22px; align-items: start; margin-top: 16px; }
+        .pd-left { position: sticky; top: calc(var(--nav-h) + 14px); display: flex; flex-direction: column; gap: 14px; }
+        .lcard { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+        .lc-h { color: var(--text); font-weight: 600; font-size: 13px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+        .lc-tag { font-size: 9.5px; color: var(--text-faint); border: 1px solid var(--border-strong); border-radius: 10px; padding: 0 6px; text-transform: uppercase; letter-spacing: .3px; font-weight: 500; }
+        .myrow { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 13px; color: var(--text-dim); }
+        .myrow .myic { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: var(--st-unconfirmed); color: #1d1600; flex: none; }
+        .myrow.ok .myic { background: var(--product); color: #0b2018; } .myrow.no .myic { background: var(--danger); color: #fff; }
+        .myl { color: var(--text); }
+        .pd-main { min-width: 0; }
+        @media (max-width: 900px) { .pd-layout { grid-template-columns: 1fr; } .pd-left { position: static; } }
+        .datenav { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 8px; padding: 4px 6px; }
+        .darr { background: transparent; border: none; color: var(--text-dim); width: 26px; height: 26px; border-radius: 6px; cursor: pointer; font-size: 16px; line-height: 1; }
+        .darr:hover:not(:disabled) { color: var(--text); background: rgba(255,255,255,.06); }
+        .darr:disabled { opacity: .35; cursor: default; }
+        .date { color: var(--text); font-size: 14px; font-weight: 600; min-width: 120px; text-align: center; }
+        .topright { margin-left: auto; }
+        .mx { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; height: 32px; padding: 0 14px; cursor: pointer; font-weight: 600; font-size: 13px; }
+        .mx:hover { border-color: var(--primary); }
         .date { color: var(--text); font-size: 14px; min-width: 90px; text-align: center; }
         .mine { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 4px; }
         .chip { background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 20px; padding: 4px 12px; font-size: 12.5px; color: var(--text-dim); }
@@ -444,7 +480,7 @@ function NotesTab({ data }) {
 function FilesTab({ data }) {
   if (!data) return <div className="muted">Se încarcă…</div>;
   const groups = data.groups || [];
-  if (!groups.length) return <div className="muted">Niciun fișier.</div>;
+  if (!groups.length) return <div className="muted">Nu există fișiere pentru acest plan.</div>;
   return (
     <div className="files">
       {groups.map((g, gi) => (

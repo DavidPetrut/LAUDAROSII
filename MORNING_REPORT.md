@@ -79,7 +79,15 @@
   Script reutilizabil `server/planning-center/services/assignGender.js` (`--dry`/`--apply`). **Gen editabil în profil**
   (Details → dropdown). Filtrul fată/băiat din bară **funcționează acum**.
 
+### Fixuri din testarea ta (azi, partea 11)
+- **#4 Plan detail — sidebar STÂNGA (ca în PCO)** ✅ — Times/Files/Notes mutate din taburile de sus în
+  **sidebar-ul din stânga**, plus card **„Rolul meu"** (poziția ta pe acel plan). Săgețile ‹/› + data
+  mutate **sub titlu** (pill, ca PCO). Taburile principale: **Order / Teams**. Notes marcat **„doar admin"**,
+  Files: „Nu există fișiere pentru acest plan.".
+
 ### Ce a mai rămas (ți-l las clar)
+- **Notes permission-based** (ascuns la user normal) + **Files upload** (lider încarcă document) — logică RBAC/upload.
+- **Custom Matrix (#7b)** — rotița settings: alege alt matrix / creează custom (Quantity/Date smart load, multi service type).
 - **Create account / registration** (admin creează cont persoană, ca în PCO) + gen obligatoriu la înregistrare.
 - **Instrucțiuni per poziție** („manualul" de onboarding) — câmpul există + PATCH-ul îl salvează; mai lipsește
   UI-ul de editare + afișarea la user (in-app/email/push).
