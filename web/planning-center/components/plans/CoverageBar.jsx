@@ -21,7 +21,7 @@ function hueOf(s = "") { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 
 function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return m ? m[1] : ""; }
 
 export default function CoverageBar({
-  open, onToggle, cov, loading, filters = {}, onRemoveFilter, onPersonDragStart, onPersonDragEnd, style,
+  open, onToggle, cov, loading, filters = {}, onRemoveFilter, onSetFilter, onPersonDragStart, onPersonDragEnd, style,
   target = null, targetSched = null, targetAvail = {}, onCloseTarget,
 }) {
   const [view, setView] = useState("all");
@@ -34,10 +34,12 @@ export default function CoverageBar({
     // eslint-disable-next-line
   }, [target?.personId]);
 
-  // filtrare client-side: gen + SIM (slujirea se filtrează în backend prin teamId)
+  // filtrare client-side HARD (din widget-uri): gen + SIM. Se STACKEAZĂ (AND). Când un filtru e activ,
+  // elimină TOTAL celelalte valori (ex. SIM 1 activ → SIM 2 și cei fără SIM dispar). programIntent e sursa
+  // de adevăr pt. SIM (fallback pe sufixul „(N)" din nume). Slujirea/poziția se prioritizează în backend.
   const keepPerson = (p) => {
-    if (filters.gender && p.gender && p.gender !== filters.gender) return false;
-    if (filters.sim && simOf(p.name) && simOf(p.name) !== filters.sim) return false;
+    if (filters.gender && p.gender !== filters.gender) return false;
+    if (filters.sim && (p.programIntent || simOf(p.name)) !== filters.sim) return false;
     return true;
   };
   const buckets = (cov?.buckets || [])
@@ -74,6 +76,11 @@ export default function CoverageBar({
         {tab === "live" && filters.ministry && (
           <span className="cb-tag min" style={{ "--h": mh }} onClick={(e) => { e.stopPropagation(); onRemoveFilter?.("ministry"); }} title="Scoate filtrul de slujire">
             {filters.ministry.name}<span className="tx">×</span>
+          </span>
+        )}
+        {tab === "live" && filters.position && (
+          <span className="cb-tag pos" onClick={(e) => { e.stopPropagation(); onRemoveFilter?.("position"); }} title="Scoate prioritatea poziției">
+            {filters.position.name}<span className="tx">×</span>
           </span>
         )}
         {tab === "live" && filters.gender && (
@@ -153,6 +160,39 @@ export default function CoverageBar({
               </div>
             ))}
           </div>
+
+          {/* ── rail de filtre (dreapta): widget SEX (sus) + widget PROGRAM/SIM (jos) — filtre HARD, se stackează ── */}
+          <aside className="cb-tools" onClick={(e) => e.stopPropagation()}>
+            <div className="cbw-title">Filtre</div>
+
+            <div className="cbw-group">
+              <span className="cbw-lbl">Sex</span>
+              <div className="cbw sex">
+                <span className={`cbw-glow ${filters.gender === "M" ? "m" : filters.gender === "F" ? "f" : ""}`} aria-hidden />
+                <button type="button" className={`cbw-opt m ${filters.gender === "M" ? "on" : ""}`} onClick={() => onSetFilter?.("gender", "M")} title="Doar băieți">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9.5" cy="14.5" r="5.5" /><path d="M15 9l5-5M15 4h5v5" /></svg>
+                </button>
+                <button type="button" className={`cbw-opt f ${filters.gender === "F" ? "on" : ""}`} onClick={() => onSetFilter?.("gender", "F")} title="Doar fete">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8.5" r="5.5" /><path d="M12 14v7M8.5 18h7" /></svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="cbw-group">
+              <span className="cbw-lbl">Program</span>
+              <div className="cbw sim">
+                <span className={`cbw-glow sim ${filters.sim === "1" ? "s1" : filters.sim === "2" ? "s2" : ""}`} aria-hidden />
+                <button type="button" className={`cbw-opt s1 ${filters.sim === "1" ? "on" : ""}`} onClick={() => onSetFilter?.("sim", "1")} title="Doar SIM 1">
+                  <b>1</b><em>SIM</em>
+                </button>
+                <button type="button" className={`cbw-opt s2 ${filters.sim === "2" ? "on" : ""}`} onClick={() => onSetFilter?.("sim", "2")} title="Doar SIM 2">
+                  <b>2</b><em>SIM</em>
+                </button>
+              </div>
+            </div>
+
+            <div className="cbw-note">Filtrele se adună — ex. SIM 1 + fete = doar fetele din SIM 1.</div>
+          </aside>
         </div>
       )}
 
@@ -182,6 +222,7 @@ export default function CoverageBar({
         .cb-tag.min { color: hsl(var(--h) 70% 82%); background: hsl(var(--h) 55% 22%); border: 1px solid hsl(var(--h) 60% 42%); }
         .cb-tag.gen { color: #d7c27a; background: rgba(201,162,39,.16); border: 1px solid rgba(201,162,39,.45); }
         .cb-tag.sim { color: #9cc4f5; background: rgba(47,129,247,.16); border: 1px solid rgba(47,129,247,.45); }
+        .cb-tag.pos { color: #c9b6f2; background: rgba(139,92,246,.15); border: 1px solid rgba(139,92,246,.42); }
         .cb-hn { color: var(--text-dim); font-size: 12px; margin-left: auto; }
         .cb-caret { color: var(--text-faint); }
         .cb-body { flex: 1; display: flex; min-height: 0; }
@@ -207,6 +248,35 @@ export default function CoverageBar({
         .cb-name { color: var(--text); font-size: 13px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .cb-free { flex: none; color: #0b2018; background: var(--product); border-radius: 20px; padding: 1px 8px; font-size: 11px; font-weight: 700; }
         .cb-blk { flex: none; color: var(--danger); font-size: 11px; font-weight: 600; }
+        /* ── rail de filtre (dreapta): widget SEX + PROGRAM/SIM ── */
+        .cb-tools { width: 148px; flex: none; border-left: 1px solid var(--border); background: var(--surface-2);
+          padding: 14px 14px 12px; display: flex; flex-direction: column; gap: 16px; }
+        .cbw-title { color: var(--text-faint); font-size: 10px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; }
+        .cbw-group { display: flex; flex-direction: column; gap: 7px; }
+        .cbw-lbl { color: var(--text-dim); font-size: 11px; font-weight: 600; letter-spacing: .2px; }
+        .cbw { position: relative; display: flex; gap: 6px; padding: 5px; border-radius: 13px;
+          background: var(--bg); border: 1px solid var(--border); }
+        .cbw-glow { position: absolute; top: 5px; bottom: 5px; width: calc(50% - 8px); border-radius: 9px;
+          opacity: 0; transform: scale(.82); transition: all .34s cubic-bezier(.34,1.56,.64,1); pointer-events: none; z-index: 0; }
+        .cbw-glow.m { left: 5px; opacity: 1; transform: none; background: radial-gradient(120% 120% at 50% 30%, rgba(56,139,253,.5), rgba(56,139,253,.08));
+          box-shadow: 0 0 20px 2px rgba(56,139,253,.55), inset 0 0 0 1px rgba(109,179,255,.7); }
+        .cbw-glow.f { left: calc(50% + 3px); opacity: 1; transform: none; background: radial-gradient(120% 120% at 50% 30%, rgba(248,81,73,.5), rgba(248,81,73,.08));
+          box-shadow: 0 0 20px 2px rgba(248,81,73,.55), inset 0 0 0 1px rgba(255,138,132,.7); }
+        .cbw-glow.sim.s1 { left: 5px; opacity: 1; transform: none; background: radial-gradient(120% 120% at 50% 30%, rgba(87,185,138,.5), rgba(87,185,138,.08));
+          box-shadow: 0 0 20px 2px rgba(87,185,138,.5), inset 0 0 0 1px rgba(123,220,174,.7); }
+        .cbw-glow.sim.s2 { left: calc(50% + 3px); opacity: 1; transform: none; background: radial-gradient(120% 120% at 50% 30%, rgba(201,162,39,.52), rgba(201,162,39,.08));
+          box-shadow: 0 0 20px 2px rgba(201,162,39,.5), inset 0 0 0 1px rgba(226,196,100,.7); }
+        .cbw-opt { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+          gap: 1px; height: 44px; border: none; background: transparent; color: var(--text-faint); cursor: pointer; border-radius: 9px;
+          transition: color .2s, transform .18s cubic-bezier(.34,1.56,.64,1); }
+        .cbw-opt:hover { color: var(--text-dim); transform: translateY(-1px); }
+        .cbw-opt svg { width: 22px; height: 22px; }
+        .cbw-opt b { font-size: 18px; font-weight: 800; line-height: 1; }
+        .cbw-opt em { font-size: 8.5px; font-style: normal; letter-spacing: .6px; opacity: .75; }
+        .cbw-opt.on { transform: translateY(-1px) scale(1.04); }
+        .cbw-opt.m.on { color: #9ecbff; } .cbw-opt.f.on { color: #ff9a94; }
+        .cbw-opt.s1.on { color: #8fe0b4; } .cbw-opt.s2.on { color: #e6cb74; }
+        .cbw-note { color: var(--text-faint); font-size: 10px; line-height: 1.5; margin-top: auto; }
         /* ── tab persoană (target) ── */
         .cb-body.person { padding: 0; animation: tabIn .18s ease; }
         .pp-side { width: 300px; flex: none; border-right: 1px solid var(--border); padding: 18px 18px 14px; display: flex; flex-direction: column; gap: 16px; overflow: auto; }

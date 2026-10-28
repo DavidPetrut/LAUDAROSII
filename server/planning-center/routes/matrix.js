@@ -207,8 +207,10 @@ router.get("/:serviceTypeId/coverage", requireAny(CAN_VIEW_MATRIX), async (req, 
     const stId = OID(req.params.serviceTypeId);
     const count = Math.min(26, Math.max(1, parseInt(req.query.count, 10) || 4));
     const teamId = OID(req.query.teamId);
+    const positionId = OID(req.query.positionId); // poziția selectată → rosterul ei are prioritate maximă
     const tz = await campusTz(req);
     const st = await PcServiceType.findOne(scoped(req, { _id: stId })).select("name").lean();
+    const posR = positionId ? await PcPosition.findOne(scoped(req, { _id: positionId })).select("name").lean() : null;
 
     // interval = EXACT fereastra din Matrix. Dacă vin `planIds`, le folosim (sincron cu grila);
     // altfel fallback: viitoare întâi, completate cu recente.
@@ -239,7 +241,7 @@ router.get("/:serviceTypeId/coverage", requireAny(CAN_VIEW_MATRIX), async (req, 
     const poolIds = await PcAssignment.distinct("personId", poolMatch);
 
     const people = await PcPerson.find(scoped(req, { _id: { $in: poolIds }, status: "active", schedulingStatus: { $in: ["available", null] } }))
-      .collation({ locale: "ro", strength: 1 }).select("firstName lastName avatar programIntent").lean();
+      .collation({ locale: "ro", strength: 1 }).select("firstName lastName avatar programIntent gender").lean();
     const pid = people.map((p) => p._id);
     // SIM-ul echipei filtrate (din nume) → recomandăm întâi oamenii de pe acel SIM în Lista live
     const selTeam = teamId ? teams.find((t) => String(t._id) === String(teamId)) : null;
@@ -247,6 +249,10 @@ router.get("/:serviceTypeId/coverage", requireAny(CAN_VIEW_MATRIX), async (req, 
     // ROSTER echipei: cine slujește oficial pe echipa filtrată (pc_team_members) → apare primul în Lista live
     const rosterIds = teamId
       ? new Set((await PcTeamMember.find(scoped(req, { teamId })).select("personId").lean()).map((m) => String(m.personId)))
+      : new Set();
+    // ROSTERUL POZIȚIEI: cine slujește oficial pe EXACT poziția selectată (ex. „Lider asimilare") → prioritate maximă
+    const posRosterIds = positionId
+      ? new Set((await PcTeamMember.find(scoped(req, { positionIds: positionId })).select("personId").lean()).map((m) => String(m.personId)))
       : new Set();
 
     // asignări în INTERVAL (distinct pe plan)
@@ -271,22 +277,26 @@ router.get("/:serviceTypeId/coverage", requireAny(CAN_VIEW_MATRIX), async (req, 
       return {
         id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "),
         initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase(), avatar: p.avatar || "",
-        programIntent: p.programIntent || "", inRoster: rosterIds.has(String(p._id)), scheduled: sched, blocked, free,
+        programIntent: p.programIntent || "", gender: p.gender || "", inRoster: rosterIds.has(String(p._id)),
+        inPosRoster: posRosterIds.has(String(p._id)), scheduled: sched, blocked, free,
       };
     }).filter(Boolean);
 
-    // prioritate: ROSTERUL echipei întâi (cine slujește oficial acolo), apoi SIM-ul echipei filtrate
+    // prioritate: ROSTERUL POZIȚIEI întâi (cine slujește oficial pe EXACT poziția selectată),
+    // apoi rosterul echipei, apoi SIM-ul echipei (soft — SIM2 NU e exclus, doar coboară)
+    const posRosterRank = (r) => (positionId && r.inPosRoster ? 0 : 1);
     const rosterRank = (r) => (teamId && r.inRoster ? 0 : 1);
     const simRank = (r) => (teamSim && r.programIntent === teamSim ? 0 : 1);
-    // buckets: 0× (neplanificați) … 4×+; în fiecare, întâi rosterul, apoi SIM-ul echipei, apoi cei mai „liberi"
+    // buckets: 0× (neplanificați) … 4×+; în FIECARE: roster poziție → roster echipă → SIM echipă → liberi → nume
     const bucket = (n, last) => ({
       times: n, label: n === 0 ? "Neplanificați" : (last ? `${n}×+` : `${n}×`),
-      people: rows.filter((r) => last ? r.scheduled >= n : r.scheduled === n).sort((a, b) => (rosterRank(a) - rosterRank(b)) || (simRank(a) - simRank(b)) || (b.free - a.free) || a.name.localeCompare(b.name)),
+      people: rows.filter((r) => last ? r.scheduled >= n : r.scheduled === n).sort((a, b) => (posRosterRank(a) - posRosterRank(b)) || (rosterRank(a) - rosterRank(b)) || (simRank(a) - simRank(b)) || (b.free - a.free) || a.name.localeCompare(b.name)),
     });
     const buckets = [bucket(0), bucket(1), bucket(2), bucket(3), bucket(4, true)];
 
     res.json({
-      serviceTypeName: st?.name || "", serviceTypeId: stId, teamId: teamId || null, count,
+      serviceTypeName: st?.name || "", serviceTypeId: stId, teamId: teamId || null,
+      positionId: positionId || null, positionName: posR?.name || "", count,
       interval: plans.length ? `${fmtDate(plans[0].sortDate, tz)} – ${fmtDate(plans[plans.length - 1].sortDate, tz)}` : "",
       teams: teams.map((t) => ({ teamId: t._id, name: t.name })),
       total: rows.length,

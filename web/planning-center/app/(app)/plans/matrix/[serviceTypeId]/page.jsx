@@ -81,7 +81,9 @@ export default function MatrixPage() {
   const [browse, setBrowse] = useState(false);     // sidebar dreapta în mod „vizualizare toți oamenii" (fără poziție)
   const [cov, setCov] = useState(null);
   const [covBusy, setCovBusy] = useState(false);
-  const [barFilters, setBarFilters] = useState({ ministry: null, gender: "", sim: "" }); // filtre tag-uri bară
+  // filtre bară: ministry+position = AUTO (din poziția selectată, doar prioritizare soft);
+  // gender+sim = din WIDGET-uri (filtru HARD, se stackează, elimină celelalte valori)
+  const [barFilters, setBarFilters] = useState({ ministry: null, position: null, gender: "", sim: "" });
   const [dragActive, setDragActive] = useState(false); // feedback drag (Kanban)
   const [dropKey, setDropKey] = useState(null);         // celula peste care e drag-ul acum (evidențiere)
   const [dragHint, setDragHint] = useState("");         // indiciu flotant în timpul drag-ului
@@ -144,9 +146,9 @@ export default function MatrixPage() {
     if (!barOpen) return;
     const ids = (data?.plans || []).map((p) => p.id).join(","); // EXACT fereastra din Matrix
     setCovBusy(true);
-    try { setCov(await matrixApi.coverage(serviceTypeId, { planIds: ids, teamId: barFilters.ministry?.teamId })); } catch {}
+    try { setCov(await matrixApi.coverage(serviceTypeId, { planIds: ids, teamId: barFilters.ministry?.teamId, positionId: barFilters.position?.positionId })); } catch {}
     finally { setCovBusy(false); }
-  }, [barOpen, serviceTypeId, data?.plans, barFilters.ministry?.teamId]);
+  }, [barOpen, serviceTypeId, data?.plans, barFilters.ministry?.teamId, barFilters.position?.positionId]);
   useEffect(() => { loadCov(); }, [loadCov]);
 
   const plans = data?.plans || [];
@@ -209,22 +211,18 @@ export default function MatrixPage() {
     setTarget(null); setTargetSched(null); setBrowse(false);
     lastSelRef.current = { planId, teamId, positionId, positionName, colIdx };
     setSel({ planId, teamId, positionId, positionName, colIdx });
-    // bara „listă live" moștenește filtrul de slujire din poziția selectată (se poate scoate cu × din tag)
+    // bara „listă live" moștenește echipa + poziția selectată (DOAR prioritizare soft; se scot cu × din tag).
+    // gender/sim NU se ating aici — sunt filtre HARD controlate exclusiv din widget-urile din bară.
     const tName = (data?.teams || []).find((t) => String(t.teamId) === String(teamId))?.name || "";
-    setBarFilters((f) => ({ ...f, ministry: { teamId, name: tName } }));
+    setBarFilters((f) => ({ ...f, ministry: { teamId, name: tName }, position: { positionId, name: positionName } }));
     setRecQuery("");
-    const applyDefaults = (r) => {
-      const g = r?.defaults?.gender && r.defaults.gender !== "any" ? r.defaults.gender : "";
-      const s = r?.defaults?.program && r.defaults.program !== "any" ? r.defaults.program : "";
-      setBarFilters((f) => ({ ...f, gender: g, sim: s }));
-    };
     // SWR: dacă avem cache pentru celulă, arătăm INSTANT, apoi revalidăm silențios în fundal
     const key = `${planId}|${teamId}|${positionId}`;
     const cached = recCache.current.get(key);
-    if (cached) { setRec(cached); applyDefaults(cached); setRecBusy(false); } else { setRec(null); setRecBusy(true); }
+    if (cached) { setRec(cached); setRecBusy(false); } else { setRec(null); setRecBusy(true); }
     try {
       const r = await plansApi.recommend(planId, { teamId, positionId });
-      recCache.current.set(key, r); setRec(r); applyDefaults(r);
+      recCache.current.set(key, r); setRec(r);
     }
     catch (e) { if (!cached) setErr(e?.message || "Eroare la recomandări."); }
     finally { setRecBusy(false); }
@@ -784,7 +782,9 @@ export default function MatrixPage() {
 
       <CoverageBar
         open={barOpen} onToggle={() => setBarOpen((v) => !v)} cov={cov} loading={covBusy}
-        filters={barFilters} onRemoveFilter={(t) => setBarFilters((f) => ({ ...f, [t]: t === "ministry" ? null : "" }))}
+        filters={barFilters}
+        onRemoveFilter={(t) => setBarFilters((f) => ({ ...f, [t]: (t === "ministry" || t === "position") ? null : "" }))}
+        onSetFilter={(key, val) => setBarFilters((f) => ({ ...f, [key]: f[key] === val ? "" : val }))}
         style={{ left: showSettings ? 316 : 0, right: (sel || browse) ? 348 : 0 }}
         onPersonDragStart={(p) => { dragRef.current = { personId: p.id, name: p.name, avatar: p.avatar, initials: p.initials, fromBar: true }; setDragActive(true); setDragHint(`${p.name} → lași jos pe o poziție = asignezi`); }}
         onPersonDragEnd={() => { setDragActive(false); setDropKey(null); setDragHint(""); }}
