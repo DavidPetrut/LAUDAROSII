@@ -305,9 +305,13 @@ export default function MatrixPage() {
     try { return (await plansApi.isRoster(positionId, p.id))?.inRoster === false; } catch { return true; }
   }
   function stageJoin(j) { setJoinModal({ staged: true, ...j }); }
-  async function commitStaged(j) { // scrie asignarea staged în server + înlocuiește id-ul temporar
+  // commit DOAR la alegere: abia ACUM punem persoana în celulă (optimist) + scriem. Până aici nu există nimic.
+  async function commitStaged(j) {
+    const tmp = `tmp-c-${Date.now()}`;
+    patchCell(j.teamId, j.positionId, j.colIdx, (c) => ({ ...c, needed: Math.max(0, (c.needed || 0) - 1),
+      people: [...c.people, { personId: j.person.id, assignmentId: tmp, name: j.person.name, avatar: j.person.avatar, initials: j.person.initials, status: "unconfirmed" }] }));
     const r = await plansApi.assign(j.planId, { personId: j.person.id, teamId: j.teamId, positionId: j.positionId, status: "unconfirmed", timeIds: j.timeIds });
-    if (r?.id) patchCell(j.teamId, j.positionId, j.colIdx, (c) => ({ ...c, people: c.people.map((x) => String(x.assignmentId) === String(j.tmpId) ? { ...x, assignmentId: r.id } : x) }));
+    if (r?.id) patchCell(j.teamId, j.positionId, j.colIdx, (c) => ({ ...c, people: c.people.map((x) => String(x.assignmentId) === String(tmp) ? { ...x, assignmentId: r.id } : x) }));
   }
   async function confirmJoinGuest() {
     if (!joinModal) return; const j = joinModal; setJoinBusy(true);
@@ -327,27 +331,23 @@ export default function MatrixPage() {
     } catch (e) { flash(e?.message || "Eroare."); reconcile(); }
     finally { setJoinBusy(false); setJoinModal(null); }
   }
-  function cancelJoin() { // X / Escape / afară: nimic scris (staged) → reconciliază ca persoana optimistă să dispară
-    const wasStaged = joinModal?.staged; setJoinModal(null); if (wasStaged) reconcile();
-  }
+  function cancelJoin() { setJoinModal(null); } // nimic n-a fost pus în celulă până la alegere → nimic de curățat (zero flicker)
 
   async function assignPerson(p, mirror, timeIds) {
     if (!sel) { flash("Click pe o căsuță (poziție) din grilă ca să asignezi pe cineva."); return; }
-    setAssigning(true);
     const tIds = Array.isArray(timeIds) && timeIds.length ? timeIds : undefined; // gol = toate orele
-    const push = (c, id) => ({ ...c, people: [...c.people, { personId: p.id, assignmentId: id, name: p.name, avatar: p.avatar, initials: p.initials, status: "unconfirmed" }], needed: Math.max(0, (c.needed || 0) - 1) });
-    // optimist: pune persoana în celulă (+ pe pereche dacă bifat)
-    const tmpA = `tmp-a-${Date.now()}`;
-    patchCell(sel.teamId, sel.positionId, sel.colIdx, (c) => push(c, tmpA));
     const doMirror = mirror && pereche;
-    if (doMirror) patchCell(pereche.teamId, pereche.positionId, sel.colIdx, (c) => push(c, `tmp-b-${Date.now()}`));
-    // om nou pe poziție (fără mirror) → NU scriem încă; cerem decizia (guest/permanent). Anularea nu lasă nimic.
+    // om nou pe poziție (fără mirror) → cerem decizia ÎNAINTE de a pune ceva în celulă (ca să nu apară/dispară la X)
     if (!doMirror && await needsJoin(p, sel.positionId)) {
-      setAssigning(false);
-      stageJoin({ planId: sel.planId, teamId: sel.teamId, positionId: sel.positionId, colIdx: sel.colIdx, tmpId: tmpA, timeIds: tIds,
+      stageJoin({ planId: sel.planId, teamId: sel.teamId, positionId: sel.positionId, colIdx: sel.colIdx, timeIds: tIds,
         positionName: sel.positionName, teamName: teamNameOf(sel.teamId), person: { id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "" } });
       return;
     }
+    setAssigning(true);
+    const push = (c, id) => ({ ...c, people: [...c.people, { personId: p.id, assignmentId: id, name: p.name, avatar: p.avatar, initials: p.initials, status: "unconfirmed" }], needed: Math.max(0, (c.needed || 0) - 1) });
+    // optimist: pune persoana în celulă (+ pe pereche dacă bifat)
+    patchCell(sel.teamId, sel.positionId, sel.colIdx, (c) => push(c, `tmp-a-${Date.now()}`));
+    if (doMirror) patchCell(pereche.teamId, pereche.positionId, sel.colIdx, (c) => push(c, `tmp-b-${Date.now()}`));
     try {
       const r = await plansApi.assign(sel.planId, { personId: p.id, teamId: sel.teamId, positionId: sel.positionId, status: "unconfirmed", timeIds: tIds });
       if (r?.id) patchCell(sel.teamId, sel.positionId, sel.colIdx, (c) => ({ ...c, people: c.people.map((x) => String(x.assignmentId).startsWith("tmp-a-") ? { ...x, assignmentId: r.id } : x) }));
@@ -394,15 +394,15 @@ export default function MatrixPage() {
     const sameCell = !d.fromBar && String(d.planId) === String(planId) && String(d.teamId) === String(teamId) && String(d.positionId) === String(positionId);
     if (sameCell) return; // lăsat înapoi pe aceeași poziție → nimic
     const doMove = !copy && !d.fromBar && d.assignmentId && !String(d.assignmentId).startsWith("tmp-");
-    const tmpId = `tmp-${Date.now()}`;
-    patchCell(teamId, positionId, colIdx, (c) => ({ ...c, people: [...c.people, { personId: d.personId, assignmentId: tmpId, name: d.name, avatar: d.avatar, initials: d.initials, status: "unconfirmed" }] }));
-    if (doMove) patchCell(d.teamId, d.positionId, d.colIdx, (c) => ({ ...c, people: c.people.filter((x) => String(x.assignmentId) !== String(d.assignmentId)) }));
-    // drop din Listă live (add) pe o poziție din care NU face parte → cere decizia (nescris până la alegere)
+    // drop din Listă live (add) pe o poziție din care NU face parte → cere decizia ÎNAINTE de a pune ceva în celulă
     if (d.fromBar && !d.isGuest && await needsJoin({ id: d.personId, name: d.name }, positionId)) {
-      stageJoin({ planId, teamId, positionId, colIdx, tmpId, positionName: posNameOf(teamId, positionId), teamName: teamNameOf(teamId),
+      stageJoin({ planId, teamId, positionId, colIdx, positionName: posNameOf(teamId, positionId), teamName: teamNameOf(teamId),
         person: { id: d.personId, name: d.name, avatar: d.avatar, initials: d.initials } });
       return;
     }
+    const tmpId = `tmp-${Date.now()}`;
+    patchCell(teamId, positionId, colIdx, (c) => ({ ...c, people: [...c.people, { personId: d.personId, assignmentId: tmpId, name: d.name, avatar: d.avatar, initials: d.initials, status: "unconfirmed" }] }));
+    if (doMove) patchCell(d.teamId, d.positionId, d.colIdx, (c) => ({ ...c, people: c.people.filter((x) => String(x.assignmentId) !== String(d.assignmentId)) }));
     try {
       const r = await plansApi.assign(planId, { personId: d.personId, teamId, positionId, status: "unconfirmed" });
       // înlocuiește id-ul temporar cu cel real → persoana rămâne pe loc, fără clipire (nu mai reconciliem imediat)
@@ -470,19 +470,18 @@ export default function MatrixPage() {
     const av = targetAvail[String(planId)];
     if (av?.blockout) { flash(`⌖ ${target.name} e blocat la această dată (blockout).`); return; }
     if ((cell?.people || []).some((x) => String(x.personId) === String(target.personId))) { flash("Deja pe această poziție."); return; }
+    // om nou pe poziție → cere decizia ÎNAINTE de a pune ceva în celulă (anularea nu lasă nimic)
+    if (await needsJoin({ id: target.personId, name: target.name }, positionId)) {
+      stageJoin({ planId, teamId, positionId, colIdx, positionName: posNameOf(teamId, positionId), teamName: teamNameOf(teamId),
+        person: { id: target.personId, name: target.name, avatar: target.avatar || "", initials: target.initials || "" } });
+      return;
+    }
     setAssigning(true);
     const tmpT = `tmp-t-${Date.now()}`;
     patchCell(teamId, positionId, colIdx, (c) => ({
       ...c, needed: Math.max(0, (c.needed || 0) - 1),
       people: [...c.people, { personId: target.personId, assignmentId: tmpT, name: target.name, avatar: target.avatar || "", initials: (target.name || "?").split(" ").map((s) => s[0]).join("").slice(0, 2).toUpperCase(), status: "unconfirmed" }],
     }));
-    // om nou pe poziție → cere decizia înainte de a scrie (anularea nu lasă nimic)
-    if (await needsJoin({ id: target.personId, name: target.name }, positionId)) {
-      setAssigning(false);
-      stageJoin({ planId, teamId, positionId, colIdx, tmpId: tmpT, positionName: posNameOf(teamId, positionId), teamName: teamNameOf(teamId),
-        person: { id: target.personId, name: target.name, avatar: target.avatar || "", initials: target.initials || "" } });
-      return;
-    }
     try {
       const r = await plansApi.assign(planId, { personId: target.personId, teamId, positionId, status: "unconfirmed" });
       flash(`⌖ ${target.name} planificat (neconfirmat, fără email).`);

@@ -165,7 +165,11 @@ export default function PlanDetailPage() {
     try { return (await plansApi.isRoster(positionId, p.id))?.inRoster === false; } catch { return true; }
   }
   function stageJoin(j) { setJoinModal({ staged: true, ...j }); }
-  async function commitStaged(j) { await plansApi.assign(id, { personId: j.person.id, teamId: j.teamId, positionId: j.positionId, status: "unconfirmed", timeIds: j.timeIds }); }
+  async function commitStaged(j) { // abia la alegere punem persoana (optimist) + scriem
+    patchGroup(j.teamId, j.positionId, (g) => ({ ...g, needed: Math.max(0, (g.needed || 0) - 1),
+      people: [...g.people, { personId: j.person.id, assignmentId: `tmp-c-${Date.now()}`, name: j.person.name, avatar: j.person.avatar, initials: j.person.initials, status: "unconfirmed" }] }));
+    await plansApi.assign(id, { personId: j.person.id, teamId: j.teamId, positionId: j.positionId, status: "unconfirmed", timeIds: j.timeIds });
+  }
   async function confirmJoinGuest() {
     if (!joinModal) return; const j = joinModal; setJoinBusy(true);
     try { if (j.staged) await commitStaged(j); await plansApi.guestLog(id, { personId: j.person.id, teamId: j.teamId, positionId: j.positionId }); flash(`${j.person.name} — guest o zi pe „${j.positionName}" (logat, fără email).`); reconcileTeams(); refreshRec(); }
@@ -178,23 +182,22 @@ export default function PlanDetailPage() {
     catch (e) { flash(e?.message || "Eroare."); reconcileTeams(); }
     finally { setJoinBusy(false); setJoinModal(null); }
   }
-  function cancelJoin() { const wasStaged = joinModal?.staged; setJoinModal(null); if (wasStaged) reconcileTeams(); }
+  function cancelJoin() { setJoinModal(null); } // nimic n-a fost pus până la alegere → nimic de curățat (zero flicker)
 
   async function assignPerson(p, mirror, timeIds) {
     if (!sel) return;
-    setAssigning(true);
     const tIds = Array.isArray(timeIds) && timeIds.length ? timeIds : undefined; // gol = toate orele (During All)
-    const push = (g, tid) => ({ ...g, needed: Math.max(0, (g.needed || 0) - 1), people: [...g.people, { personId: p.id, assignmentId: tid, name: p.name, avatar: p.avatar, initials: p.initials, status: "unconfirmed" }] });
-    patchGroup(sel.teamId, sel.positionId, (g) => push(g, `tmp-a-${Date.now()}`));
     const doMirror = mirror && pereche;
-    if (doMirror) patchGroup(pereche.teamId, pereche.positionId, (g) => push(g, `tmp-b-${Date.now()}`));
-    // om nou pe poziție (fără mirror) → cere decizia înainte de a scrie; anularea nu lasă nimic
+    // om nou pe poziție (fără mirror) → cere decizia ÎNAINTE de a pune ceva în poziție (ca să nu apară/dispară la X)
     if (!doMirror && await needsJoin(p, sel.positionId)) {
-      setAssigning(false);
       stageJoin({ teamId: sel.teamId, positionId: sel.positionId, timeIds: tIds, positionName: sel.positionName, teamName: sel.teamName || tmTeamName(sel.teamId),
         person: { id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "" } });
       return;
     }
+    setAssigning(true);
+    const push = (g, tid) => ({ ...g, needed: Math.max(0, (g.needed || 0) - 1), people: [...g.people, { personId: p.id, assignmentId: tid, name: p.name, avatar: p.avatar, initials: p.initials, status: "unconfirmed" }] });
+    patchGroup(sel.teamId, sel.positionId, (g) => push(g, `tmp-a-${Date.now()}`));
+    if (doMirror) patchGroup(pereche.teamId, pereche.positionId, (g) => push(g, `tmp-b-${Date.now()}`));
     try {
       await plansApi.assign(id, { personId: p.id, teamId: sel.teamId, positionId: sel.positionId, status: "unconfirmed", timeIds: tIds });
       if (doMirror) await plansApi.assign(id, { personId: p.id, teamId: pereche.teamId, positionId: pereche.positionId, status: "unconfirmed", timeIds: tIds });
