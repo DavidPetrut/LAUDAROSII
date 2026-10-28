@@ -75,7 +75,8 @@ export default function ConflictModal({ open, planId, person, positionId, target
   function startFlow(c) { setFlowCard(c.assignmentId); setManualOn(false); setCandQ(""); onReassignOpen?.(c, person.id); }
   function closeFlow() { setFlowCard(null); setManualOn(false); onReassignClose?.(); }
   function stageRemove(c) {
-    addOp({ k: "unassign", planId: c.planId, assignmentId: c.assignmentId, card: c.assignmentId, posName: c.positionName, teamName: c.teamName });
+    addOp({ k: "unassign", planId: c.planId, assignmentId: c.assignmentId, card: c.assignmentId, posName: c.positionName, teamName: c.teamName,
+      outPerson: { id: person.id, name: person.name, avatar: person.avatar || "", initials: person.initials || "" } });
   }
 
   async function needsJoin(p, posId) {
@@ -95,7 +96,7 @@ export default function ConflictModal({ open, planId, person, positionId, target
   }
   function commitPick(ctx, join, pair) {
     if (ctx.kind === "step1") addOp({ k: "swap", planId: ctx.planId, teamId: ctx.teamId, positionId: ctx.positionId, outAssignmentId: ctx.c.assignmentId, inPersonId: ctx.person.id, inPerson: ctx.person, join: join || null, card: ctx.c.assignmentId, posName: ctx.positionName, teamName: ctx.teamName });
-    else { if (target.occupant?.assignmentId) addOp({ k: "unassign", planId: target.planId, assignmentId: target.occupant.assignmentId, posName: target.positionName, teamName: target.teamName, outName: target.occupant.name }); addOp({ k: "assign", planId: ctx.planId, teamId: ctx.teamId, positionId: ctx.positionId, inPersonId: ctx.person.id, inPerson: ctx.person, join: join || null, posName: ctx.positionName, teamName: ctx.teamName }); closeFlow(); }
+    else { if (target.occupant?.assignmentId) addOp({ k: "unassign", planId: target.planId, assignmentId: target.occupant.assignmentId, posName: target.positionName, teamName: target.teamName, outPerson: target.occupant }); addOp({ k: "assign", planId: ctx.planId, teamId: ctx.teamId, positionId: ctx.positionId, inPersonId: ctx.person.id, inPerson: ctx.person, join: join || null, posName: ctx.positionName, teamName: ctx.teamName }); closeFlow(); }
     if (pair) addOp({ k: "assign", planId: ctx.planId, teamId: pair.pairTeamId, positionId: pair.pairPositionId, inPersonId: ctx.person.id, inPerson: ctx.person, join: null, posName: ctx.positionName, teamName: pair.pairTeamName });
   }
   function resolvePendingJoin(join) { const pp = pendingPick; setPendingPick(null); if (pp) afterJoin(pp, join); }
@@ -275,15 +276,22 @@ export default function ConflictModal({ open, planId, person, positionId, target
               <div className="cm-divider" />
               <div className="cm-sh ch">Schimbări făcute <span className="cm-cn">{changes.length}</span></div>
               {changes.map((o) => (
-                <div key={o.id} className="cm-change">
-                  {o.k === "unassign" ? (
-                    <><span className="cm-chmark rm">−</span><span className="cm-chtx"><b>{o.outName || person?.name}</b> scoasă de pe {withTeam(o.posName, o.teamName)}</span></>
-                  ) : (
-                    <><PersonAvatar person={o.inPerson} size={26} showBadge={false} />
-                      <span className="cm-chtx">{o.k === "swap"
-                        ? <>{withTeam(o.posName, o.teamName)} — înlocuită de <b>{o.inPerson?.name}</b></>
-                        : <><b>{o.inPerson?.name}</b> pe {withTeam(o.posName, o.teamName)}</>}</span></>
-                  )}
+                <div key={o.id} className={`cm-change ${o.k}`}>
+                  {o.k === "unassign" && (<>
+                    <PersonAvatar person={o.outPerson || person} size={26} showBadge={false} />
+                    <span className="cm-chtx"><b>{(o.outPerson || person)?.name}</b> scos de pe {withTeam(o.posName, o.teamName)}</span>
+                    <span className="cm-chic rm" title="Scos de pe poziție"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg></span>
+                  </>)}
+                  {o.k === "swap" && (<>
+                    <PersonAvatar person={person} size={26} showBadge={false} />
+                    <span className="cm-chtx">{withTeam(o.posName, o.teamName)} — înlocuită de <PersonAvatar person={o.inPerson} size={19} showBadge={false} /> <b>{o.inPerson?.name}</b></span>
+                    <span className="cm-chic sw" title="Înlocuire"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M2 5h9l-2-2M14 11H5l2 2" /></svg></span>
+                  </>)}
+                  {o.k === "assign" && (<>
+                    <PersonAvatar person={o.inPerson} size={26} showBadge={false} />
+                    <span className="cm-chtx"><b>{o.inPerson?.name}</b> a fost adăugat pe {withTeam(o.posName, o.teamName)}</span>
+                    <span className="cm-chic add" title="Adăugat pe poziție"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg></span>
+                  </>)}
                 </div>
               ))}
             </div>
@@ -404,10 +412,12 @@ export default function ConflictModal({ open, planId, person, positionId, target
         .cm-confirmbtn:hover { background: var(--product); color: #07160f; }
         /* schimbări făcute */
         .cm-divider { height: 1px; background: var(--border-strong); margin: 2px 0 10px; }
-        .cm-change { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: rgba(87,185,138,.06); border: 1px solid rgba(87,185,138,.28); border-radius: 9px; }
-        .cm-chmark { flex: none; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 800; }
-        .cm-chmark.rm { background: rgba(248,81,73,.16); color: var(--danger); }
-        .cm-chtx { color: var(--text-dim); font-size: 13px; } .cm-chtx b { color: var(--text); }
+        .cm-change { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 9px; }
+        .cm-chtx { flex: 1; min-width: 0; display: inline-flex; align-items: center; flex-wrap: wrap; gap: 5px; color: var(--text-dim); font-size: 12.5px; } .cm-chtx b { color: var(--text); }
+        .cm-chic { flex: none; width: 27px; height: 27px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; }
+        .cm-chic.rm { color: var(--danger); background: rgba(248,81,73,.13); }
+        .cm-chic.sw { color: #9ecbff; background: rgba(47,129,247,.14); }
+        .cm-chic.add { color: var(--product); background: rgba(87,185,138,.14); }
         .cm-blk { display: flex; align-items: center; gap: 10px; padding: 10px 13px; background: rgba(248,81,73,.07); border: 1px solid rgba(248,81,73,.3); border-radius: 9px; }
         .cm-blkdot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
         .cm-blkd { color: #ff9a94; font-size: 13px; font-weight: 600; flex: none; }
