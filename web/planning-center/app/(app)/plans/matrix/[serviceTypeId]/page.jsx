@@ -807,9 +807,10 @@ export default function MatrixPage() {
         assigning={assigning}
         mirror={pereche ? { available: true, label: `Adaugă și la ${pereche.teamName}` } : null}
         onAddGuest={addGuest}
-        defaults={rec?.defaults} positionId={sel?.positionId} onSaveRules={saveRules} instructions={rec?.instructions}
+        defaults={rec?.defaults} positionId={sel?.positionId} planId={sel?.planId} onSaveRules={saveRules} instructions={rec?.instructions}
         serviceTimes={rec?.serviceTimes || []}
         onRosterChanged={refreshRec}
+        onConflictResolved={() => { refreshRec(); loadCov(); softReconcile(); }}
         canAssign={canAssign} canRoster={canRoster} canRules={canManage || !!caps.positionRules || canAssign}
       />
 

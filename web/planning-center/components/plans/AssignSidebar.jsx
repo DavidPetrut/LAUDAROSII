@@ -11,6 +11,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import PersonAvatar from "./PersonAvatar";
+import ConflictModal from "./ConflictModal";
 import { plansApi, peopleApi } from "@/lib/api/client";
 
 /* numărul SIM din coada numelui: „Ion Pop (2)" → "2"; fără paranteză → "" */
@@ -19,7 +20,7 @@ function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return
 export default function AssignSidebar({
   open, title, neededCount, loading, groups = [], alreadyHere = [],
   query, onQuery, onPick, onClose, assigning, mirror, onAddGuest,
-  defaults, positionId, onSaveRules, instructions, browse = false, serviceTimes = [], onRosterChanged,
+  defaults, positionId, planId, onSaveRules, instructions, browse = false, serviceTimes = [], onRosterChanged, onConflictResolved,
   canAssign = true, canRoster = true, canRules = true,
 }) {
   const readOnly = !canAssign && !canRoster; // doar vizualizare (rol view-only)
@@ -31,6 +32,11 @@ export default function AssignSidebar({
   const addRef = useRef(null);
   const [selTimes, setSelTimes] = useState(() => new Set()); // orele alese la asignare (gol = toate orele / „During All")
   const [tipFor, setTipFor] = useState(null); // id-ul persoanei cu tooltip-ul de conflict deschis
+  const [conflictFor, setConflictFor] = useState(null); // persoana pt. care e deschisă modala „Verifică"
+  const tipTimer = useRef(null);
+  const showTip = (p, el) => { clearTimeout(tipTimer.current); const r = el.getBoundingClientRect(); const aside = el.closest(".asb"); const ar = aside ? aside.getBoundingClientRect() : { left: 0, top: 0 }; setTipFor({ id: p.id, person: p, x: r.left - ar.left, y: r.top - ar.top, items: cfList(p) }); };
+  const hideTipSoon = () => { clearTimeout(tipTimer.current); tipTimer.current = setTimeout(() => setTipFor(null), 180); };
+  const keepTip = () => clearTimeout(tipTimer.current);
   const [sim, setSim] = useState("");          // "", "1", "2"
   const [gender, setGender] = useState("");    // "", "M", "F"
   const [fit, setFit] = useState(false);       // „Fit the position" — doar rosterul poziției (default ON pe poziție)
@@ -354,8 +360,8 @@ export default function AssignSidebar({
                       <span className="cn">{p.name}</span>
                       {cfList(p).length > 0 && (
                         <span className="cfwrap"
-                          onMouseEnter={(e) => { const r = e.currentTarget.getBoundingClientRect(); const aside = e.currentTarget.closest(".asb"); const ar = aside ? aside.getBoundingClientRect() : { left: 0, top: 0 }; setTipFor({ id: p.id, x: r.left - ar.left, y: r.top - ar.top, items: cfList(p) }); }}
-                          onMouseLeave={() => setTipFor(null)}
+                          onMouseEnter={(e) => showTip(p, e.currentTarget)}
+                          onMouseLeave={hideTipSoon}
                           onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
                           {cfList(p).map((c, i) => (
                             <img key={i} className="cf-ic" src={c.type === "blockout" ? "/icons/warn-red.png" : "/icons/warn-yellow.png"} alt={c.label || c.type} draggable={false} />
@@ -381,7 +387,7 @@ export default function AssignSidebar({
       )}
 
       {tipFor && (
-        <div className="cf-tip" style={{ left: tipFor.x, top: tipFor.y }}>
+        <div className="cf-tip" style={{ left: tipFor.x, top: tipFor.y }} onMouseEnter={keepTip} onMouseLeave={hideTipSoon}>
           {tipFor.items.map((c, i) => (
             <div key={i} className="cf-row">
               <span className={`cf-b ${c.type}`}>
@@ -391,7 +397,19 @@ export default function AssignSidebar({
               {c.detail ? <span className="cf-d">{c.detail}</span> : null}
             </div>
           ))}
+          {planId && (
+            <button className="cf-verify" onClick={() => { const pp = tipFor.person; setTipFor(null); setConflictFor(pp); }}>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="7" cy="7" r="4.5" /><path d="M14 14l-3.2-3.2" /></svg>
+              Verifică
+            </button>
+          )}
         </div>
+      )}
+
+      {conflictFor && (
+        <ConflictModal open planId={planId} person={conflictFor} positionId={positionId}
+          onClose={() => setConflictFor(null)}
+          onResolved={() => { onConflictResolved?.(); }} />
       )}
 
       <style jsx>{`
@@ -519,10 +537,14 @@ export default function AssignSidebar({
         .cn { color: var(--text); font-size: 13px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .cfwrap { display: inline-flex; align-items: center; gap: 3px; flex: none; cursor: pointer; padding: 2px; margin: -2px; }
         .cf-ic { width: 15px; height: 15px; object-fit: contain; display: block; }
-        .cf-tip { position: fixed; z-index: 200; transform: translate(-100%, -100%); margin: -5px 0 0 -2px; pointer-events: none;
+        .cf-tip { position: fixed; z-index: 200; transform: translate(-100%, -100%); margin: -5px 0 0 -2px;
           background: #0c1016; border: 1px solid var(--border-strong); border-radius: 9px; padding: 9px 11px;
           box-shadow: 0 10px 30px rgba(0,0,0,.55); min-width: 170px; max-width: 260px; display: flex; flex-direction: column; gap: 8px;
           animation: cftipIn .12s ease; }
+        .cf-verify { margin-top: 2px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%;
+          background: rgba(47,129,247,.14); border: 1px solid var(--primary); color: #9cc4f5; border-radius: 7px; height: 30px;
+          font-size: 12.5px; font-weight: 600; cursor: pointer; transition: background .12s, color .12s; }
+        .cf-verify:hover { background: var(--primary); color: #fff; }
         @keyframes cftipIn { from { opacity: 0; transform: translate(-100%, -100%) scale(.96); } to { opacity: 1; transform: translate(-100%, -100%) scale(1); } }
         .cf-row { display: flex; flex-direction: column; gap: 2px; }
         .cf-b { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; }

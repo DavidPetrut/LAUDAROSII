@@ -1001,6 +1001,66 @@ router.get("/:id/recommend", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
   }
 });
 
+/* ───────── GET /:id/person-conflicts — detaliul conflictelor unei persoane pe ziua planului ─────────
+   Conflicte de SLUJIRE (unde MAI e asignată în aceeași zi) + BLOCKOUT-uri care acoperă ziua.
+   Pt. modalul „Verifică": întoarce assignmentId/teamId/positionId → reassign/remove direct. FĂRĂ email. */
+router.get("/:id/person-conflicts", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
+  try {
+    const planId = OID(req.params.id);
+    const personId = OID(req.query.personId);
+    const positionId = OID(req.query.positionId); // poziția curentă (se exclude din conflicte)
+    if (!personId) return res.status(400).json({ error: "personId necesar." });
+    const plan = await PcPlan.findOne(scoped(req, { _id: planId })).select("sortDate").lean();
+    if (!plan) return res.status(404).json({ error: "Plan inexistent." });
+    const tz = await campusTz(req);
+    const planDate = new Date(plan.sortDate);
+    const dayStart = new Date(planDate); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+    const dayKey = dayStart.toISOString().slice(0, 10);
+    const person = await PcPerson.findOne(scoped(req, { _id: personId })).select("firstName lastName avatar").lean();
+
+    // planurile din aceeași ZI (orice service type) → asignare acolo = conflict de slujire
+    const dayPlans = await PcPlan.find(scoped(req, { sortDate: { $gte: dayStart, $lt: dayEnd } })).select("serviceTypeId sortDate").lean();
+    const planStById = Object.fromEntries(dayPlans.map((p) => [String(p._id), String(p.serviceTypeId || "")]));
+    const assigns = await PcAssignment.find(scoped(req, { personId, planId: { $in: dayPlans.map((p) => p._id) }, status: { $ne: "declined" } }))
+      .select("planId teamId positionId status isGuest").lean();
+    // exclude poziția curentă pe planul curent (aia nu e conflict)
+    const confAssigns = assigns.filter((a) => !(String(a.planId) === String(planId) && String(a.positionId) === String(positionId)));
+    const [teams, positions, sts] = await Promise.all([
+      PcTeam.find(scoped(req, { _id: { $in: [...new Set(confAssigns.map((a) => String(a.teamId)).filter(Boolean))] } })).select("name").lean(),
+      PcPosition.find(scoped(req, { _id: { $in: [...new Set(confAssigns.map((a) => String(a.positionId)).filter(Boolean))] } })).select("name").lean(),
+      PcServiceType.find(scoped(req, { _id: { $in: [...new Set(Object.values(planStById).filter(Boolean))] } })).select("name").lean(),
+    ]);
+    const teamN = Object.fromEntries(teams.map((t) => [String(t._id), t.name]));
+    const posN = Object.fromEntries(positions.map((p) => [String(p._id), p.name]));
+    const stN = Object.fromEntries(sts.map((s) => [String(s._id), s.name]));
+    const dateLabel = `${fmtWeekday(planDate, tz)} ${fmtDate(planDate, tz)}`;
+    const conflicts = confAssigns.map((a) => ({
+      assignmentId: a._id, planId: a.planId, teamId: a.teamId || null, positionId: a.positionId || null,
+      status: a.status, isGuest: !!a.isGuest, dateLabel,
+      serviceTypeName: stN[planStById[String(a.planId)]] || "",
+      teamName: teamN[String(a.teamId)] || "",
+      positionName: a.positionId ? (posN[String(a.positionId)] || "Poziție") : (a.isGuest ? "Invitat" : "Poziție"),
+    }));
+
+    // blockouts care acoperă ziua (exclude churchBlock — ăla scoate persoana oricum)
+    const covers = (b) => (!b.startDate || b.startDate <= dayKey) && (!b.endDate || b.endDate >= dayKey);
+    const blk = await PcBlockout.find(scoped(req, { personId })).select("startDate endDate type reason").lean();
+    const blockouts = blk.filter((b) => b.type !== "churchBlock" && covers(b)).map((b) => ({
+      label: b.startDate === b.endDate ? b.startDate : `${b.startDate} → ${b.endDate}`, startDate: b.startDate, endDate: b.endDate, reason: b.reason || "",
+    }));
+
+    res.json({
+      person: person ? { id: person._id, name: [person.firstName, person.lastName].filter(Boolean).join(" "), avatar: person.avatar || "",
+        initials: `${(person.firstName || "").charAt(0)}${(person.lastName || "").charAt(0)}`.toUpperCase() } : null,
+      dayLabel: dateLabel, conflicts, blockouts,
+    });
+  } catch (err) {
+    console.error("[pc] GET /plans/:id/person-conflicts:", err.message);
+    res.status(500).json({ error: "Eroare la conflicte: " + err.message });
+  }
+});
+
 /* ───────── POST /:id/assignments/copy — replică asignările unei echipe pe alta (SIM1→SIM2) ─────────
    Potrivește pozițiile după NUME. Status unconfirmed, FĂRĂ email. Idempotent (nu dublează). */
 router.post("/:id/assignments/copy", requireAny(CAN_MOVE), async (req, res) => {

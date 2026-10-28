@@ -366,9 +366,10 @@ export default function PlanDetailPage() {
         query={recQuery} onQuery={setRecQuery} onPick={assignPerson} onClose={() => { setSel(null); setRec(null); }} assigning={assigning}
         mirror={pereche ? { available: true, label: `Adaugă și la ${pereche.teamName}` } : null}
         onAddGuest={addGuest}
-        defaults={rec?.defaults} positionId={sel?.positionId} onSaveRules={saveRules} instructions={rec?.instructions}
+        defaults={rec?.defaults} positionId={sel?.positionId} planId={id} onSaveRules={saveRules} instructions={rec?.instructions}
         serviceTimes={rec?.serviceTimes || []}
         onRosterChanged={refreshRec}
+        onConflictResolved={() => { refreshRec(); reconcileTeams(); }}
         canAssign={canAssign} canRoster={canRoster} canRules={canAssign || !!caps.positionRules || !!caps.manageTeams}
       />
       {editing && (
