@@ -17,6 +17,7 @@ export default function ConflictModal({ open, planId, person, positionId, onClos
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [reOn, setReOn] = useState(null);      // assignmentId al cardului în mod reassign
+  const [confirmRm, setConfirmRm] = useState(null); // assignmentId al cardului cu confirmarea „Scoate"
   const [cand, setCand] = useState([]);        // candidați (fit poziția) pt. cardul deschis
   const [candLoading, setCandLoading] = useState(false);
   const [candQ, setCandQ] = useState("");
@@ -96,7 +97,7 @@ export default function ConflictModal({ open, planId, person, positionId, onClos
 
           {conflicts.length > 0 && (
             <div className="cm-sec">
-              <div className="cm-sh">Conflicte de slujire <span className="cm-cn">{conflicts.length}</span></div>
+              <div className="cm-sh"><img className="cm-shic" src="/icons/warn-yellow.png" alt="" />Slujire <span className="cm-cn">{conflicts.length}</span></div>
               {conflicts.map((c) => (
                 <div key={String(c.assignmentId)} className="cm-card">
                   <div className="cm-crow">
@@ -112,10 +113,20 @@ export default function ConflictModal({ open, planId, person, positionId, onClos
                       </div>
                     </div>
                     <div className="cm-cact">
-                      <button className="cm-re" disabled={busy} onClick={() => reOn === c.assignmentId ? setReOn(null) : openReassign(c)}>Reasignează</button>
-                      <button className="cm-rm" disabled={busy} onClick={() => removeFrom(c)} title="Scoate-l de pe această slujire">Scoate</button>
+                      <button className="cm-re" disabled={busy} onClick={() => { setConfirmRm(null); reOn === c.assignmentId ? setReOn(null) : openReassign(c); }}>Reasignează</button>
+                      <button className="cm-rm" disabled={busy} onClick={() => { setReOn(null); setConfirmRm(c.assignmentId); }} title="Scoate-l de pe această slujire">Scoate</button>
                     </div>
                   </div>
+
+                  {confirmRm === c.assignmentId && (
+                    <div className="cm-confirm">
+                      <span className="cm-cfq">Îl scoți pe <b>{person?.name}</b> de pe <b>{c.positionName}</b> ({c.dateLabel})?</span>
+                      <div className="cm-cfa">
+                        <button className="cm-cfno" disabled={busy} onClick={() => setConfirmRm(null)}>Anulează</button>
+                        <button className="cm-cfyes" disabled={busy} onClick={() => { setConfirmRm(null); removeFrom(c); }}>Da, scoate</button>
+                      </div>
+                    </div>
+                  )}
 
                   {reOn === c.assignmentId && (
                     <div className="cm-reassign">
@@ -171,7 +182,8 @@ export default function ConflictModal({ open, planId, person, positionId, onClos
         .cm-muted { color: var(--text-faint); font-size: 13px; padding: 12px 2px; } .cm-muted.sm { padding: 8px 2px; font-size: 12px; }
         .cm-ok { color: var(--product); font-size: 14px; padding: 18px 2px; font-weight: 600; }
         .cm-sec { display: flex; flex-direction: column; gap: 9px; }
-        .cm-sh { display: flex; align-items: center; gap: 9px; color: var(--text-faint); font-size: 11px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; }
+        .cm-sh { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 12px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; }
+        .cm-shic { width: 15px; height: 15px; object-fit: contain; }
         .cm-sh.blk { color: var(--danger); }
         .cm-cn { color: var(--text-dim); background: var(--surface-2); border-radius: 20px; padding: 0 8px; font-size: 11px; font-weight: 700; }
         .cm-cn.blk { color: var(--danger); background: rgba(248,81,73,.12); }
@@ -192,6 +204,14 @@ export default function ConflictModal({ open, planId, person, positionId, onClos
         .cm-rm { background: transparent; border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 7px; height: 32px; padding: 0 13px; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: border-color .12s, color .12s; }
         .cm-rm:hover { color: var(--danger); border-color: rgba(248,81,73,.55); }
         .cm-re:disabled, .cm-rm:disabled, .cm-cand:disabled { opacity: .55; cursor: default; }
+        .cm-confirm { border-top: 1px solid var(--border); padding: 11px 13px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: rgba(248,81,73,.06); animation: cmex .16s ease; flex-wrap: wrap; }
+        .cm-cfq { color: var(--text-dim); font-size: 12.5px; } .cm-cfq b { color: var(--text); }
+        .cm-cfa { display: flex; gap: 8px; flex: none; }
+        .cm-cfno { background: transparent; border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 7px; height: 30px; padding: 0 13px; font-size: 12.5px; cursor: pointer; }
+        .cm-cfno:hover { color: var(--text); }
+        .cm-cfyes { background: var(--danger); border: 1px solid var(--danger); color: #fff; border-radius: 7px; height: 30px; padding: 0 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+        .cm-cfyes:hover { filter: brightness(1.08); }
+        .cm-cfno:disabled, .cm-cfyes:disabled { opacity: .55; cursor: default; }
         .cm-reassign { border-top: 1px solid var(--border); padding: 11px 13px; display: flex; flex-direction: column; gap: 8px; background: var(--bg); animation: cmex .16s ease; }
         @keyframes cmex { from { opacity: 0; } to { opacity: 1; } }
         .cm-search { background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 7px; height: 32px; padding: 0 10px; color: var(--text); outline: none; font-size: 12.5px; }
