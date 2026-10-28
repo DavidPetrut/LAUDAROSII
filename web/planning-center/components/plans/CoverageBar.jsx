@@ -26,6 +26,13 @@ export default function CoverageBar({
 }) {
   const [view, setView] = useState("all");
   const [tab, setTab] = useState("live"); // "live" | "person"
+  // căutare PER container (bucket): deschide lupa din header → înlocuiește titlul cu un input + X.
+  // Filtrează DOAR oamenii din acel container (nu din toate). Cheie = b.times.
+  const [bqOpen, setBqOpen] = useState({}); // {times: true}
+  const [bq, setBq] = useState({});         // {times: "text"}
+  const openBq = (t) => { setBqOpen((s) => ({ ...s, [t]: true })); };
+  const closeBq = (t) => { setBqOpen((s) => ({ ...s, [t]: false })); setBq((s) => ({ ...s, [t]: "" })); };
+  const setBqVal = (t, v) => setBq((s) => ({ ...s, [t]: v }));
 
   // target activ → deschide bara + sari pe tabul persoanei; detarget → înapoi la „Listă live"
   useEffect(() => {
@@ -140,12 +147,35 @@ export default function CoverageBar({
           </nav>
           <div className="cb-cols">
             {loading && !cov && <div className="cb-muted">Se încarcă…</div>}
-            {buckets.map((b) => (
+            {buckets.map((b) => {
+              const q = (bq[b.times] || "").trim().toLowerCase();
+              const people = bqOpen[b.times] && q ? b.people.filter((p) => (p.name || "").toLowerCase().includes(q)) : b.people;
+              return (
               <div key={b.times} className={`cb-col ${b.times === 0 ? "col0" : ""}`}>
-                <div className="cb-ch"><span>{b.label}</span><span className="cb-cn">{b.people.length}</span></div>
+                <div className="cb-ch">
+                  {bqOpen[b.times] ? (
+                    <div className="cb-search">
+                      <svg className="cb-si" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="7" cy="7" r="4.5" /><path d="M14 14l-3.2-3.2" /></svg>
+                      <input autoFocus className="cb-sinput" placeholder={`Caută în „${b.label}"…`} value={bq[b.times] || ""}
+                        onChange={(e) => setBqVal(b.times, e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Escape") closeBq(b.times); }} />
+                      <button className="cb-sx" title="Închide căutarea" onClick={() => closeBq(b.times)}>×</button>
+                    </div>
+                  ) : (
+                    <>
+                      <span>{b.label}</span>
+                      <span className="cb-chr">
+                        <button className="cb-sbtn" title="Caută în această listă" onClick={() => openBq(b.times)}>
+                          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="7" cy="7" r="4.5" /><path d="M14 14l-3.2-3.2" /></svg>
+                        </button>
+                        <span className="cb-cn">{b.people.length}</span>
+                      </span>
+                    </>
+                  )}
+                </div>
                 <div className="cb-list">
-                  {b.people.length === 0 && <div className="cb-empty">—</div>}
-                  {b.people.map((p) => (
+                  {people.length === 0 && <div className="cb-empty">{bqOpen[b.times] && q ? "Niciun rezultat." : "—"}</div>}
+                  {people.map((p) => (
                     <div key={p.id} className="cb-card" draggable
                       onDragStart={(e) => { e.dataTransfer.effectAllowed = "copy"; onPersonDragStart?.(p); }}
                       onDragEnd={() => onPersonDragEnd?.()}
@@ -159,7 +189,7 @@ export default function CoverageBar({
                   ))}
                 </div>
               </div>
-            ))}
+            ); })}
           </div>
 
           {/* ── rail de filtre (dreapta): widget SEX (sus) + widget PROGRAM/SIM (jos) — filtre HARD, se stackează ── */}
@@ -246,7 +276,18 @@ export default function CoverageBar({
         .cb-muted { color: var(--text-faint); padding: 20px; }
         .cb-col { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; width: 236px; flex: none; display: flex; flex-direction: column; }
         .cb-col.col0 { border-color: rgba(47,129,247,.5); }
-        .cb-ch { display: flex; align-items: center; justify-content: space-between; padding: 10px 13px; border-bottom: 1px solid var(--border); color: var(--text); font-weight: 600; font-size: 12.5px; flex: none; }
+        .cb-ch { display: flex; align-items: center; justify-content: space-between; padding: 10px 13px; border-bottom: 1px solid var(--border); color: var(--text); font-weight: 600; font-size: 12.5px; flex: none; min-height: 39px; }
+        .cb-chr { display: inline-flex; align-items: center; gap: 7px; }
+        .cb-sbtn { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: transparent; border: none; color: var(--text-faint); cursor: pointer; border-radius: 5px; padding: 0; transition: color .12s, background .12s; }
+        .cb-sbtn:hover { color: var(--text); background: rgba(255,255,255,.08); }
+        .cb-search { display: flex; align-items: center; gap: 7px; width: 100%; border-bottom: 1.5px solid var(--border-strong); padding-bottom: 3px; animation: cbsIn .16s ease; }
+        @keyframes cbsIn { from { opacity: 0; } to { opacity: 1; } }
+        .cb-col.col0 .cb-search { border-color: rgba(47,129,247,.55); }
+        .cb-si { color: var(--text-faint); flex: none; }
+        .cb-sinput { flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: var(--text); font-size: 12.5px; font-weight: 600; padding: 0; }
+        .cb-sinput::placeholder { color: var(--text-faint); font-weight: 400; }
+        .cb-sx { flex: none; background: transparent; border: none; color: var(--text-faint); font-size: 16px; line-height: 1; cursor: pointer; padding: 0 2px; border-radius: 4px; }
+        .cb-sx:hover { color: var(--text); }
         .cb-col.col0 .cb-ch { background: rgba(47,129,247,.1); border-radius: 10px 10px 0 0; }
         .cb-cn { color: var(--text-dim); font-size: 11px; background: var(--surface-2); border-radius: 20px; padding: 1px 9px; min-width: 24px; text-align: center; }
         .cb-list { overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 1px; }
