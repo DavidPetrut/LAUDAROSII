@@ -1005,7 +1005,7 @@ router.get("/:id/recommend", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
       serviceTimes,
       groups: [
         { label: "FĂRĂ CONFLICT", people: noConf },
-        ...(withConf.length ? [{ label: `${withConf.length} CU CONFLICT`, people: withConf }] : []),
+        ...(withConf.length ? [{ label: "CU CONFLICT", people: withConf }] : []),
       ],
     });
   } catch (err) {

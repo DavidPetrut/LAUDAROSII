@@ -349,7 +349,8 @@ export default function AssignSidebar({
               return (
                 <div key={gi} className="asb-grp">
                   <button className="asb-gh" onClick={() => toggleGrp(g.label)}>
-                    <span className="asb-ghl">{g.label}</span>
+                    {/* eticheta fără numărul din backend (ăla e nefiltrat); numărul corect, filtrat, e în badge */}
+                    <span className="asb-ghl">{String(g.label).replace(/^\s*\d+\s+/, "")}</span>
                     <span className="asb-gn">{g.people.length}</span>
                     <span className={`asb-gc ${col ? "col" : ""}`}>▾</span>
                   </button>
