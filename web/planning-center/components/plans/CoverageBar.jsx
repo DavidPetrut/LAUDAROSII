@@ -38,6 +38,8 @@ export default function CoverageBar({
   // elimină TOTAL celelalte valori (ex. SIM 1 activ → SIM 2 și cei fără SIM dispar). programIntent e sursa
   // de adevăr pt. SIM (fallback pe sufixul „(N)" din nume). Slujirea/poziția se prioritizează în backend.
   const keepPerson = (p) => {
+    // Fit = DOAR oamenii din rosterul poziției selectate (cei care „fit the position")
+    if (filters.fit && filters.position && !p.inPosRoster) return false;
     if (filters.gender && p.gender !== filters.gender) return false;
     if (filters.sim && (p.programIntent || simOf(p.name)) !== filters.sim) return false;
     return true;
@@ -135,7 +137,6 @@ export default function CoverageBar({
             {VIEWS.map((v) => (
               <button key={v.id} className={`cb-view ${view === v.id ? "on" : ""}`} onClick={() => setView(v.id)}>{v.label}</button>
             ))}
-            <div className="cb-legend"><b>×N</b> = de câte ori mai poate fi asignat · <span className="blk">⛔</span> blocate</div>
           </nav>
           <div className="cb-cols">
             {loading && !cov && <div className="cb-muted">Se încarcă…</div>}
@@ -166,6 +167,19 @@ export default function CoverageBar({
             <div className="cbw-title">Filtre</div>
 
             <div className="cbw-group">
+              <span className="cbw-lbl">Poziție</span>
+              <div className="cbw fit">
+                <span className={`cbw-glow fit ${filters.position ? (filters.fit ? "yes" : "no") : ""}`} aria-hidden />
+                <button type="button" className={`cbw-opt fit yes ${filters.position && filters.fit ? "on" : ""}`} disabled={!filters.position} onClick={() => onSetFilter?.("fit", true)} title="Doar oamenii care fac parte din poziție">
+                  <span className="cbw-simlb">Fit</span>
+                </button>
+                <button type="button" className={`cbw-opt fit no ${filters.position && !filters.fit ? "on" : ""}`} disabled={!filters.position} onClick={() => onSetFilter?.("fit", false)} title="Toți candidații (poziția rămâne prioritizată)">
+                  <span className="cbw-simlb">Toate</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="cbw-group">
               <span className="cbw-lbl">Sex</span>
               <div className="cbw sex">
                 <span className={`cbw-glow ${filters.gender === "M" ? "m" : filters.gender === "F" ? "f" : ""}`} aria-hidden />
@@ -190,8 +204,6 @@ export default function CoverageBar({
                 </button>
               </div>
             </div>
-
-            <div className="cbw-note">Filtrele se adună — ex. SIM 1 + fete = doar fetele din SIM 1.</div>
           </aside>
         </div>
       )}
@@ -230,8 +242,6 @@ export default function CoverageBar({
         .cb-view { text-align: left; background: transparent; border: none; color: var(--text-dim); border-radius: 7px; padding: 9px 12px; cursor: pointer; font-size: 13.5px; }
         .cb-view:hover { background: rgba(255,255,255,.05); color: var(--text); }
         .cb-view.on { background: var(--surface-3); color: var(--text); font-weight: 600; box-shadow: inset 0 0 0 1px var(--border-strong); }
-        .cb-legend { margin-top: auto; color: var(--text-faint); font-size: 11px; line-height: 1.5; padding: 8px 4px 0; }
-        .cb-legend b { color: var(--product); } .cb-legend .blk { color: var(--danger); }
         .cb-cols { flex: 1; display: flex; gap: 12px; align-items: stretch; overflow-x: auto; padding: 12px 16px; }
         .cb-muted { color: var(--text-faint); padding: 20px; }
         .cb-col { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; width: 236px; flex: none; display: flex; flex-direction: column; }
@@ -273,12 +283,17 @@ export default function CoverageBar({
         .cbw-opt svg { width: 22px; height: 22px; }
         .cbw-opt b { font-size: 18px; font-weight: 800; line-height: 1; }
         .cbw-opt em { font-size: 8.5px; font-style: normal; letter-spacing: .6px; opacity: .75; }
-        .cbw-opt.sim { height: 38px; }
         .cbw-simlb { font-size: 13px; font-weight: 800; letter-spacing: .4px; }
+        .cbw-opt:disabled { opacity: .4; cursor: default; }
+        .cbw-opt:disabled:hover { transform: none; color: var(--text-faint); }
+        .cbw-glow.fit.yes { left: 5px; opacity: 1; transform: none; background: radial-gradient(120% 120% at 50% 30%, rgba(139,92,246,.5), rgba(139,92,246,.08));
+          box-shadow: 0 0 20px 2px rgba(139,92,246,.5), inset 0 0 0 1px rgba(179,142,255,.7); }
+        .cbw-glow.fit.no { left: calc(50% + 3px); opacity: 1; transform: none; background: radial-gradient(120% 120% at 50% 30%, rgba(120,130,145,.42), rgba(120,130,145,.06));
+          box-shadow: 0 0 16px 1px rgba(120,130,145,.4), inset 0 0 0 1px rgba(160,170,185,.55); }
+        .cbw-opt.fit.yes.on { color: #c9b6f2; } .cbw-opt.fit.no.on { color: var(--text); }
         .cbw-opt.on { transform: translateY(-1px) scale(1.04); }
         .cbw-opt.m.on { color: #9ecbff; } .cbw-opt.f.on { color: #ff9a94; }
         .cbw-opt.s1.on { color: #8fe0b4; } .cbw-opt.s2.on { color: #e6cb74; }
-        .cbw-note { color: var(--text-faint); font-size: 10px; line-height: 1.5; margin-top: auto; }
         /* ── tab persoană (target) ── */
         .cb-body.person { padding: 0; animation: tabIn .18s ease; }
         .pp-side { width: 300px; flex: none; border-right: 1px solid var(--border); padding: 18px 18px 14px; display: flex; flex-direction: column; gap: 16px; overflow: auto; }

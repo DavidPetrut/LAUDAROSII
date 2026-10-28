@@ -83,7 +83,7 @@ export default function MatrixPage() {
   const [covBusy, setCovBusy] = useState(false);
   // filtre bară: ministry+position = AUTO (din poziția selectată, doar prioritizare soft);
   // gender+sim = din WIDGET-uri (filtru HARD, se stackează, elimină celelalte valori)
-  const [barFilters, setBarFilters] = useState({ ministry: null, position: null, gender: "", sim: "" });
+  const [barFilters, setBarFilters] = useState({ ministry: null, position: null, fit: true, gender: "", sim: "" });
   const [dragActive, setDragActive] = useState(false); // feedback drag (Kanban)
   const [dropKey, setDropKey] = useState(null);         // celula peste care e drag-ul acum (evidențiere)
   const [dragHint, setDragHint] = useState("");         // indiciu flotant în timpul drag-ului
@@ -214,7 +214,8 @@ export default function MatrixPage() {
     // bara „listă live" moștenește echipa + poziția selectată (DOAR prioritizare soft; se scot cu × din tag).
     // gender/sim NU se ating aici — sunt filtre HARD controlate exclusiv din widget-urile din bară.
     const tName = (data?.teams || []).find((t) => String(t.teamId) === String(teamId))?.name || "";
-    setBarFilters((f) => ({ ...f, ministry: { teamId, name: tName }, position: { positionId, name: positionName } }));
+    // la selectarea unei poziții, filtrul „Fit" pornește ON (vezi doar rosterul poziției); îl scoți pe „Toate"
+    setBarFilters((f) => ({ ...f, ministry: { teamId, name: tName }, position: { positionId, name: positionName }, fit: true }));
     setRecQuery("");
     // SWR: dacă avem cache pentru celulă, arătăm INSTANT, apoi revalidăm silențios în fundal
     const key = `${planId}|${teamId}|${positionId}`;
@@ -784,7 +785,7 @@ export default function MatrixPage() {
         open={barOpen} onToggle={() => setBarOpen((v) => !v)} cov={cov} loading={covBusy}
         filters={barFilters}
         onRemoveFilter={(t) => setBarFilters((f) => ({ ...f, [t]: (t === "ministry" || t === "position") ? null : "" }))}
-        onSetFilter={(key, val) => setBarFilters((f) => ({ ...f, [key]: f[key] === val ? "" : val }))}
+        onSetFilter={(key, val) => setBarFilters((f) => ({ ...f, [key]: key === "fit" ? val : (f[key] === val ? "" : val) }))}
         style={{ left: showSettings ? 316 : 0, right: (sel || browse) ? 348 : 0 }}
         onPersonDragStart={(p) => { dragRef.current = { personId: p.id, name: p.name, avatar: p.avatar, initials: p.initials, fromBar: true }; setDragActive(true); setDragHint(`${p.name} → lași jos pe o poziție = asignezi`); }}
         onPersonDragEnd={() => { setDragActive(false); setDropKey(null); setDragHint(""); }}

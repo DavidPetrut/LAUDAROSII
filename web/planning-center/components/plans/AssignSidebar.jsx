@@ -33,6 +33,7 @@ export default function AssignSidebar({
   const [tipFor, setTipFor] = useState(null); // id-ul persoanei cu tooltip-ul de conflict deschis
   const [sim, setSim] = useState("");          // "", "1", "2"
   const [gender, setGender] = useState("");    // "", "M", "F"
+  const [fit, setFit] = useState(false);       // „Fit the position" — doar rosterul poziției (default ON pe poziție)
   const [simOn, setSimOn] = useState(false);   // afișează rândul de filtre
   const [mirrorOn, setMirrorOn] = useState(false); // „adaugă și pe echipa pereche (SIM 2)"
   const [mode, setMode] = useState("member");  // "member" | "guest"
@@ -52,7 +53,8 @@ export default function AssignSidebar({
     setAddOn(false); setAddQ(""); setAddRes([]); setRoster([]);
     const g = defaults?.gender && defaults.gender !== "any" ? defaults.gender : "";
     const p = defaults?.program && defaults.program !== "any" ? defaults.program : "";
-    setGender(g); setSim(p); setSimOn(!!(g || p));
+    // „Fit the position" pornește ON când e selectată o poziție (vezi doar rosterul ei); filtrele sunt vizibile by default
+    setGender(g); setSim(p); setFit(!!positionId && !browse); setSimOn(!!positionId && !browse);
     setDraft({ defaultGender: defaults?.gender || "any", defaultProgram: defaults?.program || "any", targetPerMonth: defaults?.targetPerMonth || 0, instructions: instructions || "" });
     // eslint-disable-next-line
   }, [title, positionId, defaults?.gender, defaults?.program, defaults?.targetPerMonth, instructions]);
@@ -124,8 +126,9 @@ export default function AssignSidebar({
   );
 
   const filterPerson = (p) => {
-    if (sim && simOf(p.name) && simOf(p.name) !== sim) return false;
-    if (sim && !simOf(p.name)) { /* fără număr = universal, îl păstrăm */ }
+    // Fit = DOAR rosterul poziției (cei care „fit the position"); se dezactivează ca să pui pe altcineva
+    if (fit && positionId && !p.inRoster) return false;
+    if (sim && (p.programIntent || simOf(p.name)) && (p.programIntent || simOf(p.name)) !== sim) return false;
     if (gender && hasGender && p.gender && p.gender !== gender) return false;
     return true;
   };
@@ -292,6 +295,13 @@ export default function AssignSidebar({
 
           {simOn && (
             <div className="asb-filters">
+              {positionId && !browse && (
+                <div className="ff">
+                  <span className="ff-l">Poziție</span>
+                  <button className={`chip ${fit ? "on" : ""}`} onClick={() => setFit(true)} title="Doar oamenii care fac parte din poziție">Fit</button>
+                  <button className={`chip ${!fit ? "on" : ""}`} onClick={() => setFit(false)} title="Toți candidații (poziția rămâne prioritizată)">Toți</button>
+                </div>
+              )}
               <div className="ff">
                 <span className="ff-l">SIM</span>
                 {[["", "Toți"], ["1", "1"], ["2", "2"]].map(([v, l]) => (
