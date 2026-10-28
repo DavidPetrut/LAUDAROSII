@@ -87,7 +87,7 @@ export default function AssignSidebar({
   }
 
   // ─── „+ adaugă om pe poziție" (editează rosterul poziției din Matrix/Teams) ───
-  const loadRoster = () => { if (positionId) peopleApi.positionRoster(positionId).then((r) => setRoster(r.people || [])).catch(() => setRoster([])); };
+  const loadRoster = () => { if (positionId) plansApi.positionRoster(positionId).then((r) => setRoster(r.people || [])).catch(() => setRoster([])); };
   useEffect(() => { if (addOn) loadRoster(); /* eslint-disable-line */ }, [addOn, positionId]);
   useEffect(() => {
     if (!addOn) return;
