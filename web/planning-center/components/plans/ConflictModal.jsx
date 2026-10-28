@@ -18,7 +18,7 @@ import PersonAvatar from "./PersonAvatar";
 import PositionJoinModal from "./PositionJoinModal";
 import { plansApi, peopleApi } from "@/lib/api/client";
 
-export default function ConflictModal({ open, planId, person, positionId, target, onClose, onResolved, onReassignOpen, onReassignClose }) {
+export default function ConflictModal({ open, planId, person, positionId, target, simPair, onClose, onResolved, onReassignOpen, onReassignClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -33,6 +33,7 @@ export default function ConflictModal({ open, planId, person, positionId, target
   const [saving, setSaving] = useState(false);
   const [confirmX, setConfirmX] = useState(false);
   const [pendingPick, setPendingPick] = useState(null); // om nou pe poziție → decizie guest/permanent (staged)
+  const [pendingSim, setPendingSim] = useState(null);   // oferta „pune și la SIM-ul pereche" (staged)
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -85,22 +86,28 @@ export default function ConflictModal({ open, planId, person, positionId, target
     if (p.inRoster === false) return true;
     try { return (await plansApi.isRoster(posId, p.id))?.inRoster === false; } catch { return true; }
   }
-  // pick (drag/manual) în pasul 1 → dacă e om nou pe poziția conflictului, întâi decizia guest/permanent
-  async function pickReplace(c, repl) {
-    if (await needsJoin(repl, c.positionId)) setPendingPick({ kind: "step1", c, repl, person: { id: repl.id, name: repl.name, avatar: repl.avatar || "", initials: repl.initials || "" }, positionName: c.positionName, teamName: c.teamName });
-    else stageReplaceOnConflict(c, repl, null);
+  const normP = (p) => ({ id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "", inRoster: p.inRoster });
+  // pick (drag/manual) în pasul 1 → înlocuitor pe poziția conflictului
+  function pickReplace(c, repl) { beginPick({ kind: "step1", c, person: normP(repl), teamId: c.teamId, positionId: c.positionId, positionName: c.positionName, teamName: c.teamName, planId: c.planId }); }
+  // pasul 2 → persoana (Diana) pe poziția selectată
+  function pickTarget() { if (!target?.positionId) return; beginPick({ kind: "step2", person: normP(person), teamId: target.teamId, positionId: target.positionId, positionName: target.positionName, teamName: target.teamName || "", planId: target.planId }); }
+  // lanț: 1) om nou? → guest/permanent  2) echipă SIM cu pereche liberă? → oferă și acolo  3) stage
+  async function beginPick(ctx) {
+    if (await needsJoin(ctx.person, ctx.positionId)) { setPendingPick(ctx); return; }
+    afterJoin(ctx, null);
   }
-  // pasul 2 → dacă persoana (Diana) e nouă pe poziția selectată, întâi decizia guest/permanent
-  async function pickTarget() {
-    if (!target?.positionId) return;
-    if (await needsJoin(person, target.positionId)) setPendingPick({ kind: "step2", person, positionName: target.positionName, teamName: target.teamName || "" });
-    else stageAssignToTarget(null);
+  function afterJoin(ctx, join) {
+    const pair = simPair ? simPair(ctx.teamName, ctx.positionName, ctx.planId, ctx.person.id) : null;
+    if (pair) { setPendingSim({ ctx, join, pair }); return; }
+    commitPick(ctx, join, null);
   }
-  function resolvePendingJoin(join) { // „Guest"/„Poziție" din modalul nested → stage cu join
-    const pp = pendingPick; setPendingPick(null); if (!pp) return;
-    if (pp.kind === "step1") stageReplaceOnConflict(pp.c, pp.repl, join);
+  function commitPick(ctx, join, pair) {
+    if (ctx.kind === "step1") stageReplaceOnConflict(ctx.c, ctx.person, join);
     else stageAssignToTarget(join);
+    if (pair) addOp({ k: "assign", planId: ctx.planId, teamId: pair.pairTeamId, positionId: pair.pairPositionId, inPersonId: ctx.person.id, inPerson: ctx.person, join: null, label: `${ctx.person.name} și la ${pair.pairTeamName}` });
   }
+  function resolvePendingJoin(join) { const pp = pendingPick; setPendingPick(null); if (pp) afterJoin(pp, join); }
+  function resolvePendingSim(yes) { const ps = pendingSim; setPendingSim(null); if (ps) commitPick(ps.ctx, ps.join, yes ? ps.pair : null); }
   function stageReplaceOnConflict(c, repl, join) { // pasul 1: pune `repl` în locul persoanei pe poziția conflictului
     addOp({ k: "swap", planId: c.planId, teamId: c.teamId, positionId: c.positionId,
       outAssignmentId: c.assignmentId, inPersonId: repl.id, inPerson: repl, join: join || null, card: c.assignmentId,
@@ -292,6 +299,18 @@ export default function ConflictModal({ open, planId, person, positionId, target
           onPermanent={() => resolvePendingJoin("permanent")}
           onClose={() => setPendingPick(null)} />
 
+        {pendingSim && (
+          <div className="cm-xov" onClick={() => resolvePendingSim(false)}>
+            <div className="cm-xdlg" onClick={(e) => e.stopPropagation()}>
+              <div className="cm-xt">Îl pui pe <b>{pendingSim.ctx.person.name}</b> și la <b>{pendingSim.pair.pairTeamName}</b> · <b>{pendingSim.ctx.positionName}</b>? <span className="cm-free">(poziție liberă)</span></div>
+              <div className="cm-xa">
+                <button className="cm-xno" onClick={() => resolvePendingSim(false)}>Nu, doar aici</button>
+                <button className="cm-simyes" onClick={() => resolvePendingSim(true)}>Da, pune și acolo</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {confirmX && (
           <div className="cm-xov" onClick={() => setConfirmX(false)}>
             <div className="cm-xdlg" onClick={(e) => e.stopPropagation()}>
@@ -402,6 +421,9 @@ export default function ConflictModal({ open, planId, person, positionId, target
         .cm-xno:hover { color: var(--text); }
         .cm-xyes { background: var(--danger); border: 1px solid var(--danger); color: #fff; border-radius: 7px; height: 32px; padding: 0 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
         .cm-xyes:hover { filter: brightness(1.08); }
+        .cm-simyes { background: var(--primary); border: 1px solid var(--primary); color: #fff; border-radius: 7px; height: 32px; padding: 0 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+        .cm-simyes:hover { filter: brightness(1.08); }
+        .cm-free { color: var(--product); font-size: 11.5px; }
       `}</style>
     </div>
   ), document.body);

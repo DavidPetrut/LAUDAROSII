@@ -173,6 +173,18 @@ export default function MatrixPage() {
     return first ? { assignmentId: first.assignmentId, personId: first.personId, name: first.name, avatar: first.avatar || "", initials: first.initials || "" } : null;
   })();
   const conflictTarget = sel ? { planId: sel.planId, teamId: sel.teamId, positionId: sel.positionId, positionName: sel.positionName, occupant: selOccupant } : null;
+  // resolver SIM-pereche pt. modalul de conflicte: întoarce echipa+poziția pereche DOAR dacă celula pereche
+  // de pe acel plan NU îl are deja pe acel om (altfel null → nu oferim).
+  const simPairResolver = (teamName, positionName, pPlanId, personId) => {
+    const pn = perecheName(teamName); if (!pn) return null;
+    const pt = teams.find((t) => eq(t.name, pn)); if (!pt) return null;
+    const pp = (pt.positions || []).find((p) => eq(p.name, positionName)); if (!pp) return null;
+    const colIdx = plans.findIndex((pl) => String(pl.id) === String(pPlanId));
+    if (colIdx < 0) return null; // planul nu e în vizor → nu putem verifica → nu oferim
+    const cell = (pp.cells || [])[colIdx];
+    if ((cell?.people || []).some((x) => String(x.personId) === String(personId))) return null; // deja acolo
+    return { pairTeamId: pt.teamId, pairPositionId: pp.positionId, pairTeamName: pt.name };
+  };
   const flash = (m) => { setToast(m); setTimeout(() => setToast(""), 2400); };
 
   // ─── navigare dată (checklist explicit „Quick load plans") ───
@@ -863,6 +875,7 @@ export default function MatrixPage() {
         onRosterChanged={refreshRec}
         onConflictResolved={() => { refreshRec(); loadCov(); softReconcile(); }}
         conflictTarget={conflictTarget}
+        simPair={simPairResolver}
         onReassignOpen={(card, disableId) => { setReFilters({ fit: true, gender: "", sim: "" }); setReassignDisable(disableId || null); setReassignBar({ teamId: card.teamId, teamName: card.teamName, positionId: card.positionId, positionName: card.positionName }); setBarOpen(true); }}
         onReassignClose={() => { setReassignBar(null); setReassignDisable(null); setBarOpen(false); }}
         canAssign={canAssign} canRoster={canRoster} canRules={canManage || !!caps.positionRules || canAssign}
