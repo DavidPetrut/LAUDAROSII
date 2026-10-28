@@ -8,6 +8,7 @@
  * După orice acțiune: refetch → cardul rezolvat dispare (real-time). ZERO email.
  */
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import PersonAvatar from "./PersonAvatar";
 import { plansApi } from "@/lib/api/client";
 
@@ -19,6 +20,8 @@ export default function ConflictModal({ open, planId, person, positionId, onClos
   const [cand, setCand] = useState([]);        // candidați (fit poziția) pt. cardul deschis
   const [candLoading, setCandLoading] = useState(false);
   const [candQ, setCandQ] = useState("");
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   const fetchData = useCallback(async () => {
     if (!person?.id || !planId) return;
@@ -68,12 +71,12 @@ export default function ConflictModal({ open, planId, person, positionId, onClos
     } catch {} finally { setBusy(false); setReOn(null); }
   }
 
-  if (!open) return null;
+  if (!open || !mounted || typeof document === "undefined") return null;
   const conflicts = data?.conflicts || [];
   const blockouts = data?.blockouts || [];
   const nothing = !loading && conflicts.length === 0 && blockouts.length === 0;
 
-  return (
+  return createPortal((
     <div className="cm-ov" onClick={() => !busy && onClose?.()}>
       <div className="cm-dlg" onClick={(e) => e.stopPropagation()}>
         <div className="cm-head">
@@ -155,7 +158,7 @@ export default function ConflictModal({ open, planId, person, positionId, onClos
       <style jsx>{`
         .cm-ov { position: fixed; inset: 0; background: rgba(0,0,0,.58); z-index: 95; display: flex; align-items: center; justify-content: center; padding: 20px; animation: cmov .14s ease; }
         @keyframes cmov { from { opacity: 0; } to { opacity: 1; } }
-        .cm-dlg { background: var(--modal-bg); border: 1px solid var(--border-strong); border-radius: 14px; width: 620px; max-width: 96vw; max-height: 88vh; display: flex; flex-direction: column;
+        .cm-dlg { background: var(--modal-bg); border: 1px solid var(--border-strong); border-radius: 14px; width: 900px; max-width: 94vw; max-height: 88vh; display: flex; flex-direction: column;
           box-shadow: 0 30px 80px rgba(0,0,0,.55); animation: cmin .18s cubic-bezier(.2,.9,.3,1.2); }
         @keyframes cmin { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
         .cm-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--border); flex: none; }
@@ -207,5 +210,5 @@ export default function ConflictModal({ open, planId, person, positionId, onClos
         .cm-blkr { color: var(--text-dim); font-size: 12.5px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       `}</style>
     </div>
-  );
+  ), document.body);
 }

@@ -864,6 +864,19 @@ router.get("/positions/:positionId/roster", requireAny(CAN_VIEW_MATRIX), async (
   } catch (err) { console.error("[pc] GET position roster:", err.message); res.status(500).json({ error: "Eroare la roster." }); }
 });
 
+/* ───────── GET /positions/:positionId/is-roster?personId=X — face persoana parte din rosterul poziției? ─────────
+   Check rapid ÎNAINTE de asignare: dacă NU → frontend-ul cere întâi decizia (guest/permanent) și scrie
+   în DB DOAR după alegere. Așa, X/Escape/refresh NU lasă persoana asignată. */
+router.get("/positions/:positionId/is-roster", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
+  try {
+    const positionId = OID(req.params.positionId);
+    const personId = OID(req.query.personId);
+    if (!positionId || !personId) return res.status(400).json({ error: "positionId și personId necesare." });
+    const mem = await PcTeamMember.findOne(scoped(req, { positionIds: positionId, personId })).select("_id").lean();
+    res.json({ inRoster: !!mem });
+  } catch (err) { console.error("[pc] GET is-roster:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
 /* ───────── GET /:id/recommend — bara dreaptă: candidați pt. o poziție, cu „due" + conflicte ─────────
    Sortare: fără conflict întâi, apoi cei care n-au mai fost de mult pe poziție (due). FĂRĂ email. */
 router.get("/:id/recommend", requireAny(CAN_VIEW_MATRIX), async (req, res) => {

@@ -226,7 +226,7 @@ export default function AssignSidebar({
                     <span className="aa-mn">{personName(p)}</span>
                     {canAssign && (
                     <button className="aa-asg" disabled={assigning} title="Asignează pe poziție"
-                      onClick={() => onPick?.({ id: p.id, name: personName(p), avatar: p.avatar, initials: p.initials }, mirror?.available ? mirrorOn : false, [...selTimes])}>Asignează</button>
+                      onClick={() => onPick?.({ id: p.id, name: personName(p), avatar: p.avatar, initials: p.initials, inRoster: true }, mirror?.available ? mirrorOn : false, [...selTimes])}>Asignează</button>
                     )}
                     <button className="aa-rm" title="Scoate din roster" onClick={() => rosterRemovePerson(p)}>×</button>
                   </div>

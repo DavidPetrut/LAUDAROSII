@@ -118,6 +118,8 @@ export const plansApi = {
   setPositionRules: (positionId, payload) => api.patch(`/plans/positions/${positionId}/rules`, payload),
   // „manual"/fișiere per poziție
   positionRoster: (positionId) => api.get(`/plans/positions/${positionId}/roster`),
+  // face persoana parte din rosterul poziției? (check înainte de asignare → decizie guest/permanent)
+  isRoster: (positionId, personId) => api.get(`/plans/positions/${positionId}/is-roster?personId=${encodeURIComponent(personId)}`),
   // detaliul conflictelor unei persoane pe ziua planului (slujiri + blockouts) — pt. modalul „Verifică"
   personConflicts: (planId, { personId, positionId }) => api.get(`/plans/${planId}/person-conflicts?personId=${encodeURIComponent(personId)}${positionId ? `&positionId=${encodeURIComponent(positionId)}` : ""}`),
   positionFiles: (positionId) => api.get(`/plans/positions/${positionId}/files`),

@@ -157,24 +157,28 @@ export default function PlanDetailPage() {
     const t = allTeamsList().find((x) => String(x.teamId) === String(tid));
     return (t?.groups || []).find((g) => String(g.positionId) === String(pid))?.positionName || "";
   };
-  function offerJoin(person, teamId, positionId, inPositionRoster, positionName) {
-    const realId = person?.id && !String(person.id).startsWith("tmp-");
-    if (!realId || inPositionRoster !== false) return;
-    setJoinModal({ teamId, positionId, positionName: positionName || tmPosName(teamId, positionId), teamName: tmTeamName(teamId),
-      person: { id: person.id, name: person.name, avatar: person.avatar || "", initials: person.initials || "" } });
+  // check roster ÎNAINTE de a scrie: non-roster → „stage" (scriem DOAR la alegere). X/Escape/refresh = nimic scris.
+  async function needsJoin(p, positionId) {
+    if (!p?.id || String(p.id).startsWith("tmp-")) return false;
+    if (p.inRoster === true) return false;
+    if (p.inRoster === false) return true;
+    try { return (await plansApi.isRoster(positionId, p.id))?.inRoster === false; } catch { return true; }
   }
+  function stageJoin(j) { setJoinModal({ staged: true, ...j }); }
+  async function commitStaged(j) { await plansApi.assign(id, { personId: j.person.id, teamId: j.teamId, positionId: j.positionId, status: "unconfirmed", timeIds: j.timeIds }); }
   async function confirmJoinGuest() {
     if (!joinModal) return; const j = joinModal; setJoinBusy(true);
-    try { await plansApi.guestLog(id, { personId: j.person.id, teamId: j.teamId, positionId: j.positionId }); flash(`${j.person.name} — guest o zi pe „${j.positionName}" (logat, fără email).`); }
-    catch (e) { flash(e?.message || "Eroare la log."); }
+    try { if (j.staged) await commitStaged(j); await plansApi.guestLog(id, { personId: j.person.id, teamId: j.teamId, positionId: j.positionId }); flash(`${j.person.name} — guest o zi pe „${j.positionName}" (logat, fără email).`); reconcileTeams(); refreshRec(); }
+    catch (e) { flash(e?.message || "Eroare."); reconcileTeams(); }
     finally { setJoinBusy(false); setJoinModal(null); }
   }
   async function confirmJoinPermanent() {
     if (!joinModal) return; const j = joinModal; setJoinBusy(true);
-    try { await peopleApi.rosterAdd(j.person.id, [j.positionId]); flash(`${j.person.name} adăugat oficial pe „${j.positionName}".`); refreshRec(); reconcileTeams(); }
-    catch (e) { flash(e?.message || "Eroare."); }
+    try { if (j.staged) await commitStaged(j); await peopleApi.rosterAdd(j.person.id, [j.positionId]); flash(`${j.person.name} adăugat oficial pe „${j.positionName}".`); reconcileTeams(); refreshRec(); }
+    catch (e) { flash(e?.message || "Eroare."); reconcileTeams(); }
     finally { setJoinBusy(false); setJoinModal(null); }
   }
+  function cancelJoin() { const wasStaged = joinModal?.staged; setJoinModal(null); if (wasStaged) reconcileTeams(); }
 
   async function assignPerson(p, mirror, timeIds) {
     if (!sel) return;
@@ -184,11 +188,17 @@ export default function PlanDetailPage() {
     patchGroup(sel.teamId, sel.positionId, (g) => push(g, `tmp-a-${Date.now()}`));
     const doMirror = mirror && pereche;
     if (doMirror) patchGroup(pereche.teamId, pereche.positionId, (g) => push(g, `tmp-b-${Date.now()}`));
+    // om nou pe poziție (fără mirror) → cere decizia înainte de a scrie; anularea nu lasă nimic
+    if (!doMirror && await needsJoin(p, sel.positionId)) {
+      setAssigning(false);
+      stageJoin({ teamId: sel.teamId, positionId: sel.positionId, timeIds: tIds, positionName: sel.positionName, teamName: sel.teamName || tmTeamName(sel.teamId),
+        person: { id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "" } });
+      return;
+    }
     try {
-      const r = await plansApi.assign(id, { personId: p.id, teamId: sel.teamId, positionId: sel.positionId, status: "unconfirmed", timeIds: tIds });
+      await plansApi.assign(id, { personId: p.id, teamId: sel.teamId, positionId: sel.positionId, status: "unconfirmed", timeIds: tIds });
       if (doMirror) await plansApi.assign(id, { personId: p.id, teamId: pereche.teamId, positionId: pereche.positionId, status: "unconfirmed", timeIds: tIds });
       flash(doMirror ? `Asignat + ${pereche.teamName} (fără email).` : "Asignat (fără email)."); reconcileTeams(); refreshRec();
-      if (!doMirror) offerJoin(p, sel.teamId, sel.positionId, r?.inPositionRoster, sel.positionName);
     }
     catch (e) { flash(e?.message || "Eroare."); reconcileTeams(); }
     finally { setAssigning(false); }
@@ -226,10 +236,9 @@ export default function PlanDetailPage() {
     patchGroup(teamId, positionId, (g) => ({ ...g, needed: Math.max(0, (g.needed || 0) - 1), people: [...g.people, { personId: d.personId, assignmentId: tmpId, name: d.name, avatar: d.avatar, initials: d.initials, status: "unconfirmed", isGuest: d.isGuest }] }));
     if (doMove) patchGroup(d.teamId, d.positionId, (g) => ({ ...g, people: g.people.filter((x) => String(x.assignmentId) !== String(d.assignmentId)) }));
     try {
-      const r = await plansApi.assign(id, d.isGuest ? { guestName: d.name, teamId, positionId } : { personId: d.personId, teamId, positionId, status: "unconfirmed" });
+      await plansApi.assign(id, d.isGuest ? { guestName: d.name, teamId, positionId } : { personId: d.personId, teamId, positionId, status: "unconfirmed" });
       if (doMove) await plansApi.unassign(id, d.assignmentId);
       flash(doMove ? "Mutat." : "Copiat."); reconcileTeams(); refreshRec();
-      if (!d.isGuest) offerJoin({ id: d.personId, name: d.name, avatar: d.avatar, initials: d.initials }, teamId, positionId, r?.inPositionRoster);
     } catch (e) { flash(e?.message || "Eroare."); reconcileTeams(); }
   }
   async function saveEdit(payload) {
@@ -376,7 +385,7 @@ export default function PlanDetailPage() {
         <EditPersonModal person={editing} onClose={() => setEditing(null)} onSave={saveEdit}
           onRemove={() => { removePerson(editing.teamId, editing.positionId, editing.assignmentId); setEditing(null); }} />
       )}
-      <PositionJoinModal data={joinModal} busy={joinBusy} onGuest={confirmJoinGuest} onPermanent={confirmJoinPermanent} onClose={() => !joinBusy && setJoinModal(null)} />
+      <PositionJoinModal data={joinModal} busy={joinBusy} onGuest={confirmJoinGuest} onPermanent={confirmJoinPermanent} onClose={() => !joinBusy && cancelJoin()} />
       {dragActive && dragHint && <div className="drag-hint">⇄ {dragHint}</div>}
       {toast && <div className="toast">{toast}</div>}
 
