@@ -204,7 +204,7 @@ export default function CoverageBar({
                   <span className="cbw-simlb">Fit</span>
                 </button>
                 <button type="button" className={`cbw-opt fit no ${filters.position && !filters.fit ? "on" : ""}`} disabled={!filters.position} onClick={() => onSetFilter?.("fit", false)} title="Toți candidații (poziția rămâne prioritizată)">
-                  <span className="cbw-simlb">Toate</span>
+                  <span className="cbw-simlb">All</span>
                 </button>
               </div>
             </div>
