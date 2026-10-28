@@ -18,6 +18,7 @@ export default function PersonPage() {
   const [p, setP] = useState(null);
   const [teams, setTeams] = useState([]);
   const [schedule, setSchedule] = useState([]);
+  const [guestLogs, setGuestLogs] = useState([]); // „guest de N ori pe poziția X"
   const [blockouts, setBlockouts] = useState([]);
   const [onBreak, setOnBreak] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
@@ -30,8 +31,8 @@ export default function PersonPage() {
 
   const load = useCallback(async () => {
     try {
-      const [prof, t, s, b] = await Promise.all([peopleApi.get(id), peopleApi.teams(id), peopleApi.schedule(id), peopleApi.blockouts(id)]);
-      setP(prof); setTeams(t.teams || []); setSchedule(s.schedule || []); setBlockouts(b.blockouts || []); setOnBreak(!!b.onBreak);
+      const [prof, t, s, b, gl] = await Promise.all([peopleApi.get(id), peopleApi.teams(id), peopleApi.schedule(id), peopleApi.blockouts(id), peopleApi.guestLogs(id).catch(() => ({ positions: [] }))]);
+      setP(prof); setTeams(t.teams || []); setSchedule(s.schedule || []); setBlockouts(b.blockouts || []); setOnBreak(!!b.onBreak); setGuestLogs(gl.positions || []);
     } catch (e) { setErr(e?.message || "Eroare."); }
     finally { setLoading(false); }
   }, [id]);
@@ -194,6 +195,24 @@ export default function PersonPage() {
                 </div>
               ))}
             </div>
+            {guestLogs.length > 0 && (
+              <div className="card">
+                <div className="card-h">Istoric guest</div>
+                <div className="muted gl-sub">Pus temporar (o zi) pe poziții din care nu face parte — util ca să decizi dacă îl adaugi oficial.</div>
+                {guestLogs.map((g, i) => (
+                  <div key={i} className="gl-row">
+                    <div className="gl-main">
+                      <span className="gl-pos">{g.positionName || "Poziție"}</span>
+                      {g.teamName ? <span className="gl-team">{g.teamName}</span> : null}
+                    </div>
+                    <div className="gl-right">
+                      {g.lastDate ? <span className="gl-last">ultima: {g.lastDate}</span> : null}
+                      <span className="gl-count" title={`Guest de ${g.count} ori pe poziția asta`}>×{g.count}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -299,6 +318,15 @@ export default function PersonPage() {
         .tst { color: var(--text-faint); font-size: 11.5px; margin: 2px 0 7px; }
         .tags { display: flex; flex-wrap: wrap; gap: 5px; }
         .tag { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; font-size: 11.5px; color: var(--text-dim); }
+        .gl-sub { font-size: 11.5px; line-height: 1.45; margin-bottom: 10px; }
+        .gl-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border-soft); }
+        .gl-row:last-child { border-bottom: none; }
+        .gl-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .gl-pos { color: var(--text); font-size: 13px; font-weight: 600; }
+        .gl-team { color: var(--text-faint); font-size: 11.5px; }
+        .gl-right { display: flex; align-items: center; gap: 10px; flex: none; }
+        .gl-last { color: var(--text-faint); font-size: 11px; }
+        .gl-count { color: #d7c27a; background: rgba(201,162,39,.14); border: 1px solid rgba(201,162,39,.4); border-radius: 20px; padding: 1px 9px; font-size: 11.5px; font-weight: 700; }
         .msg { padding: 10px 0; border-bottom: 1px solid var(--border-soft); } .msg.unread .m-sub { font-weight: 700; }
         .m-sub { color: var(--text); font-size: 13.5px; } .m-body { color: var(--text-dim); font-size: 12.5px; margin: 3px 0; } .m-date { color: var(--text-faint); font-size: 11px; }
         .details { display: grid; grid-template-columns: 140px 1fr; gap: 10px 14px; margin: 0; }

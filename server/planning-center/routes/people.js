@@ -14,6 +14,7 @@ const {
   PcTagGroup,
   PcTag,
   PcAssignment,
+  PcPositionGuestLog,
   PcPlan,
   PcBlockout,
   PcMessage,
@@ -496,6 +497,26 @@ router.get("/:id/schedule", requireCan("people.view"), async (req, res) => {
     out.sort((a, b) => new Date(a.sortDate) - new Date(b.sortDate));
     res.json({ schedule: out });
   } catch (err) { console.error("[pc] GET /people/:id/schedule:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
+/* GET /:id/guest-logs — de câte ori a fost persoana GUEST (o zi, fără roster) pe fiecare poziție.
+   Pt. Profile: „a fost guest de N ori pe poziția X" → decizi dacă o promovezi oficial pe poziție. */
+router.get("/:id/guest-logs", requireCan("people.view"), async (req, res) => {
+  try {
+    const personId = OID(req.params.id);
+    const tz = await profileTz(req);
+    const logs = await PcPositionGuestLog.find(scoped(req, { personId })).sort({ date: -1 }).lean();
+    const byPos = new Map();
+    for (const l of logs) {
+      const k = String(l.positionId);
+      if (!byPos.has(k)) byPos.set(k, { positionId: l.positionId, positionName: l.positionName || "", teamName: l.teamName || "", count: 0, lastDate: null, dates: [] });
+      const e = byPos.get(k);
+      e.count++;
+      if (l.date) { const d = fmtDay(l.date, tz); e.dates.push(d); if (!e.lastDate) e.lastDate = d; }
+    }
+    const positions = [...byPos.values()].sort((a, b) => b.count - a.count);
+    res.json({ total: logs.length, positions });
+  } catch (err) { console.error("[pc] GET /people/:id/guest-logs:", err.message); res.status(500).json({ error: "Eroare." }); }
 });
 
 /* GET /:id/blockouts — blockout-urile (viitoare) ale persoanei. */

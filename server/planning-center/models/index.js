@@ -28,6 +28,7 @@ module.exports = {
   PcItemNote: require("./PcItemNote"),
   PcNoteCategory: require("./PcNoteCategory"),
   PcAssignment: require("./PcAssignment"),
+  PcPositionGuestLog: require("./PcPositionGuestLog"),
   PcNeededPosition: require("./PcNeededPosition"),
   PcPlanNote: require("./PcPlanNote"),
   PcPlanFile: require("./PcPlanFile"),

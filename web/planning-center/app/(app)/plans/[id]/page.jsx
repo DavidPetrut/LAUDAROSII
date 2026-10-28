@@ -14,6 +14,7 @@ import { useAiSurface } from "@/lib/ai/useAiSurface";
 import PersonAvatar from "@/components/plans/PersonAvatar";
 import AssignSidebar from "@/components/plans/AssignSidebar";
 import EditPersonModal from "@/components/plans/EditPersonModal";
+import PositionJoinModal from "@/components/plans/PositionJoinModal";
 
 const TABS = ["Order", "Teams", "Rehearse"]; // Times/Files/Notes mutate în sidebar-ul STÂNGA (ca în PCO)
 
@@ -42,6 +43,8 @@ export default function PlanDetailPage() {
   const [recQuery, setRecQuery] = useState("");
   const [assigning, setAssigning] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [joinModal, setJoinModal] = useState(null); // om nou pe poziție → guest (o zi) / permanent (roster)
+  const [joinBusy, setJoinBusy] = useState(false);
   const [caps, setCaps] = useState({}); // capabilități granulare (din /me) pt. gating edit/view-only
   const canAssign = !!caps.assign, canMove = !!caps.move, canEditNeeded = !!caps.editNeeded, canRoster = !!caps.roster;
 
@@ -147,6 +150,32 @@ export default function PlanDetailPage() {
     if (pt && pg) pereche = { teamId: pt.teamId, teamName: pt.name, positionId: pg.positionId };
   }
 
+  // ── asignare dinamică (identic cu Matrix): om REAL pe o poziție din care NU face parte → guest/permanent ──
+  const allTeamsList = () => [...(data?.Teams?.myTeams || []), ...(data?.Teams?.otherTeams || [])];
+  const tmTeamName = (tid) => allTeamsList().find((t) => String(t.teamId) === String(tid))?.name || "";
+  const tmPosName = (tid, pid) => {
+    const t = allTeamsList().find((x) => String(x.teamId) === String(tid));
+    return (t?.groups || []).find((g) => String(g.positionId) === String(pid))?.positionName || "";
+  };
+  function offerJoin(person, teamId, positionId, inPositionRoster, positionName) {
+    const realId = person?.id && !String(person.id).startsWith("tmp-");
+    if (!realId || inPositionRoster !== false) return;
+    setJoinModal({ teamId, positionId, positionName: positionName || tmPosName(teamId, positionId), teamName: tmTeamName(teamId),
+      person: { id: person.id, name: person.name, avatar: person.avatar || "", initials: person.initials || "" } });
+  }
+  async function confirmJoinGuest() {
+    if (!joinModal) return; const j = joinModal; setJoinBusy(true);
+    try { await plansApi.guestLog(id, { personId: j.person.id, teamId: j.teamId, positionId: j.positionId }); flash(`${j.person.name} — guest o zi pe „${j.positionName}" (logat, fără email).`); }
+    catch (e) { flash(e?.message || "Eroare la log."); }
+    finally { setJoinBusy(false); setJoinModal(null); }
+  }
+  async function confirmJoinPermanent() {
+    if (!joinModal) return; const j = joinModal; setJoinBusy(true);
+    try { await peopleApi.rosterAdd(j.person.id, [j.positionId]); flash(`${j.person.name} adăugat oficial pe „${j.positionName}".`); refreshRec(); reconcileTeams(); }
+    catch (e) { flash(e?.message || "Eroare."); }
+    finally { setJoinBusy(false); setJoinModal(null); }
+  }
+
   async function assignPerson(p, mirror, timeIds) {
     if (!sel) return;
     setAssigning(true);
@@ -156,9 +185,10 @@ export default function PlanDetailPage() {
     const doMirror = mirror && pereche;
     if (doMirror) patchGroup(pereche.teamId, pereche.positionId, (g) => push(g, `tmp-b-${Date.now()}`));
     try {
-      await plansApi.assign(id, { personId: p.id, teamId: sel.teamId, positionId: sel.positionId, status: "unconfirmed", timeIds: tIds });
+      const r = await plansApi.assign(id, { personId: p.id, teamId: sel.teamId, positionId: sel.positionId, status: "unconfirmed", timeIds: tIds });
       if (doMirror) await plansApi.assign(id, { personId: p.id, teamId: pereche.teamId, positionId: pereche.positionId, status: "unconfirmed", timeIds: tIds });
       flash(doMirror ? `Asignat + ${pereche.teamName} (fără email).` : "Asignat (fără email)."); reconcileTeams(); refreshRec();
+      if (!doMirror) offerJoin(p, sel.teamId, sel.positionId, r?.inPositionRoster, sel.positionName);
     }
     catch (e) { flash(e?.message || "Eroare."); reconcileTeams(); }
     finally { setAssigning(false); }
@@ -196,9 +226,10 @@ export default function PlanDetailPage() {
     patchGroup(teamId, positionId, (g) => ({ ...g, needed: Math.max(0, (g.needed || 0) - 1), people: [...g.people, { personId: d.personId, assignmentId: tmpId, name: d.name, avatar: d.avatar, initials: d.initials, status: "unconfirmed", isGuest: d.isGuest }] }));
     if (doMove) patchGroup(d.teamId, d.positionId, (g) => ({ ...g, people: g.people.filter((x) => String(x.assignmentId) !== String(d.assignmentId)) }));
     try {
-      await plansApi.assign(id, d.isGuest ? { guestName: d.name, teamId, positionId } : { personId: d.personId, teamId, positionId, status: "unconfirmed" });
+      const r = await plansApi.assign(id, d.isGuest ? { guestName: d.name, teamId, positionId } : { personId: d.personId, teamId, positionId, status: "unconfirmed" });
       if (doMove) await plansApi.unassign(id, d.assignmentId);
       flash(doMove ? "Mutat." : "Copiat."); reconcileTeams(); refreshRec();
+      if (!d.isGuest) offerJoin({ id: d.personId, name: d.name, avatar: d.avatar, initials: d.initials }, teamId, positionId, r?.inPositionRoster);
     } catch (e) { flash(e?.message || "Eroare."); reconcileTeams(); }
   }
   async function saveEdit(payload) {
@@ -344,6 +375,7 @@ export default function PlanDetailPage() {
         <EditPersonModal person={editing} onClose={() => setEditing(null)} onSave={saveEdit}
           onRemove={() => { removePerson(editing.teamId, editing.positionId, editing.assignmentId); setEditing(null); }} />
       )}
+      <PositionJoinModal data={joinModal} busy={joinBusy} onGuest={confirmJoinGuest} onPermanent={confirmJoinPermanent} onClose={() => !joinBusy && setJoinModal(null)} />
       {dragActive && dragHint && <div className="drag-hint">⇄ {dragHint}</div>}
       {toast && <div className="toast">{toast}</div>}
 

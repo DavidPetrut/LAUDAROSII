@@ -7,6 +7,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const {
   PcPlan, PcPlanTime, PcPlanItem, PcAssignment, PcNeededPosition, PcPlanNote, PcPlanFile,
+  PcPositionGuestLog,
   PcServiceType, PcTeam, PcPosition, PcTeamMember, PcPerson, PcOrg, PcCampus, PcSong,
   PcArrangement, PcKey, PcSongFile, PcBlockout,
 } = require("../models");
@@ -667,10 +668,41 @@ router.post("/:id/assignments", requireAny(CAN_ASSIGN), async (req, res) => {
       if (!np) np = await PcNeededPosition.findOne(scoped(req, { planId, teamId, positionId, count: { $gt: 0 } }));
       if (np) { np.count -= 1; await np.save(); }
     }
-    res.status(201).json({ id: assignment._id });
+    // „fit the position?" — e persoana în rosterul OFICIAL al poziției? (double-check autoritar, server-side).
+    // Frontend-ul decide, pe baza asta, dacă arată modalul guest/permanent. Invitații clasici NU declanșează.
+    let inPositionRoster = true;
+    if (positionId && !isGuest) {
+      const mem = await PcTeamMember.findOne(scoped(req, { positionIds: positionId, personId })).select("_id").lean();
+      inPositionRoster = !!mem;
+    }
+    res.status(201).json({ id: assignment._id, inPositionRoster });
   } catch (err) {
     console.error("[pc] POST /plans/:id/assignments:", err.message);
     res.status(500).json({ error: "Eroare la programare: " + err.message });
+  }
+});
+
+/* ───────── POST /:id/guest-log — loghează un om REAL pus ca GUEST (o zi) pe o poziție din care NU face parte ─────────
+   Nu atinge asignarea (aia e deja creată) și NU-l adaugă în roster. Doar jurnal → „de câte ori a fost guest aici". */
+router.post("/:id/guest-log", requireAny(CAN_ASSIGN), async (req, res) => {
+  try {
+    const planId = OID(req.params.id);
+    const b = req.body || {};
+    const personId = OID(b.personId), positionId = OID(b.positionId), teamId = OID(b.teamId);
+    if (!personId || !positionId) return res.status(400).json({ error: "personId și positionId sunt necesare." });
+    const [plan, pos, team] = await Promise.all([
+      PcPlan.findOne(scoped(req, { _id: planId })).select("sortDate").lean(),
+      PcPosition.findOne(scoped(req, { _id: positionId })).select("name").lean(),
+      teamId ? PcTeam.findOne(scoped(req, { _id: teamId })).select("name").lean() : null,
+    ]);
+    const doc = await PcPositionGuestLog.create(stamp(req, {
+      personId, positionId, teamId: teamId || null, planId: planId || null,
+      date: plan?.sortDate || null, positionName: pos?.name || "", teamName: team?.name || "",
+    }));
+    res.status(201).json({ id: doc._id });
+  } catch (err) {
+    console.error("[pc] POST /plans/:id/guest-log:", err.message);
+    res.status(500).json({ error: "Eroare la logul de guest: " + err.message });
   }
 });
 

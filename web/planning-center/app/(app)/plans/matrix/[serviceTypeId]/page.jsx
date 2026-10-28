@@ -17,6 +17,7 @@ import AssignSidebar from "@/components/plans/AssignSidebar";
 import EditPersonModal from "@/components/plans/EditPersonModal";
 import CoverageBar from "@/components/plans/CoverageBar";
 import TeamsManagerModal from "@/components/plans/TeamsManagerModal";
+import PositionJoinModal from "@/components/plans/PositionJoinModal";
 
 /* numele echipei pereche: „Asimilare (SIM 1)" ↔ „Asimilare (SIM 2)" */
 function perecheName(name = "") {
@@ -77,6 +78,8 @@ export default function MatrixPage() {
   const [editing, setEditing] = useState(null);
   const [simPair, setSimPair] = useState(null); // prompt „pune-l și la SIM-ul pereche?" după asignare
   const [simBusy, setSimBusy] = useState(false);
+  const [joinModal, setJoinModal] = useState(null); // om nou pe poziție → guest (o zi) / permanent (roster)
+  const [joinBusy, setJoinBusy] = useState(false);
   const [barOpen, setBarOpen] = useState(false);   // bara de jos „listă live"
   const [browse, setBrowse] = useState(false);     // sidebar dreapta în mod „vizualizare toți oamenii" (fără poziție)
   const [cov, setCov] = useState(null);
@@ -285,6 +288,35 @@ export default function MatrixPage() {
     finally { setSimBusy(false); setSimPair(null); }
   }
 
+  // ── asignare dinamică: om REAL pus pe o poziție din care NU face parte → guest (o zi) / permanent (roster) ──
+  const teamNameOf = (tid) => teams.find((t) => String(t.teamId) === String(tid))?.name || "";
+  const posNameOf = (tid, pid) => {
+    const t = teams.find((x) => String(x.teamId) === String(tid));
+    return (t?.positions || []).find((p) => String(p.positionId) === String(pid))?.name || "";
+  };
+  // după o asignare: dacă serverul zice că NU e în rosterul poziției → modal; altfel oferă SIM-pair (ca înainte)
+  function offerJoinOrSim(planId, person, teamId, positionId, inPositionRoster, colIdx, positionName) {
+    const realId = person?.id && !String(person.id).startsWith("tmp-");
+    if (realId && inPositionRoster === false) {
+      setJoinModal({ planId, teamId, positionId, colIdx, positionName: positionName || posNameOf(teamId, positionId), teamName: teamNameOf(teamId),
+        person: { id: person.id, name: person.name, avatar: person.avatar || "", initials: person.initials || "" } });
+    } else {
+      maybeOfferSimPair(planId, person, teamId, positionId, colIdx);
+    }
+  }
+  async function confirmJoinGuest() {
+    if (!joinModal) return; const j = joinModal; setJoinBusy(true);
+    try { await plansApi.guestLog(j.planId, { personId: j.person.id, teamId: j.teamId, positionId: j.positionId }); flash(`${j.person.name} — guest o zi pe „${j.positionName}" (logat, fără email).`); }
+    catch (e) { flash(e?.message || "Eroare la log."); }
+    finally { setJoinBusy(false); setJoinModal(null); loadCov(); }
+  }
+  async function confirmJoinPermanent() {
+    if (!joinModal) return; const j = joinModal; setJoinBusy(true);
+    try { await peopleApi.rosterAdd(j.person.id, [j.positionId]); flash(`${j.person.name} adăugat oficial pe „${j.positionName}".`); refreshRec(); loadCov(); softReconcile(); }
+    catch (e) { flash(e?.message || "Eroare."); }
+    finally { setJoinBusy(false); setJoinModal(null); }
+  }
+
   async function assignPerson(p, mirror, timeIds) {
     if (!sel) { flash("Click pe o căsuță (poziție) din grilă ca să asignezi pe cineva."); return; }
     setAssigning(true);
@@ -299,7 +331,7 @@ export default function MatrixPage() {
       if (r?.id) patchCell(sel.teamId, sel.positionId, sel.colIdx, (c) => ({ ...c, people: c.people.map((x) => String(x.assignmentId).startsWith("tmp-a-") ? { ...x, assignmentId: r.id } : x) }));
       if (doMirror) await plansApi.assign(sel.planId, { personId: p.id, teamId: pereche.teamId, positionId: pereche.positionId, status: "unconfirmed", timeIds: tIds });
       flash(doMirror ? `Asignat + ${pereche.teamName} (fără email).` : "Asignat (neconfirmat, fără email).");
-      if (!doMirror) maybeOfferSimPair(sel.planId, p, sel.teamId, sel.positionId, sel.colIdx);
+      if (!doMirror) offerJoinOrSim(sel.planId, p, sel.teamId, sel.positionId, r?.inPositionRoster, sel.colIdx, sel.positionName);
       refreshRec(); loadCov(); softReconcile();
     } catch (e) { flash(e?.message || "Eroare."); reconcile(); }
     finally { setAssigning(false); }
@@ -349,7 +381,7 @@ export default function MatrixPage() {
       if (r?.id) patchCell(teamId, positionId, colIdx, (c) => ({ ...c, people: c.people.map((x) => String(x.assignmentId) === String(tmpId) ? { ...x, assignmentId: r.id } : x) }));
       if (doMove && d.assignmentId) await plansApi.unassign(d.planId, d.assignmentId);
       flash(doMove ? "Mutat." : "Copiat."); loadCov(); softReconcile();
-      if (!d.isGuest) maybeOfferSimPair(planId, { id: d.personId, name: d.name, avatar: d.avatar, initials: d.initials }, teamId, positionId, colIdx);
+      if (!d.isGuest) offerJoinOrSim(planId, { id: d.personId, name: d.name, avatar: d.avatar, initials: d.initials }, teamId, positionId, r?.inPositionRoster, colIdx);
     } catch (e) { flash(e?.message || "Eroare."); reconcile(); }
   }
   async function changeNeeded(planId, teamId, positionId, colIdx, nextCount) {
@@ -416,9 +448,9 @@ export default function MatrixPage() {
       people: [...c.people, { personId: target.personId, assignmentId: `tmp-t-${Date.now()}`, name: target.name, avatar: target.avatar || "", initials: (target.name || "?").split(" ").map((s) => s[0]).join("").slice(0, 2).toUpperCase(), status: "unconfirmed" }],
     }));
     try {
-      await plansApi.assign(planId, { personId: target.personId, teamId, positionId, status: "unconfirmed" });
+      const r = await plansApi.assign(planId, { personId: target.personId, teamId, positionId, status: "unconfirmed" });
       flash(`⌖ ${target.name} planificat (neconfirmat, fără email).`);
-      maybeOfferSimPair(planId, { id: target.personId, name: target.name, avatar: target.avatar, initials: target.initials }, teamId, positionId, colIdx);
+      offerJoinOrSim(planId, { id: target.personId, name: target.name, avatar: target.avatar, initials: target.initials }, teamId, positionId, r?.inPositionRoster, colIdx);
       loadCov(); loadAvail(target.personId); softReconcile();
     } catch (e) { flash(e?.message || "Eroare."); reconcile(); }
     finally { setAssigning(false); }
@@ -827,6 +859,8 @@ export default function MatrixPage() {
           </div>
         </div>
       )}
+
+      <PositionJoinModal data={joinModal} busy={joinBusy} onGuest={confirmJoinGuest} onPermanent={confirmJoinPermanent} onClose={() => !joinBusy && setJoinModal(null)} />
 
       {toast && <div className="toast">{toast}</div>}
 

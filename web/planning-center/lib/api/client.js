@@ -104,6 +104,8 @@ export const plansApi = {
   },
   // asignează o persoană (DOAR DB, status unconfirmed implicit — NU trimite email)
   assign: (id, payload) => api.post(`/plans/${id}/assignments`, payload),
+  // loghează un om REAL pus ca guest (o zi) pe o poziție din care nu face parte (nu-l adaugă în roster)
+  guestLog: (id, payload) => api.post(`/plans/${id}/guest-log`, payload),
   // detaliu complet pt. modalul „Editing Scheduled Person" (email + times + timeline)
   getAssignment: (id, aid) => api.get(`/plans/${id}/assignments/${aid}`),
   updateAssignment: (id, aid, payload) => api.patch(`/plans/${id}/assignments/${aid}`, payload),
@@ -164,6 +166,8 @@ export const peopleApi = {
   update: (id, payload) => api.patch(`/people/${id}`, payload), // ex. { gender: "M"|"F"|"" }
   teams: (id) => api.get(`/people/${id}/teams`),
   schedule: (id) => api.get(`/people/${id}/schedule`),
+  // de câte ori a fost persoana guest pe fiecare poziție (pt. Profile)
+  guestLogs: (id) => api.get(`/people/${id}/guest-logs`),
   blockouts: (id) => api.get(`/people/${id}/blockouts`),
   messages: (id) => api.get(`/people/${id}/messages`),
   // blocaj de biserică (on-break) pus de planificator — ascunde persoana din liste. Fără email.
