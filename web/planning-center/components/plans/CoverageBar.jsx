@@ -182,11 +182,11 @@ export default function CoverageBar({
               <span className="cbw-lbl">Program</span>
               <div className="cbw sim">
                 <span className={`cbw-glow sim ${filters.sim === "1" ? "s1" : filters.sim === "2" ? "s2" : ""}`} aria-hidden />
-                <button type="button" className={`cbw-opt s1 ${filters.sim === "1" ? "on" : ""}`} onClick={() => onSetFilter?.("sim", "1")} title="Doar SIM 1">
-                  <b>1</b><em>SIM</em>
+                <button type="button" className={`cbw-opt sim s1 ${filters.sim === "1" ? "on" : ""}`} onClick={() => onSetFilter?.("sim", "1")} title="Doar SIM 1">
+                  <span className="cbw-simlb">SIM 1</span>
                 </button>
-                <button type="button" className={`cbw-opt s2 ${filters.sim === "2" ? "on" : ""}`} onClick={() => onSetFilter?.("sim", "2")} title="Doar SIM 2">
-                  <b>2</b><em>SIM</em>
+                <button type="button" className={`cbw-opt sim s2 ${filters.sim === "2" ? "on" : ""}`} onClick={() => onSetFilter?.("sim", "2")} title="Doar SIM 2">
+                  <span className="cbw-simlb">SIM 2</span>
                 </button>
               </div>
             </div>
@@ -273,6 +273,8 @@ export default function CoverageBar({
         .cbw-opt svg { width: 22px; height: 22px; }
         .cbw-opt b { font-size: 18px; font-weight: 800; line-height: 1; }
         .cbw-opt em { font-size: 8.5px; font-style: normal; letter-spacing: .6px; opacity: .75; }
+        .cbw-opt.sim { height: 38px; }
+        .cbw-simlb { font-size: 13px; font-weight: 800; letter-spacing: .4px; }
         .cbw-opt.on { transform: translateY(-1px) scale(1.04); }
         .cbw-opt.m.on { color: #9ecbff; } .cbw-opt.f.on { color: #ff9a94; }
         .cbw-opt.s1.on { color: #8fe0b4; } .cbw-opt.s2.on { color: #e6cb74; }
