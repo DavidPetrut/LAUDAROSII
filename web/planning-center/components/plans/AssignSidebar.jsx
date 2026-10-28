@@ -146,10 +146,13 @@ export default function AssignSidebar({
         <>
           <div className="asb-head">
             <span className="asb-title" title={title}>{title}</span>
+            {!loading && (browse
+              ? <span className="asb-badge neutral">toți oamenii</span>
+              : neededCount > 0
+                ? <span className="asb-badge need">{neededCount} needed{alreadyHere.length > 0 ? ` · ${alreadyHere.length} asignat` : ""}</span>
+                : alreadyHere.length > 0 ? <span className="asb-badge ok">acoperit</span> : null)}
             <button className="asb-x" onClick={onClose} aria-label="Închide">×</button>
           </div>
-
-          <div className="asb-need">{browse ? "Vizualizare — toți oamenii" : loading ? "…" : neededCount > 0 ? `${neededCount} people still needed` : "Poziție acoperită"}</div>
 
           {readOnly && <div className="asb-ro">Doar vizualizare — nu ai drept de editare aici.</div>}
 
@@ -180,7 +183,7 @@ export default function AssignSidebar({
               </button>
             )}
             {onSaveRules && positionId && canRules && (
-              <button className={`asb-filt ${rulesOn ? "on" : ""}`} title="Reguli poziție (gen / program / target)" onClick={() => setRulesOn((v) => !v)}>
+              <button className={`asb-filt ${rulesOn ? "on" : ""}`} title="Setări poziție (target / instrucțiuni / fișiere)" onClick={() => setRulesOn((v) => !v)}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09A1.65 1.65 0 0 0 9 4.6V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
               </button>
             )}
@@ -230,25 +233,7 @@ export default function AssignSidebar({
             <div className="asb-rules">
               <div className="rr-head">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09A1.65 1.65 0 0 0 9 4.6V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
-                <span>Reguli poziție</span>
-              </div>
-
-              <div className="rr-sec">
-                <span className="rr-ll">Gen</span>
-                <div className="seg">
-                  {[["any", "Oricine"], ["M", "Băieți"], ["F", "Fete"]].map(([v, l]) => (
-                    <button key={v} className={`seg-b ${draft.defaultGender === v ? "on" : ""}`} onClick={() => setDraft((d) => ({ ...d, defaultGender: v }))}>{l}</button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rr-sec">
-                <span className="rr-ll">Program</span>
-                <div className="seg">
-                  {[["any", "Oricare"], ["1", "SIM 1"], ["2", "SIM 2"]].map(([v, l]) => (
-                    <button key={v} className={`seg-b ${draft.defaultProgram === v ? "on" : ""}`} onClick={() => setDraft((d) => ({ ...d, defaultProgram: v }))}>{l}</button>
-                  ))}
-                </div>
+                <span>Setări</span>
               </div>
 
               <div className="rr-sec">
@@ -415,11 +400,14 @@ export default function AssignSidebar({
           transform: translateX(100%); transition: transform .16s ease; z-index: 40;
           display: flex; flex-direction: column; box-shadow: -8px 0 24px rgba(0,0,0,.28); }
         .asb.open { transform: translateX(0); }
-        .asb-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
-        .asb-title { color: var(--text); font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .asb-x { background: transparent; border: none; color: var(--text-faint); font-size: 22px; cursor: pointer; line-height: 1; padding: 0 2px; }
+        .asb-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+        .asb-title { color: var(--text); font-weight: 600; font-size: 15px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .asb-badge { flex: none; font-size: 11px; font-weight: 700; border-radius: 20px; padding: 2px 9px; white-space: nowrap; letter-spacing: .2px; }
+        .asb-badge.need { color: #e0b341; background: rgba(201,162,39,.14); border: 1px solid rgba(201,162,39,.4); }
+        .asb-badge.ok { color: var(--product); background: rgba(87,185,138,.14); border: 1px solid rgba(87,185,138,.4); }
+        .asb-badge.neutral { color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--border-strong); }
+        .asb-x { flex: none; background: transparent; border: none; color: var(--text-faint); font-size: 22px; cursor: pointer; line-height: 1; padding: 0 2px; }
         .asb-x:hover { color: var(--text); }
-        .asb-need { text-align: center; color: var(--text-dim); font-size: 13px; padding: 12px 10px 8px; }
         .asb-ro { margin: 0 16px 8px; padding: 7px 11px; border-radius: 8px; background: rgba(47,129,247,.1); border: 1px solid rgba(47,129,247,.3); color: #9cc4f5; font-size: 12px; text-align: center; }
         .asb-tabs { display: flex; gap: 8px; padding: 0 16px 10px; }
         .asb-tab { flex: 1; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim);
