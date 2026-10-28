@@ -53,8 +53,9 @@ export default function AssignSidebar({
     setAddOn(false); setAddQ(""); setAddRes([]); setRoster([]);
     const g = defaults?.gender && defaults.gender !== "any" ? defaults.gender : "";
     const p = defaults?.program && defaults.program !== "any" ? defaults.program : "";
-    // „Fit the position" pornește ON când e selectată o poziție (vezi doar rosterul ei); filtrele sunt vizibile by default
-    setGender(g); setSim(p); setFit(!!positionId && !browse); setSimOn(!!positionId && !browse);
+    // „Fit the position" pornește ON când e selectată o poziție (vezi doar rosterul ei), DAR panoul de filtre
+    // rămâne ÎNCHIS by default (se deschide din iconul de filtre) — nu-l arătăm automat.
+    setGender(g); setSim(p); setFit(!!positionId && !browse); setSimOn(false);
     setDraft({ defaultGender: defaults?.gender || "any", defaultProgram: defaults?.program || "any", targetPerMonth: defaults?.targetPerMonth || 0, instructions: instructions || "" });
     // eslint-disable-next-line
   }, [title, positionId, defaults?.gender, defaults?.program, defaults?.targetPerMonth, instructions]);
