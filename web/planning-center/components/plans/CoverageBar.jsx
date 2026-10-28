@@ -156,7 +156,7 @@ export default function CoverageBar({
                   {bqOpen[b.times] ? (
                     <div className="cb-search">
                       <svg className="cb-si" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="7" cy="7" r="4.5" /><path d="M14 14l-3.2-3.2" /></svg>
-                      <input autoFocus className="cb-sinput" placeholder={`Caută în „${b.label}"…`} value={bq[b.times] || ""}
+                      <input autoFocus className="cb-sinput" placeholder="caută..." value={bq[b.times] || ""}
                         onChange={(e) => setBqVal(b.times, e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Escape") closeBq(b.times); }} />
                       <button className="cb-sx" title="Închide căutarea" onClick={() => closeBq(b.times)}>×</button>
