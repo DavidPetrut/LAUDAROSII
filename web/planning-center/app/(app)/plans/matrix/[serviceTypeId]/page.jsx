@@ -172,7 +172,8 @@ export default function MatrixPage() {
     const first = ((pos?.cells || [])[sel.colIdx]?.people || [])[0];
     return first ? { assignmentId: first.assignmentId, personId: first.personId, name: first.name, avatar: first.avatar || "", initials: first.initials || "" } : null;
   })();
-  const conflictTarget = sel ? { planId: sel.planId, teamId: sel.teamId, positionId: sel.positionId, positionName: sel.positionName, occupant: selOccupant } : null;
+  const conflictTarget = sel ? { planId: sel.planId, teamId: sel.teamId, positionId: sel.positionId, positionName: sel.positionName,
+    teamName: teams.find((t) => String(t.teamId) === String(sel.teamId))?.name || "", occupant: selOccupant } : null;
   // resolver SIM-pereche pt. modalul de conflicte: întoarce echipa+poziția pereche DOAR dacă celula pereche
   // de pe acel plan NU îl are deja pe acel om (altfel null → nu oferim).
   const simPairResolver = (teamName, positionName, pPlanId, personId) => {

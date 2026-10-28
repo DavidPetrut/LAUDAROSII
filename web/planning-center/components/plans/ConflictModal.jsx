@@ -18,6 +18,9 @@ import PersonAvatar from "./PersonAvatar";
 import PositionJoinModal from "./PositionJoinModal";
 import { plansApi, peopleApi } from "@/lib/api/client";
 
+// SIM-ul din numele echipei: „Asimilare (SIM 1)" → "1"; fără SIM → ""
+const simOf = (name = "") => { const m = String(name).match(/\(\s*(?:sim\s*)?([12])\s*\)/i); return m ? m[1] : ""; };
+
 export default function ConflictModal({ open, planId, person, positionId, target, simPair, onClose, onResolved, onReassignOpen, onReassignClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -34,6 +37,7 @@ export default function ConflictModal({ open, planId, person, positionId, target
   const [confirmX, setConfirmX] = useState(false);
   const [pendingPick, setPendingPick] = useState(null); // om nou pe poziție → decizie guest/permanent (staged)
   const [pendingSim, setPendingSim] = useState(null);   // oferta „pune și la SIM-ul pereche" (staged)
+  const [recTip, setRecTip] = useState(null);           // assignmentId cu tooltip-ul de recomandare SIM deschis
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -153,6 +157,7 @@ export default function ConflictModal({ open, planId, person, positionId, target
   const nothing = !loading && conflicts.length === 0 && blockouts.length === 0;
   const lifted = !!flowCard;
   const flow = flowCard ? conflicts.find((c) => String(c.assignmentId) === String(flowCard)) : null;
+  const targetSim = simOf(target?.teamName); // SIM-ul poziției pe care o completăm (ex. „1")
 
   return createPortal((
     <div className={`cm-ov ${lifted ? "lifted" : ""}`} onClick={attemptClose}>
@@ -183,6 +188,8 @@ export default function ConflictModal({ open, planId, person, positionId, target
               {conflicts.map((c) => {
                 const op = opsForCard(c.assignmentId);
                 const inFlow = String(flowCard) === String(c.assignmentId);
+                const cardSim = simOf(c.teamName);
+                const recommended = !op && targetSim && cardSim && cardSim === targetSim; // același SIM ca poziția-țintă
                 return (
                 <div key={String(c.assignmentId)} className={`cm-card ${op ? "done" : ""}`}>
                   <div className="cm-crow">
@@ -191,6 +198,15 @@ export default function ConflictModal({ open, planId, person, positionId, target
                         <span className="cm-pos">{c.positionName}</span>
                         {op ? <span className="cm-resolved">{op.k === "unassign" ? "scos" : `→ ${op.inPerson?.name}`}</span>
                           : <span className={`cm-st ${c.status === "confirmed" ? "ok" : "pend"}`}>{c.status === "confirmed" ? "confirmat" : "neconfirmat"}</span>}
+                        {recommended && (
+                          <span className="cm-rec" onMouseEnter={() => setRecTip(c.assignmentId)} onMouseLeave={() => setRecTip(null)}
+                            onClick={(e) => { e.stopPropagation(); setRecTip(recTip === c.assignmentId ? null : c.assignmentId); }}>
+                            <span className="cm-recic">!</span>
+                            {recTip === c.assignmentId && (
+                              <span className="cm-rectip">Înlocuire perfectă: rezolvă conflictul de pe <b>SIM {cardSim}</b> — exact SIM-ul poziției pe care o completezi. Așa o eliberezi pe {person?.name} pe SIM {cardSim}, fără conflict nou.</span>
+                            )}
+                          </span>
+                        )}
                       </div>
                       <div className="cm-cmeta">
                         {c.serviceTypeName && <span>{c.serviceTypeName}</span>}
@@ -265,8 +281,8 @@ export default function ConflictModal({ open, planId, person, positionId, target
               <div className="cm-replace">
                 <div className="cm-rp">
                   {target.occupant
-                    ? (<><PersonAvatar person={target.occupant} size={34} showBadge={false} /><div className="cm-rpt"><div className="cm-rpn">{target.occupant.name}</div><div className="cm-rps">{target.positionName}</div></div></>)
-                    : (<div className="cm-rpfree"><div className="cm-rpn">Poziție liberă</div><div className="cm-rps">{target.positionName}</div></div>)}
+                    ? (<><PersonAvatar person={target.occupant} size={34} showBadge={false} /><div className="cm-rpt"><div className="cm-rpn">{target.occupant.name}</div><div className="cm-rps">{target.positionName}{target.teamName ? ` · ${target.teamName}` : ""}</div></div></>)
+                    : (<div className="cm-rpfree"><div className="cm-rpn">Poziție liberă</div><div className="cm-rps">{target.positionName}{target.teamName ? ` · ${target.teamName}` : ""}</div></div>)}
                 </div>
                 <span className="cm-arrow">→</span>
                 <div className="cm-rp in">
@@ -352,7 +368,7 @@ export default function ConflictModal({ open, planId, person, positionId, target
         .cm-stepnum { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 10px; }
         .cm-cn { color: var(--text-dim); background: var(--surface-2); border-radius: 20px; padding: 0 8px; font-size: 11px; font-weight: 700; }
         .cm-cn.blk { color: var(--danger); background: rgba(248,81,73,.12); }
-        .cm-card { background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 11px; overflow: hidden; transition: border-color .15s; }
+        .cm-card { background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 11px; transition: border-color .15s; }
         .cm-card.done { border-color: rgba(87,185,138,.45); background: rgba(87,185,138,.05); }
         .cm-crow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; }
         .cm-cmain { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -362,6 +378,12 @@ export default function ConflictModal({ open, planId, person, positionId, target
         .cm-st.ok { color: var(--product); border-color: rgba(87,185,138,.5); background: rgba(87,185,138,.1); }
         .cm-st.pend { color: var(--st-unconfirmed); border-color: rgba(210,153,34,.5); background: rgba(210,153,34,.1); }
         .cm-resolved { color: var(--product); font-size: 11px; font-weight: 700; border: 1px solid rgba(87,185,138,.5); background: rgba(87,185,138,.12); border-radius: 20px; padding: 1px 9px; }
+        .cm-rec { position: relative; display: inline-flex; cursor: pointer; }
+        .cm-recic { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; border-radius: 50%; background: var(--st-unconfirmed); color: #1a1205; font-size: 12px; font-weight: 900; box-shadow: 0 0 0 3px rgba(210,153,34,.22); animation: cmrecp 1.8s ease-in-out infinite; }
+        @keyframes cmrecp { 0%,100% { box-shadow: 0 0 0 3px rgba(210,153,34,.18); } 50% { box-shadow: 0 0 0 5px rgba(210,153,34,.32); } }
+        .cm-rectip { position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); width: 260px; background: #0c1016; border: 1px solid rgba(210,153,34,.5);
+          border-radius: 9px; padding: 9px 11px; color: var(--text-dim); font-size: 11.5px; font-weight: 400; line-height: 1.5; text-transform: none; letter-spacing: 0; box-shadow: 0 12px 30px rgba(0,0,0,.55); z-index: 10; }
+        .cm-rectip b { color: #e0b341; }
         .cm-cmeta { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 12.5px; flex-wrap: wrap; }
         .cm-dot { color: var(--text-faint); }
         .cm-date { color: var(--text); font-weight: 600; }
@@ -373,7 +395,7 @@ export default function ConflictModal({ open, planId, person, positionId, target
         .cm-undo { background: transparent; border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 7px; height: 32px; padding: 0 13px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
         .cm-undo:hover { color: var(--text); }
         .cm-re:disabled, .cm-rm:disabled, .cm-undo:disabled { opacity: .55; cursor: default; }
-        .cm-flow { border-top: 1px solid var(--border); padding: 12px 13px; background: var(--bg); animation: cmex .16s ease; }
+        .cm-flow { border-top: 1px solid var(--border); padding: 12px 13px; background: var(--bg); border-radius: 0 0 11px 11px; animation: cmex .16s ease; }
         @keyframes cmex { from { opacity: 0; } to { opacity: 1; } }
         .cm-steps { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
         .cm-step { display: inline-flex; align-items: center; gap: 7px; color: var(--text-faint); font-size: 12px; font-weight: 700; }
