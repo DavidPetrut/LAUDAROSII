@@ -15,7 +15,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import PersonAvatar from "./PersonAvatar";
-import { plansApi } from "@/lib/api/client";
+import PositionJoinModal from "./PositionJoinModal";
+import { plansApi, peopleApi } from "@/lib/api/client";
 
 export default function ConflictModal({ open, planId, person, positionId, target, onClose, onResolved, onReassignOpen, onReassignClose }) {
   const [data, setData] = useState(null);
@@ -31,6 +32,7 @@ export default function ConflictModal({ open, planId, person, positionId, target
   const [candQ, setCandQ] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmX, setConfirmX] = useState(false);
+  const [pendingPick, setPendingPick] = useState(null); // om nou pe poziție → decizie guest/permanent (staged)
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -44,10 +46,10 @@ export default function ConflictModal({ open, planId, person, positionId, target
   useEffect(() => { if (open) { setLoading(true); setOps([]); setFlowCard(null); setFlowStep(1); setManualOn(false); setCandQ(""); fetchData(); } }, [open, fetchData]);
   useEffect(() => {
     if (!open) return;
-    const onKey = (e) => { if (e.key === "Escape") attemptClose(); };
+    const onKey = (e) => { if (e.key === "Escape" && !pendingPick) attemptClose(); }; // modalul nested își tratează Esc singur
     window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line
-  }, [open, ops, flowCard, saving]);
+  }, [open, ops, flowCard, saving, pendingPick]);
   useEffect(() => () => { onReassignClose?.(); }, []); // eslint-disable-line
 
   // candidați pt. pasul 1 (înlocuitor pe poziția conflictului) — roster-first, exclude persoana curentă
@@ -76,16 +78,39 @@ export default function ConflictModal({ open, planId, person, positionId, target
   }
   function startFlow(c) { setFlowCard(c.assignmentId); setFlowStep(1); setManualOn(false); setCandQ(""); onReassignOpen?.(c, person.id); }
   function closeFlow() { setFlowCard(null); setFlowStep(1); setManualOn(false); onReassignClose?.(); }
-  function stageReplaceOnConflict(c, repl) { // pasul 1: pune `repl` în locul persoanei pe poziția conflictului
+  // om nou pe poziție? (inRoster știut din recommend/coverage, altfel întreabă serverul; la eșec → arată modalul)
+  async function needsJoin(p, posId) {
+    if (!p?.id) return false;
+    if (p.inRoster === true) return false;
+    if (p.inRoster === false) return true;
+    try { return (await plansApi.isRoster(posId, p.id))?.inRoster === false; } catch { return true; }
+  }
+  // pick (drag/manual) în pasul 1 → dacă e om nou pe poziția conflictului, întâi decizia guest/permanent
+  async function pickReplace(c, repl) {
+    if (await needsJoin(repl, c.positionId)) setPendingPick({ kind: "step1", c, repl, person: { id: repl.id, name: repl.name, avatar: repl.avatar || "", initials: repl.initials || "" }, positionName: c.positionName, teamName: c.teamName });
+    else stageReplaceOnConflict(c, repl, null);
+  }
+  // pasul 2 → dacă persoana (Diana) e nouă pe poziția selectată, întâi decizia guest/permanent
+  async function pickTarget() {
+    if (!target?.positionId) return;
+    if (await needsJoin(person, target.positionId)) setPendingPick({ kind: "step2", person, positionName: target.positionName, teamName: target.teamName || "" });
+    else stageAssignToTarget(null);
+  }
+  function resolvePendingJoin(join) { // „Guest"/„Poziție" din modalul nested → stage cu join
+    const pp = pendingPick; setPendingPick(null); if (!pp) return;
+    if (pp.kind === "step1") stageReplaceOnConflict(pp.c, pp.repl, join);
+    else stageAssignToTarget(join);
+  }
+  function stageReplaceOnConflict(c, repl, join) { // pasul 1: pune `repl` în locul persoanei pe poziția conflictului
     addOp({ k: "swap", planId: c.planId, teamId: c.teamId, positionId: c.positionId,
-      outAssignmentId: c.assignmentId, inPersonId: repl.id, inPerson: repl, card: c.assignmentId,
+      outAssignmentId: c.assignmentId, inPersonId: repl.id, inPerson: repl, join: join || null, card: c.assignmentId,
       label: `${repl.name} în locul lui ${person.name} pe ${c.positionName}` });
     setManualOn(false); setFlowStep(2); // trece la pasul 2 (opțional)
   }
-  function stageAssignToTarget() { // pasul 2: pune persoana (Diana) pe poziția SELECTATĂ, înlocuind ocupantul
+  function stageAssignToTarget(join) { // pasul 2: pune persoana (Diana) pe poziția SELECTATĂ, înlocuind ocupantul
     if (!target?.positionId) return;
     if (target.occupant?.assignmentId) addOp({ k: "unassign", planId: target.planId, assignmentId: target.occupant.assignmentId, label: `Scoate ${target.occupant.name} de pe ${target.positionName}` });
-    addOp({ k: "assign", planId: target.planId, teamId: target.teamId, positionId: target.positionId, inPersonId: person.id, inPerson: person,
+    addOp({ k: "assign", planId: target.planId, teamId: target.teamId, positionId: target.positionId, inPersonId: person.id, inPerson: person, join: join || null,
       label: `${person.name} pe ${target.positionName}` });
     closeFlow();
   }
@@ -97,10 +122,14 @@ export default function ConflictModal({ open, planId, person, positionId, target
   async function applyAll() {
     setSaving(true);
     try {
+      const applyJoin = async (op) => { // guest-log / roster-add, în funcție de decizia luată la drop
+        if (op.join === "guest") await plansApi.guestLog(op.planId, { personId: op.inPersonId, teamId: op.teamId, positionId: op.positionId });
+        else if (op.join === "permanent") await peopleApi.rosterAdd(op.inPersonId, [op.positionId]);
+      };
       for (const op of ops) {
         if (op.k === "unassign") { await plansApi.unassign(op.planId, op.assignmentId); }
-        else if (op.k === "assign") { await plansApi.assign(op.planId, { personId: op.inPersonId, teamId: op.teamId, positionId: op.positionId, status: "unconfirmed" }); }
-        else if (op.k === "swap") { await plansApi.assign(op.planId, { personId: op.inPersonId, teamId: op.teamId, positionId: op.positionId, status: "unconfirmed" }); await plansApi.unassign(op.planId, op.outAssignmentId); }
+        else if (op.k === "assign") { await plansApi.assign(op.planId, { personId: op.inPersonId, teamId: op.teamId, positionId: op.positionId, status: "unconfirmed" }); await applyJoin(op); }
+        else if (op.k === "swap") { await plansApi.assign(op.planId, { personId: op.inPersonId, teamId: op.teamId, positionId: op.positionId, status: "unconfirmed" }); await applyJoin(op); await plansApi.unassign(op.planId, op.outAssignmentId); }
       }
       onResolved?.(); onReassignClose?.(); onClose?.();
     } catch (e) { /* lăsăm modalul deschis */ } finally { setSaving(false); }
@@ -187,7 +216,7 @@ export default function ConflictModal({ open, planId, person, positionId, target
                           <div className={`cm-drop ${dropOver ? "over" : ""}`}
                             onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; if (!dropOver) setDropOver(true); }}
                             onDragLeave={() => setDropOver(false)}
-                            onDrop={(e) => { e.preventDefault(); setDropOver(false); try { const raw = e.dataTransfer.getData("application/pc-person"); if (raw) stageReplaceOnConflict(c, JSON.parse(raw)); } catch {} }}>
+                            onDrop={(e) => { e.preventDefault(); setDropOver(false); try { const raw = e.dataTransfer.getData("application/pc-person"); if (raw) pickReplace(c, JSON.parse(raw)); } catch {} }}>
                             <span>Trage o persoană din <b>Listă live</b> aici ca s-o pui în locul lui</span>
                             <button className="cm-manualbtn" onClick={() => { if (manualOn) setManualOn(false); else { setManualOn(true); loadCand(c, ""); } }}>
                               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 3v10M3 8h10" /></svg>
@@ -201,7 +230,7 @@ export default function ConflictModal({ open, planId, person, positionId, target
                                 {candLoading && <div className="cm-muted sm">Se caută…</div>}
                                 {!candLoading && cand.length === 0 && <div className="cm-muted sm">Niciun candidat.</div>}
                                 {cand.map((p) => (
-                                  <button key={String(p.id)} className="cm-cand" onClick={() => stageReplaceOnConflict(c, p)} title="Pune-l în locul lui">
+                                  <button key={String(p.id)} className="cm-cand" onClick={() => pickReplace(c, p)} title="Pune-l în locul lui">
                                     <PersonAvatar person={p} size={24} showBadge={false} />
                                     {p.inRoster && <span className="cm-rost" title="În rosterul poziției" />}
                                     <span className="cm-candn">{p.name}</span>
@@ -237,7 +266,7 @@ export default function ConflictModal({ open, planId, person, positionId, target
                   <PersonAvatar person={person} size={34} showBadge={false} />
                   <div className="cm-rpt"><div className="cm-rpn">{person?.name}</div><div className="cm-rps">o pui aici</div></div>
                 </div>
-                <button className="cm-putbtn" disabled={saving} onClick={stageAssignToTarget}>{target.occupant ? "Înlocuiește" : "Pune pe poziție"}</button>
+                <button className="cm-putbtn" disabled={saving} onClick={pickTarget}>{target.occupant ? "Înlocuiește" : "Pune pe poziție"}</button>
               </div>
             </div>
           )}
@@ -255,6 +284,13 @@ export default function ConflictModal({ open, planId, person, positionId, target
             </div>
           )}
         </div>
+
+        <PositionJoinModal
+          data={pendingPick ? { person: pendingPick.person, positionName: pendingPick.positionName, teamName: pendingPick.teamName } : null}
+          busy={false}
+          onGuest={() => resolvePendingJoin("guest")}
+          onPermanent={() => resolvePendingJoin("permanent")}
+          onClose={() => setPendingPick(null)} />
 
         {confirmX && (
           <div className="cm-xov" onClick={() => setConfirmX(false)}>

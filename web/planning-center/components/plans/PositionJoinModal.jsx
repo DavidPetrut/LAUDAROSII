@@ -54,7 +54,7 @@ export default function PositionJoinModal({ data, busy, onGuest, onPermanent, on
       </div>
 
       <style jsx>{`
-        .pj-ov { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 90; display: flex; align-items: center; justify-content: center; padding: 16px; animation: pjov .14s ease; }
+        .pj-ov { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 130; display: flex; align-items: center; justify-content: center; padding: 16px; animation: pjov .14s ease; }
         @keyframes pjov { from { opacity: 0; } to { opacity: 1; } }
         .pj-dlg { background: var(--modal-bg); border: 1px solid var(--border-strong); border-radius: 13px; padding: 20px 22px; width: 440px; max-width: 94vw; box-shadow: 0 24px 64px rgba(0,0,0,.5); animation: pjin .18s cubic-bezier(.2,.9,.3,1.2); }
         @keyframes pjin { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
