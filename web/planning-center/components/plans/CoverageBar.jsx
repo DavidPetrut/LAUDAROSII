@@ -22,7 +22,7 @@ function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return
 
 export default function CoverageBar({
   open, onToggle, cov, loading, filters = {}, onRemoveFilter, onSetFilter, onPersonDragStart, onPersonDragEnd, style,
-  target = null, targetSched = null, targetAvail = {}, onCloseTarget,
+  target = null, targetSched = null, targetAvail = {}, onCloseTarget, reassignMode = false,
 }) {
   const [view, setView] = useState("all");
   const [tab, setTab] = useState("live"); // "live" | "person"
@@ -69,7 +69,7 @@ export default function CoverageBar({
   const activePerson = tab === "person" && target;
 
   return (
-    <div className={`covbar ${open ? "open" : ""}`} style={style}>
+    <div className={`covbar ${open ? "open" : ""} ${reassignMode ? "reassign" : ""}`} style={style}>
       {/* mâner + TAB-uri */}
       <div className="cb-handle" onClick={onToggle}>
         <span className="cb-grip" />
@@ -177,7 +177,7 @@ export default function CoverageBar({
                   {people.length === 0 && <div className="cb-empty">{bqOpen[b.times] && q ? "Niciun rezultat." : "—"}</div>}
                   {people.map((p) => (
                     <div key={p.id} className="cb-card" draggable
-                      onDragStart={(e) => { e.dataTransfer.effectAllowed = "copy"; onPersonDragStart?.(p); }}
+                      onDragStart={(e) => { e.dataTransfer.effectAllowed = "copy"; try { e.dataTransfer.setData("application/pc-person", JSON.stringify({ id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "" })); } catch {} onPersonDragStart?.(p); }}
                       onDragEnd={() => onPersonDragEnd?.()}
                       title={`${p.name} — trage în Matrix pentru a asigna`}>
                       <PersonAvatar person={p} size={26} showBadge={false} />
@@ -244,6 +244,8 @@ export default function CoverageBar({
           box-shadow: 0 -10px 30px rgba(0,0,0,.34); transition: height .22s cubic-bezier(.4,0,.2,1), left .16s, right .16s;
           height: var(--cbar-h); display: flex; flex-direction: column; }
         .covbar.open { height: 46vh; }
+        /* mod reasignare: bara urcă DEASUPRA overlay-ului modalului de conflicte (z 95) → element distinct, nu suprapus */
+        .covbar.reassign { z-index: 120; box-shadow: 0 -16px 50px rgba(0,0,0,.6); border-top-color: var(--primary); }
         .cb-handle { height: var(--cbar-h); flex: none; display: flex; align-items: center; gap: 10px; background: var(--surface-2);
           border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0; color: var(--text); cursor: pointer; padding: 0 18px; font-size: 13px; }
         .cb-grip { width: 36px; height: 4px; border-radius: 3px; background: var(--border-strong); flex: none; }

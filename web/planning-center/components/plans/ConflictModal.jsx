@@ -12,12 +12,14 @@ import { createPortal } from "react-dom";
 import PersonAvatar from "./PersonAvatar";
 import { plansApi } from "@/lib/api/client";
 
-export default function ConflictModal({ open, planId, person, positionId, onClose, onResolved }) {
+export default function ConflictModal({ open, planId, person, positionId, onClose, onResolved, onReassignOpen, onReassignClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [reOn, setReOn] = useState(null);      // assignmentId al cardului în mod reassign
   const [confirmRm, setConfirmRm] = useState(null); // assignmentId al cardului cu confirmarea „Scoate"
+  const [manualOn, setManualOn] = useState(null);   // assignmentId al cardului cu „adaugă manual" deschis
+  const [dropOver, setDropOver] = useState(null);   // assignmentId al cardului peste care se trage (highlight)
   const [cand, setCand] = useState([]);        // candidați (fit poziția) pt. cardul deschis
   const [candLoading, setCandLoading] = useState(false);
   const [candQ, setCandQ] = useState("");
@@ -34,9 +36,11 @@ export default function ConflictModal({ open, planId, person, positionId, onClos
   useEffect(() => { if (open) { setLoading(true); setReOn(null); setCandQ(""); fetchData(); } }, [open, fetchData]);
   useEffect(() => {
     if (!open) return;
-    const onKey = (e) => { if (e.key === "Escape") { if (reOn) setReOn(null); else onClose?.(); } };
+    const onKey = (e) => { if (e.key === "Escape") { if (reOn) { setReOn(null); setManualOn(null); onReassignClose?.(); } else onClose?.(); } };
     window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
-  }, [open, reOn, onClose]);
+  }, [open, reOn, onClose, onReassignClose]);
+  // când modalul se închide (unmount) → închide și bara de reasignare
+  useEffect(() => () => { onReassignClose?.(); }, []); // eslint-disable-line
 
   // deschide reassign pe un card → încarcă candidații care fit poziția (roster-first, ca în recommend)
   const openReassign = useCallback(async (c, q = "") => {
@@ -69,7 +73,7 @@ export default function ConflictModal({ open, planId, person, positionId, onClos
       await plansApi.assign(c.planId, { personId: newPerson.id, teamId: c.teamId, positionId: c.positionId, status: "unconfirmed" });
       await plansApi.unassign(c.planId, c.assignmentId);
       await fetchData(); onResolved?.();
-    } catch {} finally { setBusy(false); setReOn(null); }
+    } catch {} finally { setBusy(false); setReOn(null); setManualOn(null); onReassignClose?.(); }
   }
 
   if (!open || !mounted || typeof document === "undefined") return null;
@@ -78,7 +82,7 @@ export default function ConflictModal({ open, planId, person, positionId, onClos
   const nothing = !loading && conflicts.length === 0 && blockouts.length === 0;
 
   return createPortal((
-    <div className="cm-ov" onClick={() => !busy && onClose?.()}>
+    <div className={`cm-ov ${reOn ? "lifted" : ""}`} onClick={() => !busy && onClose?.()}>
       <div className="cm-dlg" onClick={(e) => e.stopPropagation()}>
         <div className="cm-head">
           <div className="cm-who">
@@ -113,8 +117,12 @@ export default function ConflictModal({ open, planId, person, positionId, onClos
                       </div>
                     </div>
                     <div className="cm-cact">
-                      <button className="cm-re" disabled={busy} onClick={() => { setConfirmRm(null); reOn === c.assignmentId ? setReOn(null) : openReassign(c); }}>Reasignează</button>
-                      <button className="cm-rm" disabled={busy} onClick={() => { setReOn(null); setConfirmRm(c.assignmentId); }} title="Scoate-l de pe această slujire">Scoate</button>
+                      <button className={`cm-re ${reOn === c.assignmentId ? "on" : ""}`} disabled={busy} onClick={() => {
+                        setConfirmRm(null);
+                        if (reOn === c.assignmentId) { setReOn(null); setManualOn(null); onReassignClose?.(); }
+                        else { setReOn(c.assignmentId); setManualOn(null); onReassignOpen?.(c); }
+                      }}>Reasignează</button>
+                      <button className="cm-rm" disabled={busy} onClick={() => { setReOn(null); setManualOn(null); onReassignClose?.(); setConfirmRm(c.assignmentId); }} title="Scoate-l de pe această slujire">Scoate</button>
                     </div>
                   </div>
 
@@ -130,20 +138,35 @@ export default function ConflictModal({ open, planId, person, positionId, onClos
 
                   {reOn === c.assignmentId && (
                     <div className="cm-reassign">
-                      <input className="cm-search" autoFocus placeholder="caută înlocuitor…" value={candQ} onChange={(e) => setCandQ(e.target.value)} />
-                      <div className="cm-cands">
-                        {candLoading && <div className="cm-muted sm">Se caută…</div>}
-                        {!candLoading && cand.length === 0 && <div className="cm-muted sm">Niciun candidat.</div>}
-                        {cand.map((p) => (
-                          <button key={String(p.id)} className="cm-cand" disabled={busy} onClick={() => reassignTo(c, p)} title="Pune-l în locul lui (swap)">
-                            <PersonAvatar person={p} size={24} showBadge={false} />
-                            {p.inRoster && <span className="cm-rost" title="În rosterul poziției" />}
-                            <span className="cm-candn">{p.name}</span>
-                            {(p.conflicts?.length > 0 || p.conflict) && <span className="cm-cwarn" title="Și el are un conflict">⚠</span>}
-                            <span className="cm-swap">↔ pune</span>
-                          </button>
-                        ))}
+                      <div className={`cm-drop ${dropOver === c.assignmentId ? "over" : ""}`}
+                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; if (dropOver !== c.assignmentId) setDropOver(c.assignmentId); }}
+                        onDragLeave={() => setDropOver(null)}
+                        onDrop={(e) => { e.preventDefault(); setDropOver(null); try { const raw = e.dataTransfer.getData("application/pc-person"); if (raw) reassignTo(c, JSON.parse(raw)); } catch {} }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>
+                        <span>Trage o persoană din <b>Listă live</b> aici ca s-o pui în locul lui</span>
                       </div>
+                      <button className="cm-manualbtn" onClick={() => { if (manualOn === c.assignmentId) setManualOn(null); else { setManualOn(c.assignmentId); openReassign(c, ""); } }}>
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 3v10M3 8h10" /></svg>
+                        Adaugă manual
+                      </button>
+                      {manualOn === c.assignmentId && (
+                        <div className="cm-manual">
+                          <input className="cm-search" autoFocus placeholder="caută orice persoană…" value={candQ} onChange={(e) => setCandQ(e.target.value)} />
+                          <div className="cm-cands">
+                            {candLoading && <div className="cm-muted sm">Se caută…</div>}
+                            {!candLoading && cand.length === 0 && <div className="cm-muted sm">Niciun candidat.</div>}
+                            {cand.map((p) => (
+                              <button key={String(p.id)} className="cm-cand" disabled={busy} onClick={() => reassignTo(c, p)} title="Pune-l în locul lui (swap)">
+                                <PersonAvatar person={p} size={24} showBadge={false} />
+                                {p.inRoster && <span className="cm-rost" title="În rosterul poziției" />}
+                                <span className="cm-candn">{p.name}</span>
+                                {(p.conflicts?.length > 0 || p.conflict) && <span className="cm-cwarn" title="Și el are un conflict">⚠</span>}
+                                <span className="cm-swap">↔ pune</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -167,8 +190,11 @@ export default function ConflictModal({ open, planId, person, positionId, onClos
       </div>
 
       <style jsx>{`
-        .cm-ov { position: fixed; inset: 0; background: rgba(0,0,0,.58); z-index: 95; display: flex; align-items: center; justify-content: center; padding: 20px; animation: cmov .14s ease; }
+        .cm-ov { position: fixed; inset: 0; background: rgba(0,0,0,.58); z-index: 95; display: flex; align-items: center; justify-content: center; padding: 20px; animation: cmov .14s ease; transition: align-items .2s; }
         @keyframes cmov { from { opacity: 0; } to { opacity: 1; } }
+        /* mod reasignare: modalul urcă sus, iar Listă live (46vh) stă DEDESUBT, ca element distinct */
+        .cm-ov.lifted { align-items: flex-start; padding-top: 26px; }
+        .cm-ov.lifted .cm-dlg { max-height: calc(52vh - 40px); }
         .cm-dlg { background: var(--modal-bg); border: 1px solid var(--border-strong); border-radius: 14px; width: 900px; max-width: 94vw; max-height: 88vh; display: flex; flex-direction: column;
           box-shadow: 0 30px 80px rgba(0,0,0,.55); animation: cmin .18s cubic-bezier(.2,.9,.3,1.2); }
         @keyframes cmin { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
@@ -212,7 +238,15 @@ export default function ConflictModal({ open, planId, person, positionId, onClos
         .cm-cfyes { background: var(--danger); border: 1px solid var(--danger); color: #fff; border-radius: 7px; height: 30px; padding: 0 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
         .cm-cfyes:hover { filter: brightness(1.08); }
         .cm-cfno:disabled, .cm-cfyes:disabled { opacity: .55; cursor: default; }
-        .cm-reassign { border-top: 1px solid var(--border); padding: 11px 13px; display: flex; flex-direction: column; gap: 8px; background: var(--bg); animation: cmex .16s ease; }
+        .cm-reassign { border-top: 1px solid var(--border); padding: 11px 13px; display: flex; flex-direction: column; gap: 9px; background: var(--bg); animation: cmex .16s ease; }
+        .cm-drop { display: flex; align-items: center; justify-content: center; gap: 9px; padding: 14px; border: 1.5px dashed var(--border-strong); border-radius: 10px; color: var(--text-dim); font-size: 12.5px; text-align: center; transition: border-color .13s, background .13s, color .13s; }
+        .cm-drop b { color: var(--text); }
+        .cm-drop.over { border-color: var(--primary); background: rgba(47,129,247,.1); color: var(--text); }
+        .cm-drop svg { flex: none; color: var(--text-faint); }
+        .cm-drop.over svg { color: var(--primary); }
+        .cm-manualbtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 8px; height: 32px; padding: 0 13px; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: color .12s, border-color .12s; }
+        .cm-manualbtn:hover { color: var(--text); border-color: var(--primary); }
+        .cm-manual { display: flex; flex-direction: column; gap: 7px; }
         @keyframes cmex { from { opacity: 0; } to { opacity: 1; } }
         .cm-search { background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 7px; height: 32px; padding: 0 10px; color: var(--text); outline: none; font-size: 12.5px; }
         .cm-search:focus { border-color: var(--primary); }

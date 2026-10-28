@@ -87,6 +87,9 @@ export default function MatrixPage() {
   // filtre bară: ministry+position = AUTO (din poziția selectată, doar prioritizare soft);
   // gender+sim = din WIDGET-uri (filtru HARD, se stackează, elimină celelalte valori)
   const [barFilters, setBarFilters] = useState({ ministry: null, position: null, fit: true, gender: "", sim: "" });
+  // mod REASIGNARE (din modalul de conflicte): bara se deschide peste overlay, filtrată pe poziția conflictului
+  const [reassignBar, setReassignBar] = useState(null); // {teamId, teamName, positionId, positionName} | null
+  const [reFilters, setReFilters] = useState({ fit: true, gender: "", sim: "" });
   const [dragActive, setDragActive] = useState(false); // feedback drag (Kanban)
   const [dropKey, setDropKey] = useState(null);         // celula peste care e drag-ul acum (evidențiere)
   const [dragHint, setDragHint] = useState("");         // indiciu flotant în timpul drag-ului
@@ -149,9 +152,12 @@ export default function MatrixPage() {
     if (!barOpen) return;
     const ids = (data?.plans || []).map((p) => p.id).join(","); // EXACT fereastra din Matrix
     setCovBusy(true);
-    try { setCov(await matrixApi.coverage(serviceTypeId, { planIds: ids, teamId: barFilters.ministry?.teamId, positionId: barFilters.position?.positionId })); } catch {}
+    // în mod reasignare, bara se filtrează pe poziția CONFLICTULUI, nu pe cea selectată în grilă
+    const covTeam = reassignBar ? reassignBar.teamId : barFilters.ministry?.teamId;
+    const covPos = reassignBar ? reassignBar.positionId : barFilters.position?.positionId;
+    try { setCov(await matrixApi.coverage(serviceTypeId, { planIds: ids, teamId: covTeam, positionId: covPos })); } catch {}
     finally { setCovBusy(false); }
-  }, [barOpen, serviceTypeId, data?.plans, barFilters.ministry?.teamId, barFilters.position?.positionId]);
+  }, [barOpen, serviceTypeId, data?.plans, barFilters.ministry?.teamId, barFilters.position?.positionId, reassignBar?.teamId, reassignBar?.positionId]);
   useEffect(() => { loadCov(); }, [loadCov]);
 
   const plans = data?.plans || [];
@@ -846,15 +852,24 @@ export default function MatrixPage() {
         serviceTimes={rec?.serviceTimes || []}
         onRosterChanged={refreshRec}
         onConflictResolved={() => { refreshRec(); loadCov(); softReconcile(); }}
+        onReassignOpen={(card) => { setReFilters({ fit: true, gender: "", sim: "" }); setReassignBar({ teamId: card.teamId, teamName: card.teamName, positionId: card.positionId, positionName: card.positionName }); setBarOpen(true); }}
+        onReassignClose={() => { setReassignBar(null); setBarOpen(false); }}
         canAssign={canAssign} canRoster={canRoster} canRules={canManage || !!caps.positionRules || canAssign}
       />
 
       <CoverageBar
         open={barOpen} onToggle={() => setBarOpen((v) => !v)} cov={cov} loading={covBusy}
-        filters={barFilters}
-        onRemoveFilter={(t) => setBarFilters((f) => ({ ...f, [t]: (t === "ministry" || t === "position") ? null : "" }))}
-        onSetFilter={(key, val) => setBarFilters((f) => ({ ...f, [key]: key === "fit" ? val : (f[key] === val ? "" : val) }))}
-        style={{ left: showSettings ? 316 : 0, right: (sel || browse) ? 348 : 0 }}
+        reassignMode={!!reassignBar}
+        filters={reassignBar
+          ? { ministry: { teamId: reassignBar.teamId, name: reassignBar.teamName }, position: { positionId: reassignBar.positionId, name: reassignBar.positionName }, ...reFilters }
+          : barFilters}
+        onRemoveFilter={reassignBar
+          ? ((t) => { if (t === "gender" || t === "sim") setReFilters((f) => ({ ...f, [t]: "" })); })
+          : ((t) => setBarFilters((f) => ({ ...f, [t]: (t === "ministry" || t === "position") ? null : "" })))}
+        onSetFilter={reassignBar
+          ? ((key, val) => setReFilters((f) => ({ ...f, [key]: key === "fit" ? val : (f[key] === val ? "" : val) })))
+          : ((key, val) => setBarFilters((f) => ({ ...f, [key]: key === "fit" ? val : (f[key] === val ? "" : val) })))}
+        style={{ left: reassignBar ? 0 : (showSettings ? 316 : 0), right: reassignBar ? 0 : ((sel || browse) ? 348 : 0) }}
         onPersonDragStart={(p) => { dragRef.current = { personId: p.id, name: p.name, avatar: p.avatar, initials: p.initials, fromBar: true }; setDragActive(true); setDragHint(`${p.name} → lași jos pe o poziție = asignezi`); }}
         onPersonDragEnd={() => { setDragActive(false); setDropKey(null); setDragHint(""); }}
         target={target} targetSched={targetSched} targetAvail={targetAvail} onCloseTarget={clearTarget}
