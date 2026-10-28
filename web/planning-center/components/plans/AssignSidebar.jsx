@@ -21,7 +21,7 @@ export default function AssignSidebar({
   open, title, neededCount, loading, groups = [], alreadyHere = [],
   query, onQuery, onPick, onClose, assigning, mirror, onAddGuest,
   defaults, positionId, planId, onSaveRules, instructions, browse = false, serviceTimes = [], onRosterChanged, onConflictResolved,
-  onReassignOpen, onReassignClose,
+  onReassignOpen, onReassignClose, conflictTarget,
   canAssign = true, canRoster = true, canRules = true,
 }) {
   const readOnly = !canAssign && !canRoster; // doar vizualizare (rol view-only)
@@ -409,7 +409,7 @@ export default function AssignSidebar({
       )}
 
       {conflictFor && (
-        <ConflictModal open planId={planId} person={conflictFor} positionId={positionId}
+        <ConflictModal open planId={planId} person={conflictFor} positionId={positionId} target={conflictTarget}
           onClose={() => { onReassignClose?.(); setConflictFor(null); }}
           onResolved={() => { onConflictResolved?.(); }}
           onReassignOpen={onReassignOpen} onReassignClose={onReassignClose} />

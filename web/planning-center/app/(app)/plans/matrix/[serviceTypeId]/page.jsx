@@ -90,6 +90,7 @@ export default function MatrixPage() {
   // mod REASIGNARE (din modalul de conflicte): bara se deschide peste overlay, filtrată pe poziția conflictului
   const [reassignBar, setReassignBar] = useState(null); // {teamId, teamName, positionId, positionName} | null
   const [reFilters, setReFilters] = useState({ fit: true, gender: "", sim: "" });
+  const [reassignDisable, setReassignDisable] = useState(null); // personId dezactivat în Listă live (nu te înlocuiești cu tine)
   const [dragActive, setDragActive] = useState(false); // feedback drag (Kanban)
   const [dropKey, setDropKey] = useState(null);         // celula peste care e drag-ul acum (evidențiere)
   const [dragHint, setDragHint] = useState("");         // indiciu flotant în timpul drag-ului
@@ -163,6 +164,15 @@ export default function MatrixPage() {
   const plans = data?.plans || [];
   const teams = data?.teams || [];
   const nPlans = plans.length;
+  // ocupantul poziției SELECTATE (pt. pasul 2 „Înlocuiește" din modalul de conflicte)
+  const selOccupant = (() => {
+    if (!sel) return null;
+    const t = teams.find((x) => String(x.teamId) === String(sel.teamId));
+    const pos = (t?.positions || []).find((p) => String(p.positionId) === String(sel.positionId));
+    const first = ((pos?.cells || [])[sel.colIdx]?.people || [])[0];
+    return first ? { assignmentId: first.assignmentId, personId: first.personId, name: first.name, avatar: first.avatar || "", initials: first.initials || "" } : null;
+  })();
+  const conflictTarget = sel ? { planId: sel.planId, teamId: sel.teamId, positionId: sel.positionId, positionName: sel.positionName, occupant: selOccupant } : null;
   const flash = (m) => { setToast(m); setTimeout(() => setToast(""), 2400); };
 
   // ─── navigare dată (checklist explicit „Quick load plans") ───
@@ -852,14 +862,16 @@ export default function MatrixPage() {
         serviceTimes={rec?.serviceTimes || []}
         onRosterChanged={refreshRec}
         onConflictResolved={() => { refreshRec(); loadCov(); softReconcile(); }}
-        onReassignOpen={(card) => { setReFilters({ fit: true, gender: "", sim: "" }); setReassignBar({ teamId: card.teamId, teamName: card.teamName, positionId: card.positionId, positionName: card.positionName }); setBarOpen(true); }}
-        onReassignClose={() => { setReassignBar(null); setBarOpen(false); }}
+        conflictTarget={conflictTarget}
+        onReassignOpen={(card, disableId) => { setReFilters({ fit: true, gender: "", sim: "" }); setReassignDisable(disableId || null); setReassignBar({ teamId: card.teamId, teamName: card.teamName, positionId: card.positionId, positionName: card.positionName }); setBarOpen(true); }}
+        onReassignClose={() => { setReassignBar(null); setReassignDisable(null); setBarOpen(false); }}
         canAssign={canAssign} canRoster={canRoster} canRules={canManage || !!caps.positionRules || canAssign}
       />
 
       <CoverageBar
         open={barOpen} onToggle={() => setBarOpen((v) => !v)} cov={cov} loading={covBusy}
         reassignMode={!!reassignBar}
+        disablePersonId={reassignDisable}
         filters={reassignBar
           ? { ministry: { teamId: reassignBar.teamId, name: reassignBar.teamName }, position: { positionId: reassignBar.positionId, name: reassignBar.positionName }, ...reFilters }
           : barFilters}

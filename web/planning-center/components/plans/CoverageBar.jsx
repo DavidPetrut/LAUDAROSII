@@ -22,7 +22,7 @@ function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return
 
 export default function CoverageBar({
   open, onToggle, cov, loading, filters = {}, onRemoveFilter, onSetFilter, onPersonDragStart, onPersonDragEnd, style,
-  target = null, targetSched = null, targetAvail = {}, onCloseTarget, reassignMode = false,
+  target = null, targetSched = null, targetAvail = {}, onCloseTarget, reassignMode = false, disablePersonId = null,
 }) {
   const [view, setView] = useState("all");
   const [tab, setTab] = useState("live"); // "live" | "person"
@@ -175,18 +175,20 @@ export default function CoverageBar({
                 </div>
                 <div className="cb-list">
                   {people.length === 0 && <div className="cb-empty">{bqOpen[b.times] && q ? "Niciun rezultat." : "—"}</div>}
-                  {people.map((p) => (
-                    <div key={p.id} className="cb-card" draggable
-                      onDragStart={(e) => { e.dataTransfer.effectAllowed = "copy"; try { e.dataTransfer.setData("application/pc-person", JSON.stringify({ id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "" })); } catch {} onPersonDragStart?.(p); }}
+                  {people.map((p) => {
+                    const dis = disablePersonId && String(p.id) === String(disablePersonId);
+                    return (
+                    <div key={p.id} className={`cb-card ${dis ? "dis" : ""}`} draggable={!dis}
+                      onDragStart={dis ? undefined : (e) => { e.dataTransfer.effectAllowed = "copy"; try { e.dataTransfer.setData("application/pc-person", JSON.stringify({ id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "" })); } catch {} onPersonDragStart?.(p); }}
                       onDragEnd={() => onPersonDragEnd?.()}
-                      title={`${p.name} — trage în Matrix pentru a asigna`}>
+                      title={dis ? "Nu poți înlocui o persoană cu ea însăși" : `${p.name} — trage în Matrix pentru a asigna`}>
                       <PersonAvatar person={p} size={26} showBadge={false} />
                       {p.inRoster && <span className="cb-rost" title="În rosterul echipei" />}
                       <span className="cb-name">{p.name}</span>
                       {p.free > 0 && <span className="cb-free">×{p.free}</span>}
                       {p.blocked > 0 && <span className="cb-blk" title={`${p.blocked} planuri blocate`}>⛔{p.blocked}</span>}
                     </div>
-                  ))}
+                    ); })}
                 </div>
               </div>
             ); })}
@@ -297,6 +299,8 @@ export default function CoverageBar({
         .cb-card { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 8px; cursor: grab; transition: background .1s; }
         .cb-card:hover { background: rgba(255,255,255,.055); }
         .cb-card:active { cursor: grabbing; opacity: .5; }
+        .cb-card.dis { opacity: .4; cursor: not-allowed; }
+        .cb-card.dis:hover { background: transparent; }
         .cb-rost { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--product); box-shadow: 0 0 0 2px rgba(87,185,138,.22); }
         .cb-name { color: var(--text); font-size: 13px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .cb-free { flex: none; color: #0b2018; background: var(--product); border-radius: 20px; padding: 1px 8px; font-size: 11px; font-weight: 700; }
