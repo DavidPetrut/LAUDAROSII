@@ -383,6 +383,7 @@ export default function AssignSidebar({
                   <div key={p.id} className="cand blk">
                     <PersonAvatar person={p} size={28} showBadge={false} />
                     <span className="cn">{p.name}</span>
+                    {p.weeksLabel && <span className="wk" title="Ultima dată pe această poziție (în trecut)">{p.weeksLabel}</span>}
                     <ConflictBadge icon="/icons/semnul-exclamari-rosu.png" canVerify={!!planId && !browse} onVerify={() => setConflictFor(p)}
                       items={[{ type: "blockout", label: "Blockout", detail: [p.blockout?.label, p.blockout?.reason].filter(Boolean).join(" · ") }]} />
                   </div>

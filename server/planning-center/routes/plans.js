@@ -943,30 +943,44 @@ router.get("/:id/recommend", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
     const blkByPerson = {}; blockouts.forEach((b) => (blkByPerson[String(b.personId)] = blkByPerson[String(b.personId)] || []).push(b));
     const dayKey = dayStart.toISOString().slice(0, 10);
 
+    // „-Nw" = acum câte săptămâni a fost persoana ULTIMA dată pe ACEASTĂ poziție — FĂRĂ limita de ±180z
+    // (poate fi oricât de vechi, ex. acum un an = -48w). Doar TRECUT (înainte de planul selectat).
+    const lastPosWeeksByPerson = {};
+    if (positionId) {
+      const posAssigns = await PcAssignment.find(scoped(req, { positionId, personId: { $in: pids }, status: { $ne: "declined" } })).select("personId planId").lean();
+      const posPlanIds = [...new Set(posAssigns.map((a) => String(a.planId)))].map(OID).filter(Boolean);
+      const posPlans = await PcPlan.find(scoped(req, { _id: { $in: posPlanIds } })).select("sortDate").lean();
+      const posPlanDate = Object.fromEntries(posPlans.map((p) => [String(p._id), new Date(p.sortDate)]));
+      const lastDate = {};
+      posAssigns.forEach((a) => {
+        const d = posPlanDate[String(a.planId)]; if (!d || d.getTime() >= planDate.getTime()) return; // doar trecut
+        const pid = String(a.personId); if (!lastDate[pid] || d > lastDate[pid]) lastDate[pid] = d;
+      });
+      for (const [pid, d] of Object.entries(lastDate)) lastPosWeeksByPerson[pid] = Math.max(1, Math.round((planDate.getTime() - d.getTime()) / WEEK));
+    }
+
     const rows = people.map((p) => {
       const list = (byPerson[String(p._id)] || []).map((a) => ({ ...a, date: planDateById[String(a.planId)] })).filter((a) => a.date);
-      // „-Nw" = acum câte săptămâni a fost ULTIMA dată pe ACEASTĂ poziție (DOAR trecut, relativ la săptămâna selectată)
-      let lastAtPosWeeks = null;
       let alreadyHere = false, sameDayCount = 0, monthCount = 0;
       for (const a of list) {
-        const diff = a.date.getTime() - planDate.getTime();
         if (positionId && String(a.positionId) === String(positionId)) {
           if (String(a.planId) === String(planId)) alreadyHere = true;
-          else if (diff < 0) { const w = Math.round(-diff / WEEK); if (lastAtPosWeeks == null || w < lastAtPosWeeks) lastAtPosWeeks = w; }
           // de câte ori a fost pe poziția asta în ultimele 30 de zile (pt. „target/lună")
           if (a.date >= monthStart && a.date < planDate) monthCount++;
         }
         // conflict de timp: altă asignare în aceeași zi (alt plan)
         if (String(a.planId) !== String(planId) && a.date.toISOString().slice(0, 10) === dayKey) sameDayCount++;
       }
+      // acum câte săptămâni a fost ULTIMA dată pe ACEASTĂ poziție (fără limită de vârstă, doar trecut)
+      const lastPosW = positionId ? (lastPosWeeksByPerson[String(p._id)] != null ? lastPosWeeksByPerson[String(p._id)] : null) : null;
       const covers = (b) => (!b.startDate || b.startDate <= dayKey) && (!b.endDate || b.endDate >= dayKey);
       const myBlk = blkByPerson[String(p._id)] || [];
       // ORICE blockout (on-break SAU indisponibilitate personală) care acoperă ziua → persoana NU apare în
       // Fără/Cu conflict, ci SEPARAT în tabul „Blockout" (identic cu Listă live): distincție clară.
       const bkCover = myBlk.find((b) => covers(b));
       const dayBlocked = !!bkCover;
-      // acum câte săptămâni a fost ULTIMA dată pe ACEASTĂ poziție (doar trecut); niciodată 0 sau „+", gol dacă n-a mai fost
-      const weeksLabel = lastAtPosWeeks == null ? "" : `-${Math.max(1, lastAtPosWeeks)}w`;
+      // niciodată 0 sau „+", gol dacă n-a mai fost vreodată pe poziție
+      const weeksLabel = lastPosW == null ? "" : `-${lastPosW}w`;
       // CONFLICTE — pot fi MAI MULTE simultan (deja planificat + blockout), cu motiv/dată.
       // „Deja planificat" = orice asignare în ACEEAȘI ZI, INCLUSIV alte poziții pe ACEST plan
       // (mai puțin poziția curentă). Așa apare galbenul chiar dacă e pus de 2-5 ori în aceeași săptămână.
@@ -987,7 +1001,7 @@ router.get("/:id/recommend", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
       return {
         id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "),
         initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase(), avatar: p.avatar || "",
-        gender: p.gender || "", programIntent: p.programIntent || "", weeksLabel, dueSort: lastAtPosWeeks == null ? 9999 : lastAtPosWeeks,
+        gender: p.gender || "", programIntent: p.programIntent || "", weeksLabel, dueSort: lastPosW == null ? 9999 : lastPosW,
         monthCount, targetPerMonth, belowTarget, inRoster: inRoster.has(String(p._id)),
         targetLabel: targetPerMonth > 0 ? `${monthCount}/${targetPerMonth}` : "",
         conflict, conflicts, alreadyHere, dayBlocked,
