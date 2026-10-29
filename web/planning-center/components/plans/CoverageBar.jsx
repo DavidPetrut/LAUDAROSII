@@ -144,7 +144,6 @@ export default function CoverageBar({
         <div className="cb-body">
           {/* FILTRE — mutate în STÂNGA (în locul taburilor de view), eliberând dreapta pt. liste */}
           <aside className="cb-tools left" onClick={(e) => e.stopPropagation()}>
-            <div className="cbw-title">Filtre</div>
             <div className="cbw-group">
               <span className="cbw-lbl">Poziție</span>
               <div className="cbw fit">

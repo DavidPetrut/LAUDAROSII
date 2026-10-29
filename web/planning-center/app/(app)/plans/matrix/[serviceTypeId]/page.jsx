@@ -699,14 +699,6 @@ export default function MatrixPage() {
 
       {err && <div className="err">{err}</div>}
 
-      {target && (
-        <div className="tmode-bar">
-          <span className="tmb-ic">⌖</span>
-          <span className="tmb-tx"><b>Mod target: {target.name}</b> — click pe o poziție liberă ca să-l planifici rapid pe mai multe date. Esc / × pentru ieșire.</span>
-          <button className="tmb-x" onClick={() => { setTarget(null); setTargetSched(null); setTargetAvail({}); }}>Ieși din target ×</button>
-        </div>
-      )}
-
       {/* ───── Settings / Custom Matrix (panou stânga) ───── */}
       {showSettings && (
         <aside className="settings">

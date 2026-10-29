@@ -95,8 +95,19 @@ export default function ConflictModal({ open, planId, person, positionId, target
     commitPick(ctx, join, null);
   }
   function commitPick(ctx, join, pair) {
-    if (ctx.kind === "step1") addOp({ k: "swap", planId: ctx.planId, teamId: ctx.teamId, positionId: ctx.positionId, outAssignmentId: ctx.c.assignmentId, inPersonId: ctx.person.id, inPerson: ctx.person, join: join || null, card: ctx.c.assignmentId, posName: ctx.positionName, teamName: ctx.teamName });
-    else { if (target.occupant?.assignmentId) addOp({ k: "unassign", planId: target.planId, assignmentId: target.occupant.assignmentId, posName: target.positionName, teamName: target.teamName, outPerson: target.occupant }); addOp({ k: "assign", planId: ctx.planId, teamId: ctx.teamId, positionId: ctx.positionId, inPersonId: ctx.person.id, inPerson: ctx.person, join: join || null, posName: ctx.positionName, teamName: ctx.teamName }); closeFlow(); }
+    // SWAP = persoana înlocuită rămâne (devine „declined", tăiată) + intră înlocuitorul
+    if (ctx.kind === "step1") {
+      addOp({ k: "swap", planId: ctx.planId, teamId: ctx.teamId, positionId: ctx.positionId, outAssignmentId: ctx.c.assignmentId,
+        outPerson: { id: person.id, name: person.name, avatar: person.avatar || "", initials: person.initials || "" },
+        inPersonId: ctx.person.id, inPerson: ctx.person, join: join || null, card: ctx.c.assignmentId, posName: ctx.positionName, teamName: ctx.teamName });
+    } else {
+      if (target.occupant?.assignmentId)
+        addOp({ k: "swap", planId: target.planId, teamId: ctx.teamId, positionId: ctx.positionId, outAssignmentId: target.occupant.assignmentId,
+          outPerson: target.occupant, inPersonId: ctx.person.id, inPerson: ctx.person, join: join || null, posName: target.positionName, teamName: target.teamName });
+      else
+        addOp({ k: "assign", planId: ctx.planId, teamId: ctx.teamId, positionId: ctx.positionId, inPersonId: ctx.person.id, inPerson: ctx.person, join: join || null, posName: ctx.positionName, teamName: ctx.teamName });
+      closeFlow();
+    }
     if (pair) addOp({ k: "assign", planId: ctx.planId, teamId: pair.pairTeamId, positionId: pair.pairPositionId, inPersonId: ctx.person.id, inPerson: ctx.person, join: null, posName: ctx.positionName, teamName: pair.pairTeamName });
   }
   function resolvePendingJoin(join) { const pp = pendingPick; setPendingPick(null); if (pp) afterJoin(pp, join); }
@@ -112,7 +123,7 @@ export default function ConflictModal({ open, planId, person, positionId, target
       for (const op of ops) {
         if (op.k === "unassign") { await plansApi.unassign(op.planId, op.assignmentId); }
         else if (op.k === "assign") { await plansApi.assign(op.planId, { personId: op.inPersonId, teamId: op.teamId, positionId: op.positionId, status: "unconfirmed" }); await applyJoin(op); }
-        else if (op.k === "swap") { await plansApi.assign(op.planId, { personId: op.inPersonId, teamId: op.teamId, positionId: op.positionId, status: "unconfirmed" }); await applyJoin(op); await plansApi.unassign(op.planId, op.outAssignmentId); }
+        else if (op.k === "swap") { await plansApi.assign(op.planId, { personId: op.inPersonId, teamId: op.teamId, positionId: op.positionId, status: "unconfirmed" }); await applyJoin(op); await plansApi.updateAssignment(op.planId, op.outAssignmentId, { status: "declined" }); }
       }
       onResolved?.(); onReassignClose?.(); onClose?.();
     } catch (e) { /* lăsăm deschis */ } finally { setSaving(false); }
@@ -283,8 +294,8 @@ export default function ConflictModal({ open, planId, person, positionId, target
                     <span className="cm-chic rm" title="Scos de pe poziție"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg></span>
                   </>)}
                   {o.k === "swap" && (<>
-                    <PersonAvatar person={person} size={26} showBadge={false} />
-                    <span className="cm-chtx">{withTeam(o.posName, o.teamName)} — înlocuită de <PersonAvatar person={o.inPerson} size={19} showBadge={false} /> <b>{o.inPerson?.name}</b></span>
+                    <PersonAvatar person={o.outPerson || person} size={26} showBadge={false} />
+                    <span className="cm-chtx"><b>{(o.outPerson || person)?.name}</b> pe {withTeam(o.posName, o.teamName)} — înlocuit de <PersonAvatar person={o.inPerson} size={19} showBadge={false} /> <b>{o.inPerson?.name}</b></span>
                     <span className="cm-chic sw" title="Înlocuire"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M2 5h9l-2-2M14 11H5l2 2" /></svg></span>
                   </>)}
                   {o.k === "assign" && (<>
