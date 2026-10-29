@@ -391,4 +391,112 @@ router.get("/:serviceTypeId/person-availability", requireAny(CAN_VIEW_MATRIX), a
   }
 });
 
+/* ───────── GET /:serviceTypeId/person-weeks — target view: CARDURI pe SĂPTĂMÂNĂ (fereastra Matrix) ─────────
+   Pentru persoana targetată: pe fiecare săptămână din fereastra Matrix (+ alte service types SELECTATE),
+   ce face omul — planificat (unde) / neplanificat / conflict / blockout(+motiv). Multi-program.
+   „La tineret" (regula liderului) = roster/asignare în Laudă&Închinare (nu Copii) / Media / Asimilare Tineret.
+   ST-ul Matrix e MEREU inclus (cardurile ferestrei); Tineret e bifat default dacă persoana e la tineret. Doar READ. */
+router.get("/:serviceTypeId/person-weeks", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
+  try {
+    const stId = OID(req.params.serviceTypeId);
+    const personId = OID(req.query.personId);
+    const winPlanIds = String(req.query.planIds || "").split(",").map((s) => s.trim()).filter(Boolean).map(OID).filter(Boolean);
+    if (!personId || !winPlanIds.length) return res.status(400).json({ error: "personId/planIds lipsesc." });
+    const tz = await campusTz(req);
+    const dk = (d) => new Date(d).toISOString().slice(0, 10);
+
+    // fereastra Matrix (ST curent) → interval de date
+    const winPlans = await PcPlan.find(scoped(req, { _id: { $in: winPlanIds } })).select("sortDate serviceTypeId").sort({ sortDate: 1 }).lean();
+    if (!winPlans.length) return res.json({ personId, youthMember: false, serviceTypes: [], cards: [] });
+    const times = winPlans.map((p) => new Date(p.sortDate).getTime());
+    const ds = new Date(Math.min(...times)); ds.setHours(0, 0, 0, 0);
+    const de = new Date(Math.max(...times)); de.setHours(23, 59, 59, 999);
+
+    // ── „la tineret?" — regula liderului ──
+    const allTeams = await PcTeam.find(scoped(req)).select("name serviceTypeId").lean();
+    const isYouthTeam = (n = "") => {
+      const s = String(n).toLowerCase();
+      if (/copii|kids/.test(s)) return false;
+      return /asimilare\s*tineret/.test(s) || /laud.*[îi]nchinare/.test(s) || /\bmedia\b/.test(s);
+    };
+    const youthTeamIds = allTeams.filter((t) => isYouthTeam(t.name)).map((t) => t._id);
+    const [youthRoster, youthAssign] = await Promise.all([
+      youthTeamIds.length ? PcTeamMember.findOne(scoped(req, { personId, teamId: { $in: youthTeamIds } })).select("_id").lean() : null,
+      youthTeamIds.length ? PcAssignment.findOne(scoped(req, { personId, teamId: { $in: youthTeamIds }, status: { $ne: "declined" } })).select("_id").lean() : null,
+    ]);
+    const youthMember = !!(youthRoster || youthAssign);
+    // ST-ul Tineret = ST-ul care conține echipa „Asimilare Tineret"
+    const tineretTeam = allTeams.find((t) => /asimilare\s*tineret/.test(String(t.name || "").toLowerCase()));
+    const tineretStId = tineretTeam && tineretTeam.serviceTypeId ? String(tineretTeam.serviceTypeId) : "";
+
+    // service types + planurile lor din interval
+    const allSt = await PcServiceType.find(scoped(req)).select("name").lean();
+    const stName = Object.fromEntries(allSt.map((s) => [String(s._id), s.name]));
+    const rangePlans = await PcPlan.find(scoped(req, { sortDate: { $gte: ds, $lte: de } })).select("sortDate serviceTypeId").sort({ sortDate: 1 }).lean();
+    const stWithPlans = new Set(rangePlans.map((p) => String(p.serviceTypeId || "")).filter(Boolean));
+
+    const defaultSet = new Set([String(stId)]);
+    if (youthMember && tineretStId) defaultSet.add(tineretStId);
+    const serviceTypes = allSt
+      .filter((s) => stWithPlans.has(String(s._id)) || defaultSet.has(String(s._id)))
+      .map((s) => ({ id: s._id, name: s.name, isYouth: String(s._id) === tineretStId, default: defaultSet.has(String(s._id)) }));
+
+    // STs selectate (din query sau default); ST-ul Matrix mereu inclus
+    const reqSel = String(req.query.serviceTypeIds || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const selSet = reqSel.length ? new Set(reqSel) : new Set(defaultSet);
+    selSet.add(String(stId));
+
+    // planurile pe care le arătăm: ST Matrix = EXACT fereastra; alte STs selectate = planurile lor din interval
+    const cardPlans = winPlans.map((p) => ({ planId: String(p._id), date: new Date(p.sortDate), serviceTypeId: String(stId) }));
+    rangePlans.forEach((p) => {
+      const sid = String(p.serviceTypeId || "");
+      if (sid && sid !== String(stId) && selSet.has(sid)) cardPlans.push({ planId: String(p._id), date: new Date(p.sortDate), serviceTypeId: sid });
+    });
+
+    // asignările persoanei (ne-refuzate) → grupate pe plan + contor pe zi (pt. conflict)
+    const myAssigns = await PcAssignment.find(scoped(req, { personId, status: { $ne: "declined" } })).select("planId teamId positionId status isGuest").lean();
+    const myPlanIds = [...new Set(myAssigns.map((a) => String(a.planId)))].map(OID).filter(Boolean);
+    const [aPlans, teams2, poss2] = await Promise.all([
+      PcPlan.find(scoped(req, { _id: { $in: myPlanIds } })).select("sortDate").lean(),
+      PcTeam.find(scoped(req, { _id: { $in: myAssigns.map((a) => a.teamId).filter(Boolean) } })).select("name").lean(),
+      PcPosition.find(scoped(req, { _id: { $in: myAssigns.map((a) => a.positionId).filter(Boolean) } })).select("name").lean(),
+    ]);
+    const aDateById = Object.fromEntries(aPlans.map((p) => [String(p._id), dk(p.sortDate)]));
+    const tN = Object.fromEntries(teams2.map((t) => [String(t._id), t.name]));
+    const pN = Object.fromEntries(poss2.map((p) => [String(p._id), p.name]));
+    const assignByPlan = {}; const countByDay = {};
+    myAssigns.forEach((a) => {
+      (assignByPlan[String(a.planId)] = assignByPlan[String(a.planId)] || []).push({
+        position: pN[String(a.positionId)] || (a.isGuest ? "Invitat" : ""), team: tN[String(a.teamId)] || "", status: a.status,
+      });
+      const d = aDateById[String(a.planId)]; if (d) countByDay[d] = (countByDay[d] || 0) + 1;
+    });
+
+    const blk = await PcBlockout.find(scoped(req, { personId })).select("startDate endDate type reason").lean();
+    const covers = (b, d) => (!b.startDate || b.startDate <= d) && (!b.endDate || b.endDate >= d);
+
+    const bySt = {};
+    cardPlans.forEach((c) => {
+      const d = dk(c.date);
+      const al = assignByPlan[c.planId] || [];
+      const bk = blk.find((b) => covers(b, d));
+      (bySt[c.serviceTypeId] = bySt[c.serviceTypeId] || []).push({
+        planId: c.planId, dateLabel: `${fmtWeekday(c.date, tz)} ${fmtDate(c.date, tz)}`, sort: c.date.getTime(),
+        status: bk ? "blockout" : (al.length ? "planned" : "free"),
+        assignments: al, conflict: (countByDay[d] || 0) > 1,
+        blockout: bk ? { label: bk.startDate === bk.endDate ? bk.startDate : `${bk.startDate} → ${bk.endDate}`, reason: bk.reason || "" } : null,
+      });
+    });
+    const cards = Object.keys(bySt)
+      .map((sid) => ({ serviceTypeId: sid, serviceTypeName: stName[sid] || "", isYouth: sid === tineretStId,
+        weeks: bySt[sid].sort((a, b) => a.sort - b.sort) }))
+      .sort((a, b) => ((a.serviceTypeId === String(stId) ? 0 : 1) - (b.serviceTypeId === String(stId) ? 0 : 1)) || ((a.isYouth ? 0 : 1) - (b.isYouth ? 0 : 1)) || a.serviceTypeName.localeCompare(b.serviceTypeName, "ro"));
+
+    res.json({ personId, youthMember, serviceTypes, cards });
+  } catch (err) {
+    console.error("[pc] GET /matrix/:serviceTypeId/person-weeks:", err.message);
+    res.status(500).json({ error: "Eroare la cardurile persoanei: " + err.message });
+  }
+});
+
 module.exports = router;

@@ -18,7 +18,7 @@ function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return
 export default function CoverageBar({
   open, onToggle, cov, loading, filters = {}, onRemoveFilter, onSetFilter, onPersonDragStart, onPersonDragEnd, style,
   target = null, targetSched = null, targetAvail = {}, onCloseTarget, reassignMode = false, disablePersonId = null,
-  onVerifyPerson, canVerify = false,
+  onVerifyPerson, canVerify = false, targetWeeks = null, selSts = null, onToggleSt,
 }) {
   const [mode, setMode] = useState("un"); // "un" = Neplanificați (default) | "pl" = Planificați
   const [tab, setTab] = useState("live"); // "live" | "person"
@@ -121,15 +121,50 @@ export default function CoverageBar({
             <div className="pp-hint">⌖ Click pe o poziție <b>liberă</b> din grilă ca să-l planifici rapid pe mai multe date. Esc pentru ieșire.</div>
           </div>
           <div className="pp-main">
-            <div className="pp-mh">Unde e planificat (viitor)</div>
-            <div className="pp-list">
-              {targetSched == null ? <div className="cb-muted">Se încarcă…</div> :
-                targetSched.length === 0 ? <div className="pp-empty">Nicăieri planificat în viitor — complet liber.</div> :
-                targetSched.map((s, i) => (
-                  <div key={i} className="pp-row">
-                    <span className={`pp-ic ${s.status === "confirmed" ? "ok" : "pend"}`}>{s.status === "confirmed" ? "✓" : "?"}</span>
-                    <span className="pp-d">{s.dateLabel}</span>
-                    <span className="pp-s">{s.serviceTypeName}</span>
+            {/* programe (service types) — bifabile; Tineret default dacă persoana e la tineret */}
+            <div className="pp-sts">
+              <span className="pp-stsl">Programe</span>
+              {(targetWeeks?.serviceTypes || []).map((s) => {
+                const checked = selSts ? selSts.map(String).includes(String(s.id)) : s.default;
+                return (
+                  <button key={s.id} type="button" className={`pp-stchip ${checked ? "on" : ""} ${s.isYouth ? "yt" : ""}`}
+                    onClick={() => onToggleSt?.(s.id)} title={s.isYouth ? "Program de tineret" : ""}>
+                    <span className="pp-stbox">{checked ? "✓" : ""}</span>{s.name}{s.isYouth ? " ·tineret" : ""}
+                  </button>
+                );
+              })}
+            </div>
+            {/* carduri pe SĂPTĂMÂNĂ, grupate pe service type (carusel pe un rând) */}
+            <div className="pp-weeks">
+              {targetWeeks == null ? <div className="cb-muted">Se încarcă…</div> :
+                (targetWeeks.cards || []).length === 0 ? <div className="pp-empty">Nimic de arătat pentru programele selectate.</div> :
+                (targetWeeks.cards || []).map((g) => (
+                  <div key={g.serviceTypeId} className="pp-grp">
+                    <div className={`pp-grph ${g.isYouth ? "yt" : ""}`}>{g.serviceTypeName}</div>
+                    <div className="pp-cards">
+                      {g.weeks.map((w) => (
+                        <div key={w.planId} className={`pp-card ${w.status} ${w.conflict ? "conf" : ""}`}>
+                          <div className="pp-cd">{w.dateLabel}{w.conflict && <span className="pp-cconf" title="Conflict — mai multe slujiri în aceeași zi">⚠</span>}</div>
+                          {w.status === "blockout" ? (
+                            <div className="pp-cblk">
+                              <img className="pp-blki" src="/icons/blockout.png" alt="" />
+                              <div className="pp-cblkw"><div className="pp-cblkt">Blockout</div>{w.blockout?.reason && <div className="pp-cblkr">{w.blockout.reason}</div>}<div className="pp-cblkd">{w.blockout?.label}</div></div>
+                            </div>
+                          ) : w.status === "planned" ? (
+                            <div className="pp-cass">
+                              {w.assignments.map((a, i) => (
+                                <div key={i} className="pp-arow">
+                                  <span className={`pp-adot ${a.status === "confirmed" ? "ok" : "pend"}`} />
+                                  <span className="pp-apos">{[a.position, a.team].filter(Boolean).join(" · ") || "Planificat"}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="pp-cfree">Neplanificat</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
             </div>
@@ -361,16 +396,41 @@ export default function CoverageBar({
         .pp-stat.blk b { color: var(--danger); } .pp-stat.blk { border-color: rgba(248,81,73,.35); }
         .pp-hint { color: var(--text-faint); font-size: 11.5px; line-height: 1.55; margin-top: auto; }
         .pp-hint b { color: var(--product); }
-        .pp-main { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 14px 18px; }
-        .pp-mh { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; margin-bottom: 10px; }
-        .pp-list { overflow: auto; display: flex; flex-direction: column; gap: 4px; }
+        .pp-main { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 14px 18px; gap: 12px; }
         .pp-empty { color: var(--text-faint); font-size: 12.5px; padding: 8px 2px; }
-        .pp-row { display: flex; align-items: center; gap: 11px; padding: 9px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; }
-        .pp-ic { width: 20px; height: 20px; flex: none; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
-        .pp-ic.ok { background: rgba(87,185,138,.18); color: var(--product); }
-        .pp-ic.pend { background: rgba(210,153,34,.18); color: var(--st-unconfirmed); }
-        .pp-d { color: var(--text); font-size: 13px; font-weight: 600; min-width: 64px; }
-        .pp-s { color: var(--text-dim); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* checkbox-uri programe (service types) — Tineret marcat */
+        .pp-sts { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+        .pp-stsl { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; margin-right: 2px; }
+        .pp-stchip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 20px; padding: 4px 11px 4px 8px; font-size: 12px; cursor: pointer; transition: border-color .13s, color .13s, background .13s; }
+        .pp-stchip:hover { color: var(--text); }
+        .pp-stchip.on { background: rgba(47,129,247,.12); border-color: var(--primary); color: var(--text); }
+        .pp-stchip.on.yt { background: rgba(201,162,39,.14); border-color: rgba(201,162,39,.5); }
+        .pp-stbox { width: 15px; height: 15px; flex: none; border-radius: 4px; border: 1.5px solid var(--border-strong); display: inline-flex; align-items: center; justify-content: center; font-size: 10px; color: #fff; }
+        .pp-stchip.on .pp-stbox { background: var(--primary); border-color: var(--primary); }
+        .pp-stchip.on.yt .pp-stbox { background: #c9a227; border-color: #c9a227; }
+        /* carduri pe SĂPTĂMÂNĂ (carusel pe un rând), grupate pe service type */
+        .pp-weeks { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
+        .pp-grp { display: flex; flex-direction: column; gap: 8px; }
+        .pp-grph { color: var(--text-dim); font-size: 11px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
+        .pp-grph.yt { color: #e0b341; }
+        .pp-cards { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+        .pp-card { width: 196px; flex: none; min-height: 104px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 11px; padding: 11px 12px; display: flex; flex-direction: column; gap: 9px; }
+        .pp-card.free { border-style: dashed; }
+        .pp-card.blockout { border-color: rgba(248,81,73,.5); background: rgba(248,81,73,.06); }
+        .pp-card.conf { border-color: rgba(210,153,34,.6); }
+        .pp-cd { display: flex; align-items: center; gap: 7px; color: var(--text); font-size: 13px; font-weight: 700; }
+        .pp-cconf { color: #e0b341; font-size: 13px; }
+        .pp-cass { display: flex; flex-direction: column; gap: 6px; }
+        .pp-arow { display: flex; align-items: flex-start; gap: 8px; }
+        .pp-adot { width: 8px; height: 8px; flex: none; border-radius: 50%; margin-top: 5px; }
+        .pp-adot.ok { background: var(--product); } .pp-adot.pend { background: var(--st-unconfirmed); }
+        .pp-apos { color: var(--text-dim); font-size: 12px; line-height: 1.35; }
+        .pp-cfree { color: var(--product); font-size: 12.5px; font-weight: 600; }
+        .pp-cblk { display: flex; align-items: flex-start; gap: 9px; }
+        .pp-blki { width: 20px; height: 20px; object-fit: contain; flex: none; margin-top: 1px; }
+        .pp-cblkt { color: #ff9a94; font-size: 12.5px; font-weight: 700; }
+        .pp-cblkr { color: var(--text-dim); font-size: 11.5px; margin-top: 2px; line-height: 1.4; }
+        .pp-cblkd { color: var(--text-faint); font-size: 11px; margin-top: 2px; }
       `}</style>
     </div>
   );

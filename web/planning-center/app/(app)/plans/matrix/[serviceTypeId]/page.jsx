@@ -76,6 +76,8 @@ export default function MatrixPage() {
   const [target, setTarget] = useState(null);
   const [targetSched, setTargetSched] = useState(null);
   const [targetAvail, setTargetAvail] = useState({}); // planId → {blockout,here,busy,busyLabel} (target-mode)
+  const [targetWeeks, setTargetWeeks] = useState(null); // {youthMember, serviceTypes, cards} — carduri pe săptămână
+  const [selSts, setSelSts] = useState(null); // service types bifate (null = default-ul din backend)
   const [toast, setToast] = useState("");
   const [editing, setEditing] = useState(null);
   const [simPair, setSimPair] = useState(null); // prompt „pune-l și la SIM-ul pereche?" după asignare
@@ -543,21 +545,36 @@ export default function MatrixPage() {
     try { const r = await matrixApi.personAvailability(serviceTypeId, { personId, planIds: ids }); setTargetAvail(r.availability || {}); }
     catch { setTargetAvail({}); }
   }, [serviceTypeId, data?.plans]);
+  // CARDURI pe săptămână (fereastra Matrix + alte service types bifate). serviceTypeIds=null → default (backend).
+  const loadWeeks = useCallback(async (personId, stIds) => {
+    const ids = (data?.plans || []).map((p) => p.id).join(",");
+    if (!personId || !ids) { setTargetWeeks(null); return; }
+    try { const r = await matrixApi.personWeeks(serviceTypeId, { personId, planIds: ids, serviceTypeIds: stIds && stIds.length ? stIds.join(",") : undefined }); setTargetWeeks(r); }
+    catch { setTargetWeeks(null); }
+  }, [serviceTypeId, data?.plans]);
 
   function pickTarget(pp) {
-    if (target && String(target.personId) === String(pp.personId)) { setTarget(null); setTargetSched(null); setTargetAvail({}); return; }
+    if (target && String(target.personId) === String(pp.personId)) { setTarget(null); setTargetSched(null); setTargetAvail({}); setTargetWeeks(null); setSelSts(null); return; }
     setTarget({ personId: pp.personId, name: pp.name, avatar: pp.avatar || "", initials: pp.initials || "" });
-    setTargetSched(null); setTargetAvail({}); setBarOpen(true); // deschide „Listă live" pe tabul persoanei
+    setTargetSched(null); setTargetAvail({}); setTargetWeeks(null); setSelSts(null); setBarOpen(true); // deschide „Listă live" pe tabul persoanei
     peopleApi.schedule(pp.personId).then((r) => setTargetSched(r.schedule || [])).catch(() => setTargetSched([]));
-    loadAvail(pp.personId);
+    loadAvail(pp.personId); loadWeeks(pp.personId, null);
   }
-  const clearTarget = () => { setTarget(null); setTargetSched(null); setTargetAvail({}); };
-  // reîncarcă disponibilitatea când se schimbă fereastra de planuri (navigare) cât timp e target activ
-  useEffect(() => { if (target?.personId) loadAvail(target.personId); }, [target?.personId, loadAvail]);
+  const clearTarget = () => { setTarget(null); setTargetSched(null); setTargetAvail({}); setTargetWeeks(null); setSelSts(null); };
+  // bifează/debifează un service type în cardurile persoanei → re-fetch (ST-ul Matrix e mereu inclus în backend)
+  const toggleTargetSt = (stId) => {
+    if (!target?.personId) return;
+    const base = selSts || (targetWeeks?.serviceTypes || []).filter((s) => s.default).map((s) => String(s.id));
+    const has = base.map(String).includes(String(stId));
+    const next = has ? base.filter((x) => String(x) !== String(stId)) : [...base, String(stId)];
+    setSelSts(next); loadWeeks(target.personId, next);
+  };
+  // reîncarcă disponibilitatea + cardurile când se schimbă fereastra de planuri (navigare) cât timp e target activ
+  useEffect(() => { if (target?.personId) { loadAvail(target.personId); loadWeeks(target.personId, selSts); } }, [target?.personId, loadAvail, loadWeeks]); // eslint-disable-line
   // ieși din target-mode: Esc SAU click oriunde în afară de Listă live / grilă / modale (scroll-ul NU detargetează)
   useEffect(() => {
     if (!target) return;
-    const off = () => { setTarget(null); setTargetSched(null); setTargetAvail({}); };
+    const off = () => { setTarget(null); setTargetSched(null); setTargetAvail({}); setTargetWeeks(null); setSelSts(null); };
     const onKey = (e) => { if (e.key === "Escape") off(); };
     const onClick = (e) => { if (e.target.closest(".covbar, .datacell, .cm-ov, .pj-ov, .rm-ov, .cfb-tip, .cf-tip")) return; off(); };
     window.addEventListener("keydown", onKey);
@@ -587,7 +604,7 @@ export default function MatrixPage() {
       const r = await plansApi.assign(planId, { personId: target.personId, teamId, positionId, status: "unconfirmed" });
       flash(`⌖ ${target.name} planificat (neconfirmat, fără email).`);
       maybeOfferSimPair(planId, { id: target.personId, name: target.name, avatar: target.avatar, initials: target.initials }, teamId, positionId, colIdx);
-      loadCov(); loadAvail(target.personId); softReconcile();
+      loadCov(); loadAvail(target.personId); loadWeeks(target.personId, selSts); softReconcile();
     } catch (e) { flash(e?.message || "Eroare."); reconcile(); }
     finally { setAssigning(false); }
   }
@@ -969,6 +986,7 @@ export default function MatrixPage() {
         onPersonDragStart={(p) => { dragRef.current = { personId: p.id, name: p.name, avatar: p.avatar, initials: p.initials, fromBar: true }; setDragActive(true); setDragHint(`${p.name} → lași jos pe o poziție = asignezi`); }}
         onPersonDragEnd={() => { setDragActive(false); setDropKey(null); setDragHint(""); }}
         target={target} targetSched={targetSched} targetAvail={targetAvail} onCloseTarget={clearTarget}
+        targetWeeks={targetWeeks} selSts={selSts} onToggleSt={toggleTargetSt}
         canVerify={!!sel && !reassignBar} onVerifyPerson={(p) => setLiveConflictPerson({ id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "" })}
       />
 
