@@ -45,7 +45,7 @@ export default function ProblemsModal({ open, day, people = [], busy, onRemoveSe
                   <div className="pm-wn">{p.name}</div>
                   <div className="pm-wblk">
                     <img className="pm-blki" src="/icons/semnul-exclamari-rosu.png" alt="" />
-                    Blockout {p.blockout?.label}{p.blockout?.reason ? ` · ${p.blockout.reason}` : ""}
+                    blockout + slujire în aceeași zi
                   </div>
                 </div>
               </div>
@@ -54,7 +54,10 @@ export default function ProblemsModal({ open, day, people = [], busy, onRemoveSe
                   <div key={String(s.assignmentId)} className="pm-srow">
                     <div className="pm-st">
                       <div className="pm-spos">{s.dayLabel ? <span className="pm-sday">{s.dayLabel}</span> : null}{[s.position, s.team].filter(Boolean).join(" · ") || "Slujire"}</div>
-                      {s.serviceTypeName ? <div className="pm-ssub">{s.serviceTypeName}</div> : null}
+                      <div className="pm-ssub">
+                        {s.serviceTypeName ? <span>{s.serviceTypeName}</span> : null}
+                        {s.blockout ? <span className="pm-sblk"><img className="pm-blki" src="/icons/semnul-exclamari-rosu.png" alt="" />blocat {s.blockout.label}{s.blockout.reason ? ` · ${s.blockout.reason}` : ""}</span> : null}
+                      </div>
                     </div>
                     {confirmId === String(s.assignmentId) ? (
                       <div className="pm-cf">
@@ -97,7 +100,9 @@ export default function ProblemsModal({ open, day, people = [], busy, onRemoveSe
         .pm-st { flex: 1; min-width: 0; }
         .pm-spos { color: var(--text); font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .pm-sday { display: inline-block; margin-right: 7px; padding: 1px 7px; border-radius: 6px; background: rgba(248,81,73,.14); color: #ff9a94; font-size: 11px; font-weight: 700; }
-        .pm-ssub { color: var(--text-faint); font-size: 11.5px; margin-top: 1px; }
+        .pm-ssub { color: var(--text-faint); font-size: 11.5px; margin-top: 2px; display: flex; flex-wrap: wrap; align-items: center; gap: 3px 10px; }
+        .pm-sblk { display: inline-flex; align-items: center; gap: 5px; color: #ff9a94; font-weight: 600; }
+        .pm-sblk .pm-blki { width: 13px; height: 13px; }
         .pm-rm { flex: none; width: 28px; height: 28px; border-radius: 7px; background: transparent; border: 1px solid var(--border-strong); color: var(--text-faint); font-size: 18px; line-height: 1; cursor: pointer; transition: color .12s, border-color .12s, background .12s; }
         .pm-rm:hover { color: var(--danger); border-color: var(--danger); background: rgba(248,81,73,.1); }
         .pm-rm:disabled { opacity: .5; cursor: default; }

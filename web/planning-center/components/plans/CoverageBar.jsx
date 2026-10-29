@@ -174,7 +174,7 @@ export default function CoverageBar({
                               ))}
                             </div>
                           ) : (
-                            <div className="pp-cfree">Neplanificat</div>
+                            <div className="pp-cfree"><span className="pp-ck">✓</span> free</div>
                           )}
                         </div>
                       ))}
@@ -502,7 +502,8 @@ export default function CoverageBar({
         .pp-adot { width: 8px; height: 8px; flex: none; border-radius: 50%; margin-top: 5px; }
         .pp-adot.ok { background: var(--product); } .pp-adot.pend { background: var(--st-unconfirmed); }
         .pp-apos { color: var(--text-dim); font-size: 12px; line-height: 1.35; }
-        .pp-cfree { color: var(--product); font-size: 12.5px; font-weight: 600; }
+        .pp-cfree { color: var(--product); font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+        .pp-ck { font-size: 11px; }
         .pp-cblk { display: flex; align-items: flex-start; gap: 9px; }
         .pp-blki { width: 20px; height: 20px; object-fit: contain; flex: none; margin-top: 1px; }
         .pp-cblkt { color: #ff9a94; font-size: 12.5px; font-weight: 700; }

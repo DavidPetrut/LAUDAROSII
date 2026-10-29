@@ -556,17 +556,18 @@ router.get("/:serviceTypeId/anomalies", requireAny(CAN_VIEW_MATRIX), async (req,
     const stN = Object.fromEntries(sts.map((s) => [String(s._id), s.name]));
     const personById = Object.fromEntries(people.map((p) => [String(p._id), p]));
 
+    const blkLabel = (b) => (b ? { label: b.startDate === b.endDate ? b.startDate : `${b.startDate} → ${b.endDate}`, reason: b.reason || "" } : null);
     const out = ids.map((pid) => {
       const p = personById[pid]; if (!p) return null;
-      const firstB = Object.values(blockedDays[pid])[0];
       return {
         id: pid, name: [p.firstName, p.lastName].filter(Boolean).join(" "),
         initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase(), avatar: p.avatar || "",
-        blockout: { label: firstB.startDate === firstB.endDate ? firstB.startDate : `${firstB.startDate} → ${firstB.endDate}`, reason: firstB.reason || "" },
         servings: byPerson[pid].map((a) => ({
           assignmentId: a._id, planId: a.planId, dayLabel: dayLabelOf[a.day] || "",
           position: pN[String(a.positionId)] || (a.isGuest ? "Invitat" : "Poziție"),
           team: tN[String(a.teamId)] || "", serviceTypeName: stN[planSt[String(a.planId)]] || "", status: a.status,
+          // blockout-ul care ACOPERĂ EXACT ziua acestei slujiri (nu alt blockout al persoanei)
+          blockout: blkLabel(blockedDays[pid][a.day]),
         })),
       };
     }).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name, "ro"));
