@@ -121,6 +121,7 @@ router.get("/me", async (req, res) => {
         songsEdit: await can(req, "songs.edit"),
         mediaEdit: await can(req, "media.edit"),
         reportsView: await can(req, "reports.view"),
+        whatsapp: await can(req, "whatsapp.manage"),
       },
       myTeamIds: teamIds,
     });

@@ -45,4 +45,7 @@ module.exports = {
   PcMediaItem: require("./PcMediaItem"),
   PcBlockout: require("./PcBlockout"),
   PcMessage: require("./PcMessage"),
+  // WhatsApp group-sync
+  PcWhatsappSession: require("./PcWhatsappSession"),
+  PcWhatsappGroup: require("./PcWhatsappGroup"),
 };

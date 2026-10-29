@@ -254,3 +254,19 @@ export const matrixApi = {
   // ATENȚIE: trimite emailuri reale. Se apelează DOAR la acțiune explicită a utilizatorului.
   sendEmails: (serviceTypeId, planIds, teamId) => api.post(`/matrix/${serviceTypeId}/emails`, { planIds, teamId }),
 };
+
+/* ─── WhatsApp (sync grupuri) — server/planning-center/routes/whatsapp.js ─── */
+export const whatsappApi = {
+  status: () => api.get(`/whatsapp/status`),
+  connect: () => api.post(`/whatsapp/connect`, {}),
+  logout: () => api.post(`/whatsapp/logout`, {}),
+  groups: () => api.get(`/whatsapp/groups`),
+  ministries: () => api.get(`/whatsapp/ministries`),
+  mappings: () => api.get(`/whatsapp/mappings`),
+  map: (payload) => api.post(`/whatsapp/map`, payload),
+  unmap: (id) => api.del(`/whatsapp/map/${id}`),
+  setMode: (id, mode) => api.put(`/whatsapp/map/${id}/mode`, { mode }),
+  preview: (id) => api.get(`/whatsapp/preview/${id}`),
+  // ATENȚIE: adaugă/scoate oameni REALI din grup. DOAR pe acțiune explicită a utilizatorului.
+  sync: (id) => api.post(`/whatsapp/sync/${id}`, {}),
+};

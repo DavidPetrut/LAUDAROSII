@@ -64,7 +64,7 @@ const PARTIAL_CAPS = new Set([
   "services.manageServiceTypes", "services.addPlan", "services.editOrder", "services.schedule",
   "services.viewMatrix", "services.assign", "services.move", "services.editNeeded",
   "services.blockouts", "services.manageTeams", "services.positionRules",
-  "songs.edit", "songs.import", "media.edit", "reports.view",
+  "songs.edit", "songs.import", "media.edit", "reports.view", "whatsapp.manage",
 ]);
 // „basic" — doar vizualizare: vede directorul de oameni (toți), citește planuri/songs/media, își vede
 // propriul schedule și răspunde la propriile programări. NU editează nimic.

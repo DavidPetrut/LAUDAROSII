@@ -122,6 +122,14 @@ setupPrayRoomSockets(io);
 startBroadcastScheduler();
 startPrayRoomScheduler();
 
+// Puntea WhatsApp (Baileys) — DOAR local/always-on (flag). Pe Render rămâne oprită (ephemeral + sleep).
+if (process.env.WHATSAPP_BRIDGE === "1") {
+  try {
+    require("./planning-center/whatsapp/bridge").start().catch((e) => console.error("[whatsapp] start:", e.message));
+    console.log("[whatsapp] punte pornită (WHATSAPP_BRIDGE=1)");
+  } catch (e) { console.error("[whatsapp] bridge indisponibil:", e.message); }
+}
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server pornit pe portul ${PORT}`);
