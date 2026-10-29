@@ -19,6 +19,7 @@ import CoverageBar from "@/components/plans/CoverageBar";
 import TeamsManagerModal from "@/components/plans/TeamsManagerModal";
 import PositionJoinModal from "@/components/plans/PositionJoinModal";
 import ConflictModal from "@/components/plans/ConflictModal";
+import ReplaceModal from "@/components/plans/ReplaceModal";
 
 /* numele echipei pereche: „Asimilare (SIM 1)" ↔ „Asimilare (SIM 2)" */
 function perecheName(name = "") {
@@ -81,6 +82,8 @@ export default function MatrixPage() {
   const [simBusy, setSimBusy] = useState(false);
   const [joinModal, setJoinModal] = useState(null); // om nou pe poziție → guest (o zi) / permanent (roster)
   const [joinBusy, setJoinBusy] = useState(false);
+  const [replaceModal, setReplaceModal] = useState(null); // poziție plină (needed=0) → pe cine înlocuiești?
+  const [replaceBusy, setReplaceBusy] = useState(false);
   const [barOpen, setBarOpen] = useState(false);   // bara de jos „listă live"
   const [browse, setBrowse] = useState(false);     // sidebar dreapta în mod „vizualizare toți oamenii" (fără poziție)
   const [cov, setCov] = useState(null);
@@ -167,6 +170,13 @@ export default function MatrixPage() {
   const plans = data?.plans || [];
   const teams = data?.teams || [];
   const nPlans = plans.length;
+  // celula din grilă (needed + people) pt. o poziție/plan — folosit la limita de „needed"
+  const cellOf = (teamId, positionId, colIdx) => {
+    const t = teams.find((x) => String(x.teamId) === String(teamId));
+    const pos = (t?.positions || []).find((p) => String(p.positionId) === String(positionId));
+    return (pos?.cells || [])[colIdx] || null;
+  };
+  const activeOccupants = (cell) => (cell?.people || []).filter((x) => x.status !== "declined" && !String(x.assignmentId).startsWith("tmp-"));
   // ocupantul poziției SELECTATE (pt. pasul 2 „Înlocuiește" din modalul de conflicte)
   const selOccupant = (() => {
     if (!sel) return null;
@@ -365,7 +375,52 @@ export default function MatrixPage() {
   }
   function cancelJoin() { setJoinModal(null); } // nimic n-a fost pus în celulă până la alegere → nimic de curățat (zero flicker)
 
-  async function assignPerson(p, mirror, timeIds) {
+  // „needed" ca LIMITĂ: dacă asignezi pe o poziție PLINĂ (needed=0 + ocupată) → întâi întreabă pe cine înlocuiești
+  function assignPerson(p, mirror, timeIds) {
+    if (!sel) { flash("Click pe o căsuță (poziție) din grilă ca să asignezi pe cineva."); return; }
+    const doMirror = mirror && pereche;
+    const cell = cellOf(sel.teamId, sel.positionId, sel.colIdx);
+    const occ = activeOccupants(cell);
+    if (!doMirror && cell && (cell.needed || 0) <= 0 && occ.length > 0) {
+      setReplaceModal({ person: { id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "", inRoster: p.inRoster }, timeIds,
+        occupants: occ, positionName: sel.positionName, teamName: teamNameOf(sel.teamId), planId: sel.planId, teamId: sel.teamId, positionId: sel.positionId, colIdx: sel.colIdx });
+      return;
+    }
+    doAssign(p, mirror, timeIds);
+  }
+  // asignează o persoană pe un target EXPLICIT (planId/teamId/positionId/colIdx), cu fluxul join/SIM-pair
+  async function assignToTarget(t) {
+    const p = t.person;
+    if (await needsJoin(p, t.positionId)) {
+      stageJoin({ planId: t.planId, teamId: t.teamId, positionId: t.positionId, colIdx: t.colIdx, timeIds: t.timeIds, positionName: t.positionName, teamName: t.teamName, person: p });
+      return;
+    }
+    setAssigning(true);
+    const tmp = `tmp-a-${Date.now()}`;
+    patchCell(t.teamId, t.positionId, t.colIdx, (c) => ({ ...c, needed: Math.max(0, (c.needed || 0) - 1),
+      people: [...c.people, { personId: p.id, assignmentId: tmp, name: p.name, avatar: p.avatar, initials: p.initials, status: "unconfirmed" }] }));
+    try {
+      const r = await plansApi.assign(t.planId, { personId: p.id, teamId: t.teamId, positionId: t.positionId, status: "unconfirmed", timeIds: t.timeIds });
+      if (r?.id) patchCell(t.teamId, t.positionId, t.colIdx, (c) => ({ ...c, people: c.people.map((x) => String(x.assignmentId) === String(tmp) ? { ...x, assignmentId: r.id } : x) }));
+      flash("Asignat (neconfirmat, fără email).");
+      maybeOfferSimPair(t.planId, p, t.teamId, t.positionId, t.colIdx);
+      refreshRec(); loadCov(); softReconcile();
+    } catch (e) { flash(e?.message || "Eroare."); reconcile(); }
+    finally { setAssigning(false); }
+  }
+  // scoate ocupantul (→ declined) apoi asignează noul om; sau doar adaugă extra
+  async function replaceWith(occupant) {
+    const r = replaceModal; if (!r) return; setReplaceBusy(true);
+    try {
+      patchCell(r.teamId, r.positionId, r.colIdx, (c) => ({ ...c, people: c.people.map((x) => String(x.assignmentId) === String(occupant.assignmentId) ? { ...x, status: "declined" } : x) }));
+      await plansApi.updateAssignment(r.planId, occupant.assignmentId, { status: "declined" });
+    } catch (e) { flash(e?.message || "Eroare."); }
+    setReplaceBusy(false); setReplaceModal(null);
+    assignToTarget(r);
+  }
+  function replaceExtra() { const r = replaceModal; if (!r) return; setReplaceModal(null); assignToTarget(r); }
+
+  async function doAssign(p, mirror, timeIds) {
     if (!sel) { flash("Click pe o căsuță (poziție) din grilă ca să asignezi pe cineva."); return; }
     const tIds = Array.isArray(timeIds) && timeIds.length ? timeIds : undefined; // gol = toate orele
     const doMirror = mirror && pereche;
@@ -426,6 +481,15 @@ export default function MatrixPage() {
     const sameCell = !d.fromBar && String(d.planId) === String(planId) && String(d.teamId) === String(teamId) && String(d.positionId) === String(positionId);
     if (sameCell) return; // lăsat înapoi pe aceeași poziție → nimic
     const doMove = !copy && !d.fromBar && d.assignmentId && !String(d.assignmentId).startsWith("tmp-");
+    // drop din Listă live pe o poziție PLINĂ (needed=0) → întâi întreabă pe cine înlocuiești
+    if (d.fromBar && !d.isGuest) {
+      const cell = cellOf(teamId, positionId, colIdx); const occ = activeOccupants(cell);
+      if (cell && (cell.needed || 0) <= 0 && occ.length > 0) {
+        setReplaceModal({ person: { id: d.personId, name: d.name, avatar: d.avatar || "", initials: d.initials || "" }, timeIds: undefined,
+          occupants: occ, positionName: posNameOf(teamId, positionId), teamName: teamNameOf(teamId), planId, teamId, positionId, colIdx });
+        return;
+      }
+    }
     // drop din Listă live (add) pe o poziție din care NU face parte → cere decizia ÎNAINTE de a pune ceva în celulă
     if (d.fromBar && !d.isGuest && await needsJoin({ id: d.personId, name: d.name }, positionId)) {
       stageJoin({ planId, teamId, positionId, colIdx, positionName: posNameOf(teamId, positionId), teamName: teamNameOf(teamId),
@@ -947,6 +1011,8 @@ export default function MatrixPage() {
       )}
 
       <PositionJoinModal data={joinModal} busy={joinBusy} onGuest={confirmJoinGuest} onPermanent={confirmJoinPermanent} onClose={() => !joinBusy && cancelJoin()} />
+
+      <ReplaceModal data={replaceModal} busy={replaceBusy} onReplace={replaceWith} onExtra={replaceExtra} onClose={() => !replaceBusy && setReplaceModal(null)} />
 
       {toast && <div className="toast">{toast}</div>}
 
