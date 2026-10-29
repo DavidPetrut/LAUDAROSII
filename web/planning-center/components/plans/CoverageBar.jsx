@@ -2,7 +2,8 @@
 /**
  * CoverageBar — „Listă LIVE" ca BARĂ DE JOS (collapse/expand din jos, animație).
  * Header = TAB-uri: „Listă live" (mereu) + un tab DINAMIC cu persoana targetată (doar când e target activ).
- *   · Tab „Listă live": filtre colorate (stânga) + UN container cu toggle în header (Neplanificați/Planificați).
+ *   · Tab „Listă live": filtre colorate (stânga) + coloane 0×/1×/2×/3×/4×+ (primul container are toggle
+ *     Neplanificați/Planificați în header) + container SEPARAT „Blockout" la final (border roșiatic).
  *   · Tab persoană (#11 target-mode): detalii despre persoana targetată — statistici (slujiri, liber/ocupat/
  *     blocat în fereastră) + unde mai e planificată (viitor). Apare la click pe o persoană, dispare la detarget.
  * Carduri trăgibile direct în Matrix. Nu are refresh — LIVE. Nu acoperă sidebar-ul (inset prin `style`).
@@ -20,12 +21,14 @@ export default function CoverageBar({
   target = null, targetSched = null, targetAvail = {}, onCloseTarget, reassignMode = false, disablePersonId = null,
   onVerifyPerson, canVerify = false, targetWeeks = null, selSts = null, onToggleSt,
 }) {
-  const [mode, setMode] = useState("un"); // "un" = Neplanificați (default) | "pl" = Planificați
+  const [col0Mode, setCol0Mode] = useState("un"); // primul container: Neplanificați (0×) / Planificați (toți, alfabetic)
   const [tab, setTab] = useState("live"); // "live" | "person"
-  // căutare pe lista ACTIVĂ (strict pe filtrul ales din header): lupa → input + X.
-  const [bqOpen, setBqOpen] = useState(false);
-  const [bq, setBq] = useState("");
-  const closeBq = () => { setBqOpen(false); setBq(""); };
+  // căutare PER container (bucket/blockout): lupa din header → input + X. Cheie = b.times sau "blk".
+  const [bqOpen, setBqOpen] = useState({});
+  const [bq, setBq] = useState({});
+  const openBq = (t) => setBqOpen((s) => ({ ...s, [t]: true }));
+  const closeBq = (t) => { setBqOpen((s) => ({ ...s, [t]: false })); setBq((s) => ({ ...s, [t]: "" })); };
+  const setBqVal = (t, v) => setBq((s) => ({ ...s, [t]: v }));
 
   // target activ → deschide bara + sari pe tabul persoanei; detarget → înapoi la „Listă live"
   useEffect(() => {
@@ -44,16 +47,12 @@ export default function CoverageBar({
     if (filters.sim && (p.programIntent || simOf(p.name)) !== filters.sim) return false;
     return true;
   };
-  // UN singur container cu toggle în header: Neplanificați (0×) vs Planificați (toți cu 1×+, alfabetic).
-  const bkts = cov?.buckets || [];
-  const unList = (bkts.find((b) => b.times === 0)?.people || []).filter(keepPerson);
-  const plList = bkts.filter((b) => b.times > 0).flatMap((b) => b.people || [])
-    .filter(keepPerson).sort((a, b) => (a.name || "").localeCompare(b.name || "", "ro")); // alfabetic, indiferent de câte ori
-  // Blockout: oamenii cu blockout în acea săptămână (din backend, deja scopat pe zi) — alfabetic.
+  // COLOANE (ca înainte): 0×/1×/2×/3×/4×+. Primul container are un toggle în header: „Planificați" = toți cei
+  // cu 1×+ la grămadă, alfabetic (restul coloanelor rămân neschimbate). Blockout = container SEPARAT, la final.
+  const buckets = (cov?.buckets || []).map((b) => ({ ...b, people: (b.people || []).filter(keepPerson) }));
+  const plAll = buckets.filter((b) => b.times > 0).flatMap((b) => b.people)
+    .sort((a, b) => (a.name || "").localeCompare(b.name || "", "ro")); // „Planificați" în primul container (alfabetic)
   const blkList = (cov?.blockout || []).filter(keepPerson).sort((a, b) => (a.name || "").localeCompare(b.name || "", "ro"));
-  const activeList = mode === "un" ? unList : mode === "pl" ? plList : blkList;
-  const q = bq.trim().toLowerCase();
-  const shown = bqOpen && q ? activeList.filter((p) => (p.name || "").toLowerCase().includes(q)) : activeList;
   const mh = filters.ministry ? hueOf(filters.ministry.name) : 0;
 
   // statistici fereastră (din disponibilitatea per plan)
@@ -201,60 +200,112 @@ export default function CoverageBar({
               </div>
             </div>
           </aside>
-          <div className="cb-cols single">
+          <div className="cb-cols">
             {loading && !cov && <div className="cb-muted">Se încarcă…</div>}
-            <div className={`cb-one ${mode === "blk" ? "blk" : ""}`}>
-              <div className="cb-ch">
-                {bqOpen ? (
-                  <div className="cb-search">
-                    <svg className="cb-si" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="7" cy="7" r="4.5" /><path d="M14 14l-3.2-3.2" /></svg>
-                    <input autoFocus className="cb-sinput" placeholder="caută..." value={bq}
-                      onChange={(e) => setBq(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Escape") closeBq(); }} />
-                    <button className="cb-sx" title="Închide căutarea" onClick={closeBq}>×</button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="cbw plpick" onClick={(e) => e.stopPropagation()}>
-                      <button type="button" className={`cbw-opt pl a ${mode === "un" ? "on" : ""}`} onClick={() => setMode("un")}><span className="cbw-simlb">Neplanificați</span></button>
-                      <button type="button" className={`cbw-opt pl b ${mode === "pl" ? "on" : ""}`} onClick={() => setMode("pl")}><span className="cbw-simlb">Planificați</span></button>
-                      <button type="button" className={`cbw-opt pl c ${mode === "blk" ? "on" : ""}`} onClick={() => setMode("blk")}><span className="cbw-simlb"><img className="cb-blki" src="/icons/blockout.png" alt="" />Blockout</span></button>
+            {buckets.map((b) => {
+              const isCol0 = b.times === 0;
+              // primul container (0×) are toggle: „Planificați" = toți cei cu 1×+ la grămadă, alfabetic
+              const base = isCol0 && col0Mode === "pl" ? plAll : b.people;
+              const q = (bq[b.times] || "").trim().toLowerCase();
+              const people = bqOpen[b.times] && q ? base.filter((p) => (p.name || "").toLowerCase().includes(q)) : base;
+              return (
+              <div key={b.times} className={`cb-col ${isCol0 ? "col0" : ""}`}>
+                <div className="cb-ch">
+                  {bqOpen[b.times] ? (
+                    <div className="cb-search">
+                      <svg className="cb-si" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="7" cy="7" r="4.5" /><path d="M14 14l-3.2-3.2" /></svg>
+                      <input autoFocus className="cb-sinput" placeholder="caută..." value={bq[b.times] || ""}
+                        onChange={(e) => setBqVal(b.times, e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Escape") closeBq(b.times); }} />
+                      <button className="cb-sx" title="Închide căutarea" onClick={() => closeBq(b.times)}>×</button>
                     </div>
-                    <span className="cb-chr">
-                      <button className="cb-sbtn" title="Caută în această listă" onClick={() => setBqOpen(true)}>
-                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="7" cy="7" r="4.5" /><path d="M14 14l-3.2-3.2" /></svg>
-                      </button>
-                      <span className="cb-cn">{activeList.length}</span>
-                    </span>
-                  </>
-                )}
+                  ) : (
+                    <>
+                      {isCol0
+                        ? <div className="cbw plpick sm" onClick={(e) => e.stopPropagation()}>
+                            <button type="button" className={`cbw-opt pl a ${col0Mode === "un" ? "on" : ""}`} onClick={() => setCol0Mode("un")}><span className="cbw-simlb">Neplanificați</span></button>
+                            <button type="button" className={`cbw-opt pl b ${col0Mode === "pl" ? "on" : ""}`} onClick={() => setCol0Mode("pl")}><span className="cbw-simlb">Planificați</span></button>
+                          </div>
+                        : <span className="cb-chlbl"><img className="cb-dl" src="/icons/deadline.png" alt="" />×{b.times}{String(b.label).includes("+") ? "+" : ""}</span>}
+                      <span className="cb-chr">
+                        <button className="cb-sbtn" title="Caută în această listă" onClick={() => openBq(b.times)}>
+                          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="7" cy="7" r="4.5" /><path d="M14 14l-3.2-3.2" /></svg>
+                        </button>
+                        <span className="cb-cn">{base.length}</span>
+                      </span>
+                    </>
+                  )}
+                </div>
+                <div className="cb-list">
+                  {people.length === 0 && <div className="cb-empty">{bqOpen[b.times] && q ? "Niciun rezultat." : "—"}</div>}
+                  {people.map((p) => {
+                    const dis = disablePersonId && String(p.id) === String(disablePersonId);
+                    return (
+                    <div key={p.id} className={`cb-card ${dis ? "dis" : ""}`} draggable={!dis}
+                      onDragStart={dis ? undefined : (e) => { e.dataTransfer.effectAllowed = "copy"; try { e.dataTransfer.setData("application/pc-person", JSON.stringify({ id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "" })); } catch {} onPersonDragStart?.(p); }}
+                      onDragEnd={() => onPersonDragEnd?.()}
+                      title={dis ? "Nu poți înlocui o persoană cu ea însăși" : `${p.name} — trage în Matrix pentru a asigna`}>
+                      <PersonAvatar person={p} size={26} showBadge={false} />
+                      {p.inRoster && <span className="cb-rost" title="În rosterul echipei" />}
+                      <span className="cb-name">{p.name}</span>
+                      {(() => {
+                        const cf = [];
+                        if (p.scheduled > 0) cf.push({ type: "time", label: `Planificat de ${p.scheduled}×` });
+                        if (p.blocked > 0) cf.push({ type: "blockout", label: `${p.blocked} ${p.blocked === 1 ? "plan blocat" : "planuri blocate"}` });
+                        return cf.length > 0 ? <ConflictBadge items={cf} canVerify={canVerify} onVerify={() => onVerifyPerson?.(p)} /> : null;
+                      })()}
+                    </div>
+                    ); })}
+                </div>
               </div>
-              <div className="cb-list">
-                {shown.length === 0 && <div className="cb-empty">{bqOpen && q ? "Niciun rezultat." : "—"}</div>}
-                {shown.map((p) => {
-                  const dis = disablePersonId && String(p.id) === String(disablePersonId);
-                  return (
-                  <div key={p.id} className={`cb-card ${dis ? "dis" : ""}`} draggable={!dis}
-                    onDragStart={dis ? undefined : (e) => { e.dataTransfer.effectAllowed = "copy"; try { e.dataTransfer.setData("application/pc-person", JSON.stringify({ id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "" })); } catch {} onPersonDragStart?.(p); }}
-                    onDragEnd={() => onPersonDragEnd?.()}
-                    title={dis ? "Nu poți înlocui o persoană cu ea însăși" : `${p.name} — trage în Matrix pentru a asigna`}>
-                    <PersonAvatar person={p} size={26} showBadge={false} />
-                    {p.inRoster && <span className="cb-rost" title="În rosterul echipei" />}
-                    <span className="cb-name">{p.name}</span>
-                    {mode === "blk" ? (
+            ); })}
+            {/* CONTAINER NOU: Blockout — la final, separat, border roșiatic. Doar oamenii cu blockout pe acea săptămână. */}
+            {blkList.length > 0 && (() => {
+              const q = (bq.blk || "").trim().toLowerCase();
+              const people = bqOpen.blk && q ? blkList.filter((p) => (p.name || "").toLowerCase().includes(q)) : blkList;
+              return (
+              <div className="cb-col blkcol">
+                <div className="cb-ch">
+                  {bqOpen.blk ? (
+                    <div className="cb-search">
+                      <svg className="cb-si" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="7" cy="7" r="4.5" /><path d="M14 14l-3.2-3.2" /></svg>
+                      <input autoFocus className="cb-sinput" placeholder="caută..." value={bq.blk || ""}
+                        onChange={(e) => setBqVal("blk", e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Escape") closeBq("blk"); }} />
+                      <button className="cb-sx" title="Închide căutarea" onClick={() => closeBq("blk")}>×</button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="cb-chlbl"><img className="cb-dl blk" src="/icons/blockout.png" alt="" />Blockout</span>
+                      <span className="cb-chr">
+                        <button className="cb-sbtn" title="Caută în această listă" onClick={() => openBq("blk")}>
+                          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="7" cy="7" r="4.5" /><path d="M14 14l-3.2-3.2" /></svg>
+                        </button>
+                        <span className="cb-cn">{blkList.length}</span>
+                      </span>
+                    </>
+                  )}
+                </div>
+                <div className="cb-list">
+                  {people.length === 0 && <div className="cb-empty">{bqOpen.blk && q ? "Niciun rezultat." : "—"}</div>}
+                  {people.map((p) => {
+                    const dis = disablePersonId && String(p.id) === String(disablePersonId);
+                    return (
+                    <div key={p.id} className={`cb-card ${dis ? "dis" : ""}`} draggable={!dis}
+                      onDragStart={dis ? undefined : (e) => { e.dataTransfer.effectAllowed = "copy"; try { e.dataTransfer.setData("application/pc-person", JSON.stringify({ id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "" })); } catch {} onPersonDragStart?.(p); }}
+                      onDragEnd={() => onPersonDragEnd?.()}
+                      title={`${p.name} — blockout`}>
+                      <PersonAvatar person={p} size={26} showBadge={false} />
+                      {p.inRoster && <span className="cb-rost" title="În rosterul echipei" />}
+                      <span className="cb-name">{p.name}</span>
                       <span className="cb-blktag" title={p.blockout?.reason ? `${p.blockout.label} · ${p.blockout.reason}` : (p.blockout?.label || "Blockout")}>
                         <img className="cb-blki" src="/icons/blockout.png" alt="" />{p.blockout?.label || "blockout"}
                       </span>
-                    ) : (() => {
-                      const cf = [];
-                      if (p.scheduled > 0) cf.push({ type: "time", label: `Planificat de ${p.scheduled}×` });
-                      if (p.blocked > 0) cf.push({ type: "blockout", label: `${p.blocked} ${p.blocked === 1 ? "plan blocat" : "planuri blocate"}` });
-                      return cf.length > 0 ? <ConflictBadge items={cf} canVerify={canVerify} onVerify={() => onVerifyPerson?.(p)} /> : null;
-                    })()}
-                  </div>
-                  ); })}
+                    </div>
+                    ); })}
+                </div>
               </div>
-            </div>
+              ); })()}
           </div>
         </div>
       )}
@@ -363,22 +414,20 @@ export default function CoverageBar({
         .cbw-opt.on { transform: translateY(-1px) scale(1.04); }
         .cbw-opt.m.on { color: #9ecbff; } .cbw-opt.f.on { color: #ff9a94; }
         .cbw-opt.s1.on { color: #8fe0b4; } .cbw-opt.s2.on { color: #e6cb74; }
-        /* ── container UNIC + toggle Neplanificați/Planificați/Blockout în header (design ca filtrele din stânga) ── */
-        /* IMPORTANT: toggle-ul ÎNCAPE în header-ul existent (~39px) — NU mări header-ul. */
-        .cb-cols.single { padding: 12px 16px; }
-        .cb-one { flex: 1; min-width: 0; min-height: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; display: flex; flex-direction: column; transition: border-color .18s; }
-        .cb-one.blk { border-color: rgba(248,81,73,.5); }
-        .cb-one.blk .cb-ch { background: rgba(248,81,73,.07); border-radius: 10px 10px 0 0; }
-        .cb-cols.single .cb-ch { padding: 4px 12px; }
-        .cb-one .cb-list { flex: 1; }
-        .cbw.plpick { padding: 2px; gap: 2px; border-radius: 9px; }
-        .cbw.plpick .cbw-opt { flex: 1; min-width: 0; height: 26px; padding: 0 8px; border-radius: 7px; transition: color .18s, background .22s, box-shadow .22s; }
+        /* ── toggle Neplanificați/Planificați DOAR în header-ul PRIMULUI container (încape în ~39px) ── */
+        .cb-col.col0 .cb-ch { padding-top: 4px; padding-bottom: 4px; }
+        .cbw.plpick { flex: 1; min-width: 0; padding: 2px; gap: 2px; border-radius: 8px; }
+        .cbw.plpick .cbw-opt { flex: 1; min-width: 0; height: 26px; padding: 0 5px; border-radius: 6px; transition: color .18s, background .22s, box-shadow .22s; }
         .cbw.plpick .cbw-opt:hover { transform: none; color: var(--text-dim); }
         .cbw.plpick .cbw-opt.on { transform: none; font-weight: 800; }
         .cbw.plpick .cbw-opt.a.on { color: #9ecbff; background: radial-gradient(120% 120% at 50% 30%, rgba(47,129,247,.28), rgba(47,129,247,.05)); box-shadow: inset 0 0 0 1px rgba(109,179,255,.6), 0 0 12px rgba(47,129,247,.25); }
         .cbw.plpick .cbw-opt.b.on { color: #8fe0b4; background: radial-gradient(120% 120% at 50% 30%, rgba(87,185,138,.28), rgba(87,185,138,.05)); box-shadow: inset 0 0 0 1px rgba(123,220,174,.6), 0 0 12px rgba(87,185,138,.25); }
-        .cbw.plpick .cbw-opt.c.on { color: #ff9a94; background: radial-gradient(120% 120% at 50% 30%, rgba(248,81,73,.3), rgba(248,81,73,.05)); box-shadow: inset 0 0 0 1px rgba(255,138,132,.6), 0 0 12px rgba(248,81,73,.28); }
-        .cbw.plpick .cbw-simlb { font-size: 11.5px; letter-spacing: .2px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+        .cbw.plpick .cbw-simlb { font-size: 11px; letter-spacing: 0; white-space: nowrap; }
+        /* ── container BLOCKOUT (separat, la final) — border roșiatic + icon în header ── */
+        .cb-col.blkcol { border-color: rgba(248,81,73,.5); }
+        .cb-col.blkcol .cb-ch { background: rgba(248,81,73,.08); border-radius: 10px 10px 0 0; }
+        .cb-col.blkcol .cb-chlbl { color: #ff9a94; }
+        .cb-dl.blk { width: 16px; height: 16px; }
         .cb-blki { width: 13px; height: 13px; object-fit: contain; flex: none; }
         .cb-blktag { display: inline-flex; align-items: center; gap: 5px; flex: none; color: #ff9a94; font-size: 11px; font-weight: 600; white-space: nowrap; }
         .cb-blktag .cb-blki { width: 14px; height: 14px; opacity: .95; }
