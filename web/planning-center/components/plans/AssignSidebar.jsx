@@ -372,8 +372,7 @@ export default function AssignSidebar({
 
             {!loading && fBlockout.length > 0 && (
               <div className="asb-grp">
-                <button className="asb-gh blk" onClick={() => toggleGrp("blockout")}>
-                  <img className="asb-blki" src="/icons/blockout.png" alt="" />
+                <button className="asb-gh" onClick={() => toggleGrp("blockout")}>
                   <span className="asb-ghl">BLOCKOUT</span>
                   <span className="asb-gn">{fBlockout.length}</span>
                   <span className={`asb-gc ${collapsed.has("blockout") ? "col" : ""}`}>▾</span>
@@ -382,9 +381,8 @@ export default function AssignSidebar({
                   <div key={p.id} className="cand blk">
                     <PersonAvatar person={p} size={28} showBadge={false} />
                     <span className="cn">{p.name}</span>
-                    <span className="blk-tag" title={p.blockout?.reason ? `${p.blockout.label} · ${p.blockout.reason}` : (p.blockout?.label || "Blockout")}>
-                      <img className="asb-blki sm" src="/icons/blockout.png" alt="" />{p.blockout?.label || "blockout"}
-                    </span>
+                    <ConflictBadge icon="/icons/blockout.png" canVerify={!!planId && !browse} onVerify={() => setConflictFor(p)}
+                      items={[{ type: "blockout", label: "Blockout", detail: [p.blockout?.label, p.blockout?.reason].filter(Boolean).join(" · ") }]} />
                   </div>
                 ))}
               </div>
