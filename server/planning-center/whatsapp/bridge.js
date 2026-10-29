@@ -218,6 +218,21 @@ async function inviteLink(jid) {
   return `https://chat.whatsapp.com/${code}`;
 }
 
+/** Numele (subject) curent al grupului. */
+async function groupName(jid) {
+  if (!sock) return "";
+  try { const m = await sock.groupMetadata(jid); return m.subject || ""; } catch { return ""; }
+}
+
+/** Redenumește grupul (ex. „SIM1 - 1 noi - Alex Lascae"). */
+async function renameGroup(jid, subject) {
+  if (!sock) throw new Error("Puntea nu e conectată.");
+  const s = String(subject || "").slice(0, 100).trim();
+  if (!s) return "";
+  await sock.groupUpdateSubject(jid, s);
+  return s;
+}
+
 /** Delogare + reset sesiune (pt. re-pair cu alt număr). */
 async function logoutAndReset() {
   try { if (sock) await sock.logout(); } catch {}
@@ -225,4 +240,4 @@ async function logoutAndReset() {
   try { const oid = await getOrgId(); await PcWhatsappSession.updateOne({ orgId: oid }, { $set: { data: {}, status: "disconnected", me: null, lastError: "" } }); } catch {}
 }
 
-module.exports = { start, ensureStarted, status, listGroups, groupMembers, syncGroup, inviteLink, logoutAndReset, normalizeNumber };
+module.exports = { start, ensureStarted, status, listGroups, groupMembers, syncGroup, inviteLink, groupName, renameGroup, logoutAndReset, normalizeNumber };

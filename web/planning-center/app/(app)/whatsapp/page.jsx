@@ -12,25 +12,33 @@ export default function WhatsappPage() {
   const router = useRouter();
   const [st, setSt] = useState(null);          // status punte
   const [groups, setGroups] = useState([]);    // grupuri reale
-  const [ministries, setMinistries] = useState([]);
+  const [teams, setTeams] = useState([]);      // echipe (pt. picker)
+  const [weeks, setWeeks] = useState([]);      // săptămânile echipei alese (offset + dată)
   const [maps, setMaps] = useState([]);
   const [busy, setBusy] = useState("");        // id acțiune în curs
   const [msg, setMsg] = useState("");
   const [preview, setPreview] = useState({});  // mappingId -> preview
   const [result, setResult] = useState({});    // mappingId -> result sync
   const [addJid, setAddJid] = useState("");
-  const [addMin, setAddMin] = useState("");
+  const [addTeam, setAddTeam] = useState("");
+  const [addOffset, setAddOffset] = useState(0);
   const [addMode, setAddMode] = useState("semi");
   const pollRef = useRef(null);
 
   const loadStatus = useCallback(async () => { try { setSt(await whatsappApi.status()); } catch {} }, []);
   const loadGroups = useCallback(async () => { try { const r = await whatsappApi.groups(); setGroups(r.groups || []); } catch { setGroups([]); } }, []);
   const loadMaps = useCallback(async () => { try { const r = await whatsappApi.mappings(); setMaps(r.mappings || []); } catch {} }, []);
+  const teamName = (id) => teams.find((t) => String(t.id) === String(id))?.name || "echipă";
 
   useEffect(() => {
     loadStatus(); loadMaps();
-    whatsappApi.ministries().then((r) => setMinistries(r.ministries || [])).catch(() => {});
+    whatsappApi.teams().then((r) => setTeams(r.teams || [])).catch(() => {});
   }, [loadStatus, loadMaps]);
+  // când alegi o echipă → încarcă săptămânile ei (offset + dată)
+  useEffect(() => {
+    if (!addTeam) { setWeeks([]); return; }
+    whatsappApi.teamWeeks(addTeam).then((r) => { setWeeks(r.weeks || []); setAddOffset(0); }).catch(() => setWeeks([]));
+  }, [addTeam]);
 
   // polling status cât timp NU e conectat (ca să prindem QR-ul + conectarea)
   useEffect(() => {
@@ -47,10 +55,10 @@ export default function WhatsappPage() {
   async function logout() { if (!confirm("Deloghezi puntea? Va trebui să re-scanezi QR.")) return; setBusy("logout"); try { setSt(await whatsappApi.logout()); setGroups([]); } catch (e) { flash(e.message); } finally { setBusy(""); } }
 
   async function addMapping() {
-    if (!addJid || !addMin) return flash("Alege un grup și o lucrare.");
+    if (!addJid || !addTeam) return flash("Alege un grup și o echipă.");
     const g = groups.find((x) => x.jid === addJid);
     setBusy("add");
-    try { await whatsappApi.map({ jid: addJid, nameCached: g?.name || "", ministryGroup: addMin, mode: addMode, botNumber: st?.me?.id?.split("@")[0]?.split(":")[0] }); setAddJid(""); setAddMin(""); await loadMaps(); flash("Mapat."); }
+    try { await whatsappApi.map({ jid: addJid, nameCached: g?.name || "", teamId: addTeam, weekOffset: addOffset, mode: addMode, botNumber: st?.me?.id?.split("@")[0]?.split(":")[0] }); setAddJid(""); setAddTeam(""); setAddOffset(0); await loadMaps(); flash("Mapat."); }
     catch (e) { flash(e.message); } finally { setBusy(""); }
   }
   async function unmap(id) { if (!confirm("Scoți maparea?")) return; try { await whatsappApi.unmap(id); await loadMaps(); } catch (e) { flash(e.message); } }
@@ -109,9 +117,14 @@ export default function WhatsappPage() {
               <option value="">— alege grup WhatsApp —</option>
               {groups.map((g) => <option key={g.jid} value={g.jid}>{g.name || g.jid} ({g.size}){g.isAdmin ? "" : " · NU ești admin"}</option>)}
             </select>
-            <select value={addMin} onChange={(e) => setAddMin(e.target.value)}>
-              <option value="">— alege lucrarea —</option>
-              {ministries.map((m) => <option key={m} value={m}>{m}</option>)}
+            <select value={addTeam} onChange={(e) => setAddTeam(e.target.value)}>
+              <option value="">— alege echipa —</option>
+              {Object.entries(teams.reduce((acc, t) => { (acc[t.ministryGroup || "Alte"] = acc[t.ministryGroup || "Alte"] || []).push(t); return acc; }, {})).map(([grp, list]) => (
+                <optgroup key={grp} label={grp}>{list.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</optgroup>
+              ))}
+            </select>
+            <select value={addOffset} onChange={(e) => setAddOffset(Number(e.target.value))} disabled={!addTeam} title="A câta săptămână din viitor">
+              {weeks.length === 0 ? <option value={0}>— săptămâna —</option> : weeks.map((w) => <option key={w.offset} value={w.offset}>{w.label}</option>)}
             </select>
             <select value={addMode} onChange={(e) => setAddMode(e.target.value)}>
               <option value="semi">Semi-auto (confirmi)</option>
@@ -131,7 +144,7 @@ export default function WhatsappPage() {
           return (
             <div key={m._id} className="wa-map">
               <div className="wa-maphead">
-                <div className="wa-mapt"><b>{m.ministryGroup}</b> <span className="wa-grp">→ {m.nameCached || m.jid}</span></div>
+                <div className="wa-mapt"><b>{teamName(m.teamId)}</b> <span className="wa-dim">· săpt. {(m.weekOffset || 0) + 1}</span> <span className="wa-grp">→ {m.nameCached || m.jid}</span></div>
                 <div className="wa-mapctrl">
                   <div className="wa-modes">
                     <button className={`wa-mode ${m.mode === "semi" ? "on" : ""}`} onClick={() => setMode(m._id, "semi")}>Semi-auto</button>
@@ -145,6 +158,7 @@ export default function WhatsappPage() {
               {pv && (
                 <div className="wa-prev">
                   <div className="wa-prevrow"><span className="wa-pl">Săptămâna</span> {pv.weekLabel || "—"}</div>
+                  <div className="wa-prevrow"><span className="wa-pl">Nume nou grup</span> <b>{pv.plannedName || "—"}</b>{!pv.leaderName && <span className="wa-dim"> (fără lider găsit)</span>}</div>
                   <div className="wa-prevrow"><span className="wa-pl">Trebuie în grup</span> {pv.people?.length || 0} oameni</div>
                   {pv.liveError ? <div className="wa-prevrow err">{pv.liveError}</div> : (
                     <div className="wa-prevrow"><span className="wa-pl">Diff</span> +{pv.toAdd?.length || 0} de adăugat, −{pv.toRemove?.length || 0} de scos (acum {pv.currentCount} în grup)</div>
@@ -157,6 +171,7 @@ export default function WhatsappPage() {
                   Rezultat: +{rs.added?.length || 0} adăugați · −{rs.removed?.length || 0} scoși
                   {rs.needInvite?.length > 0 && ` · ${rs.needInvite.length} au nevoie de link invitație (privacy)`}
                   {rs.failed?.length > 0 && ` · ${rs.failed.length} eșuate`}
+                  {rs.renamed && <div>Redenumit: „{rs.renamed}"</div>}
                 </div>
               )}
             </div>
@@ -202,6 +217,7 @@ export default function WhatsappPage() {
         .wa-prevrow { color: var(--text-dim); font-size: 12.5px; }
         .wa-prevrow .wa-pl { color: var(--text-faint); display: inline-block; min-width: 118px; }
         .wa-prevrow.err { color: var(--danger); } .wa-prevrow.warn { color: #e6cb74; }
+        .wa-dim { color: var(--text-faint); }
         .wa-res { margin-top: 10px; padding: 8px 11px; background: rgba(37,211,102,.1); border: 1px solid rgba(37,211,102,.3); border-radius: 8px; color: #8fe0b4; font-size: 12.5px; }
       `}</style>
     </div>

@@ -7,7 +7,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const {
-  PcServiceType, PcTeam, PcPlan, PcAssignment, PcPerson, PcWhatsappGroup,
+  PcServiceType, PcTeam, PcPlan, PcPosition, PcAssignment, PcPerson, PcWhatsappGroup,
 } = require("../models");
 const { scoped } = require("../core/orgScope");
 const { requireCan } = require("../core/permissions");
@@ -18,34 +18,53 @@ const OID = (v) => (mongoose.Types.ObjectId.isValid(v) ? new mongoose.Types.Obje
 const CAN = requireCan("whatsapp.manage");
 const bridgeEnabled = () => process.env.WHATSAPP_BRIDGE === "1";
 const fmtDay = (d) => (d ? new Intl.DateTimeFormat("ro-RO", { weekday: "short", day: "numeric", month: "short" }).format(new Date(d)) : "");
+const RO_MON = ["ian", "feb", "mar", "apr", "mai", "iun", "iul", "aug", "sep", "oct", "noi", "dec"];
+const roShort = (d) => { const x = new Date(d); return `${x.getDate()} ${RO_MON[x.getMonth()]}`; }; // „1 noi"
+// nume grup = {prefix existent} - {dată} - {lider}; prefixul = ce e înainte de primul „ - " (re-sync nu acumulează)
+const buildGroupName = (currentName, dateShort, leaderName) => {
+  const prefix = String(currentName || "").split(" - ")[0].trim() || String(currentName || "").trim();
+  return [prefix, dateShort, leaderName].filter(Boolean).join(" - ").slice(0, 100);
+};
 const primaryPhone = (p) => {
   const list = p?.phones || [];
   const pick = list.find((x) => x.primary && x.number) || list.find((x) => x.location === "Mobile" && x.number) || list.find((x) => x.number);
   return pick?.number || "";
 };
 
-/** Cine trebuie să fie în grupul lucrării pe săptămâna CURENTĂ (următorul plan ≥ azi). */
-async function weekTarget(req, mapping) {
-  const teamFilter = scoped(req, { ministryGroup: mapping.ministryGroup });
-  const teams = await PcTeam.find(teamFilter).select("_id serviceTypeId serviceTypeIds").lean();
-  const teamIds = teams.map((t) => t._id);
-  let stIds = [...new Set(teams.flatMap((t) => [t.serviceTypeId, ...(t.serviceTypeIds || [])]).filter(Boolean).map(String))];
-  if (mapping.serviceTypeId) stIds = stIds.filter((s) => s === String(mapping.serviceTypeId));
-  if (!teamIds.length || !stIds.length) return { weekLabel: "", planIds: [], people: [], numbers: [], missingPhone: [] };
-
+/** Săptămânile (planuri viitoare) în care ECHIPA chiar slujește (are asignări), ordonate. Offset-ul indexează asta. */
+async function teamServingSlots(req, team) {
+  const stOids = [...new Set([team.serviceTypeId, ...(team.serviceTypeIds || [])].filter(Boolean).map(String))].map(OID).filter(Boolean);
+  if (!stOids.length) return [];
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-  const stOids = stIds.map(OID).filter(Boolean);
-  let refPlan = await PcPlan.findOne(scoped(req, { serviceTypeId: { $in: stOids }, sortDate: { $gte: todayStart } })).sort({ sortDate: 1 }).select("sortDate").lean();
-  if (!refPlan) refPlan = await PcPlan.findOne(scoped(req, { serviceTypeId: { $in: stOids } })).sort({ sortDate: -1 }).select("sortDate").lean();
-  if (!refPlan) return { weekLabel: "", planIds: [], people: [], numbers: [], missingPhone: [] };
+  const upPlans = await PcPlan.find(scoped(req, { serviceTypeId: { $in: stOids }, sortDate: { $gte: todayStart } })).sort({ sortDate: 1 }).limit(60).select("sortDate").lean();
+  if (!upPlans.length) return [];
+  const upIds = upPlans.map((p) => p._id);
+  const servingIds = new Set((await PcAssignment.distinct("planId", scoped(req, { teamId: team._id, planId: { $in: upIds }, status: { $ne: "declined" } }))).map(String));
+  const serving = upPlans.filter((p) => servingIds.has(String(p._id)));
+  return serving.length ? serving : upPlans; // fallback dacă planificarea nu e făcută încă
+}
 
-  const ds = new Date(refPlan.sortDate); ds.setHours(0, 0, 0, 0);
-  const de = new Date(ds); de.setDate(de.getDate() + 1);
-  const dayPlans = await PcPlan.find(scoped(req, { serviceTypeId: { $in: stOids }, sortDate: { $gte: ds, $lt: de } })).select("_id").lean();
-  const planIds = dayPlans.map((p) => p._id);
-  const assigns = await PcAssignment.find(scoped(req, { planId: { $in: planIds }, teamId: { $in: teamIds }, status: { $ne: "declined" } })).select("personId").lean();
+/** Cine trebuie în grup = oamenii ECHIPEI pe a `weekOffset`-a săptămână viitoare când echipa slujește. */
+async function weekTarget(req, mapping) {
+  const empty = { weekLabel: "", weekShort: "", leaderName: "", teamName: "", planIds: [], people: [], numbers: [], missingPhone: [] };
+  if (!mapping.teamId) return empty;
+  const team = await PcTeam.findOne(scoped(req, { _id: mapping.teamId })).select("name serviceTypeId serviceTypeIds ministryGroup").lean();
+  if (!team) return empty;
+  const slots = await teamServingSlots(req, team);
+  if (!slots.length) return { ...empty, teamName: team.name };
+  const target = slots[Math.min(Math.max(0, mapping.weekOffset || 0), slots.length - 1)];
+  const ds = new Date(target.sortDate); ds.setHours(0, 0, 0, 0);
+  const assigns = await PcAssignment.find(scoped(req, { planId: target._id, teamId: team._id, status: { $ne: "declined" } })).select("personId positionId").lean();
   const personIds = [...new Set(assigns.map((a) => String(a.personId)))];
+  const positions = await PcPosition.find(scoped(req, { _id: { $in: [...new Set(assigns.map((a) => a.positionId).filter(Boolean))] } })).select("name").lean();
+  const posName = Object.fromEntries(positions.map((p) => [String(p._id), p.name || ""]));
   const people = await PcPerson.find(scoped(req, { _id: { $in: personIds.map(OID).filter(Boolean) } })).select("firstName lastName phones").lean();
+  const nameById = Object.fromEntries(people.map((p) => [String(p._id), [p.firstName, p.lastName].filter(Boolean).join(" ")]));
+
+  // LIDER = persoana de pe poziția „Lider ..." (nu asistent), pt. numele grupului. Dacă nu există → gol.
+  const isLeaderPos = (n = "") => /lider|lead/i.test(n) && !/asist/i.test(n);
+  const leaderA = assigns.find((a) => a.positionId && isLeaderPos(posName[String(a.positionId)]));
+  const leaderName = leaderA ? (nameById[String(leaderA.personId)] || "") : "";
 
   const out = [], numbers = [], missingPhone = [];
   people.forEach((p) => {
@@ -55,7 +74,7 @@ async function weekTarget(req, mapping) {
     if (normalized) { numbers.push(normalized); out.push({ id: p._id, name, number, normalized }); }
     else missingPhone.push(name);
   });
-  return { weekLabel: fmtDay(ds), planIds, people: out, numbers: [...new Set(numbers)], missingPhone };
+  return { weekLabel: fmtDay(ds), weekShort: roShort(ds), leaderName, teamName: team.name, planIds: [target._id], people: out, numbers: [...new Set(numbers)], missingPhone };
 }
 
 /* ───────── STATUS / PAIRING ───────── */
@@ -78,10 +97,16 @@ router.get("/groups", CAN, async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-/* ───────── LUCRĂRI (ministryGroup) pt. picker ───────── */
-router.get("/ministries", CAN, async (req, res) => {
-  const vals = await PcTeam.distinct("ministryGroup", scoped(req, { ministryGroup: { $nin: ["", null] } }));
-  res.json({ ministries: vals.filter(Boolean).sort((a, b) => a.localeCompare(b, "ro")) });
+/* ───────── ECHIPE + săptămânile lor (pt. picker: echipă + a câta săptămână) ───────── */
+router.get("/teams", CAN, async (req, res) => {
+  const teams = await PcTeam.find(scoped(req, { archived: { $ne: true } })).select("name ministryGroup sortOrder").sort({ ministryGroup: 1, sortOrder: 1 }).lean();
+  res.json({ teams: teams.map((t) => ({ id: t._id, name: t.name, ministryGroup: t.ministryGroup || "" })) });
+});
+router.get("/team/:id/weeks", CAN, async (req, res) => {
+  const team = await PcTeam.findOne(scoped(req, { _id: OID(req.params.id) })).select("name serviceTypeId serviceTypeIds").lean();
+  if (!team) return res.json({ weeks: [] });
+  const slots = await teamServingSlots(req, team);
+  res.json({ weeks: slots.slice(0, 8).map((p, i) => ({ offset: i, planId: p._id, label: `${i + 1}. ${fmtDay(p.sortDate)}` })) });
 });
 
 /* ───────── MAPĂRI grup↔lucrare ───────── */
@@ -92,10 +117,12 @@ router.get("/mappings", CAN, async (req, res) => {
 router.post("/map", CAN, async (req, res) => {
   try {
     const b = req.body || {};
-    if (!b.jid || !b.ministryGroup) return res.status(400).json({ error: "jid și ministryGroup sunt necesare." });
+    if (!b.jid || !b.teamId) return res.status(400).json({ error: "jid și teamId sunt necesare." });
+    const team = await PcTeam.findOne(scoped(req, { _id: OID(b.teamId) })).select("ministryGroup").lean();
     const set = {
-      jid: String(b.jid), nameCached: b.nameCached || "", ministryGroup: b.ministryGroup,
-      serviceTypeId: OID(b.serviceTypeId) || null, botNumber: b.botNumber ? bridge.normalizeNumber(b.botNumber) : "",
+      jid: String(b.jid), nameCached: b.nameCached || "",
+      teamId: OID(b.teamId), weekOffset: Math.max(0, parseInt(b.weekOffset, 10) || 0),
+      ministryGroup: team?.ministryGroup || "", botNumber: b.botNumber ? bridge.normalizeNumber(b.botNumber) : "",
       mode: b.mode === "manual" ? "manual" : "semi", enabled: b.enabled !== false,
     };
     const doc = await PcWhatsappGroup.findOneAndUpdate(scoped(req, { jid: set.jid }),
@@ -119,16 +146,18 @@ router.get("/preview/:id", CAN, async (req, res) => {
     const m = await PcWhatsappGroup.findOne(scoped(req, { _id: OID(req.params.id) })).lean();
     if (!m) return res.status(404).json({ error: "Mapare inexistentă." });
     const t = await weekTarget(req, m);
-    let currentNumbers = [], toAdd = t.numbers, toRemove = [], liveError = "";
+    let currentNumbers = [], toAdd = t.numbers, toRemove = [], liveError = "", currentName = m.nameCached;
     if (bridge.status().connected) {
       try {
+        currentName = (await bridge.groupName(m.jid)) || m.nameCached;
         currentNumbers = await bridge.groupMembers(m.jid);
         const cur = new Set(currentNumbers), tgt = new Set(t.numbers);
         toAdd = t.numbers.filter((n) => !cur.has(n));
         toRemove = currentNumbers.filter((n) => !tgt.has(n));
       } catch (e) { liveError = e.message; }
     } else liveError = "Puntea nu e conectată.";
-    res.json({ weekLabel: t.weekLabel, people: t.people, missingPhone: t.missingPhone, currentCount: currentNumbers.length, toAdd, toRemove, liveError });
+    const plannedName = buildGroupName(currentName, t.weekShort, t.leaderName);
+    res.json({ weekLabel: t.weekLabel, leaderName: t.leaderName, plannedName, people: t.people, missingPhone: t.missingPhone, currentCount: currentNumbers.length, toAdd, toRemove, liveError });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -140,8 +169,11 @@ router.post("/sync/:id", CAN, async (req, res) => {
     if (!m) return res.status(404).json({ error: "Mapare inexistentă." });
     const t = await weekTarget(req, m);
     const result = await bridge.syncGroup(m.jid, t.numbers);
-    await PcWhatsappGroup.updateOne(scoped(req, { _id: m._id }), { $set: { lastSyncAt: new Date() } });
-    res.json({ ok: true, weekLabel: t.weekLabel, missingPhone: t.missingPhone, ...result });
+    // redenumește grupul: {prefix} - {dată} - {lider}
+    let renamed = "";
+    try { const cur = (await bridge.groupName(m.jid)) || m.nameCached; renamed = await bridge.renameGroup(m.jid, buildGroupName(cur, t.weekShort, t.leaderName)); } catch {}
+    await PcWhatsappGroup.updateOne(scoped(req, { _id: m._id }), { $set: { lastSyncAt: new Date(), nameCached: renamed || m.nameCached } });
+    res.json({ ok: true, weekLabel: t.weekLabel, leaderName: t.leaderName, renamed, missingPhone: t.missingPhone, ...result });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
