@@ -276,7 +276,7 @@ export default function CoverageBar({
                     </div>
                   ) : (
                     <>
-                      <span className="cb-chlbl"><img className="cb-dl blk" src="/icons/blockout.png" alt="" />Blockout</span>
+                      <span className="cb-chlbl">Blockout</span>
                       <span className="cb-chr">
                         <button className="cb-sbtn" title="Caută în această listă" onClick={() => openBq("blk")}>
                           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="7" cy="7" r="4.5" /><path d="M14 14l-3.2-3.2" /></svg>
@@ -298,9 +298,8 @@ export default function CoverageBar({
                       <PersonAvatar person={p} size={26} showBadge={false} />
                       {p.inRoster && <span className="cb-rost" title="În rosterul echipei" />}
                       <span className="cb-name">{p.name}</span>
-                      <span className="cb-blktag" title={p.blockout?.reason ? `${p.blockout.label} · ${p.blockout.reason}` : (p.blockout?.label || "Blockout")}>
-                        <img className="cb-blki" src="/icons/blockout.png" alt="" />{p.blockout?.label || "blockout"}
-                      </span>
+                      <ConflictBadge icon="/icons/blockout.png" canVerify={canVerify} onVerify={() => onVerifyPerson?.(p)}
+                        items={[{ type: "blockout", label: "Blockout", detail: [p.blockout?.label, p.blockout?.reason].filter(Boolean).join(" · ") }]} />
                     </div>
                     ); })}
                 </div>

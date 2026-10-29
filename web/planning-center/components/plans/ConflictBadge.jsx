@@ -13,7 +13,7 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-export default function ConflictBadge({ items = [], onVerify, canVerify = true }) {
+export default function ConflictBadge({ items = [], onVerify, canVerify = true, icon }) {
   const [tip, setTip] = useState(null); // { x, y } sau null
   const ref = useRef(null);
   const timer = useRef(null);
@@ -28,14 +28,14 @@ export default function ConflictBadge({ items = [], onVerify, canVerify = true }
   return (
     <span ref={ref} className="cfb" onMouseEnter={show} onMouseLeave={hideSoon} onClick={(e) => e.stopPropagation()}>
       {types.map((t, i) => (
-        <img key={i} className="cfb-ic" src={t === "blockout" ? "/icons/warn-red.png" : "/icons/warn-yellow.png"} alt={t} draggable={false} />
+        <img key={i} className="cfb-ic" src={icon || (t === "blockout" ? "/icons/warn-red.png" : "/icons/warn-yellow.png")} alt={t} draggable={false} />
       ))}
       {tip && typeof document !== "undefined" && createPortal((
         <div className="cfb-tip" style={{ left: tip.x, top: tip.y }} onMouseEnter={keep} onMouseLeave={hideSoon}>
           {items.map((c, i) => (
             <div key={i} className="cfb-row">
               <span className={`cfb-b ${c.type}`}>
-                <img className="cfb-ti" src={c.type === "blockout" ? "/icons/warn-red.png" : "/icons/warn-yellow.png"} alt="" draggable={false} />
+                <img className="cfb-ti" src={icon || (c.type === "blockout" ? "/icons/warn-red.png" : "/icons/warn-yellow.png")} alt="" draggable={false} />
                 {c.label || (c.type === "blockout" ? "Blockout" : "Planificat în aceeași zi")}
               </span>
               {c.detail ? <span className="cfb-d">{c.detail}</span> : null}
