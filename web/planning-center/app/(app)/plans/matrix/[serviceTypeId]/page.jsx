@@ -20,6 +20,7 @@ import TeamsManagerModal from "@/components/plans/TeamsManagerModal";
 import PositionJoinModal from "@/components/plans/PositionJoinModal";
 import ConflictModal from "@/components/plans/ConflictModal";
 import ReplaceModal from "@/components/plans/ReplaceModal";
+import ProblemsModal from "@/components/plans/ProblemsModal";
 
 /* numele echipei pereche: „Asimilare (SIM 1)" ↔ „Asimilare (SIM 2)" */
 function perecheName(name = "") {
@@ -78,6 +79,9 @@ export default function MatrixPage() {
   const [targetAvail, setTargetAvail] = useState({}); // planId → {blockout,here,busy,busyLabel} (target-mode)
   const [targetWeeks, setTargetWeeks] = useState(null); // {youthMember, serviceTypes, cards} — carduri pe săptămână
   const [selSts, setSelSts] = useState(null); // service types bifate (null = default-ul din backend)
+  const [anomalies, setAnomalies] = useState({ day: "", people: [] }); // anomalii import: blockout + slujire aceeași zi
+  const [problemsOpen, setProblemsOpen] = useState(false);
+  const [problemBusy, setProblemBusy] = useState(false);
   const [toast, setToast] = useState("");
   const [editing, setEditing] = useState(null);
   const [simPair, setSimPair] = useState(null); // prompt „pune-l și la SIM-ul pereche?" după asignare
@@ -170,6 +174,24 @@ export default function MatrixPage() {
     finally { setCovBusy(false); }
   }, [barOpen, serviceTypeId, data?.plans, barFilters.ministry?.teamId, barFilters.position?.positionId, reassignBar?.teamId, reassignBar?.positionId, reassignBar?.planId, sel?.planId]);
   useEffect(() => { loadCov(); }, [loadCov]);
+  // ANOMALII (import PCO): oameni cu blockout + slujire în aceeași zi → eticheta „Probleme". Scopate pe săptămâna selectată.
+  const loadAnomalies = useCallback(async () => {
+    const refPlanId = reassignBar ? reassignBar.planId : sel?.planId;
+    if (!refPlanId) { setAnomalies({ day: "", people: [] }); return; }
+    try { setAnomalies(await matrixApi.anomalies(serviceTypeId, { refPlanId })); } catch { setAnomalies({ day: "", people: [] }); }
+  }, [serviceTypeId, reassignBar?.planId, sel?.planId]);
+  useEffect(() => { loadAnomalies(); }, [loadAnomalies]);
+  // scoate slujirea unui om cu anomalie (nu atingem blockout-ul). După scoatere → re-fetch (auto-refresh): dacă rămâne
+  // doar cu blockout, dispare din modal și din contor. ZERO email.
+  async function removeProblemServing(serving, person) {
+    setProblemBusy(true);
+    try {
+      await plansApi.unassign(serving.planId, serving.assignmentId);
+      flash(`${person.name} scos de la „${serving.position}" (avea blockout în ziua aia).`);
+      await loadAnomalies(); loadCov(); refreshRec(); softReconcile();
+    } catch (e) { flash(e?.message || "Eroare."); }
+    finally { setProblemBusy(false); }
+  }
 
   const plans = data?.plans || [];
   const teams = data?.teams || [];
@@ -995,6 +1017,7 @@ export default function MatrixPage() {
         onPersonDragEnd={() => { setDragActive(false); setDropKey(null); setDragHint(""); }}
         target={target} targetSched={targetSched} targetAvail={targetAvail} onCloseTarget={clearTarget}
         targetWeeks={targetWeeks} selSts={selSts} onToggleSt={toggleTargetSt}
+        anomalyCount={anomalies.people?.length || 0} onOpenProblems={() => setProblemsOpen(true)}
         canVerify={!!sel && !reassignBar} onVerifyPerson={(p) => setLiveConflictPerson({ id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "" })}
       />
 
@@ -1045,6 +1068,9 @@ export default function MatrixPage() {
       <PositionJoinModal data={joinModal} busy={joinBusy} onGuest={confirmJoinGuest} onPermanent={confirmJoinPermanent} onClose={() => !joinBusy && cancelJoin()} />
 
       <ReplaceModal data={replaceModal} busy={replaceBusy} onReplace={replaceWith} onExtra={replaceExtra} onClose={() => !replaceBusy && setReplaceModal(null)} />
+
+      <ProblemsModal open={problemsOpen} day={anomalies.day} people={anomalies.people || []} busy={problemBusy}
+        onRemoveServing={removeProblemServing} onClose={() => setProblemsOpen(false)} />
 
       {toast && <div className="toast">{toast}</div>}
 

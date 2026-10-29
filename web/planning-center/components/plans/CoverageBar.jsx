@@ -19,7 +19,7 @@ function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return
 export default function CoverageBar({
   open, onToggle, cov, loading, filters = {}, onRemoveFilter, onSetFilter, onPersonDragStart, onPersonDragEnd, style,
   target = null, targetSched = null, targetAvail = {}, onCloseTarget, reassignMode = false, disablePersonId = null, disableIds = [],
-  onVerifyPerson, canVerify = false, targetWeeks = null, selSts = null, onToggleSt,
+  onVerifyPerson, canVerify = false, targetWeeks = null, selSts = null, onToggleSt, anomalyCount = 0, onOpenProblems,
 }) {
   // cine e „blocat" de la drag în Listă live (deja pe poziția selectată / self-replace) → vizibil dar ne-draggable
   const isDisabled = (id) => (disablePersonId && String(id) === String(disablePersonId)) || (disableIds || []).some((d) => String(d) === String(id));
@@ -103,6 +103,11 @@ export default function CoverageBar({
           </span>
         )}
         {activePerson && <span className="cb-hn">{stat.free} libere în fereastră</span>}
+        {tab === "live" && anomalyCount > 0 && (
+          <button className="cb-prob" onClick={(e) => { e.stopPropagation(); onOpenProblems?.(); }} title="Anomalii: oameni cu blockout dar asignați la slujire în aceeași zi">
+            <img src="/icons/semnul-exclamari-rosu.png" alt="" />Probleme<span className="cb-probn">{anomalyCount}</span>
+          </button>
+        )}
         <span className="cb-caret">{open ? "▾" : "▴"}</span>
       </div>
 
@@ -341,7 +346,15 @@ export default function CoverageBar({
         .cb-tag.sim { color: #9cc4f5; background: rgba(47,129,247,.16); border: 1px solid rgba(47,129,247,.45); }
         .cb-tag.pos { color: #c9b6f2; background: rgba(139,92,246,.15); border: 1px solid rgba(139,92,246,.42); }
         .cb-hn { color: var(--text-dim); font-size: 12px; margin-left: auto; }
-        .cb-caret { color: var(--text-faint); }
+        /* eticheta „Probleme" (anomalii import) — roșu puternic, în dreapta de tot; apare DOAR dacă există anomalii */
+        .cb-prob { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; background: rgba(248,81,73,.18);
+          border: 1px solid rgba(248,81,73,.6); color: #ff8a84; border-radius: 20px; padding: 3px 6px 3px 10px;
+          font-size: 12px; font-weight: 800; letter-spacing: .2px; cursor: pointer; white-space: nowrap; animation: probpulse 2s ease-in-out infinite; }
+        .cb-prob:hover { background: rgba(248,81,73,.3); color: #ffb3ad; }
+        .cb-prob img { width: 14px; height: 14px; object-fit: contain; }
+        .cb-probn { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; border-radius: 10px; background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; padding: 0 5px; }
+        @keyframes probpulse { 0%,100% { box-shadow: 0 0 0 0 rgba(248,81,73,0); } 50% { box-shadow: 0 0 0 3px rgba(248,81,73,.22); } }
+        .cb-caret { color: var(--text-faint); margin-left: 10px; }
         .cb-body { flex: 1; display: flex; min-height: 0; }
         .cb-nav { width: 180px; flex: none; border-right: 1px solid var(--border); padding: 12px 10px; display: flex; flex-direction: column; gap: 4px; }
         .cb-view { text-align: left; background: transparent; border: none; color: var(--text-dim); border-radius: 7px; padding: 9px 12px; cursor: pointer; font-size: 13.5px; }

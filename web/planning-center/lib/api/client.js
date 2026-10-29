@@ -241,6 +241,9 @@ export const matrixApi = {
   // disponibilitatea unei persoane pe planurile vizibile (target-mode #11): per plan blockout/here/busy. READ.
   personAvailability: (serviceTypeId, { personId, planIds }) =>
     api.get(`/matrix/${serviceTypeId}/person-availability?personId=${encodeURIComponent(personId)}&planIds=${encodeURIComponent(planIds)}`),
+  // ANOMALII (import PCO): oameni cu blockout + slujire în aceeași zi (eticheta „Probleme"). READ.
+  anomalies: (serviceTypeId, { refPlanId }) =>
+    api.get(`/matrix/${serviceTypeId}/anomalies${refPlanId ? `?refPlanId=${encodeURIComponent(refPlanId)}` : ""}`),
   // target-mode: carduri pe SĂPTĂMÂNĂ (fereastra Matrix + alte service types selectate) pt. persoana targetată. READ.
   personWeeks: (serviceTypeId, { personId, planIds, serviceTypeIds }) => {
     const qs = new URLSearchParams(Object.entries({ personId, planIds, serviceTypeIds }).filter(([, v]) => v != null && v !== "")).toString();

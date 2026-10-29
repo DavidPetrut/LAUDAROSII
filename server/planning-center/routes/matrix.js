@@ -499,4 +499,71 @@ router.get("/:serviceTypeId/person-weeks", requireAny(CAN_VIEW_MATRIX), async (r
   }
 });
 
+/* ───────── GET /:serviceTypeId/anomalies — ANOMALII din import PCO: om cu BLOCKOUT + asignare în ACEEAȘI zi ─────────
+   Imposibil în sistem curat (dacă ai blockout nu ești available), dar apare pt. datele importate din PCO.
+   Se depistează: are blockout care acoperă ziua ȘI ≥1 slujire (asignare ne-refuzată) în acea zi.
+   DOAR INFO: singura rezolvare oferită = scoaterea slujirii (DELETE assignment). Blockout-ul nu se atinge. READ. */
+router.get("/:serviceTypeId/anomalies", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
+  try {
+    const refPlanId = OID(req.query.refPlanId);
+    if (!refPlanId) return res.json({ day: "", people: [] });
+    const tz = await campusTz(req);
+    const refPlan = await PcPlan.findOne(scoped(req, { _id: refPlanId })).select("sortDate").lean();
+    if (!refPlan) return res.json({ day: "", people: [] });
+    const ds = new Date(refPlan.sortDate); ds.setHours(0, 0, 0, 0);
+    const de = new Date(ds); de.setDate(de.getDate() + 1);
+    const dayKey = ds.toISOString().slice(0, 10);
+    const dateLabel = `${fmtWeekday(ds, tz)} ${fmtDate(ds, tz)}`;
+
+    const dayPlans = await PcPlan.find(scoped(req, { sortDate: { $gte: ds, $lt: de } })).select("serviceTypeId").lean();
+    const dayPlanIds = dayPlans.map((p) => p._id);
+    const planStById = Object.fromEntries(dayPlans.map((p) => [String(p._id), String(p.serviceTypeId || "")]));
+
+    // blockouts care ACOPERĂ ziua (orice tip)
+    const covers = (b) => (!b.startDate || b.startDate <= dayKey) && (!b.endDate || b.endDate >= dayKey);
+    const blk = (await PcBlockout.find(scoped(req, { $or: [{ endDate: { $gte: dayKey } }, { endDate: null }] })).select("personId startDate endDate reason").lean()).filter(covers);
+    const blkByPerson = {}; blk.forEach((b) => { if (!blkByPerson[String(b.personId)]) blkByPerson[String(b.personId)] = b; });
+    const blkIds = Object.keys(blkByPerson).map(OID).filter(Boolean);
+    if (!blkIds.length) return res.json({ day: dateLabel, people: [] });
+
+    // ...care au ȘI o slujire în acea zi = ANOMALIE
+    const assigns = await PcAssignment.find(scoped(req, { personId: { $in: blkIds }, planId: { $in: dayPlanIds }, status: { $ne: "declined" } }))
+      .select("personId planId teamId positionId status isGuest").lean();
+    if (!assigns.length) return res.json({ day: dateLabel, people: [] });
+    const byPerson = {}; assigns.forEach((a) => (byPerson[String(a.personId)] = byPerson[String(a.personId)] || []).push(a));
+    const ids = Object.keys(byPerson);
+
+    const [people, teams, poss, sts] = await Promise.all([
+      PcPerson.find(scoped(req, { _id: { $in: ids.map(OID).filter(Boolean) } })).select("firstName lastName avatar").lean(),
+      PcTeam.find(scoped(req, { _id: { $in: assigns.map((a) => a.teamId).filter(Boolean) } })).select("name").lean(),
+      PcPosition.find(scoped(req, { _id: { $in: assigns.map((a) => a.positionId).filter(Boolean) } })).select("name").lean(),
+      PcServiceType.find(scoped(req)).select("name").lean(),
+    ]);
+    const tN = Object.fromEntries(teams.map((t) => [String(t._id), t.name]));
+    const pN = Object.fromEntries(poss.map((p) => [String(p._id), p.name]));
+    const stN = Object.fromEntries(sts.map((s) => [String(s._id), s.name]));
+    const personById = Object.fromEntries(people.map((p) => [String(p._id), p]));
+
+    const out = ids.map((pid) => {
+      const p = personById[pid]; if (!p) return null;
+      const b = blkByPerson[pid];
+      return {
+        id: pid, name: [p.firstName, p.lastName].filter(Boolean).join(" "),
+        initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase(), avatar: p.avatar || "",
+        blockout: { label: b.startDate === b.endDate ? b.startDate : `${b.startDate} → ${b.endDate}`, reason: b.reason || "" },
+        servings: byPerson[pid].map((a) => ({
+          assignmentId: a._id, planId: a.planId,
+          position: pN[String(a.positionId)] || (a.isGuest ? "Invitat" : "Poziție"),
+          team: tN[String(a.teamId)] || "", serviceTypeName: stN[planStById[String(a.planId)]] || "", status: a.status,
+        })),
+      };
+    }).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name, "ro"));
+
+    res.json({ day: dateLabel, people: out });
+  } catch (err) {
+    console.error("[pc] GET /matrix/:serviceTypeId/anomalies:", err.message);
+    res.status(500).json({ error: "Eroare la anomalii: " + err.message });
+  }
+});
+
 module.exports = router;
