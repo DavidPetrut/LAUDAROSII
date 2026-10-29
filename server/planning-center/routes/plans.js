@@ -945,13 +945,11 @@ router.get("/:id/recommend", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
 
     const rows = people.map((p) => {
       const list = (byPerson[String(p._id)] || []).map((a) => ({ ...a, date: planDateById[String(a.planId)] })).filter((a) => a.date);
-      // cea mai apropiată asignare (orice poziție) → badge săptămâni (semnat)
-      let nearest = null, nearestAbs = Infinity;
-      let lastAtPosWeeks = null; // de câte săpt. n-a mai fost pe poziția asta (pt. „due")
+      // „-Nw" = acum câte săptămâni a fost ULTIMA dată pe ACEASTĂ poziție (DOAR trecut, relativ la săptămâna selectată)
+      let lastAtPosWeeks = null;
       let alreadyHere = false, sameDayCount = 0, monthCount = 0;
       for (const a of list) {
         const diff = a.date.getTime() - planDate.getTime();
-        if (Math.abs(diff) < nearestAbs && String(a.planId) !== String(planId)) { nearestAbs = Math.abs(diff); nearest = diff; }
         if (positionId && String(a.positionId) === String(positionId)) {
           if (String(a.planId) === String(planId)) alreadyHere = true;
           else if (diff < 0) { const w = Math.round(-diff / WEEK); if (lastAtPosWeeks == null || w < lastAtPosWeeks) lastAtPosWeeks = w; }
@@ -967,8 +965,8 @@ router.get("/:id/recommend", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
       // Fără/Cu conflict, ci SEPARAT în tabul „Blockout" (identic cu Listă live): distincție clară.
       const bkCover = myBlk.find((b) => covers(b));
       const dayBlocked = !!bkCover;
-      const weeks = nearest == null ? null : Math.round(nearest / WEEK);
-      const weeksLabel = weeks == null ? "" : (weeks >= 0 ? `+${weeks}w` : `${weeks}w`);
+      // acum câte săptămâni a fost ULTIMA dată pe ACEASTĂ poziție (doar trecut); niciodată 0 sau „+", gol dacă n-a mai fost
+      const weeksLabel = lastAtPosWeeks == null ? "" : `-${Math.max(1, lastAtPosWeeks)}w`;
       // CONFLICTE — pot fi MAI MULTE simultan (deja planificat + blockout), cu motiv/dată.
       // „Deja planificat" = orice asignare în ACEEAȘI ZI, INCLUSIV alte poziții pe ACEST plan
       // (mai puțin poziția curentă). Așa apare galbenul chiar dacă e pus de 2-5 ori în aceeași săptămână.

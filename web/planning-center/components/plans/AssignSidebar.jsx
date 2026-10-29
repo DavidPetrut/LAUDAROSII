@@ -336,7 +336,9 @@ export default function AssignSidebar({
                 {!collapsed.has("here") && alreadyHere.map((p) => (
                   <div key={p.id} className="cand here">
                     <PersonAvatar person={p} size={28} showBadge={false} />
-                    <span className="cn">{p.name}</span><span className="here-b">✓</span>
+                    <span className="cn">{p.name}</span>
+                    {p.weeksLabel && <span className="wk" title="Ultima dată pe această poziție (în trecut)">{p.weeksLabel}</span>}
+                    <span className="here-b">✓</span>
                   </div>
                 ))}
               </div>
@@ -363,7 +365,7 @@ export default function AssignSidebar({
                       )}
                       {p.inRoster && <span className="rost" title="În rosterul poziției — slujește oficial aici" />}
                       {p.targetLabel && <span className={`tgt ${p.belowTarget ? "below" : "met"}`} title="Pe poziția asta luna asta / target">{p.targetLabel}</span>}
-                      <span className="wk">{p.weeksLabel}</span>
+                      <span className="wk" title="Ultima dată pe această poziție (în trecut)">{p.weeksLabel}</span>
                     </button>
                   ))}
                 </div>
