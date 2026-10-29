@@ -269,7 +269,7 @@ export default function CoverageBar({
         .cb-col.col0 { border-color: rgba(47,129,247,.5); }
         .cb-ch { display: flex; align-items: center; justify-content: space-between; padding: 10px 13px; border-bottom: 1px solid var(--border); color: var(--text); font-weight: 600; font-size: 12.5px; flex: none; min-height: 39px; }
         .cb-chlbl { display: inline-flex; align-items: center; gap: 6px; }
-        .cb-dl { width: 14px; height: 14px; object-fit: contain; opacity: .9; }
+        .cb-dl { width: 20px; height: 20px; object-fit: contain; opacity: .9; }
         .cb-chr { display: inline-flex; align-items: center; gap: 7px; }
         .cb-sbtn { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: transparent; border: none; color: var(--text-faint); cursor: pointer; border-radius: 5px; padding: 0; transition: color .12s, background .12s; }
         .cb-sbtn:hover { color: var(--text); background: rgba(255,255,255,.08); }
