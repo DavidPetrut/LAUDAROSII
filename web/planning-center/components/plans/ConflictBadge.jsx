@@ -13,7 +13,7 @@
 import { useRef, useState, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 
-export default function ConflictBadge({ items = [], onVerify, canVerify = true, icon }) {
+export default function ConflictBadge({ items = [], onVerify, canVerify = true, icon, below = false }) {
   const [tip, setTip] = useState(null);   // rect-ul iconiței {left,right,top,bottom} sau null
   const [pos, setPos] = useState(null);   // poziția calculată (clamp în ecran) {left,top}
   const ref = useRef(null);
@@ -30,13 +30,19 @@ export default function ConflictBadge({ items = [], onVerify, canVerify = true, 
     if (!tip || !tipRef.current) return;
     const t = tipRef.current.getBoundingClientRect();
     const m = 8;
-    let left = tip.right - t.width;     // dreapta tooltip-ului ≈ dreapta iconiței → se deschide spre stânga
-    let top = tip.top - t.height - 6;   // deasupra iconiței
+    let left, top;
+    if (below) {                                   // DEDESUBT (ex. status-uri sus de tot în Matrix): centrat sub iconiță
+      left = (tip.left + tip.right) / 2 - t.width / 2;
+      top = tip.bottom + 6;
+    } else {                                        // default: SUS-STÂNGA lângă iconiță (sidebar e pe marginea dreaptă)
+      left = tip.right - t.width;
+      top = tip.top - t.height - 6;
+      if (top < m) top = tip.bottom + 6;            // nu încape sus → sub iconiță
+    }
     left = Math.max(m, Math.min(left, window.innerWidth - t.width - m));
-    if (top < m) top = tip.bottom + 6;  // nu încape sus → sub iconiță
     top = Math.max(m, Math.min(top, window.innerHeight - t.height - m));
     setPos({ left, top });
-  }, [tip]);
+  }, [tip, below]);
 
   if (!items.length) return null;
 

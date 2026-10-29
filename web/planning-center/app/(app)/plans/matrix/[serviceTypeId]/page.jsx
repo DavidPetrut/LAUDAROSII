@@ -21,6 +21,7 @@ import PositionJoinModal from "@/components/plans/PositionJoinModal";
 import ConflictModal from "@/components/plans/ConflictModal";
 import ReplaceModal from "@/components/plans/ReplaceModal";
 import ProblemsModal from "@/components/plans/ProblemsModal";
+import ConflictBadge from "@/components/plans/ConflictBadge";
 
 /* numele echipei pereche: „Asimilare (SIM 1)" ↔ „Asimilare (SIM 2)" */
 function perecheName(name = "") {
@@ -591,6 +592,11 @@ export default function MatrixPage() {
     loadAvail(pp.personId); loadWeeks(pp.personId, null);
   }
   const clearTarget = () => { setTarget(null); setTargetSched(null); setTargetAvail({}); setTargetWeeks(null); setSelSts(null); };
+  // „Verifică" pe o SĂPTĂMÂNĂ a persoanei targetate (status header coloană / card) → ConflictModal info (fără poziție selectată)
+  const verifyTargetWeek = (planId) => {
+    if (!target || !planId) return;
+    setLiveConflictPerson({ id: target.personId, name: target.name, avatar: target.avatar || "", initials: target.initials || "", planId, standalone: true });
+  };
   // bifează/debifează un service type în cardurile persoanei → re-fetch (ST-ul Matrix e mereu inclus în backend)
   const toggleTargetSt = (stId) => {
     if (!target?.personId) return;
@@ -872,16 +878,27 @@ export default function MatrixPage() {
             <div className="cell head corner" />
             {plans.map((p, i) => {
               const av = target ? targetAvail[String(p.id)] : null;
-              const avk = av?.blockout ? "blk" : av?.busy ? "busy" : av ? "free" : "";
+              const scheduled = av && (av.here || av.busy); // are DEJA o slujire în acea zi (here = pe acest plan)
+              const avk = av?.blockout ? "blk" : scheduled ? "busy" : av ? "free" : "";
               return (
                 <div key={p.id} className={`cell head planhead ${sel?.colIdx === i ? "selcol" : ""} ${avk ? "av-" + avk : ""}`}>
                   <div className="ph-st">{p.stName || data?.serviceTypeName}</div>
                   <div className="ph-date">{p.weekday ? `${p.weekday} · ` : ""}{p.dateLabel}</div>
-                  {av && (
-                    <div className={`ph-av ${avk}`} title={av.blockout ? "Blockout — indisponibil" : av.busy ? `Ocupat: ${av.busyLabel || "altă slujire"}` : "Liber — click pe o poziție ca să-l planifici"}>
-                      {av.blockout ? "⛔ blocat" : av.busy ? "● ocupat" : "✓ liber"}
+                  {av && (av.blockout ? (
+                    <div className="ph-av blk">
+                      <ConflictBadge below icon="/icons/semnul-exclamari-rosu.png" canVerify onVerify={() => verifyTargetWeek(p.id)}
+                        items={[{ type: "blockout", label: "Blockout", detail: "Are blockout în această zi" }]} />
+                      <span>Blockout</span>
                     </div>
-                  )}
+                  ) : scheduled ? (
+                    <div className="ph-av busy">
+                      <ConflictBadge below canVerify onVerify={() => verifyTargetWeek(p.id)}
+                        items={[{ type: "time", label: "Planificat în aceeași zi", detail: av.busyLabel || "Are deja o slujire în această zi" }]} />
+                      <span>planificat</span>
+                    </div>
+                  ) : (
+                    <div className="ph-av free"><span className="ph-ck">✓</span> free</div>
+                  ))}
                 </div>
               );
             })}
@@ -1016,14 +1033,16 @@ export default function MatrixPage() {
         onPersonDragStart={(p) => { dragRef.current = { personId: p.id, name: p.name, avatar: p.avatar, initials: p.initials, fromBar: true }; setDragActive(true); setDragHint(`${p.name} → lași jos pe o poziție = asignezi`); }}
         onPersonDragEnd={() => { setDragActive(false); setDropKey(null); setDragHint(""); }}
         target={target} targetSched={targetSched} targetAvail={targetAvail} onCloseTarget={clearTarget}
-        targetWeeks={targetWeeks} selSts={selSts} onToggleSt={toggleTargetSt}
+        targetWeeks={targetWeeks} selSts={selSts} onToggleSt={toggleTargetSt} onVerifyWeek={verifyTargetWeek}
         anomalyCount={anomalies.people?.length || 0} onOpenProblems={() => setProblemsOpen(true)}
         canVerify={!!sel && !reassignBar} onVerifyPerson={(p) => setLiveConflictPerson({ id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "" })}
       />
 
-      {/* „Verifică" din Listă live → același ConflictModal (poziția selectată = target), logică 100% reutilizată */}
-      {liveConflictPerson && sel && (
-        <ConflictModal open planId={sel.planId} person={liveConflictPerson} positionId={sel.positionId} target={conflictTarget} simPair={simPairResolver}
+      {/* „Verifică" din Listă live / status target → același ConflictModal. standalone = info (fără poziție selectată). */}
+      {liveConflictPerson && (liveConflictPerson.planId || sel) && (
+        <ConflictModal open planId={liveConflictPerson.planId || sel.planId} person={liveConflictPerson}
+          positionId={liveConflictPerson.standalone ? undefined : sel?.positionId}
+          target={liveConflictPerson.standalone ? null : conflictTarget} simPair={simPairResolver}
           onClose={() => { closeReassignBar(); setLiveConflictPerson(null); }}
           onResolved={refreshAfterConflict}
           onReassignOpen={openReassignBar} onReassignClose={closeReassignBar} />
@@ -1206,10 +1225,11 @@ export default function MatrixPage() {
         .planhead.av-free { box-shadow: inset 0 -2px 0 rgba(87,185,138,.6); }
         .planhead.av-blk { box-shadow: inset 0 -2px 0 rgba(248,81,73,.6); }
         .planhead.av-busy { box-shadow: inset 0 -2px 0 rgba(210,153,34,.6); }
-        .ph-av { margin-top: 4px; font-size: 10px; font-weight: 700; letter-spacing: .2px; display: inline-block; }
+        .ph-av { margin-top: 4px; font-size: 10px; font-weight: 700; letter-spacing: .2px; display: inline-flex; align-items: center; gap: 5px; }
         .ph-av.free { color: var(--product); }
-        .ph-av.blk { color: var(--danger); }
+        .ph-av.blk { color: #ff8a84; }
         .ph-av.busy { color: var(--st-unconfirmed); }
+        .ph-ck { font-size: 11px; }
         .teamblock { background: var(--section-head-bg); border-bottom: 1px solid var(--border); border-top: 1px solid var(--border);
           padding: 0; display: flex; align-items: center; justify-content: space-between; }
         /* titlul echipei rămâne LIPIT la stânga la X-scroll (ca și coloana de poziții), cu fundalul benzii */

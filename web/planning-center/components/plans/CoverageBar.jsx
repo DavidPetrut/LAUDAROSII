@@ -19,7 +19,7 @@ function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return
 export default function CoverageBar({
   open, onToggle, cov, loading, filters = {}, onRemoveFilter, onSetFilter, onPersonDragStart, onPersonDragEnd, style,
   target = null, targetSched = null, targetAvail = {}, onCloseTarget, reassignMode = false, disablePersonId = null, disableIds = [],
-  onVerifyPerson, canVerify = false, targetWeeks = null, selSts = null, onToggleSt, anomalyCount = 0, onOpenProblems,
+  onVerifyPerson, canVerify = false, targetWeeks = null, selSts = null, onToggleSt, anomalyCount = 0, onOpenProblems, onVerifyWeek,
 }) {
   // cine e „blocat" de la drag în Listă live (deja pe poziția selectată / self-replace) → vizibil dar ne-draggable
   const isDisabled = (id) => (disablePersonId && String(id) === String(disablePersonId)) || (disableIds || []).some((d) => String(d) === String(id));
@@ -150,10 +150,18 @@ export default function CoverageBar({
                     <div className="pp-cards">
                       {g.weeks.map((w) => (
                         <div key={w.planId} className={`pp-card ${w.status} ${w.conflict ? "conf" : ""}`}>
-                          <div className="pp-cd">{w.dateLabel}{w.conflict && <span className="pp-cconf" title="Conflict — mai multe slujiri în aceeași zi">⚠</span>}</div>
+                          <div className="pp-cd">
+                            <span className="pp-cdd">{w.dateLabel}</span>
+                            {w.status === "blockout" ? (
+                              <ConflictBadge icon="/icons/semnul-exclamari-rosu.png" canVerify={!!onVerifyWeek} onVerify={() => onVerifyWeek?.(w.planId)}
+                                items={[{ type: "blockout", label: "Blockout", detail: [w.blockout?.label, w.blockout?.reason].filter(Boolean).join(" · ") }]} />
+                            ) : w.status === "planned" ? (
+                              <ConflictBadge canVerify={!!onVerifyWeek} onVerify={() => onVerifyWeek?.(w.planId)}
+                                items={[{ type: "time", label: "Planificat în aceeași zi", detail: (w.assignments || []).map((a) => [a.position, a.team].filter(Boolean).join(" · ")).filter(Boolean).join("; ") }]} />
+                            ) : null}
+                          </div>
                           {w.status === "blockout" ? (
                             <div className="pp-cblk">
-                              <img className="pp-blki" src="/icons/blockout.png" alt="" />
                               <div className="pp-cblkw"><div className="pp-cblkt">Blockout</div>{w.blockout?.reason && <div className="pp-cblkr">{w.blockout.reason}</div>}<div className="pp-cblkd">{w.blockout?.label}</div></div>
                             </div>
                           ) : w.status === "planned" ? (
@@ -487,8 +495,8 @@ export default function CoverageBar({
         .pp-card.free { border-style: dashed; }
         .pp-card.blockout { border-color: rgba(248,81,73,.5); background: rgba(248,81,73,.06); }
         .pp-card.conf { border-color: rgba(210,153,34,.6); }
-        .pp-cd { display: flex; align-items: center; gap: 7px; color: var(--text); font-size: 13px; font-weight: 700; }
-        .pp-cconf { color: #e0b341; font-size: 13px; }
+        .pp-cd { display: flex; align-items: center; justify-content: space-between; gap: 7px; color: var(--text); font-size: 13px; font-weight: 700; }
+        .pp-cdd { white-space: nowrap; }
         .pp-cass { display: flex; flex-direction: column; gap: 6px; }
         .pp-arow { display: flex; align-items: flex-start; gap: 8px; }
         .pp-adot { width: 8px; height: 8px; flex: none; border-radius: 50%; margin-top: 5px; }
