@@ -162,9 +162,11 @@ export default function MatrixPage() {
     // în mod reasignare, bara se filtrează pe poziția CONFLICTULUI, nu pe cea selectată în grilă
     const covTeam = reassignBar ? reassignBar.teamId : barFilters.ministry?.teamId;
     const covPos = reassignBar ? reassignBar.positionId : barFilters.position?.positionId;
-    try { setCov(await matrixApi.coverage(serviceTypeId, { planIds: ids, teamId: covTeam, positionId: covPos })); } catch {}
+    // Listă live se raportează DOAR la săptămâna planului de referință (ziua lui): conflicte/blockout-uri pe acea zi
+    const refPlanId = reassignBar ? reassignBar.planId : sel?.planId;
+    try { setCov(await matrixApi.coverage(serviceTypeId, { planIds: ids, teamId: covTeam, positionId: covPos, refPlanId })); } catch {}
     finally { setCovBusy(false); }
-  }, [barOpen, serviceTypeId, data?.plans, barFilters.ministry?.teamId, barFilters.position?.positionId, reassignBar?.teamId, reassignBar?.positionId]);
+  }, [barOpen, serviceTypeId, data?.plans, barFilters.ministry?.teamId, barFilters.position?.positionId, reassignBar?.teamId, reassignBar?.positionId, reassignBar?.planId, sel?.planId]);
   useEffect(() => { loadCov(); }, [loadCov]);
 
   const plans = data?.plans || [];
@@ -594,7 +596,7 @@ export default function MatrixPage() {
   const closeSide = () => { setSel(null); setBrowse(false); setRec(null); };
   // reasignarea din modalul de conflicte (sidebar SAU Listă live) deschide bara filtrată pe poziția conflictului;
   // reținem starea anterioară a barei ca s-o restaurăm (în Listă live bara e deja deschisă, n-o închidem)
-  const openReassignBar = (card, disableId) => { barWasOpenRef.current = barOpen; setReFilters({ fit: true, gender: "", sim: "" }); setReassignDisable(disableId || null); setReassignBar({ teamId: card.teamId, teamName: card.teamName, positionId: card.positionId, positionName: card.positionName }); setBarOpen(true); };
+  const openReassignBar = (card, disableId) => { barWasOpenRef.current = barOpen; setReFilters({ fit: true, gender: "", sim: "" }); setReassignDisable(disableId || null); setReassignBar({ teamId: card.teamId, teamName: card.teamName, positionId: card.positionId, positionName: card.positionName, planId: card.planId }); setBarOpen(true); };
   const closeReassignBar = () => { setReassignBar(null); setReassignDisable(null); setBarOpen(barWasOpenRef.current); };
   const refreshAfterConflict = () => { refreshRec(); loadCov(); softReconcile(); };
 
@@ -931,6 +933,7 @@ export default function MatrixPage() {
         loading={recBusy}
         groups={rec?.groups || []}
         alreadyHere={rec?.alreadyHere || []}
+        blockout={rec?.blockout || []}
         query={recQuery}
         onQuery={setRecQuery}
         onPick={assignPerson}

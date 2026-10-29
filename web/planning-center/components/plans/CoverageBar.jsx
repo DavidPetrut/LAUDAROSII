@@ -2,7 +2,7 @@
 /**
  * CoverageBar — „Listă LIVE" ca BARĂ DE JOS (collapse/expand din jos, animație).
  * Header = TAB-uri: „Listă live" (mereu) + un tab DINAMIC cu persoana targetată (doar când e target activ).
- *   · Tab „Listă live": filtre colorate + view-uri (Toți/Neplanificați/Planificați) + coloane 0/1/2/3/4×+.
+ *   · Tab „Listă live": filtre colorate (stânga) + UN container cu toggle în header (Neplanificați/Planificați).
  *   · Tab persoană (#11 target-mode): detalii despre persoana targetată — statistici (slujiri, liber/ocupat/
  *     blocat în fereastră) + unde mai e planificată (viitor). Apare la click pe o persoană, dispare la detarget.
  * Carduri trăgibile direct în Matrix. Nu are refresh — LIVE. Nu acoperă sidebar-ul (inset prin `style`).
@@ -10,12 +10,6 @@
 import { useEffect, useState } from "react";
 import PersonAvatar from "./PersonAvatar";
 import ConflictBadge from "./ConflictBadge";
-
-const VIEWS = [
-  { id: "all", label: "Toți", keep: () => true },
-  { id: "un", label: "Neplanificați", keep: (b) => b.times === 0 },
-  { id: "pl", label: "Planificați", keep: (b) => b.times > 0 },
-];
 
 /* culoare stabilă per slujire (din nume) */
 function hueOf(s = "") { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360; return h; }
@@ -26,15 +20,12 @@ export default function CoverageBar({
   target = null, targetSched = null, targetAvail = {}, onCloseTarget, reassignMode = false, disablePersonId = null,
   onVerifyPerson, canVerify = false,
 }) {
-  const [view, setView] = useState("all");
+  const [mode, setMode] = useState("un"); // "un" = Neplanificați (default) | "pl" = Planificați
   const [tab, setTab] = useState("live"); // "live" | "person"
-  // căutare PER container (bucket): deschide lupa din header → înlocuiește titlul cu un input + X.
-  // Filtrează DOAR oamenii din acel container (nu din toate). Cheie = b.times.
-  const [bqOpen, setBqOpen] = useState({}); // {times: true}
-  const [bq, setBq] = useState({});         // {times: "text"}
-  const openBq = (t) => { setBqOpen((s) => ({ ...s, [t]: true })); };
-  const closeBq = (t) => { setBqOpen((s) => ({ ...s, [t]: false })); setBq((s) => ({ ...s, [t]: "" })); };
-  const setBqVal = (t, v) => setBq((s) => ({ ...s, [t]: v }));
+  // căutare pe lista ACTIVĂ (strict pe filtrul ales din header): lupa → input + X.
+  const [bqOpen, setBqOpen] = useState(false);
+  const [bq, setBq] = useState("");
+  const closeBq = () => { setBqOpen(false); setBq(""); };
 
   // target activ → deschide bara + sari pe tabul persoanei; detarget → înapoi la „Listă live"
   useEffect(() => {
@@ -53,10 +44,16 @@ export default function CoverageBar({
     if (filters.sim && (p.programIntent || simOf(p.name)) !== filters.sim) return false;
     return true;
   };
-  const buckets = (cov?.buckets || [])
-    .filter(VIEWS.find((v) => v.id === view).keep)
-    .map((b) => ({ ...b, people: (b.people || []).filter(keepPerson) }));
-  const total = buckets.reduce((s, b) => s + b.people.length, 0);
+  // UN singur container cu toggle în header: Neplanificați (0×) vs Planificați (toți cu 1×+, alfabetic).
+  const bkts = cov?.buckets || [];
+  const unList = (bkts.find((b) => b.times === 0)?.people || []).filter(keepPerson);
+  const plList = bkts.filter((b) => b.times > 0).flatMap((b) => b.people || [])
+    .filter(keepPerson).sort((a, b) => (a.name || "").localeCompare(b.name || "", "ro")); // alfabetic, indiferent de câte ori
+  // Blockout: oamenii cu blockout în acea săptămână (din backend, deja scopat pe zi) — alfabetic.
+  const blkList = (cov?.blockout || []).filter(keepPerson).sort((a, b) => (a.name || "").localeCompare(b.name || "", "ro"));
+  const activeList = mode === "un" ? unList : mode === "pl" ? plList : blkList;
+  const q = bq.trim().toLowerCase();
+  const shown = bqOpen && q ? activeList.filter((p) => (p.name || "").toLowerCase().includes(q)) : activeList;
   const mh = filters.ministry ? hueOf(filters.ministry.name) : 0;
 
   // statistici fereastră (din disponibilitatea per plan)
@@ -169,59 +166,60 @@ export default function CoverageBar({
               </div>
             </div>
           </aside>
-          <div className="cb-cols">
+          <div className="cb-cols single">
             {loading && !cov && <div className="cb-muted">Se încarcă…</div>}
-            {buckets.map((b) => {
-              const q = (bq[b.times] || "").trim().toLowerCase();
-              const people = bqOpen[b.times] && q ? b.people.filter((p) => (p.name || "").toLowerCase().includes(q)) : b.people;
-              return (
-              <div key={b.times} className={`cb-col ${b.times === 0 ? "col0" : ""}`}>
-                <div className="cb-ch">
-                  {bqOpen[b.times] ? (
-                    <div className="cb-search">
-                      <svg className="cb-si" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="7" cy="7" r="4.5" /><path d="M14 14l-3.2-3.2" /></svg>
-                      <input autoFocus className="cb-sinput" placeholder="caută..." value={bq[b.times] || ""}
-                        onChange={(e) => setBqVal(b.times, e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Escape") closeBq(b.times); }} />
-                      <button className="cb-sx" title="Închide căutarea" onClick={() => closeBq(b.times)}>×</button>
+            <div className={`cb-one ${mode === "blk" ? "blk" : ""}`}>
+              <div className="cb-ch">
+                {bqOpen ? (
+                  <div className="cb-search">
+                    <svg className="cb-si" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="7" cy="7" r="4.5" /><path d="M14 14l-3.2-3.2" /></svg>
+                    <input autoFocus className="cb-sinput" placeholder="caută..." value={bq}
+                      onChange={(e) => setBq(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Escape") closeBq(); }} />
+                    <button className="cb-sx" title="Închide căutarea" onClick={closeBq}>×</button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="cbw plpick" onClick={(e) => e.stopPropagation()}>
+                      <button type="button" className={`cbw-opt pl a ${mode === "un" ? "on" : ""}`} onClick={() => setMode("un")}><span className="cbw-simlb">Neplanificați</span></button>
+                      <button type="button" className={`cbw-opt pl b ${mode === "pl" ? "on" : ""}`} onClick={() => setMode("pl")}><span className="cbw-simlb">Planificați</span></button>
+                      <button type="button" className={`cbw-opt pl c ${mode === "blk" ? "on" : ""}`} onClick={() => setMode("blk")}><span className="cbw-simlb"><img className="cb-blki" src="/icons/blockout.png" alt="" />Blockout</span></button>
                     </div>
-                  ) : (
-                    <>
-                      {b.times === 0
-                        ? <span>Neplanificați</span>
-                        : <span className="cb-chlbl"><img className="cb-dl" src="/icons/deadline.png" alt="" />×{b.times}{String(b.label).includes("+") ? "+" : ""}</span>}
-                      <span className="cb-chr">
-                        <button className="cb-sbtn" title="Caută în această listă" onClick={() => openBq(b.times)}>
-                          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="7" cy="7" r="4.5" /><path d="M14 14l-3.2-3.2" /></svg>
-                        </button>
-                        <span className="cb-cn">{b.people.length}</span>
-                      </span>
-                    </>
-                  )}
-                </div>
-                <div className="cb-list">
-                  {people.length === 0 && <div className="cb-empty">{bqOpen[b.times] && q ? "Niciun rezultat." : "—"}</div>}
-                  {people.map((p) => {
-                    const dis = disablePersonId && String(p.id) === String(disablePersonId);
-                    return (
-                    <div key={p.id} className={`cb-card ${dis ? "dis" : ""}`} draggable={!dis}
-                      onDragStart={dis ? undefined : (e) => { e.dataTransfer.effectAllowed = "copy"; try { e.dataTransfer.setData("application/pc-person", JSON.stringify({ id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "" })); } catch {} onPersonDragStart?.(p); }}
-                      onDragEnd={() => onPersonDragEnd?.()}
-                      title={dis ? "Nu poți înlocui o persoană cu ea însăși" : `${p.name} — trage în Matrix pentru a asigna`}>
-                      <PersonAvatar person={p} size={26} showBadge={false} />
-                      {p.inRoster && <span className="cb-rost" title="În rosterul echipei" />}
-                      <span className="cb-name">{p.name}</span>
-                      {(() => {
-                        const cf = [];
-                        if (p.scheduled > 0) cf.push({ type: "time", label: `Planificat de ${p.scheduled}×` });
-                        if (p.blocked > 0) cf.push({ type: "blockout", label: `${p.blocked} ${p.blocked === 1 ? "plan blocat" : "planuri blocate"}` });
-                        return cf.length > 0 ? <ConflictBadge items={cf} canVerify={canVerify} onVerify={() => onVerifyPerson?.(p)} /> : null;
-                      })()}
-                    </div>
-                    ); })}
-                </div>
+                    <span className="cb-chr">
+                      <button className="cb-sbtn" title="Caută în această listă" onClick={() => setBqOpen(true)}>
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="7" cy="7" r="4.5" /><path d="M14 14l-3.2-3.2" /></svg>
+                      </button>
+                      <span className="cb-cn">{activeList.length}</span>
+                    </span>
+                  </>
+                )}
               </div>
-            ); })}
+              <div className="cb-list">
+                {shown.length === 0 && <div className="cb-empty">{bqOpen && q ? "Niciun rezultat." : "—"}</div>}
+                {shown.map((p) => {
+                  const dis = disablePersonId && String(p.id) === String(disablePersonId);
+                  return (
+                  <div key={p.id} className={`cb-card ${dis ? "dis" : ""}`} draggable={!dis}
+                    onDragStart={dis ? undefined : (e) => { e.dataTransfer.effectAllowed = "copy"; try { e.dataTransfer.setData("application/pc-person", JSON.stringify({ id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "" })); } catch {} onPersonDragStart?.(p); }}
+                    onDragEnd={() => onPersonDragEnd?.()}
+                    title={dis ? "Nu poți înlocui o persoană cu ea însăși" : `${p.name} — trage în Matrix pentru a asigna`}>
+                    <PersonAvatar person={p} size={26} showBadge={false} />
+                    {p.inRoster && <span className="cb-rost" title="În rosterul echipei" />}
+                    <span className="cb-name">{p.name}</span>
+                    {mode === "blk" ? (
+                      <span className="cb-blktag" title={p.blockout?.reason ? `${p.blockout.label} · ${p.blockout.reason}` : (p.blockout?.label || "Blockout")}>
+                        <img className="cb-blki" src="/icons/blockout.png" alt="" />{p.blockout?.label || "blockout"}
+                      </span>
+                    ) : (() => {
+                      const cf = [];
+                      if (p.scheduled > 0) cf.push({ type: "time", label: `Planificat de ${p.scheduled}×` });
+                      if (p.blocked > 0) cf.push({ type: "blockout", label: `${p.blocked} ${p.blocked === 1 ? "plan blocat" : "planuri blocate"}` });
+                      return cf.length > 0 ? <ConflictBadge items={cf} canVerify={canVerify} onVerify={() => onVerifyPerson?.(p)} /> : null;
+                    })()}
+                  </div>
+                  ); })}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -330,6 +328,25 @@ export default function CoverageBar({
         .cbw-opt.on { transform: translateY(-1px) scale(1.04); }
         .cbw-opt.m.on { color: #9ecbff; } .cbw-opt.f.on { color: #ff9a94; }
         .cbw-opt.s1.on { color: #8fe0b4; } .cbw-opt.s2.on { color: #e6cb74; }
+        /* ── container UNIC + toggle Neplanificați/Planificați/Blockout în header (design ca filtrele din stânga) ── */
+        /* IMPORTANT: toggle-ul ÎNCAPE în header-ul existent (~39px) — NU mări header-ul. */
+        .cb-cols.single { padding: 12px 16px; }
+        .cb-one { flex: 1; min-width: 0; min-height: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; display: flex; flex-direction: column; transition: border-color .18s; }
+        .cb-one.blk { border-color: rgba(248,81,73,.5); }
+        .cb-one.blk .cb-ch { background: rgba(248,81,73,.07); border-radius: 10px 10px 0 0; }
+        .cb-cols.single .cb-ch { padding: 4px 12px; }
+        .cb-one .cb-list { flex: 1; }
+        .cbw.plpick { padding: 2px; gap: 2px; border-radius: 9px; }
+        .cbw.plpick .cbw-opt { flex: 1; min-width: 0; height: 26px; padding: 0 8px; border-radius: 7px; transition: color .18s, background .22s, box-shadow .22s; }
+        .cbw.plpick .cbw-opt:hover { transform: none; color: var(--text-dim); }
+        .cbw.plpick .cbw-opt.on { transform: none; font-weight: 800; }
+        .cbw.plpick .cbw-opt.a.on { color: #9ecbff; background: radial-gradient(120% 120% at 50% 30%, rgba(47,129,247,.28), rgba(47,129,247,.05)); box-shadow: inset 0 0 0 1px rgba(109,179,255,.6), 0 0 12px rgba(47,129,247,.25); }
+        .cbw.plpick .cbw-opt.b.on { color: #8fe0b4; background: radial-gradient(120% 120% at 50% 30%, rgba(87,185,138,.28), rgba(87,185,138,.05)); box-shadow: inset 0 0 0 1px rgba(123,220,174,.6), 0 0 12px rgba(87,185,138,.25); }
+        .cbw.plpick .cbw-opt.c.on { color: #ff9a94; background: radial-gradient(120% 120% at 50% 30%, rgba(248,81,73,.3), rgba(248,81,73,.05)); box-shadow: inset 0 0 0 1px rgba(255,138,132,.6), 0 0 12px rgba(248,81,73,.28); }
+        .cbw.plpick .cbw-simlb { font-size: 11.5px; letter-spacing: .2px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+        .cb-blki { width: 13px; height: 13px; object-fit: contain; flex: none; }
+        .cb-blktag { display: inline-flex; align-items: center; gap: 5px; flex: none; color: #ff9a94; font-size: 11px; font-weight: 600; white-space: nowrap; }
+        .cb-blktag .cb-blki { width: 14px; height: 14px; opacity: .95; }
         /* ── tab persoană (target) ── */
         .cb-body.person { padding: 0; animation: tabIn .18s ease; }
         .pp-side { width: 300px; flex: none; border-right: 1px solid var(--border); padding: 18px 18px 14px; display: flex; flex-direction: column; gap: 16px; overflow: auto; }

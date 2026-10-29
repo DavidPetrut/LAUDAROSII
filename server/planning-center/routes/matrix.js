@@ -255,31 +255,54 @@ router.get("/:serviceTypeId/coverage", requireAny(CAN_VIEW_MATRIX), async (req, 
       ? new Set((await PcTeamMember.find(scoped(req, { positionIds: positionId })).select("personId").lean()).map((m) => String(m.personId)))
       : new Set();
 
-    // asignări în INTERVAL (distinct pe plan)
-    const winMatch = scoped(req, { personId: { $in: pid }, planId: { $in: planIds }, status: { $ne: "declined" } });
-    if (teamId) winMatch.teamId = teamId;
-    const winAssigns = await PcAssignment.find(winMatch).select("personId planId").lean();
-    const schedBy = {};
-    winAssigns.forEach((a) => (schedBy[String(a.personId)] = schedBy[String(a.personId)] || new Set()).add(String(a.planId)));
+    // REFERINȚĂ de ZI: dacă e selectată o poziție (refPlanId = planul selectat), Listă live se raportează DOAR
+    // la acea săptămână/zi — nu la toată fereastra. „De câte ori e planificat" = în acea zi (toate echipele),
+    // iar cine are blockout în acea zi NU apare deloc (logic: nu poate sluji atunci).
+    const refPlanId = OID(req.query.refPlanId);
+    const refPlan = refPlanId ? await PcPlan.findOne(scoped(req, { _id: refPlanId })).select("sortDate").lean() : null;
+    let dayKey = null, dayPlanIds = null;
+    if (refPlan) {
+      const ds = new Date(refPlan.sortDate); ds.setHours(0, 0, 0, 0);
+      const de = new Date(ds); de.setDate(de.getDate() + 1);
+      dayKey = ds.toISOString().slice(0, 10);
+      dayPlanIds = (await PcPlan.find(scoped(req, { sortDate: { $gte: ds, $lt: de } })).select("_id").lean()).map((p) => p._id);
+    }
 
-    // blockouts (cu type: churchBlock = exclus din raport)
-    const blk = await PcBlockout.find(scoped(req, { personId: { $in: pid } })).select("personId startDate endDate type").lean();
+    // asignări: în mod ZI numărăm TOATE slujirile din acea zi (orice echipă); altfel, distinct pe plan în fereastră
+    const schedMatch = scoped(req, { personId: { $in: pid }, planId: { $in: refPlan ? dayPlanIds : planIds }, status: { $ne: "declined" } });
+    if (teamId && !refPlan) schedMatch.teamId = teamId;
+    const winAssigns = await PcAssignment.find(schedMatch).select("personId planId").lean();
+    const schedBy = {};
+    if (refPlan) winAssigns.forEach((a) => (schedBy[String(a.personId)] = (schedBy[String(a.personId)] || 0) + 1)); // câte slujiri în acea zi
+    else winAssigns.forEach((a) => (schedBy[String(a.personId)] = schedBy[String(a.personId)] || new Set()).add(String(a.planId)));
+
+    const blk = await PcBlockout.find(scoped(req, { personId: { $in: pid } })).select("personId startDate endDate type reason").lean();
     const blkBy = {}; blk.forEach((b) => (blkBy[String(b.personId)] = blkBy[String(b.personId)] || []).push(b));
     const covers = (b, dk) => (!b.startDate || b.startDate <= dk) && (!b.endDate || b.endDate >= dk);
+    const rowOf = (p, sched, blocked) => ({
+      id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "),
+      initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase(), avatar: p.avatar || "",
+      programIntent: p.programIntent || "", gender: p.gender || "", inRoster: rosterIds.has(String(p._id)),
+      inPosRoster: posRosterIds.has(String(p._id)), scheduled: sched, blocked, free: refPlan ? 0 : Math.max(0, plans.length - sched - blocked),
+    });
 
+    // oamenii cu BLOCKOUT în acea zi → NU apar în Neplanificați/Planificați, ci într-o listă SEPARATĂ (container „Blockout").
+    const blockoutRows = [];
     const rows = people.map((p) => {
       const myBlk = blkBy[String(p._id)] || [];
-      // blocaj de biserică (on-break) care acoperă vreo zi din interval → exclus din raport
-      if (myBlk.some((b) => b.type === "churchBlock" && planKeys.some((dk) => covers(b, dk)))) return null;
-      const sched = schedBy[String(p._id)] ? schedBy[String(p._id)].size : 0;
-      const blocked = planKeys.filter((dk) => myBlk.some((b) => b.type !== "churchBlock" && covers(b, dk))).length;
-      const free = Math.max(0, plans.length - sched - blocked);
-      return {
-        id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "),
-        initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase(), avatar: p.avatar || "",
-        programIntent: p.programIntent || "", gender: p.gender || "", inRoster: rosterIds.has(String(p._id)),
-        inPosRoster: posRosterIds.has(String(p._id)), scheduled: sched, blocked, free,
-      };
+      if (refPlan) {
+        const bk = myBlk.find((b) => covers(b, dayKey));
+        if (bk) {
+          const r = rowOf(p, 0, 1);
+          r.blockout = { label: bk.startDate === bk.endDate ? bk.startDate : `${bk.startDate} → ${bk.endDate}`, reason: bk.reason || "" };
+          blockoutRows.push(r); return null;
+        }
+      } else if (myBlk.some((b) => b.type === "churchBlock" && planKeys.some((dk) => covers(b, dk)))) {
+        return null;
+      }
+      const sched = refPlan ? (schedBy[String(p._id)] || 0) : (schedBy[String(p._id)] ? schedBy[String(p._id)].size : 0);
+      const blocked = refPlan ? 0 : planKeys.filter((dk) => myBlk.some((b) => b.type !== "churchBlock" && covers(b, dk))).length;
+      return rowOf(p, sched, blocked);
     }).filter(Boolean);
 
     // prioritate: ROSTERUL POZIȚIEI întâi (cine slujește oficial pe EXACT poziția selectată),
@@ -301,6 +324,8 @@ router.get("/:serviceTypeId/coverage", requireAny(CAN_VIEW_MATRIX), async (req, 
       teams: teams.map((t) => ({ teamId: t._id, name: t.name })),
       total: rows.length,
       buckets,
+      // oamenii cu blockout în acea zi (container „Blockout" din Listă live) — doar în mod ZI (refPlan)
+      blockout: blockoutRows.sort((a, b) => (posRosterRank(a) - posRosterRank(b)) || a.name.localeCompare(b.name, "ro")),
     });
   } catch (err) {
     console.error("[pc] GET /matrix/:serviceTypeId/coverage:", err.message);

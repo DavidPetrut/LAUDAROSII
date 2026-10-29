@@ -19,7 +19,7 @@ import { plansApi, peopleApi } from "@/lib/api/client";
 function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return m ? m[1] : ""; }
 
 export default function AssignSidebar({
-  open, title, neededCount, loading, groups = [], alreadyHere = [],
+  open, title, neededCount, loading, groups = [], alreadyHere = [], blockout = [],
   query, onQuery, onPick, onClose, assigning, mirror, onAddGuest,
   defaults, positionId, planId, onSaveRules, instructions, browse = false, serviceTimes = [], onRosterChanged, onConflictResolved,
   onReassignOpen, onReassignClose, conflictTarget, simPair,
@@ -140,6 +140,8 @@ export default function AssignSidebar({
   const fGroups = groups
     .map((g) => ({ ...g, people: (g.people || []).filter(filterPerson) }))
     .filter((g) => g.people.length);
+  // tab „Blockout" (ultimul): oamenii cu blockout în acea săptămână — aceleași filtre (Fit/SIM/Gen).
+  const fBlockout = (blockout || []).filter(filterPerson);
 
   const cfList = (p) => (p.conflicts && p.conflicts.length ? p.conflicts : (p.conflict ? [p.conflict] : []));
 
@@ -368,7 +370,27 @@ export default function AssignSidebar({
               );
             })}
 
-            {!loading && fGroups.length === 0 && alreadyHere.length === 0 && (
+            {!loading && fBlockout.length > 0 && (
+              <div className="asb-grp">
+                <button className="asb-gh blk" onClick={() => toggleGrp("blockout")}>
+                  <img className="asb-blki" src="/icons/blockout.png" alt="" />
+                  <span className="asb-ghl">BLOCKOUT</span>
+                  <span className="asb-gn">{fBlockout.length}</span>
+                  <span className={`asb-gc ${collapsed.has("blockout") ? "col" : ""}`}>▾</span>
+                </button>
+                {!collapsed.has("blockout") && fBlockout.map((p) => (
+                  <div key={p.id} className="cand blk">
+                    <PersonAvatar person={p} size={28} showBadge={false} />
+                    <span className="cn">{p.name}</span>
+                    <span className="blk-tag" title={p.blockout?.reason ? `${p.blockout.label} · ${p.blockout.reason}` : (p.blockout?.label || "Blockout")}>
+                      <img className="asb-blki sm" src="/icons/blockout.png" alt="" />{p.blockout?.label || "blockout"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!loading && fGroups.length === 0 && alreadyHere.length === 0 && fBlockout.length === 0 && (
               <div className="asb-muted">Niciun candidat{query ? " pentru căutare" : ""}{sim ? ` (SIM ${sim})` : ""}.</div>
             )}
           </div>
@@ -513,6 +535,14 @@ export default function AssignSidebar({
         .rost { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--product); box-shadow: 0 0 0 2px rgba(87,185,138,.22); }
         .wk { color: var(--text-faint); font-size: 11px; min-width: 32px; text-align: right; }
         .cand.here { opacity: .75; cursor: default; } .here-b { color: var(--product); }
+        /* tab Blockout (ultimul) — distinct de conflicte: accent roșu + iconul de blockout */
+        .asb-gh.blk { box-shadow: inset 2px 0 0 rgba(248,81,73,.6); }
+        .asb-gh.blk:hover { background: rgba(248,81,73,.1); }
+        .asb-gh.blk .asb-ghl { color: #ff9a94; }
+        .asb-blki { width: 14px; height: 14px; object-fit: contain; flex: none; }
+        .asb-blki.sm { width: 13px; height: 13px; }
+        .cand.blk { cursor: default; } .cand.blk:hover { background: transparent; }
+        .blk-tag { display: inline-flex; align-items: center; gap: 5px; flex: none; color: #ff9a94; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
         .asb-muted { color: var(--text-faint); font-size: 12.5px; padding: 10px 8px; }
       `}</style>
     </aside>

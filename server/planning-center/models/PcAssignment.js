@@ -33,6 +33,9 @@ const schema = pcSchema({
   preparedAt: { type: Date, default: null }, // timeline: pregătit
   readAt: { type: Date, default: null },     // timeline: citit
   replacementPersonId: { type: mongoose.Schema.Types.ObjectId, ref: "PcPerson", default: null }, // cine l-a înlocuit
+  // A consumat un slot „Needed" (count>0) la creare? Dacă da, ștergerea (X) îl pune la loc — simetric cu assign.
+  // (undefined = asignări vechi, dinainte de flag; la ștergere le tratăm ca „umpleau un slot".)
+  filledNeed: { type: Boolean },
 });
 
 schema.index({ orgId: 1, planId: 1, teamId: 1 });

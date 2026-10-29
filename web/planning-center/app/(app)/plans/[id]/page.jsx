@@ -374,7 +374,7 @@ export default function PlanDetailPage() {
 
       <AssignSidebar
         open={!!sel} title={sel?.positionName || ""} neededCount={rec?.neededCount || 0}
-        loading={recBusy} groups={rec?.groups || []} alreadyHere={rec?.alreadyHere || []}
+        loading={recBusy} groups={rec?.groups || []} alreadyHere={rec?.alreadyHere || []} blockout={rec?.blockout || []}
         query={recQuery} onQuery={setRecQuery} onPick={assignPerson} onClose={() => { setSel(null); setRec(null); }} assigning={assigning}
         mirror={pereche ? { available: true, label: `Adaugă și la ${pereche.teamName}` } : null}
         onAddGuest={addGuest}

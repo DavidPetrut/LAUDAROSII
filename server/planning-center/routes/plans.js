@@ -648,6 +648,17 @@ router.post("/:id/assignments", requireAny(CAN_ASSIGN), async (req, res) => {
       tempPositionName: b.tempPositionName || "",
       responseToken: crypto.randomBytes(18).toString("hex"),
     };
+    // află ÎNTÂI dacă există un slot „Needed" liber (count>0) pe poziție — ca să-l putem RESTAURA simetric la ștergere.
+    // întâi al orei la care e asignat (dacă există target pe acea oră), altfel plan-wide.
+    let np = null;
+    if (positionId) {
+      const tid = (doc.timeIds && doc.timeIds[0]) || null;
+      np = tid ? await PcNeededPosition.findOne(scoped(req, { planId, teamId, positionId, timeId: tid, count: { $gt: 0 } })) : null;
+      if (!np) np = await PcNeededPosition.findOne(scoped(req, { planId, teamId, positionId, timeId: null, count: { $gt: 0 } }));
+      if (!np) np = await PcNeededPosition.findOne(scoped(req, { planId, teamId, positionId, count: { $gt: 0 } }));
+    }
+    doc.filledNeed = !!np; // a consumat un slot real → la X îl punem la loc (needed-ul reapare)
+
     // upsert pe (plan, position, person) ca să nu dublăm — invitații sunt mereu noi (id fictiv).
     // IMPORTANT: căutăm INCLUSIV asignări șterse soft (deletedAt setat), altfel indexul unic
     // {orgId,planId,positionId,personId} dă E11000 când repui pe cineva șters anterior. Le REÎNVIEM.
@@ -660,14 +671,8 @@ router.post("/:id/assignments", requireAny(CAN_ASSIGN), async (req, res) => {
     } else {
       assignment = (await PcAssignment.create(stamp(req, doc))).toObject();
     }
-    // scade un „Needed" dacă există pe poziția asta: întâi al orei la care e asignat (dacă există target pe acea oră), altfel plan-wide
-    if (positionId) {
-      const tid = (doc.timeIds && doc.timeIds[0]) || null;
-      let np = tid ? await PcNeededPosition.findOne(scoped(req, { planId, teamId, positionId, timeId: tid, count: { $gt: 0 } })) : null;
-      if (!np) np = await PcNeededPosition.findOne(scoped(req, { planId, teamId, positionId, timeId: null, count: { $gt: 0 } }));
-      if (!np) np = await PcNeededPosition.findOne(scoped(req, { planId, teamId, positionId, count: { $gt: 0 } }));
-      if (np) { np.count -= 1; await np.save(); }
-    }
+    // consumă slotul „Needed" (dacă exista unul liber)
+    if (np) { np.count -= 1; await np.save(); }
     // „fit the position?" — e persoana în rosterul OFICIAL al poziției? (double-check autoritar, server-side).
     // Frontend-ul decide, pe baza asta, dacă arată modalul guest/permanent. Invitații clasici NU declanșează.
     let inPositionRoster = true;
@@ -748,8 +753,16 @@ router.patch("/:id/assignments/:aid", requireAny(CAN_ASSIGN), async (req, res) =
 /* ───────── DELETE /:id/assignments/:aid ───────── */
 router.delete("/:id/assignments/:aid", requireAny(CAN_MOVE), async (req, res) => {
   try {
-    const a = await PcAssignment.findOneAndUpdate(scoped(req, { _id: OID(req.params.aid) }), { $set: { deletedAt: new Date() } }).select("_id").lean();
-    if (!a) return res.status(404).json({ error: "Programare inexistentă." });
+    const planId = OID(req.params.id);
+    const cur = await PcAssignment.findOne(scoped(req, { _id: OID(req.params.aid) })).select("positionId teamId status filledNeed deletedAt").lean();
+    if (!cur || cur.deletedAt) return res.status(404).json({ error: "Programare inexistentă." });
+    await PcAssignment.updateOne(scoped(req, { _id: OID(req.params.aid) }), { $set: { deletedAt: new Date() } });
+    // X = scoate DOAR persoana. Dacă umplea un slot „Needed" (și NU era declinat — declinul l-a restaurat deja),
+    // slotul REVINE (needed-ul reapare). Needed se reduce DOAR din butonul minus, niciodată din ștergere.
+    // fără upsert: dacă nevoia a fost ștearsă explicit (minus la 0), nu o reînviem.
+    if (cur.positionId && cur.teamId && cur.status !== "declined" && cur.filledNeed !== false) {
+      await PcNeededPosition.findOneAndUpdate(scoped(req, { planId, teamId: cur.teamId, positionId: cur.positionId }), { $inc: { count: 1 } });
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error("[pc] DELETE /plans/:id/assignments/:aid:", err.message);
@@ -950,8 +963,10 @@ router.get("/:id/recommend", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
       }
       const covers = (b) => (!b.startDate || b.startDate <= dayKey) && (!b.endDate || b.endDate >= dayKey);
       const myBlk = blkByPerson[String(p._id)] || [];
-      // churchBlock (blocat de planificator / on-break) care acoperă ziua → persoana NU apare deloc în listă
-      const churchBlocked = myBlk.some((b) => b.type === "churchBlock" && covers(b));
+      // ORICE blockout (on-break SAU indisponibilitate personală) care acoperă ziua → persoana NU apare în
+      // Fără/Cu conflict, ci SEPARAT în tabul „Blockout" (identic cu Listă live): distincție clară.
+      const bkCover = myBlk.find((b) => covers(b));
+      const dayBlocked = !!bkCover;
       const weeks = nearest == null ? null : Math.round(nearest / WEEK);
       const weeksLabel = weeks == null ? "" : (weeks >= 0 ? `+${weeks}w` : `${weeks}w`);
       // CONFLICTE — pot fi MAI MULTE simultan (deja planificat + blockout), cu motiv/dată.
@@ -968,11 +983,7 @@ router.get("/:id/recommend", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
         if (samePlan.length) parts.push(`${samePlan.length} poziție(i) pe acest plan`);
         conflicts.push({ type: "time", label: "Deja planificat în aceeași zi", detail: parts.join(" · ") || `${sched.length} slujire(i)` });
       }
-      const bk = myBlk.find((b) => b.type !== "churchBlock" && covers(b));
-      if (bk) {
-        const range = bk.startDate === bk.endDate ? bk.startDate : `${bk.startDate} → ${bk.endDate}`;
-        conflicts.push({ type: "blockout", label: "Blockout (indisponibil)", detail: [range, bk.reason].filter(Boolean).join(" · ") });
-      }
+      // (fără conflict de blockout: cei cu blockout în acea zi sunt EXCLUȘI mai jos, nu afișați cu semn)
       const conflict = conflicts[0] || null; // compat sortare
       const belowTarget = targetPerMonth > 0 && monthCount < targetPerMonth;
       return {
@@ -981,9 +992,13 @@ router.get("/:id/recommend", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
         gender: p.gender || "", programIntent: p.programIntent || "", weeksLabel, dueSort: lastAtPosWeeks == null ? 9999 : lastAtPosWeeks,
         monthCount, targetPerMonth, belowTarget, inRoster: inRoster.has(String(p._id)),
         targetLabel: targetPerMonth > 0 ? `${monthCount}/${targetPerMonth}` : "",
-        conflict, conflicts, alreadyHere, churchBlocked,
+        conflict, conflicts, alreadyHere, dayBlocked,
+        blockout: bkCover ? { label: bkCover.startDate === bkCover.endDate ? bkCover.startDate : `${bkCover.startDate} → ${bkCover.endDate}`, reason: bkCover.reason || "" } : null,
       };
-    }).filter((r) => !r.churchBlocked); // exclude din liste pe cei cu blocaj de biserică
+    });
+    // cei cu blockout în acea zi → separați în tabul „Blockout"; restul în Fără/Cu conflict
+    const live = rows.filter((r) => !r.dayBlocked);
+    const blocked = rows.filter((r) => r.dayBlocked);
 
     // prioritate SIM: dacă poziția e pe un program (SIM1/SIM2), oamenii de pe ACEL SIM apar primii
     // (atât fără conflict, cât și cu conflict). Fără marker de SIM → fără prioritate (0).
@@ -991,10 +1006,11 @@ router.get("/:id/recommend", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
     const rosterRank = (r) => (positionId && r.inRoster ? 0 : 1);
     const simRank = (r) => (teamSim && r.programIntent === teamSim ? 0 : 1);
     // grupare + sortare: fără conflict — întâi rosterul, apoi SIM-ul poziției, apoi sub target, apoi „due" (demult), apoi nume
-    const noConf = rows.filter((r) => !r.conflict && !r.alreadyHere)
+    const noConf = live.filter((r) => !r.conflict && !r.alreadyHere)
       .sort((a, b) => (rosterRank(a) - rosterRank(b)) || (simRank(a) - simRank(b)) || (b.belowTarget - a.belowTarget) || (b.dueSort - a.dueSort) || a.name.localeCompare(b.name));
-    const withConf = rows.filter((r) => r.conflict && !r.alreadyHere).sort((a, b) => (rosterRank(a) - rosterRank(b)) || (simRank(a) - simRank(b)) || a.name.localeCompare(b.name));
-    const here = rows.filter((r) => r.alreadyHere);
+    const withConf = live.filter((r) => r.conflict && !r.alreadyHere).sort((a, b) => (rosterRank(a) - rosterRank(b)) || (simRank(a) - simRank(b)) || a.name.localeCompare(b.name));
+    const here = live.filter((r) => r.alreadyHere);
+    const blockoutPeople = blocked.sort((a, b) => (rosterRank(a) - rosterRank(b)) || (simRank(a) - simRank(b)) || a.name.localeCompare(b.name));
     const needed = positionId ? (await PcNeededPosition.findOne(scoped(req, { planId, positionId })).select("count").lean())?.count || 0 : 0;
     res.json({
       positionName: pos?.name || "",
@@ -1007,6 +1023,8 @@ router.get("/:id/recommend", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
         { label: "FĂRĂ CONFLICT", people: noConf },
         ...(withConf.length ? [{ label: "CU CONFLICT", people: withConf }] : []),
       ],
+      // tab separat „Blockout" (ultimul) — oamenii cu blockout în acea zi (pe săptămâna selectată)
+      blockout: blockoutPeople,
     });
   } catch (err) {
     console.error("[pc] GET /plans/:id/recommend:", err.message);
