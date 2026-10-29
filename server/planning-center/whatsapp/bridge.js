@@ -184,11 +184,18 @@ async function listGroups() {
     });
 }
 
-/** Membrii unui grup ca numere (fără sufix). */
+/** Identificatorii robotului (număr + LID, partea locală) — ca să nu se scoată/numere pe el însuși. */
+function selfIds() {
+  if (!sock?.user) return [];
+  const loc = (x) => (x || "").split("@")[0].split(":")[0];
+  return [loc(sock.user.id), loc(sock.user.lid)].filter(Boolean);
+}
+
+/** Membrii unui grup ca numere (preferă numărul de telefon `jid` în fața LID-ului, fără sufix). */
 async function groupMembers(jid) {
   if (!sock) return [];
   const meta = await sock.groupMetadata(jid);
-  return (meta.participants || []).map((p) => (p.id || "").split("@")[0]);
+  return (meta.participants || []).map((p) => ((p.jid || p.id) || "").split("@")[0].split(":")[0]);
 }
 
 /**
@@ -199,12 +206,12 @@ async function syncGroup(jid, targetNumbersRaw) {
   if (!sock) throw new Error("Puntea nu e conectată.");
   const target = [...new Set((targetNumbersRaw || []).map(normalizeNumber).filter(Boolean))];
   const current = await groupMembers(jid);
-  const myNum = (sock.user?.id || "").split("@")[0].split(":")[0];
+  const self = new Set(selfIds());
   const currentSet = new Set(current);
   const targetSet = new Set(target);
 
-  const toAdd = target.filter((n) => !currentSet.has(n));
-  const toRemove = current.filter((n) => !targetSet.has(n) && n !== myNum); // nu te scoți pe tine (robotul)
+  const toAdd = target.filter((n) => !currentSet.has(n) && !self.has(n));
+  const toRemove = current.filter((n) => !targetSet.has(n) && !self.has(n)); // nu te scoți pe tine (robotul: număr sau LID)
 
   const added = [], removed = [], failed = [], needInvite = [];
 
@@ -256,4 +263,4 @@ async function logoutAndReset() {
   try { const oid = await getOrgId(); await PcWhatsappSession.updateOne({ orgId: oid }, { $set: { data: {}, status: "disconnected", me: null, lastError: "" } }); } catch {}
 }
 
-module.exports = { start, ensureStarted, status, listGroups, groupMembers, syncGroup, inviteLink, groupName, renameGroup, logoutAndReset, normalizeNumber };
+module.exports = { start, ensureStarted, status, listGroups, groupMembers, syncGroup, inviteLink, groupName, renameGroup, logoutAndReset, normalizeNumber, selfIds };

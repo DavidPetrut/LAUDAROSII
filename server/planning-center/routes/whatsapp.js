@@ -223,9 +223,9 @@ router.get("/preview/:id", CAN, async (req, res) => {
       try {
         currentName = (await bridge.groupName(m.jid)) || m.nameCached;
         currentNumbers = await bridge.groupMembers(m.jid);
-        const cur = new Set(currentNumbers), tgt = new Set(t.numbers);
-        toAdd = t.numbers.filter((n) => !cur.has(n));
-        toRemove = currentNumbers.filter((n) => !tgt.has(n));
+        const cur = new Set(currentNumbers), tgt = new Set(t.numbers), self = new Set(bridge.selfIds());
+        toAdd = t.numbers.filter((n) => !cur.has(n) && !self.has(n));
+        toRemove = currentNumbers.filter((n) => !tgt.has(n) && !self.has(n)); // nu număra robotul (num/LID) la scoși
       } catch (e) { liveError = e.message; }
     } else liveError = "Puntea nu e conectată.";
     const plannedName = buildGroupName(m.namePrefix, t.weekShort, t.leaderName, t.teamName);

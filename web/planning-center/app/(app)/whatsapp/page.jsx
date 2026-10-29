@@ -103,6 +103,14 @@ export default function WhatsappPage() {
   const flash = (m) => { setMsg(m); setTimeout(() => setMsg(""), 5000); };
   const botNumber = st?.me?.id?.split("@")[0]?.split(":")[0] || "";
   const connected = st?.connected;
+  // ordine: pe comunitate/echipă, apoi SĂPTĂMÂNA DIN LUNĂ crescător (1 → 5)
+  const sortedMaps = [...maps].sort((a, b) =>
+    (a.ministryGroup || "").localeCompare(b.ministryGroup || "") ||
+    String(a.communityJid || "").localeCompare(String(b.communityJid || "")) ||
+    String(a.teamId || "").localeCompare(String(b.teamId || "")) ||
+    (a.weekOfMonth || 1) - (b.weekOfMonth || 1) ||
+    (a.nameCached || "").localeCompare(b.nameCached || "")
+  );
 
   async function connect() { setBusy("connect"); try { setSt(await whatsappApi.connect()); } catch (e) { flash(e.message); } finally { setBusy(""); } }
   async function logout() { if (!confirm("Deloghezi puntea? Va trebui să re-scanezi QR.")) return; setBusy("logout"); try { setSt(await whatsappApi.logout()); setGroups([]); } catch (e) { flash(e.message); } finally { setBusy(""); } }
@@ -188,7 +196,7 @@ export default function WhatsappPage() {
             </div>
           ) : (
             <div className="wa-grid">
-              {maps.map((m) => {
+              {sortedMaps.map((m) => {
                 const pv = preview[m._id]; const rs = result[m._id]; const g = groups.find((x) => x.jid === m.jid);
                 return (
                   <div key={m._id} className="gcard">
