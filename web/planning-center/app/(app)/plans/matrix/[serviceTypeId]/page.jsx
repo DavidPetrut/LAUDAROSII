@@ -176,10 +176,10 @@ export default function MatrixPage() {
   useEffect(() => { loadCov(); }, [loadCov]);
   // ANOMALII (import PCO): oameni cu blockout + slujire în aceeași zi → eticheta „Probleme". Scopate pe săptămâna selectată.
   const loadAnomalies = useCallback(async () => {
-    const refPlanId = reassignBar ? reassignBar.planId : sel?.planId;
-    if (!refPlanId) { setAnomalies({ day: "", people: [] }); return; }
-    try { setAnomalies(await matrixApi.anomalies(serviceTypeId, { refPlanId })); } catch { setAnomalies({ day: "", people: [] }); }
-  }, [serviceTypeId, reassignBar?.planId, sel?.planId]);
+    const ids = (data?.plans || []).map((p) => p.id).join(","); // toată fereastra vizibilă → anomaliile apar din prima
+    if (!ids) { setAnomalies({ people: [] }); return; }
+    try { setAnomalies(await matrixApi.anomalies(serviceTypeId, { planIds: ids })); } catch { setAnomalies({ people: [] }); }
+  }, [serviceTypeId, data?.plans]);
   useEffect(() => { loadAnomalies(); }, [loadAnomalies]);
   // scoate slujirea unui om cu anomalie (nu atingem blockout-ul). După scoatere → re-fetch (auto-refresh): dacă rămâne
   // doar cu blockout, dispare din modal și din contor. ZERO email.

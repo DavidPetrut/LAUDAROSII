@@ -505,33 +505,45 @@ router.get("/:serviceTypeId/person-weeks", requireAny(CAN_VIEW_MATRIX), async (r
    DOAR INFO: singura rezolvare oferită = scoaterea slujirii (DELETE assignment). Blockout-ul nu se atinge. READ. */
 router.get("/:serviceTypeId/anomalies", requireAny(CAN_VIEW_MATRIX), async (req, res) => {
   try {
-    const refPlanId = OID(req.query.refPlanId);
-    if (!refPlanId) return res.json({ day: "", people: [] });
+    // fereastra = planurile vizibile în Matrix (planIds). Anomaliile apar DIN PRIMA, fără să selectezi ceva.
+    const winPlanIds = String(req.query.planIds || "").split(",").map((s) => s.trim()).filter(Boolean).map(OID).filter(Boolean);
+    const refPlanId = OID(req.query.refPlanId); // compat (o singură zi)
     const tz = await campusTz(req);
-    const refPlan = await PcPlan.findOne(scoped(req, { _id: refPlanId })).select("sortDate").lean();
-    if (!refPlan) return res.json({ day: "", people: [] });
-    const ds = new Date(refPlan.sortDate); ds.setHours(0, 0, 0, 0);
-    const de = new Date(ds); de.setDate(de.getDate() + 1);
-    const dayKey = ds.toISOString().slice(0, 10);
-    const dateLabel = `${fmtWeekday(ds, tz)} ${fmtDate(ds, tz)}`;
+    const dk = (d) => new Date(d).toISOString().slice(0, 10);
+    const winPlans = winPlanIds.length
+      ? await PcPlan.find(scoped(req, { _id: { $in: winPlanIds } })).select("sortDate").lean()
+      : (refPlanId ? await PcPlan.find(scoped(req, { _id: refPlanId })).select("sortDate").lean() : []);
+    if (!winPlans.length) return res.json({ people: [] });
+    const dayKeys = [...new Set(winPlans.map((p) => dk(p.sortDate)))];
+    const times = winPlans.map((p) => new Date(p.sortDate).getTime());
+    const ds = new Date(Math.min(...times)); ds.setHours(0, 0, 0, 0);
+    const de = new Date(Math.max(...times)); de.setHours(23, 59, 59, 999);
 
-    const dayPlans = await PcPlan.find(scoped(req, { sortDate: { $gte: ds, $lt: de } })).select("serviceTypeId").lean();
-    const dayPlanIds = dayPlans.map((p) => p._id);
-    const planStById = Object.fromEntries(dayPlans.map((p) => [String(p._id), String(p.serviceTypeId || "")]));
+    // toate planurile (org) din zilele ferestrei → zi + service type per plan
+    const rangePlans = await PcPlan.find(scoped(req, { sortDate: { $gte: ds, $lte: de } })).select("sortDate serviceTypeId").lean();
+    const planDay = {}, planSt = {}, dayLabelOf = {};
+    rangePlans.forEach((p) => {
+      const d = dk(p.sortDate); planDay[String(p._id)] = d; planSt[String(p._id)] = String(p.serviceTypeId || "");
+      if (!dayLabelOf[d]) dayLabelOf[d] = `${fmtWeekday(p.sortDate, tz)} ${fmtDate(p.sortDate, tz)}`;
+    });
+    const dayPlanIds = rangePlans.filter((p) => dayKeys.includes(planDay[String(p._id)])).map((p) => p._id);
 
-    // blockouts care ACOPERĂ ziua (orice tip)
-    const covers = (b) => (!b.startDate || b.startDate <= dayKey) && (!b.endDate || b.endDate >= dayKey);
-    const blk = (await PcBlockout.find(scoped(req, { $or: [{ endDate: { $gte: dayKey } }, { endDate: null }] })).select("personId startDate endDate reason").lean()).filter(covers);
-    const blkByPerson = {}; blk.forEach((b) => { if (!blkByPerson[String(b.personId)]) blkByPerson[String(b.personId)] = b; });
-    const blkIds = Object.keys(blkByPerson).map(OID).filter(Boolean);
-    if (!blkIds.length) return res.json({ day: dateLabel, people: [] });
+    // blockouts → pt. fiecare persoană, ce ZILE din fereastră îi sunt blocate
+    const covers = (b, d) => (!b.startDate || b.startDate <= d) && (!b.endDate || b.endDate >= d);
+    const minDay = dayKeys.reduce((a, b) => (a < b ? a : b));
+    const blkAll = await PcBlockout.find(scoped(req, { $or: [{ endDate: { $gte: minDay } }, { endDate: null }] })).select("personId startDate endDate reason").lean();
+    const blockedDays = {}; // pid → { dayKey: blockout }
+    blkAll.forEach((b) => dayKeys.forEach((d) => { if (covers(b, d)) (blockedDays[String(b.personId)] = blockedDays[String(b.personId)] || {})[d] = b; }));
+    const blkIds = Object.keys(blockedDays).map(OID).filter(Boolean);
+    if (!blkIds.length) return res.json({ people: [] });
 
-    // ...care au ȘI o slujire în acea zi = ANOMALIE
+    // asignări ale lor în zilele ferestrei (ne-refuzate); ANOMALIE = asignare a cărei ZI e blocată pt. acea persoană
     const assigns = await PcAssignment.find(scoped(req, { personId: { $in: blkIds }, planId: { $in: dayPlanIds }, status: { $ne: "declined" } }))
       .select("personId planId teamId positionId status isGuest").lean();
-    if (!assigns.length) return res.json({ day: dateLabel, people: [] });
-    const byPerson = {}; assigns.forEach((a) => (byPerson[String(a.personId)] = byPerson[String(a.personId)] || []).push(a));
+    const byPerson = {};
+    assigns.forEach((a) => { const d = planDay[String(a.planId)]; if (blockedDays[String(a.personId)] && blockedDays[String(a.personId)][d]) (byPerson[String(a.personId)] = byPerson[String(a.personId)] || []).push({ ...a, day: d }); });
     const ids = Object.keys(byPerson);
+    if (!ids.length) return res.json({ people: [] });
 
     const [people, teams, poss, sts] = await Promise.all([
       PcPerson.find(scoped(req, { _id: { $in: ids.map(OID).filter(Boolean) } })).select("firstName lastName avatar").lean(),
@@ -546,20 +558,20 @@ router.get("/:serviceTypeId/anomalies", requireAny(CAN_VIEW_MATRIX), async (req,
 
     const out = ids.map((pid) => {
       const p = personById[pid]; if (!p) return null;
-      const b = blkByPerson[pid];
+      const firstB = Object.values(blockedDays[pid])[0];
       return {
         id: pid, name: [p.firstName, p.lastName].filter(Boolean).join(" "),
         initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase(), avatar: p.avatar || "",
-        blockout: { label: b.startDate === b.endDate ? b.startDate : `${b.startDate} → ${b.endDate}`, reason: b.reason || "" },
+        blockout: { label: firstB.startDate === firstB.endDate ? firstB.startDate : `${firstB.startDate} → ${firstB.endDate}`, reason: firstB.reason || "" },
         servings: byPerson[pid].map((a) => ({
-          assignmentId: a._id, planId: a.planId,
+          assignmentId: a._id, planId: a.planId, dayLabel: dayLabelOf[a.day] || "",
           position: pN[String(a.positionId)] || (a.isGuest ? "Invitat" : "Poziție"),
-          team: tN[String(a.teamId)] || "", serviceTypeName: stN[planStById[String(a.planId)]] || "", status: a.status,
+          team: tN[String(a.teamId)] || "", serviceTypeName: stN[planSt[String(a.planId)]] || "", status: a.status,
         })),
       };
     }).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name, "ro"));
 
-    res.json({ day: dateLabel, people: out });
+    res.json({ people: out });
   } catch (err) {
     console.error("[pc] GET /matrix/:serviceTypeId/anomalies:", err.message);
     res.status(500).json({ error: "Eroare la anomalii: " + err.message });

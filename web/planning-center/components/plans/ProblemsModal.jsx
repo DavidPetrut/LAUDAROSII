@@ -30,7 +30,6 @@ export default function ProblemsModal({ open, day, people = [], busy, onRemoveSe
           <span className="pm-ic"><img src="/icons/semnul-exclamari-rosu.png" alt="" width="20" height="20" /></span>
           <div className="pm-th">
             <div className="pm-title">Probleme{people.length ? ` · ${people.length}` : ""}</div>
-            <div className="pm-sub">Anomalii din import: blockout + slujire în aceeași zi{day ? ` · ${day}` : ""} — doar info, se rezolvă manual</div>
           </div>
           <button className="pm-x" disabled={busy} onClick={onClose} aria-label="Închide">×</button>
         </div>
@@ -54,7 +53,7 @@ export default function ProblemsModal({ open, day, people = [], busy, onRemoveSe
                 {(p.servings || []).map((s) => (
                   <div key={String(s.assignmentId)} className="pm-srow">
                     <div className="pm-st">
-                      <div className="pm-spos">{[s.position, s.team].filter(Boolean).join(" · ") || "Slujire"}</div>
+                      <div className="pm-spos">{s.dayLabel ? <span className="pm-sday">{s.dayLabel}</span> : null}{[s.position, s.team].filter(Boolean).join(" · ") || "Slujire"}</div>
                       {s.serviceTypeName ? <div className="pm-ssub">{s.serviceTypeName}</div> : null}
                     </div>
                     {confirmId === String(s.assignmentId) ? (
@@ -79,11 +78,11 @@ export default function ProblemsModal({ open, day, people = [], busy, onRemoveSe
         @keyframes pmov { from { opacity: 0; } to { opacity: 1; } }
         .pm-dlg { background: var(--modal-bg); border: 1px solid rgba(248,81,73,.45); border-radius: 14px; width: 560px; max-width: 95vw; max-height: 86vh; display: flex; flex-direction: column; box-shadow: 0 26px 70px rgba(0,0,0,.55); animation: pmin .18s cubic-bezier(.2,.9,.3,1.2); }
         @keyframes pmin { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
-        .pm-top { display: flex; align-items: flex-start; gap: 11px; padding: 16px 18px 14px; border-bottom: 1px solid var(--border); }
+        .pm-top { display: flex; align-items: center; gap: 11px; padding: 15px 18px; border-bottom: 1px solid var(--border); }
         .pm-ic { width: 34px; height: 34px; flex: none; border-radius: 9px; background: rgba(248,81,73,.16); display: inline-flex; align-items: center; justify-content: center; }
         .pm-th { flex: 1; min-width: 0; }
         .pm-title { color: #ff9a94; font-size: 15px; font-weight: 800; letter-spacing: .3px; }
-        .pm-sub { color: var(--text-faint); font-size: 11.5px; margin-top: 2px; line-height: 1.4; }
+        .pm-day { color: var(--text-faint); font-weight: 600; font-size: 12.5px; }
         .pm-x { flex: none; background: transparent; border: none; color: var(--text-faint); font-size: 23px; line-height: 1; cursor: pointer; padding: 0 3px; }
         .pm-x:hover { color: var(--text); } .pm-x:disabled { opacity: .5; cursor: default; }
         .pm-body { overflow: auto; padding: 14px 18px 18px; display: flex; flex-direction: column; gap: 12px; }
@@ -97,6 +96,7 @@ export default function ProblemsModal({ open, day, people = [], busy, onRemoveSe
         .pm-srow { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; }
         .pm-st { flex: 1; min-width: 0; }
         .pm-spos { color: var(--text); font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pm-sday { display: inline-block; margin-right: 7px; padding: 1px 7px; border-radius: 6px; background: rgba(248,81,73,.14); color: #ff9a94; font-size: 11px; font-weight: 700; }
         .pm-ssub { color: var(--text-faint); font-size: 11.5px; margin-top: 1px; }
         .pm-rm { flex: none; width: 28px; height: 28px; border-radius: 7px; background: transparent; border: 1px solid var(--border-strong); color: var(--text-faint); font-size: 18px; line-height: 1; cursor: pointer; transition: color .12s, border-color .12s, background .12s; }
         .pm-rm:hover { color: var(--danger); border-color: var(--danger); background: rgba(248,81,73,.1); }
