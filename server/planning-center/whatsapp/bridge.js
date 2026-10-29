@@ -157,15 +157,31 @@ function status() {
 
 async function ensureStarted() { if (!sock && connState !== "qr" && connState !== "connecting") await start(); }
 
-/** Grupurile în care e numărul-robot: [{ jid, name, size, isAdmin }]. */
+/** Grupurile în care e numărul-robot: [{ jid, name, size, isAdmin, community, isCommunity }]. */
 async function listGroups() {
   if (!sock) return [];
   const all = await sock.groupFetchAllParticipating();
-  const myId = (sock.user?.id || "").split(":")[0];
-  return Object.values(all || {}).map((g) => {
-    const me = (g.participants || []).find((p) => (p.id || "").split("@")[0].split(":")[0] === myId.split("@")[0]);
-    return { jid: g.id, name: g.subject || "", size: (g.participants || []).length, isAdmin: me ? (me.admin === "admin" || me.admin === "superadmin") : false };
-  });
+  const list = Object.values(all || {});
+  const commName = {};
+  list.forEach((g) => { if (g.isCommunity) commName[g.id] = g.subject || ""; }); // comunitățile-părinte
+  // Baileys 7.x poate lista participanții după LID (@lid), nu după număr → potrivim numărul ȘI LID-ul meu,
+  // și acceptăm și creatorul grupului (owner) ca admin.
+  const idNum = (x) => (x || "").split("@")[0].split(":")[0];
+  const mine = new Set([idNum(sock.user?.id), idNum(sock.user?.lid)].filter(Boolean));
+  const isMe = (p) => mine.has(idNum(p?.id)) || mine.has(idNum(p?.jid)) || mine.has(idNum(p?.lid));
+  return list
+    .filter((g) => !g.isCommunityAnnounce) // grupul-anunț al comunității nu e țintă de sync
+    .map((g) => {
+      const me = (g.participants || []).find(isMe);
+      const owner = mine.has(idNum(g.owner)) || mine.has(idNum(g.subjectOwner)); // creatorul grupului/comunității
+      return {
+        jid: g.id, name: g.subject || "", size: (g.participants || []).length,
+        isAdmin: (me ? (me.admin === "admin" || me.admin === "superadmin") : false) || owner,
+        community: g.linkedParent ? (commName[g.linkedParent] || "") : "",
+        communityJid: g.linkedParent || "",
+        isCommunity: !!g.isCommunity,
+      };
+    });
 }
 
 /** Membrii unui grup ca numere (fără sufix). */

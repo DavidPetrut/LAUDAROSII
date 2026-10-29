@@ -126,7 +126,8 @@ startPrayRoomScheduler();
 if (process.env.WHATSAPP_BRIDGE === "1") {
   try {
     require("./planning-center/whatsapp/bridge").start().catch((e) => console.error("[whatsapp] start:", e.message));
-    console.log("[whatsapp] punte pornită (WHATSAPP_BRIDGE=1)");
+    require("./planning-center/whatsapp/scheduler").startWhatsappScheduler();
+    console.log("[whatsapp] punte + scheduler pornite (WHATSAPP_BRIDGE=1)");
   } catch (e) { console.error("[whatsapp] bridge indisponibil:", e.message); }
 }
 

@@ -12,8 +12,15 @@ const schema = pcSchema({
   // maparea = ECHIPĂ + a câta săptămână din viitor. Grupul reflectă oamenii echipei pe acea săptămână,
   // iar offset-ul e RELATIV la „azi" → când o săptămână trece, se rotește singur (nu numărăm câte grupuri sunt).
   teamId: { type: mongoose.Schema.Types.ObjectId, ref: "PcTeam", default: null },
-  weekOffset: { type: Number, default: 0 },          // 0 = următoarea dată când echipa slujește, 1 = cea de după, ...
+  // ancoră STABILĂ: a câta slujire din LUNĂ (1-5). Grupul rămâne pe aceeași săptămână-din-lună prin rotație
+  // (ex. „a 3-a" ia mereu a 3-a slujire a lunii curente/următoare). Numele se regenerează, slotul rămâne fix.
+  weekOfMonth: { type: Number, default: 1 },
+  weekOffset: { type: Number, default: 0 },          // (învechit) fostul offset relativ; păstrat pt. compat.
   ministryGroup: { type: String, default: "" },      // doar pt. afișare/grupare în UI (din echipă)
+  // numele grupului se GENEREAZĂ la sync: „{namePrefix} - {dată} - {lider}" (NU ne bazăm pe numele de pe WhatsApp).
+  namePrefix: { type: String, default: "" },         // prefixul ales de user (ex. „SIM1", „Kingdom Youth 2"); gol → numele echipei
+  leaderPositionId: { type: mongoose.Schema.Types.ObjectId, ref: "PcPosition", default: null }, // liderul din nume = cine e pe ACEASTĂ poziție săpt. aia
+  communityJid: { type: String, default: "" },       // comunitatea-părinte (din WhatsApp), doar pt. grupare în UI
   botNumber: { type: String, default: "" },          // numărul-robot admin în acest grup
   mode: { type: String, default: "semi" },           // semi | manual
   enabled: { type: Boolean, default: true },

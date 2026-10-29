@@ -263,11 +263,16 @@ export const whatsappApi = {
   groups: () => api.get(`/whatsapp/groups`),
   teams: () => api.get(`/whatsapp/teams`),
   teamWeeks: (teamId) => api.get(`/whatsapp/team/${teamId}/weeks`),
+  teamPositions: (teamId) => api.get(`/whatsapp/team/${teamId}/positions`),
+  targetPreview: (teamId, weekOfMonth, leaderPositionId) => api.get(`/whatsapp/target-preview?teamId=${teamId}&weekOfMonth=${weekOfMonth || 1}&leaderPositionId=${leaderPositionId || ""}`),
   mappings: () => api.get(`/whatsapp/mappings`),
   map: (payload) => api.post(`/whatsapp/map`, payload),
+  mapBulk: (items) => api.post(`/whatsapp/map/bulk`, { items }),
   unmap: (id) => api.del(`/whatsapp/map/${id}`),
   setMode: (id, mode) => api.put(`/whatsapp/map/${id}/mode`, { mode }),
   preview: (id) => api.get(`/whatsapp/preview/${id}`),
   // ATENȚIE: adaugă/scoate oameni REALI din grup. DOAR pe acțiune explicită a utilizatorului.
   sync: (id) => api.post(`/whatsapp/sync/${id}`, {}),
+  seedAll: () => api.post(`/whatsapp/seed/all`, {}),
+  seedWeek: (weekOfMonth) => api.post(`/whatsapp/seed/week`, { weekOfMonth }),
 };
