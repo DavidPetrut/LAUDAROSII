@@ -18,9 +18,11 @@ function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return
 
 export default function CoverageBar({
   open, onToggle, cov, loading, filters = {}, onRemoveFilter, onSetFilter, onPersonDragStart, onPersonDragEnd, style,
-  target = null, targetSched = null, targetAvail = {}, onCloseTarget, reassignMode = false, disablePersonId = null,
+  target = null, targetSched = null, targetAvail = {}, onCloseTarget, reassignMode = false, disablePersonId = null, disableIds = [],
   onVerifyPerson, canVerify = false, targetWeeks = null, selSts = null, onToggleSt,
 }) {
+  // cine e „blocat" de la drag în Listă live (deja pe poziția selectată / self-replace) → vizibil dar ne-draggable
+  const isDisabled = (id) => (disablePersonId && String(id) === String(disablePersonId)) || (disableIds || []).some((d) => String(d) === String(id));
   const [col0Mode, setCol0Mode] = useState("un"); // primul container: Neplanificați (0×) / Planificați (toți, alfabetic)
   const [tab, setTab] = useState("live"); // "live" | "person"
   // căutare PER container (bucket/blockout): lupa din header → input + X. Cheie = b.times sau "blk".
@@ -209,7 +211,7 @@ export default function CoverageBar({
               const q = (bq[b.times] || "").trim().toLowerCase();
               const people = bqOpen[b.times] && q ? base.filter((p) => (p.name || "").toLowerCase().includes(q)) : base;
               return (
-              <div key={b.times} className={`cb-col ${isCol0 ? "col0" : ""}`}>
+              <div key={b.times} className={`cb-col ${isCol0 ? "col0" : ""} ${isCol0 && col0Mode === "pl" ? "col0pl" : ""}`}>
                 <div className="cb-ch">
                   {bqOpen[b.times] ? (
                     <div className="cb-search">
@@ -239,7 +241,7 @@ export default function CoverageBar({
                 <div className="cb-list">
                   {people.length === 0 && <div className="cb-empty">{bqOpen[b.times] && q ? "Niciun rezultat." : "—"}</div>}
                   {people.map((p) => {
-                    const dis = disablePersonId && String(p.id) === String(disablePersonId);
+                    const dis = isDisabled(p.id);
                     return (
                     <div key={p.id} className={`cb-card ${dis ? "dis" : ""}`} draggable={!dis}
                       onDragStart={dis ? undefined : (e) => { e.dataTransfer.effectAllowed = "copy"; try { e.dataTransfer.setData("application/pc-person", JSON.stringify({ id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "" })); } catch {} onPersonDragStart?.(p); }}
@@ -289,7 +291,7 @@ export default function CoverageBar({
                 <div className="cb-list">
                   {people.length === 0 && <div className="cb-empty">{bqOpen.blk && q ? "Niciun rezultat." : "—"}</div>}
                   {people.map((p) => {
-                    const dis = disablePersonId && String(p.id) === String(disablePersonId);
+                    const dis = isDisabled(p.id);
                     return (
                     <div key={p.id} className={`cb-card ${dis ? "dis" : ""}`} draggable={!dis}
                       onDragStart={dis ? undefined : (e) => { e.dataTransfer.effectAllowed = "copy"; try { e.dataTransfer.setData("application/pc-person", JSON.stringify({ id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "" })); } catch {} onPersonDragStart?.(p); }}
@@ -349,6 +351,10 @@ export default function CoverageBar({
         .cb-muted { color: var(--text-faint); padding: 20px; }
         .cb-col { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; width: 283px; flex: none; display: flex; flex-direction: column; }
         .cb-col.col0 { border-color: rgba(47,129,247,.5); }
+        /* pe „Planificați" border-ul primului container devine verde (culoarea de la Planificați) */
+        .cb-col.col0.col0pl { border-color: rgba(87,185,138,.55); }
+        .cb-col.col0.col0pl .cb-ch { background: rgba(87,185,138,.1); }
+        .cb-col.col0.col0pl .cb-search { border-color: rgba(87,185,138,.55); }
         .cb-ch { display: flex; align-items: center; justify-content: space-between; padding: 10px 13px; border-bottom: 1px solid var(--border); color: var(--text); font-weight: 600; font-size: 12.5px; flex: none; min-height: 39px; }
         .cb-chlbl { display: inline-flex; align-items: center; gap: 6px; }
         .cb-dl { width: 23px; height: 23px; object-fit: contain; opacity: .9; }
@@ -370,8 +376,11 @@ export default function CoverageBar({
         .cb-card { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 8px; cursor: grab; transition: background .1s; }
         .cb-card:hover { background: rgba(255,255,255,.055); }
         .cb-card:active { cursor: grabbing; opacity: .5; }
-        .cb-card.dis { opacity: .4; cursor: not-allowed; }
+        /* DEJA pe poziția selectată → vizibil dar ne-draggable; DOAR conflictul lui rămâne clickabil (badge full) */
+        .cb-card.dis { cursor: not-allowed; }
         .cb-card.dis:hover { background: transparent; }
+        .cb-card.dis .cb-name { opacity: .4; text-decoration: line-through; }
+        .cb-card.dis .cb-rost { opacity: .4; }
         .cb-rost { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--product); box-shadow: 0 0 0 2px rgba(87,185,138,.22); }
         .cb-name { color: var(--text); font-size: 13px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .cb-free { flex: none; color: #0b2018; background: var(--product); border-radius: 20px; padding: 1px 8px; font-size: 11px; font-weight: 700; }

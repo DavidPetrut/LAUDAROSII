@@ -191,6 +191,14 @@ export default function MatrixPage() {
   })();
   const conflictTarget = sel ? { planId: sel.planId, teamId: sel.teamId, positionId: sel.positionId, positionName: sel.positionName,
     teamName: teams.find((t) => String(t.teamId) === String(sel.teamId))?.name || "", occupant: selOccupant } : null;
+  // DISABLED în Listă live: cine e DEJA asignat pe poziția selectată (nu are rost să-l tragi înapoi acolo) +
+  // self-replace în reasignare. Rămân vizibili, dar ne-draggable; doar conflictele lor sunt clickabile.
+  const disableIds = (() => {
+    const ids = new Set();
+    if (reassignDisable) ids.add(String(reassignDisable));
+    if (sel && !reassignBar) activeOccupants(cellOf(sel.teamId, sel.positionId, sel.colIdx)).forEach((o) => ids.add(String(o.personId)));
+    return [...ids];
+  })();
   // resolver SIM-pereche pt. modalul de conflicte: întoarce echipa+poziția pereche DOAR dacă celula pereche
   // de pe acel plan NU îl are deja pe acel om (altfel null → nu oferim).
   const simPairResolver = (teamName, positionName, pPlanId, personId) => {
@@ -972,7 +980,7 @@ export default function MatrixPage() {
       <CoverageBar
         open={barOpen} onToggle={() => setBarOpen((v) => !v)} cov={cov} loading={covBusy}
         reassignMode={!!reassignBar}
-        disablePersonId={reassignDisable}
+        disablePersonId={reassignDisable} disableIds={disableIds}
         filters={reassignBar
           ? { ministry: { teamId: reassignBar.teamId, name: reassignBar.teamName }, position: { positionId: reassignBar.positionId, name: reassignBar.positionName }, ...reFilters }
           : barFilters}
