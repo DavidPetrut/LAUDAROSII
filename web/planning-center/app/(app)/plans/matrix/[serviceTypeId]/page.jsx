@@ -552,12 +552,15 @@ export default function MatrixPage() {
   const clearTarget = () => { setTarget(null); setTargetSched(null); setTargetAvail({}); };
   // reîncarcă disponibilitatea când se schimbă fereastra de planuri (navigare) cât timp e target activ
   useEffect(() => { if (target?.personId) loadAvail(target.personId); }, [target?.personId, loadAvail]);
-  // Esc = ieși din target-mode
+  // ieși din target-mode: Esc SAU click oriunde în afară de Listă live / grilă / modale (scroll-ul NU detargetează)
   useEffect(() => {
     if (!target) return;
-    const onKey = (e) => { if (e.key === "Escape") { setTarget(null); setTargetSched(null); setTargetAvail({}); } };
+    const off = () => { setTarget(null); setTargetSched(null); setTargetAvail({}); };
+    const onKey = (e) => { if (e.key === "Escape") off(); };
+    const onClick = (e) => { if (e.target.closest(".covbar, .datacell, .cm-ov, .pj-ov, .rm-ov, .cfb-tip, .cf-tip")) return; off(); };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    document.addEventListener("click", onClick);
+    return () => { window.removeEventListener("keydown", onKey); document.removeEventListener("click", onClick); };
   }, [target]);
 
   // TARGET-MODE: click pe o celulă → planifică persoana-target acolo (rapid, cross-plan). ZERO email.
