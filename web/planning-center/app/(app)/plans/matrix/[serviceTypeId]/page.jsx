@@ -18,6 +18,7 @@ import EditPersonModal from "@/components/plans/EditPersonModal";
 import CoverageBar from "@/components/plans/CoverageBar";
 import TeamsManagerModal from "@/components/plans/TeamsManagerModal";
 import PositionJoinModal from "@/components/plans/PositionJoinModal";
+import ConflictModal from "@/components/plans/ConflictModal";
 
 /* numele echipei pereche: „Asimilare (SIM 1)" ↔ „Asimilare (SIM 2)" */
 function perecheName(name = "") {
@@ -91,6 +92,8 @@ export default function MatrixPage() {
   const [reassignBar, setReassignBar] = useState(null); // {teamId, teamName, positionId, positionName} | null
   const [reFilters, setReFilters] = useState({ fit: true, gender: "", sim: "" });
   const [reassignDisable, setReassignDisable] = useState(null); // personId dezactivat în Listă live (nu te înlocuiești cu tine)
+  const [liveConflictPerson, setLiveConflictPerson] = useState(null); // „Verifică" din Listă live → ConflictModal
+  const barWasOpenRef = useRef(false); // reține dacă bara era deschisă înainte de reasignare (ca s-o restaurăm)
   const [dragActive, setDragActive] = useState(false); // feedback drag (Kanban)
   const [dropKey, setDropKey] = useState(null);         // celula peste care e drag-ul acum (evidențiere)
   const [dragHint, setDragHint] = useState("");         // indiciu flotant în timpul drag-ului
@@ -522,6 +525,11 @@ export default function MatrixPage() {
 
   const toggle = (id) => setCollapsed((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const closeSide = () => { setSel(null); setBrowse(false); setRec(null); };
+  // reasignarea din modalul de conflicte (sidebar SAU Listă live) deschide bara filtrată pe poziția conflictului;
+  // reținem starea anterioară a barei ca s-o restaurăm (în Listă live bara e deja deschisă, n-o închidem)
+  const openReassignBar = (card, disableId) => { barWasOpenRef.current = barOpen; setReFilters({ fit: true, gender: "", sim: "" }); setReassignDisable(disableId || null); setReassignBar({ teamId: card.teamId, teamName: card.teamName, positionId: card.positionId, positionName: card.positionName }); setBarOpen(true); };
+  const closeReassignBar = () => { setReassignBar(null); setReassignDisable(null); setBarOpen(barWasOpenRef.current); };
+  const refreshAfterConflict = () => { refreshRec(); loadCov(); softReconcile(); };
 
   useAiSurface({
     id: "plans.matrix", label: "Matrix — planificare", scope: "page",
@@ -877,8 +885,8 @@ export default function MatrixPage() {
         onConflictResolved={() => { refreshRec(); loadCov(); softReconcile(); }}
         conflictTarget={conflictTarget}
         simPair={simPairResolver}
-        onReassignOpen={(card, disableId) => { setReFilters({ fit: true, gender: "", sim: "" }); setReassignDisable(disableId || null); setReassignBar({ teamId: card.teamId, teamName: card.teamName, positionId: card.positionId, positionName: card.positionName }); setBarOpen(true); }}
-        onReassignClose={() => { setReassignBar(null); setReassignDisable(null); setBarOpen(false); }}
+        onReassignOpen={openReassignBar}
+        onReassignClose={closeReassignBar}
         canAssign={canAssign} canRoster={canRoster} canRules={canManage || !!caps.positionRules || canAssign}
       />
 
@@ -899,7 +907,16 @@ export default function MatrixPage() {
         onPersonDragStart={(p) => { dragRef.current = { personId: p.id, name: p.name, avatar: p.avatar, initials: p.initials, fromBar: true }; setDragActive(true); setDragHint(`${p.name} → lași jos pe o poziție = asignezi`); }}
         onPersonDragEnd={() => { setDragActive(false); setDropKey(null); setDragHint(""); }}
         target={target} targetSched={targetSched} targetAvail={targetAvail} onCloseTarget={clearTarget}
+        canVerify={!!sel && !reassignBar} onVerifyPerson={(p) => setLiveConflictPerson({ id: p.id, name: p.name, avatar: p.avatar || "", initials: p.initials || "" })}
       />
+
+      {/* „Verifică" din Listă live → același ConflictModal (poziția selectată = target), logică 100% reutilizată */}
+      {liveConflictPerson && sel && (
+        <ConflictModal open planId={sel.planId} person={liveConflictPerson} positionId={sel.positionId} target={conflictTarget} simPair={simPairResolver}
+          onClose={() => { closeReassignBar(); setLiveConflictPerson(null); }}
+          onResolved={refreshAfterConflict}
+          onReassignOpen={openReassignBar} onReassignClose={closeReassignBar} />
+      )}
 
       {editing && (
         <EditPersonModal
@@ -948,7 +965,7 @@ export default function MatrixPage() {
         .matrix { height: calc(100vh - var(--nav-h)); display: flex; flex-direction: column; overflow: hidden; padding: 14px 16px var(--cbar-h); transition: padding .22s cubic-bezier(.4,0,.2,1); }
         .matrix.has-side { padding-right: 356px; }  /* loc pt. bara lipită dreapta */
         .matrix.has-left { padding-left: 336px; }   /* loc pt. panoul Settings din stânga */
-        .matrix.has-bar { padding-bottom: 46vh; }   /* bara extinsă → grila se oprește în ea (X-scroll tot pinned) */
+        .matrix.has-bar { padding-bottom: 41vh; }   /* bara extinsă → grila se oprește în ea (X-scroll tot pinned) */
         .matrix.drag .datacell { box-shadow: inset 0 0 0 1px rgba(47,129,247,.3); background: rgba(47,129,247,.04); }
         .matrix.drag .datacell:hover { box-shadow: inset 0 0 0 2px var(--primary); background: rgba(47,129,247,.12); }
         .mtop { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }

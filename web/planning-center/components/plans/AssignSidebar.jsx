@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import PersonAvatar from "./PersonAvatar";
 import ConflictModal from "./ConflictModal";
+import ConflictBadge from "./ConflictBadge";
 import { plansApi, peopleApi } from "@/lib/api/client";
 
 /* numărul SIM din coada numelui: „Ion Pop (2)" → "2"; fără paranteză → "" */
@@ -32,12 +33,7 @@ export default function AssignSidebar({
   const [rosterBusy, setRosterBusy] = useState(false);
   const addRef = useRef(null);
   const [selTimes, setSelTimes] = useState(() => new Set()); // orele alese la asignare (gol = toate orele / „During All")
-  const [tipFor, setTipFor] = useState(null); // id-ul persoanei cu tooltip-ul de conflict deschis
   const [conflictFor, setConflictFor] = useState(null); // persoana pt. care e deschisă modala „Verifică"
-  const tipTimer = useRef(null);
-  const showTip = (p, el) => { clearTimeout(tipTimer.current); const r = el.getBoundingClientRect(); const aside = el.closest(".asb"); const ar = aside ? aside.getBoundingClientRect() : { left: 0, top: 0 }; setTipFor({ id: p.id, person: p, x: r.left - ar.left, y: r.top - ar.top, items: cfList(p) }); };
-  const hideTipSoon = () => { clearTimeout(tipTimer.current); tipTimer.current = setTimeout(() => setTipFor(null), 180); };
-  const keepTip = () => clearTimeout(tipTimer.current);
   const [sim, setSim] = useState("");          // "", "1", "2"
   const [gender, setGender] = useState("");    // "", "M", "F"
   const [fit, setFit] = useState(false);       // „Fit the position" — doar rosterul poziției (default ON pe poziție)
@@ -361,14 +357,7 @@ export default function AssignSidebar({
                       <PersonAvatar person={p} size={28} showBadge={false} />
                       <span className="cn">{p.name}</span>
                       {cfList(p).length > 0 && (
-                        <span className="cfwrap"
-                          onMouseEnter={(e) => showTip(p, e.currentTarget)}
-                          onMouseLeave={hideTipSoon}
-                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
-                          {cfList(p).map((c, i) => (
-                            <img key={i} className="cf-ic" src={c.type === "blockout" ? "/icons/warn-red.png" : "/icons/warn-yellow.png"} alt={c.label || c.type} draggable={false} />
-                          ))}
-                        </span>
+                        <ConflictBadge items={cfList(p)} canVerify={!!planId && !browse} onVerify={() => setConflictFor(p)} />
                       )}
                       {p.inRoster && <span className="rost" title="În rosterul poziției — slujește oficial aici" />}
                       {p.targetLabel && <span className={`tgt ${p.belowTarget ? "below" : "met"}`} title="Pe poziția asta luna asta / target">{p.targetLabel}</span>}
@@ -386,26 +375,6 @@ export default function AssignSidebar({
           </>
           )}
         </>
-      )}
-
-      {tipFor && (
-        <div className="cf-tip" style={{ left: tipFor.x, top: tipFor.y }} onMouseEnter={keepTip} onMouseLeave={hideTipSoon}>
-          {tipFor.items.map((c, i) => (
-            <div key={i} className="cf-row">
-              <span className={`cf-b ${c.type}`}>
-                <img className="cf-ti" src={c.type === "blockout" ? "/icons/warn-red.png" : "/icons/warn-yellow.png"} alt="" draggable={false} />
-                {c.label || (c.type === "blockout" ? "Blockout" : "Planificat în aceeași zi")}
-              </span>
-              {c.detail ? <span className="cf-d">{c.detail}</span> : null}
-            </div>
-          ))}
-          {planId && (
-            <button className="cf-verify" onClick={() => { const pp = tipFor.person; setTipFor(null); setConflictFor(pp); }}>
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="7" cy="7" r="4.5" /><path d="M14 14l-3.2-3.2" /></svg>
-              Verifică
-            </button>
-          )}
-        </div>
       )}
 
       {conflictFor && (
@@ -538,22 +507,6 @@ export default function AssignSidebar({
         .cand:hover { background: rgba(255,255,255,.055); }
         .cand:disabled { opacity: .5; cursor: default; }
         .cn { color: var(--text); font-size: 13px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .cfwrap { display: inline-flex; align-items: center; gap: 3px; flex: none; cursor: pointer; padding: 2px; margin: -2px; }
-        .cf-ic { width: 15px; height: 15px; object-fit: contain; display: block; }
-        .cf-tip { position: fixed; z-index: 200; transform: translate(-100%, -100%); margin: -5px 0 0 -2px;
-          background: #0c1016; border: 1px solid var(--border-strong); border-radius: 9px; padding: 9px 11px;
-          box-shadow: 0 10px 30px rgba(0,0,0,.55); min-width: 170px; max-width: 260px; display: flex; flex-direction: column; gap: 8px;
-          animation: cftipIn .12s ease; }
-        .cf-verify { margin-top: 2px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%;
-          background: rgba(47,129,247,.14); border: 1px solid var(--primary); color: #9cc4f5; border-radius: 7px; height: 30px;
-          font-size: 12.5px; font-weight: 600; cursor: pointer; transition: background .12s, color .12s; }
-        .cf-verify:hover { background: var(--primary); color: #fff; }
-        @keyframes cftipIn { from { opacity: 0; transform: translate(-100%, -100%) scale(.96); } to { opacity: 1; transform: translate(-100%, -100%) scale(1); } }
-        .cf-row { display: flex; flex-direction: column; gap: 2px; }
-        .cf-b { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; }
-        .cf-b.blockout { color: var(--danger); } .cf-b.time { color: var(--st-unconfirmed); }
-        .cf-ti { width: 13px; height: 13px; object-fit: contain; }
-        .cf-d { color: var(--text-dim); font-size: 11.5px; padding-left: 19px; line-height: 1.4; }
         .tgt { font-size: 10px; border-radius: 10px; padding: 0 6px; border: 1px solid; white-space: nowrap; }
         .tgt.below { color: var(--product); border-color: rgba(87,185,138,.5); }
         .tgt.met { color: var(--text-faint); border-color: var(--border-strong); }

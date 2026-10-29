@@ -325,7 +325,7 @@ export default function ConflictModal({ open, planId, person, positionId, target
         .cm-ov { position: fixed; inset: 0; background: rgba(0,0,0,.58); z-index: 95; display: flex; align-items: center; justify-content: center; padding: 20px; animation: cmov .14s ease; transition: align-items .2s; }
         @keyframes cmov { from { opacity: 0; } to { opacity: 1; } }
         .cm-ov.lifted { align-items: flex-start; padding-top: 26px; }
-        .cm-ov.lifted .cm-dlg { max-height: calc(52vh - 40px); }
+        .cm-ov.lifted .cm-dlg { max-height: calc(57vh - 40px); }
         .cm-dlg { position: relative; background: var(--modal-bg); border: 1px solid var(--border-strong); border-radius: 14px; width: 760px; max-width: 94vw; max-height: 88vh; display: flex; flex-direction: column;
           box-shadow: 0 30px 80px rgba(0,0,0,.55); animation: cmin .18s cubic-bezier(.2,.9,.3,1.2); }
         @keyframes cmin { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }

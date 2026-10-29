@@ -9,6 +9,7 @@
  */
 import { useEffect, useState } from "react";
 import PersonAvatar from "./PersonAvatar";
+import ConflictBadge from "./ConflictBadge";
 
 const VIEWS = [
   { id: "all", label: "Toți", keep: () => true },
@@ -23,6 +24,7 @@ function simOf(name = "") { const m = String(name).match(/\((\d)\)\s*$/); return
 export default function CoverageBar({
   open, onToggle, cov, loading, filters = {}, onRemoveFilter, onSetFilter, onPersonDragStart, onPersonDragEnd, style,
   target = null, targetSched = null, targetAvail = {}, onCloseTarget, reassignMode = false, disablePersonId = null,
+  onVerifyPerson, canVerify = false,
 }) {
   const [view, setView] = useState("all");
   const [tab, setTab] = useState("live"); // "live" | "person"
@@ -102,7 +104,7 @@ export default function CoverageBar({
             SIM {filters.sim}<span className="tx">×</span>
           </span>
         )}
-        <span className="cb-hn">{activePerson ? `${stat.free} libere în fereastră` : `${total} persoane`}</span>
+        {activePerson && <span className="cb-hn">{stat.free} libere în fereastră</span>}
         <span className="cb-caret">{open ? "▾" : "▴"}</span>
       </div>
 
@@ -140,11 +142,34 @@ export default function CoverageBar({
 
       {open && !activePerson && (
         <div className="cb-body">
-          <nav className="cb-nav">
-            {VIEWS.map((v) => (
-              <button key={v.id} className={`cb-view ${view === v.id ? "on" : ""}`} onClick={() => setView(v.id)}>{v.label}</button>
-            ))}
-          </nav>
+          {/* FILTRE — mutate în STÂNGA (în locul taburilor de view), eliberând dreapta pt. liste */}
+          <aside className="cb-tools left" onClick={(e) => e.stopPropagation()}>
+            <div className="cbw-title">Filtre</div>
+            <div className="cbw-group">
+              <span className="cbw-lbl">Poziție</span>
+              <div className="cbw fit">
+                <span className={`cbw-glow fit ${filters.position ? (filters.fit ? "yes" : "no") : ""}`} aria-hidden />
+                <button type="button" className={`cbw-opt fit yes ${filters.position && filters.fit ? "on" : ""}`} disabled={!filters.position} onClick={() => onSetFilter?.("fit", true)} title="Doar oamenii care fac parte din poziție"><span className="cbw-simlb">Fit</span></button>
+                <button type="button" className={`cbw-opt fit no ${filters.position && !filters.fit ? "on" : ""}`} disabled={!filters.position} onClick={() => onSetFilter?.("fit", false)} title="Toți candidații (poziția rămâne prioritizată)"><span className="cbw-simlb">All</span></button>
+              </div>
+            </div>
+            <div className="cbw-group">
+              <span className="cbw-lbl">Sex</span>
+              <div className="cbw sex">
+                <span className={`cbw-glow ${filters.gender === "M" ? "m" : filters.gender === "F" ? "f" : ""}`} aria-hidden />
+                <button type="button" className={`cbw-opt m ${filters.gender === "M" ? "on" : ""}`} onClick={() => onSetFilter?.("gender", "M")} title="Doar băieți"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9.5" cy="14.5" r="5.5" /><path d="M15 9l5-5M15 4h5v5" /></svg></button>
+                <button type="button" className={`cbw-opt f ${filters.gender === "F" ? "on" : ""}`} onClick={() => onSetFilter?.("gender", "F")} title="Doar fete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8.5" r="5.5" /><path d="M12 14v7M8.5 18h7" /></svg></button>
+              </div>
+            </div>
+            <div className="cbw-group">
+              <span className="cbw-lbl">Program</span>
+              <div className="cbw sim">
+                <span className={`cbw-glow sim ${filters.sim === "1" ? "s1" : filters.sim === "2" ? "s2" : ""}`} aria-hidden />
+                <button type="button" className={`cbw-opt sim s1 ${filters.sim === "1" ? "on" : ""}`} onClick={() => onSetFilter?.("sim", "1")} title="Doar SIM 1"><span className="cbw-simlb">SIM 1</span></button>
+                <button type="button" className={`cbw-opt sim s2 ${filters.sim === "2" ? "on" : ""}`} onClick={() => onSetFilter?.("sim", "2")} title="Doar SIM 2"><span className="cbw-simlb">SIM 2</span></button>
+              </div>
+            </div>
+          </aside>
           <div className="cb-cols">
             {loading && !cov && <div className="cb-muted">Se încarcă…</div>}
             {buckets.map((b) => {
@@ -163,7 +188,9 @@ export default function CoverageBar({
                     </div>
                   ) : (
                     <>
-                      <span>{b.label}</span>
+                      {b.times === 0
+                        ? <span>Neplanificați</span>
+                        : <span className="cb-chlbl"><img className="cb-dl" src="/icons/deadline.png" alt="" />×{b.times}{String(b.label).includes("+") ? "+" : ""}</span>}
                       <span className="cb-chr">
                         <button className="cb-sbtn" title="Caută în această listă" onClick={() => openBq(b.times)}>
                           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="7" cy="7" r="4.5" /><path d="M14 14l-3.2-3.2" /></svg>
@@ -185,58 +212,18 @@ export default function CoverageBar({
                       <PersonAvatar person={p} size={26} showBadge={false} />
                       {p.inRoster && <span className="cb-rost" title="În rosterul echipei" />}
                       <span className="cb-name">{p.name}</span>
-                      {p.free > 0 && <span className="cb-free">×{p.free}</span>}
-                      {p.blocked > 0 && <span className="cb-blk" title={`${p.blocked} planuri blocate`}>⛔{p.blocked}</span>}
+                      {(() => {
+                        const cf = [];
+                        if (p.scheduled > 0) cf.push({ type: "time", label: `Planificat de ${p.scheduled}×` });
+                        if (p.blocked > 0) cf.push({ type: "blockout", label: `${p.blocked} ${p.blocked === 1 ? "plan blocat" : "planuri blocate"}` });
+                        return cf.length > 0 ? <ConflictBadge items={cf} canVerify={canVerify} onVerify={() => onVerifyPerson?.(p)} /> : null;
+                      })()}
                     </div>
                     ); })}
                 </div>
               </div>
             ); })}
           </div>
-
-          {/* ── rail de filtre (dreapta): widget SEX (sus) + widget PROGRAM/SIM (jos) — filtre HARD, se stackează ── */}
-          <aside className="cb-tools" onClick={(e) => e.stopPropagation()}>
-            <div className="cbw-title">Filtre</div>
-
-            <div className="cbw-group">
-              <span className="cbw-lbl">Poziție</span>
-              <div className="cbw fit">
-                <span className={`cbw-glow fit ${filters.position ? (filters.fit ? "yes" : "no") : ""}`} aria-hidden />
-                <button type="button" className={`cbw-opt fit yes ${filters.position && filters.fit ? "on" : ""}`} disabled={!filters.position} onClick={() => onSetFilter?.("fit", true)} title="Doar oamenii care fac parte din poziție">
-                  <span className="cbw-simlb">Fit</span>
-                </button>
-                <button type="button" className={`cbw-opt fit no ${filters.position && !filters.fit ? "on" : ""}`} disabled={!filters.position} onClick={() => onSetFilter?.("fit", false)} title="Toți candidații (poziția rămâne prioritizată)">
-                  <span className="cbw-simlb">All</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="cbw-group">
-              <span className="cbw-lbl">Sex</span>
-              <div className="cbw sex">
-                <span className={`cbw-glow ${filters.gender === "M" ? "m" : filters.gender === "F" ? "f" : ""}`} aria-hidden />
-                <button type="button" className={`cbw-opt m ${filters.gender === "M" ? "on" : ""}`} onClick={() => onSetFilter?.("gender", "M")} title="Doar băieți">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9.5" cy="14.5" r="5.5" /><path d="M15 9l5-5M15 4h5v5" /></svg>
-                </button>
-                <button type="button" className={`cbw-opt f ${filters.gender === "F" ? "on" : ""}`} onClick={() => onSetFilter?.("gender", "F")} title="Doar fete">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8.5" r="5.5" /><path d="M12 14v7M8.5 18h7" /></svg>
-                </button>
-              </div>
-            </div>
-
-            <div className="cbw-group">
-              <span className="cbw-lbl">Program</span>
-              <div className="cbw sim">
-                <span className={`cbw-glow sim ${filters.sim === "1" ? "s1" : filters.sim === "2" ? "s2" : ""}`} aria-hidden />
-                <button type="button" className={`cbw-opt sim s1 ${filters.sim === "1" ? "on" : ""}`} onClick={() => onSetFilter?.("sim", "1")} title="Doar SIM 1">
-                  <span className="cbw-simlb">SIM 1</span>
-                </button>
-                <button type="button" className={`cbw-opt sim s2 ${filters.sim === "2" ? "on" : ""}`} onClick={() => onSetFilter?.("sim", "2")} title="Doar SIM 2">
-                  <span className="cbw-simlb">SIM 2</span>
-                </button>
-              </div>
-            </div>
-          </aside>
         </div>
       )}
 
@@ -245,7 +232,7 @@ export default function CoverageBar({
           border-top: 1px solid var(--border-strong); border-radius: 12px 12px 0 0;
           box-shadow: 0 -10px 30px rgba(0,0,0,.34); transition: height .22s cubic-bezier(.4,0,.2,1), left .16s, right .16s;
           height: var(--cbar-h); display: flex; flex-direction: column; }
-        .covbar.open { height: 46vh; }
+        .covbar.open { height: 41vh; }
         /* mod reasignare: bara urcă DEASUPRA overlay-ului modalului de conflicte (z 95) → element distinct, nu suprapus */
         .covbar.reassign { z-index: 120; box-shadow: 0 -16px 50px rgba(0,0,0,.6); border-top-color: var(--primary); }
         .cb-handle { height: var(--cbar-h); flex: none; display: flex; align-items: center; gap: 10px; background: var(--surface-2);
@@ -278,9 +265,11 @@ export default function CoverageBar({
         .cb-view.on { background: var(--surface-3); color: var(--text); font-weight: 600; box-shadow: inset 0 0 0 1px var(--border-strong); }
         .cb-cols { flex: 1; display: flex; gap: 12px; align-items: stretch; overflow-x: auto; padding: 12px 16px; }
         .cb-muted { color: var(--text-faint); padding: 20px; }
-        .cb-col { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; width: 236px; flex: none; display: flex; flex-direction: column; }
+        .cb-col { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; width: 283px; flex: none; display: flex; flex-direction: column; }
         .cb-col.col0 { border-color: rgba(47,129,247,.5); }
         .cb-ch { display: flex; align-items: center; justify-content: space-between; padding: 10px 13px; border-bottom: 1px solid var(--border); color: var(--text); font-weight: 600; font-size: 12.5px; flex: none; min-height: 39px; }
+        .cb-chlbl { display: inline-flex; align-items: center; gap: 6px; }
+        .cb-dl { width: 14px; height: 14px; object-fit: contain; opacity: .9; }
         .cb-chr { display: inline-flex; align-items: center; gap: 7px; }
         .cb-sbtn { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: transparent; border: none; color: var(--text-faint); cursor: pointer; border-radius: 5px; padding: 0; transition: color .12s, background .12s; }
         .cb-sbtn:hover { color: var(--text); background: rgba(255,255,255,.08); }
@@ -306,8 +295,9 @@ export default function CoverageBar({
         .cb-free { flex: none; color: #0b2018; background: var(--product); border-radius: 20px; padding: 1px 8px; font-size: 11px; font-weight: 700; }
         .cb-blk { flex: none; color: var(--danger); font-size: 11px; font-weight: 600; }
         /* ── rail de filtre (dreapta): widget SEX + PROGRAM/SIM ── */
-        .cb-tools { width: 148px; flex: none; border-left: 1px solid var(--border); background: var(--surface-2);
+        .cb-tools { width: 150px; flex: none; border-left: 1px solid var(--border); background: var(--surface-2);
           padding: 14px 14px 12px; display: flex; flex-direction: column; gap: 16px; }
+        .cb-tools.left { border-left: none; border-right: 1px solid var(--border); }
         .cbw-title { color: var(--text-faint); font-size: 10px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; }
         .cbw-group { display: flex; flex-direction: column; gap: 7px; }
         .cbw-lbl { color: var(--text-dim); font-size: 11px; font-weight: 600; letter-spacing: .2px; }
