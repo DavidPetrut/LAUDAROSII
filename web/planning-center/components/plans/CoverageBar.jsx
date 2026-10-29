@@ -276,7 +276,7 @@ export default function CoverageBar({
                     </div>
                   ) : (
                     <>
-                      <span className="cb-chlbl">Blockout</span>
+                      <span className="cb-chlbl"><img className="cb-dl" src="/icons/blockout.png" alt="" />Blockout</span>
                       <span className="cb-chr">
                         <button className="cb-sbtn" title="Caută în această listă" onClick={() => openBq("blk")}>
                           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="7" cy="7" r="4.5" /><path d="M14 14l-3.2-3.2" /></svg>
@@ -298,7 +298,7 @@ export default function CoverageBar({
                       <PersonAvatar person={p} size={26} showBadge={false} />
                       {p.inRoster && <span className="cb-rost" title="În rosterul echipei" />}
                       <span className="cb-name">{p.name}</span>
-                      <ConflictBadge icon="/icons/blockout.png" canVerify={canVerify} onVerify={() => onVerifyPerson?.(p)}
+                      <ConflictBadge icon="/icons/semnul-exclamari-rosu.png" canVerify={canVerify} onVerify={() => onVerifyPerson?.(p)}
                         items={[{ type: "blockout", label: "Blockout", detail: [p.blockout?.label, p.blockout?.reason].filter(Boolean).join(" · ") }]} />
                     </div>
                     ); })}
@@ -351,7 +351,7 @@ export default function CoverageBar({
         .cb-col.col0 { border-color: rgba(47,129,247,.5); }
         .cb-ch { display: flex; align-items: center; justify-content: space-between; padding: 10px 13px; border-bottom: 1px solid var(--border); color: var(--text); font-weight: 600; font-size: 12.5px; flex: none; min-height: 39px; }
         .cb-chlbl { display: inline-flex; align-items: center; gap: 6px; }
-        .cb-dl { width: 20px; height: 20px; object-fit: contain; opacity: .9; }
+        .cb-dl { width: 23px; height: 23px; object-fit: contain; opacity: .9; }
         .cb-chr { display: inline-flex; align-items: center; gap: 7px; }
         .cb-sbtn { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: transparent; border: none; color: var(--text-faint); cursor: pointer; border-radius: 5px; padding: 0; transition: color .12s, background .12s; }
         .cb-sbtn:hover { color: var(--text); background: rgba(255,255,255,.08); }
@@ -426,7 +426,6 @@ export default function CoverageBar({
         .cb-col.blkcol { border-color: rgba(248,81,73,.5); }
         .cb-col.blkcol .cb-ch { background: rgba(248,81,73,.08); border-radius: 10px 10px 0 0; }
         .cb-col.blkcol .cb-chlbl { color: #ff9a94; }
-        .cb-dl.blk { width: 16px; height: 16px; }
         .cb-blki { width: 13px; height: 13px; object-fit: contain; flex: none; }
         .cb-blktag { display: inline-flex; align-items: center; gap: 5px; flex: none; color: #ff9a94; font-size: 11px; font-weight: 600; white-space: nowrap; }
         .cb-blktag .cb-blki { width: 14px; height: 14px; opacity: .95; }

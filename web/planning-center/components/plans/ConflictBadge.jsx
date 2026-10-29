@@ -10,18 +10,33 @@
  *   onVerify: () => void — deschide modalul de conflicte
  *   canVerify: bool — arată butonul „Verifică" (ai o poziție selectată)
  */
-import { useRef, useState } from "react";
+import { useRef, useState, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 
 export default function ConflictBadge({ items = [], onVerify, canVerify = true, icon }) {
-  const [tip, setTip] = useState(null); // { x, y } sau null
+  const [tip, setTip] = useState(null);   // rect-ul iconiței {left,right,top,bottom} sau null
+  const [pos, setPos] = useState(null);   // poziția calculată (clamp în ecran) {left,top}
   const ref = useRef(null);
+  const tipRef = useRef(null);
   const timer = useRef(null);
   const types = [...new Set(items.map((i) => i.type))];
 
-  const show = () => { clearTimeout(timer.current); if (!ref.current) return; const r = ref.current.getBoundingClientRect(); setTip({ x: r.left + r.width / 2, y: r.top }); };
-  const hideSoon = () => { clearTimeout(timer.current); timer.current = setTimeout(() => setTip(null), 160); };
+  const show = () => { clearTimeout(timer.current); if (!ref.current) return; const r = ref.current.getBoundingClientRect(); setTip({ left: r.left, right: r.right, top: r.top, bottom: r.bottom }); };
+  const hideSoon = () => { clearTimeout(timer.current); timer.current = setTimeout(() => { setTip(null); setPos(null); }, 160); };
   const keep = () => clearTimeout(timer.current);
+
+  // poziționare SUS-STÂNGA lângă iconiță, mereu în ecran (sidebar e pe marginea dreaptă → centrul ieșea afară).
+  useLayoutEffect(() => {
+    if (!tip || !tipRef.current) return;
+    const t = tipRef.current.getBoundingClientRect();
+    const m = 8;
+    let left = tip.right - t.width;     // dreapta tooltip-ului ≈ dreapta iconiței → se deschide spre stânga
+    let top = tip.top - t.height - 6;   // deasupra iconiței
+    left = Math.max(m, Math.min(left, window.innerWidth - t.width - m));
+    if (top < m) top = tip.bottom + 6;  // nu încape sus → sub iconiță
+    top = Math.max(m, Math.min(top, window.innerHeight - t.height - m));
+    setPos({ left, top });
+  }, [tip]);
 
   if (!items.length) return null;
 
@@ -31,7 +46,7 @@ export default function ConflictBadge({ items = [], onVerify, canVerify = true, 
         <img key={i} className="cfb-ic" src={icon || (t === "blockout" ? "/icons/warn-red.png" : "/icons/warn-yellow.png")} alt={t} draggable={false} />
       ))}
       {tip && typeof document !== "undefined" && createPortal((
-        <div className="cfb-tip" style={{ left: tip.x, top: tip.y }} onMouseEnter={keep} onMouseLeave={hideSoon}>
+        <div ref={tipRef} className="cfb-tip" style={{ left: pos ? pos.left : tip.left, top: pos ? pos.top : tip.top, visibility: pos ? "visible" : "hidden" }} onMouseEnter={keep} onMouseLeave={hideSoon}>
           {items.map((c, i) => (
             <div key={i} className="cfb-row">
               <span className={`cfb-b ${c.type}`}>
@@ -53,7 +68,7 @@ export default function ConflictBadge({ items = [], onVerify, canVerify = true, 
       <style jsx>{`
         .cfb { display: inline-flex; align-items: center; gap: 3px; flex: none; cursor: pointer; padding: 2px; margin: -2px; }
         .cfb-ic { width: 15px; height: 15px; object-fit: contain; display: block; }
-        .cfb-tip { position: fixed; z-index: 220; transform: translate(-50%, calc(-100% - 8px));
+        .cfb-tip { position: fixed; z-index: 220;
           background: #0c1016; border: 1px solid var(--border-strong); border-radius: 9px; padding: 9px 11px;
           box-shadow: 0 10px 30px rgba(0,0,0,.55); min-width: 180px; max-width: 270px; display: flex; flex-direction: column; gap: 8px; animation: cfbin .12s ease; }
         @keyframes cfbin { from { opacity: 0; } to { opacity: 1; } }
