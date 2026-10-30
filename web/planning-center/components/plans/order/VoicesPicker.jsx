@@ -46,18 +46,20 @@ export function parseVoicesText(text) {
   return out;
 }
 
-export default function VoicesPicker({ value = [], pool = [], description = "", canEdit = false, onChange }) {
+export default function VoicesPicker({ value = [], pool = [], description = "", canEdit = false, onChange, leadOnly = false }) {
   const [openRole, setOpenRole] = useState(null);
 
   const byRole = (r) => value.filter((v) => v.role === r);
-  const activeRoles = ROLES;
+  const activeRoles = leadOnly ? ROLES.filter((r) => r.k === "lead") : ROLES; // la element: doar lead
 
   const findInPool = (name) => pool.find((p) => p.name.toLowerCase() === name.toLowerCase() || p.name.toLowerCase().startsWith(name.toLowerCase() + " ") || name.toLowerCase().startsWith(p.name.toLowerCase().split(" ")[0].toLowerCase()));
 
   function toggle(role, person) {
-    const has = value.some((v) => v.role === role && String(v.personId || v.name) === String(person.personId || person.name));
-    if (has) onChange(value.filter((v) => !(v.role === role && String(v.personId || v.name) === String(person.personId || person.name))));
-    else onChange([...value, { role, personId: person.personId || null, name: person.personId ? "" : (person.name || ""), avatar: person.avatar, initials: person.initials }]);
+    const key = String(person.personId || person.name);
+    const has = value.some((v) => v.role === role && String(v.personId || v.name) === key);
+    if (has) { onChange(value.filter((v) => !(v.role === role && String(v.personId || v.name) === key))); return; }
+    const entry = { role, personId: person.personId || null, name: person.personId ? "" : (person.name || ""), avatar: person.avatar, initials: person.initials };
+    onChange(leadOnly ? [entry] : [...value, entry]); // leadOnly = o singură persoană
   }
   function removeAt(role, idx) { let seen = -1; onChange(value.filter((v) => { if (v.role !== role) return true; seen++; return seen !== idx; })); }
   function importFromDesc() {
@@ -71,7 +73,7 @@ export default function VoicesPicker({ value = [], pool = [], description = "", 
     <div className="vp">
       {openRole && <div className="vp-back" onClick={() => setOpenRole(null)} />}
       <div className="vp-head">
-        <span className="vp-h">Voci</span>
+        <span className="vp-h">{leadOnly ? "Lead" : "Voci"}</span>
         {canEdit && description && <button className="vp-imp" onClick={importFromDesc} title="Parsează descrierea în voci structurate">Importă din descriere</button>}
       </div>
       {activeRoles.map((r) => {

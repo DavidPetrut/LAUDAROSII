@@ -160,9 +160,11 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
             </label>
           )}
 
-          <div className="d-sec">
-            <VoicesPicker value={voices} pool={pool} description={desc} canEdit={canEdit} onChange={saveVoices} />
-          </div>
+          {(d.type === "song" || d.type === "medley" || d.type === "item") && (
+            <div className="d-sec">
+              <VoicesPicker value={voices} pool={pool} description={desc} canEdit={canEdit} onChange={saveVoices} leadOnly={d.type === "item"} />
+            </div>
+          )}
 
           <div className="d-sec">
             <div className="d-sl">Description</div>

@@ -191,7 +191,7 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
         .r-title { color: var(--text); font-size: 14px; }
         .r-key { color: #fff; background: #6fa02e; font-size: 13px; font-weight: 700; border: 1px solid #6fa02e; border-radius: 999px; padding: 1px 8px; line-height: 1.3; }
         .r-key.media { background: var(--primary); border-color: var(--primary); color: #fff; }
-        .r-leadav { display: inline-flex; margin: -9px 0 -9px 20px; align-self: center; }
+        .r-leadav { display: inline-flex; margin: -9px 0 -9px 20px; align-self: center; transform: translateY(5px); }
         .bang { flex: none; width: 17px; height: 17px; border-radius: 50%; background: var(--danger); color: #fff; font-weight: 800; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; }
         .mtag { flex: none; font-size: 9px; text-transform: uppercase; letter-spacing: .4px; color: var(--primary); border: 1px solid var(--primary); border-radius: 9px; padding: 0 6px; font-weight: 700; }
         .mexp { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 11.5px; padding: 0 2px; }

@@ -60,10 +60,15 @@ Scurt, `--text-faint`, eventual cu o acțiune („+ setează", „din template")
 - Rând = avatar + nume (flex, truncate) + **status la dreapta de tot** ca pill cu iconiță (✓ Văzut verde / ✕ Nevăzut gri). Spațiere comodă; NICIODATĂ glyph lipit de nume.
 - Avatarul aliniat pe centru cu numele. Unde userul își vede secțiunea lui (ex. „Rolul meu"), pune avatarul lui pe același rând cu titlul.
 
+## Order — voci pe tip de item
+- Voci STRUCTURATE (Lead + Suport/Alto/Tenor) DOAR la `song` și `medley`.
+- La `item` (element): doar **Lead** — o singură persoană (avatar + nume), fără celelalte roluri. Restul se scrie în Description.
+- La `header` și `media`: fără secțiune de voci.
+
 ## Order — voci & gamă
 - Voci: doar PRENUMELE (primul cuvânt) cu MAJUSCULE; separatorul între roluri = ` || ` (nu `--`). Format: `Suport: X || Alto: Y || Tenor: Z`. Etichetele (Suport/Alto/Tenor) rămân normale.
 - Badge de gamă (G, D, Am…) = pill ROTUND FILLED + text alb, COMPACT (padding mic ~1px 8px) dar font ~13px (doar scrisul mai mare, nu pastila). Verde cântec = `#6fa02e` (NU `--product`/`#86c13f` — prea shiny); media = `--primary`. NU border pătrat.
-- Lead: avatarul persoanei (rotund, PersonAvatar → avatar sau inițiale; inițialele scalează singure cu mărimea, ~33px web / 30 mobil), pe rândul titlului, după badge-ul de gamă, bine despărțit (~20px).
+- Lead: avatarul persoanei (rotund, PersonAvatar → avatar sau inițiale; ~33px web / 30 mobil), după badge-ul de gamă (~20px), coborât un pic (`translateY ~5px`, nu la centru complet) spre rândul cu numele lead-ului, fără să umfle rândul (margini verticale negative).
 
 ## Pickere dependente de selecție
 - Când selectezi echipă → rol → oameni, FILTREAZĂ lista la ce se potrivește (oamenii cu rolul ales din echipa aleasă). NICIODATĂ nu arăta toată lumea.

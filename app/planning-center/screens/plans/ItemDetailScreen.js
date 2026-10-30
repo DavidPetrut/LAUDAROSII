@@ -119,8 +119,9 @@ export function ItemDetailScreen({ route, navigation }) {
   const toggleVoice = (role, person) => {
     const key = String(person.personId || person.name);
     const has = voices.some((v) => v.role === role && String(v.personId || v.name) === key);
-    if (has) saveVoices(voices.filter((v) => !(v.role === role && String(v.personId || v.name) === key)));
-    else saveVoices([...voices, { role, personId: person.personId || null, name: person.personId ? "" : (person.name || ""), avatar: person.avatar, initials: person.initials }]);
+    if (has) { saveVoices(voices.filter((v) => !(v.role === role && String(v.personId || v.name) === key))); return; }
+    const entry = { role, personId: person.personId || null, name: person.personId ? "" : (person.name || ""), avatar: person.avatar, initials: person.initials };
+    saveVoices(item?.type === "item" ? [entry] : [...voices, entry]); // la element: un singur lead
   };
   const removeVoiceAt = (role, idx) => { let seen = -1; return voices.filter((v) => { if (v.role !== role) return true; seen++; return seen !== idx; }); };
   const importVoices = () => {
@@ -206,12 +207,13 @@ export function ItemDetailScreen({ route, navigation }) {
             </Pressable>
           )}
 
+          {["song", "medley", "item"].includes(item.type) && (
           <View style={styles.block}>
             <View style={styles.vhead}>
-              <Text style={styles.label}>Voci</Text>
-              {canEdit && !!desc && <Pressable onPress={importVoices}><Text style={styles.importV}>Importă din descriere</Text></Pressable>}
+              <Text style={styles.label}>{item.type === "item" ? "Lead" : "Voci"}</Text>
+              {canEdit && !!desc && item.type !== "item" && <Pressable onPress={importVoices}><Text style={styles.importV}>Importă din descriere</Text></Pressable>}
             </View>
-            {ROLE_META.filter((r) => BASE_ROLES.includes(r.k) || voices.some((v) => v.role === r.k)).map((r) => {
+            {ROLE_META.filter((r) => item.type === "item" ? r.k === "lead" : (BASE_ROLES.includes(r.k) || voices.some((v) => v.role === r.k))).map((r) => {
               const picks = voices.filter((v) => v.role === r.k);
               return (
                 <View key={r.k} style={styles.vrow}>
@@ -230,6 +232,7 @@ export function ItemDetailScreen({ route, navigation }) {
               );
             })}
           </View>
+          )}
 
           <View style={styles.block}>
             <Text style={styles.label}>Description</Text>

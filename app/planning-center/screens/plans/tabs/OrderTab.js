@@ -78,7 +78,7 @@ export function OrderTab({ planId, navigation, head, tabsBar }) {
             {item.type === "medley" && <View style={styles.mtag}><Text style={styles.mtagTxt}>medley · {item.medleyCount}</Text></View>}
             <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
             {!!item.keyName && <View style={[styles.keyBadge, item.type === "media" && styles.keyBadgeMedia]}><Text style={styles.keyTxt}>{item.keyName}</Text></View>}
-            {leadVoice && <View style={{ marginLeft: 20 }}><PcAvatar uri={leadVoice.avatar} initials={leadVoice.initials} size={30} /></View>}
+            {leadVoice && <View style={{ marginLeft: 20, transform: [{ translateY: 5 }] }}><PcAvatar uri={leadVoice.avatar} initials={leadVoice.initials} size={30} /></View>}
           </View>
           {!!voiceLine && <Text style={styles.voiceLine}>{voiceLine}</Text>}
           {!!item.description && <Text style={styles.desc}>{item.description}</Text>}
