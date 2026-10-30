@@ -7,7 +7,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const {
-  PcServiceType, PcTeam, PcPlan, PcPosition, PcAssignment, PcPerson, PcWhatsappGroup,
+  PcServiceType, PcTeam, PcPlan, PcPosition, PcAssignment, PcPerson, PcWhatsappGroup, PcWhatsappLucrare,
 } = require("../models");
 const { scoped, resolveOrgId } = require("../core/orgScope");
 const { requireCan } = require("../core/permissions");
@@ -99,6 +99,7 @@ async function buildMapSet(req, b) {
   return {
     jid: String(b.jid), nameCached: b.nameCached || "",
     teamId: OID(b.teamId), weekOfMonth: Math.min(5, Math.max(1, parseInt(b.weekOfMonth, 10) || 1)),
+    lucrareId: b.lucrareId ? OID(b.lucrareId) : null,
     ministryGroup: team?.ministryGroup || "",
     namePrefix: String(b.namePrefix || "").slice(0, 60),
     leaderPositionId: b.leaderPositionId ? OID(b.leaderPositionId) : null,
@@ -107,6 +108,19 @@ async function buildMapSet(req, b) {
     mode: ["auto", "manual", "semi"].includes(b.mode) ? b.mode : "semi", enabled: b.enabled !== false,
     deletedAt: null, // revive o mapare ștearsă anterior cu același jid (indexul unic e pe {orgId, jid})
   };
+}
+
+/** Migrare lazy: mapările fără lucrareId → creează câte o lucrare (pe ministryGroup) și le leagă. Idempotent. */
+async function ensureLucrari(req) {
+  const orphans = await PcWhatsappGroup.find(scoped(req, { lucrareId: null })).lean();
+  if (!orphans.length) return;
+  const byKey = {};
+  orphans.forEach((m) => { const k = m.ministryGroup || "__none__"; (byKey[k] = byKey[k] || []).push(m); });
+  for (const k of Object.keys(byKey)) {
+    const grp = byKey[k];
+    const lucrare = await PcWhatsappLucrare.create({ orgId: req.pcOrgId, name: k === "__none__" ? "Fără nume" : k, botNumber: grp.find((m) => m.botNumber)?.botNumber || "" });
+    await PcWhatsappGroup.updateMany(scoped(req, { _id: { $in: grp.map((m) => m._id) } }), { $set: { lucrareId: lucrare._id } });
+  }
 }
 
 /** Sincronizează O mapare: aplică Matrix→grup + redenumește. `forceWeekOfMonth` suprascrie săptămâna (pt. „seed pe săptămână"). */
@@ -139,6 +153,11 @@ router.post("/connect/:number", CAN, async (req, res) => {
 });
 router.post("/logout/:number", CAN, async (req, res) => {
   try { await bridge.logout(req.params.number); res.json({ accounts: bridge.statuses(), bridgeEnabled: bridgeEnabled() }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+// scoate un cont neconectat (pairing pornit din greșeală) după sessionId
+router.post("/account/remove", CAN, async (req, res) => {
+  try { await bridge.removeAccount(String(req.body?.sessionId || "")); res.json({ accounts: bridge.statuses(), bridgeEnabled: bridgeEnabled() }); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -178,8 +197,71 @@ router.get("/target-preview", CAN, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+/* ───────── LUCRĂRI (CRUD container) ───────── */
+router.get("/lucrari", CAN, async (req, res) => {
+  try {
+    await ensureLucrari(req);
+    const lucrari = await PcWhatsappLucrare.find(scoped(req, {})).sort({ sortOrder: 1, name: 1 }).lean();
+    const maps = await PcWhatsappGroup.find(scoped(req, {})).select("lucrareId jid").lean();
+    const byLuc = {};
+    maps.forEach((m) => { const k = String(m.lucrareId || ""); (byLuc[k] = byLuc[k] || []).push(m.jid); });
+    res.json({ lucrari: lucrari.map((l) => ({ ...l, count: (byLuc[String(l._id)] || []).length })) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+router.post("/lucrare", CAN, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const doc = await PcWhatsappLucrare.create({ orgId: req.pcOrgId, name: String(b.name || "").slice(0, 80), image: String(b.image || "").slice(0, 2000000), botNumber: b.botNumber ? bridge.normalizeNumber(b.botNumber) : "" });
+    res.json({ lucrare: doc });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+router.put("/lucrare/:id", CAN, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const set = {};
+    if (b.name != null) set.name = String(b.name).slice(0, 80);
+    if (b.image != null) set.image = String(b.image).slice(0, 2000000);
+    if (b.botNumber != null) set.botNumber = b.botNumber ? bridge.normalizeNumber(b.botNumber) : "";
+    // VALIDARE la schimbarea numărului: noul număr trebuie să fie conectat ȘI admin în TOATE grupurile lucrării.
+    const cur = await PcWhatsappLucrare.findOne(scoped(req, { _id: OID(req.params.id) })).select("botNumber").lean();
+    if (set.botNumber !== undefined && set.botNumber && set.botNumber !== (cur?.botNumber || "")) {
+      if (!bridge.status(set.botNumber).connected) return res.status(409).json({ error: "Numărul nou nu e conectat. Conectează-l întâi (scanează QR)." });
+      const lmaps = await PcWhatsappGroup.find(scoped(req, { lucrareId: OID(req.params.id) })).select("jid nameCached").lean();
+      if (lmaps.length) {
+        const live = await bridge.listGroups(set.botNumber);
+        const byJid = Object.fromEntries(live.map((g) => [g.jid, g]));
+        const bad = lmaps.filter((m) => !byJid[m.jid] || !byJid[m.jid].isAdmin);
+        if (bad.length) return res.status(409).json({ error: `Numărul nou nu e admin / nu e în ${bad.length} grup(uri): ${bad.map((m) => m.nameCached || m.jid).join(", ")}. Nu am mutat nimic — adaugă-l întâi ca admin în ele.`, issues: bad.map((m) => m.nameCached || m.jid) });
+      }
+    }
+    await PcWhatsappLucrare.updateOne(scoped(req, { _id: OID(req.params.id) }), { $set: set });
+    if (set.botNumber !== undefined) await PcWhatsappGroup.updateMany(scoped(req, { lucrareId: OID(req.params.id) }), { $set: { botNumber: set.botNumber } }); // cascadează pe grupuri (doar după validare)
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// verifică dacă un număr poate prelua lucrarea (e în grupurile ei + admin) — pt. UI, înainte de mutare
+router.get("/lucrare/:id/check", CAN, async (req, res) => {
+  try {
+    const number = req.query.number;
+    if (!number) return res.json({ ok: false, connected: false, groups: [] });
+    if (!bridge.status(number).connected) return res.json({ ok: false, connected: false, groups: [] });
+    const lmaps = await PcWhatsappGroup.find(scoped(req, { lucrareId: OID(req.params.id) })).select("jid nameCached").lean();
+    const live = await bridge.listGroups(number);
+    const byJid = Object.fromEntries(live.map((g) => [g.jid, g]));
+    const groups = lmaps.map((m) => { const g = byJid[m.jid]; return { jid: m.jid, name: m.nameCached || m.jid, inGroup: !!g, isAdmin: !!g?.isAdmin, ok: !!g && !!g.isAdmin }; });
+    res.json({ ok: groups.every((g) => g.ok), connected: true, groups });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+router.delete("/lucrare/:id", CAN, async (req, res) => {
+  const id = OID(req.params.id);
+  await PcWhatsappLucrare.updateOne(scoped(req, { _id: id }), { $set: { deletedAt: new Date() } });
+  await PcWhatsappGroup.updateMany(scoped(req, { lucrareId: id }), { $set: { deletedAt: new Date() } }); // scoate grupurile din sync (rămân pe WhatsApp)
+  res.json({ ok: true });
+});
+
 /* ───────── MAPĂRI grup↔lucrare ───────── */
 router.get("/mappings", CAN, async (req, res) => {
+  await ensureLucrari(req);
   const maps = await PcWhatsappGroup.find(scoped(req, {})).sort({ ministryGroup: 1 }).lean();
   res.json({ mappings: maps });
 });

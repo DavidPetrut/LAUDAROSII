@@ -48,4 +48,5 @@ module.exports = {
   // WhatsApp group-sync
   PcWhatsappSession: require("./PcWhatsappSession"),
   PcWhatsappGroup: require("./PcWhatsappGroup"),
+  PcWhatsappLucrare: require("./PcWhatsappLucrare"),
 };

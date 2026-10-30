@@ -206,6 +206,16 @@ function statusOf(e) {
 function statuses() { return Object.values(hub).map(statusOf); }
 function status(number) { const e = entryByNumber(number); return e ? statusOf(e) : { number: normalizeNumber(number) || number, connected: false, state: "disconnected" }; }
 
+/** Scoate un cont după sessionId (pt. un pairing pornit din greșeală, fără număr). */
+async function removeAccount(sessionId) {
+  const e = hub[sessionId];
+  if (!e) return;
+  try { if (e.sock) await e.sock.logout?.(); } catch {}
+  try { e.sock?.end?.(); } catch {}
+  try { await PcWhatsappSession.updateOne({ _id: e.sessionDoc._id }, { $set: { deletedAt: new Date(), status: "disconnected" } }); } catch {}
+  delete hub[sessionId];
+}
+
 /** Delogare + reset sesiune pentru un număr. */
 async function logout(number) {
   const e = entryByNumber(number);
@@ -308,6 +318,6 @@ async function renameGroup(number, jid, subject) {
 }
 
 module.exports = {
-  startAll, connectNew, reconnect, logout, statuses, status,
+  startAll, connectNew, reconnect, logout, removeAccount, statuses, status,
   listGroups, groupMembers, syncGroup, inviteLink, groupName, renameGroup, selfIds, normalizeNumber,
 };

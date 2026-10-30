@@ -16,7 +16,8 @@ const schema = pcSchema({
   // (ex. „a 3-a" ia mereu a 3-a slujire a lunii curente/următoare). Numele se regenerează, slotul rămâne fix.
   weekOfMonth: { type: Number, default: 1 },
   weekOffset: { type: Number, default: 0 },          // (învechit) fostul offset relativ; păstrat pt. compat.
-  ministryGroup: { type: String, default: "" },      // doar pt. afișare/grupare în UI (din echipă)
+  lucrareId: { type: mongoose.Schema.Types.ObjectId, ref: "PcWhatsappLucrare", default: null }, // containerul (lucrarea) editabil
+  ministryGroup: { type: String, default: "" },      // din echipă; folosit la migrarea inițială spre lucrareId
   // numele grupului se GENEREAZĂ la sync: „{namePrefix} - {dată} - {lider}" (NU ne bazăm pe numele de pe WhatsApp).
   namePrefix: { type: String, default: "" },         // prefixul ales de user (ex. „SIM1", „Kingdom Youth 2"); gol → numele echipei
   leaderPositionId: { type: mongoose.Schema.Types.ObjectId, ref: "PcPosition", default: null }, // liderul din nume = cine e pe ACEASTĂ poziție săpt. aia
