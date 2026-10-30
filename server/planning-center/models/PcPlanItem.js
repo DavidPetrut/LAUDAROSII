@@ -63,6 +63,7 @@ const schema = pcSchema({
   transition: {
     type: new mongoose.Schema({
       key: { type: String, default: "" },                 // gamă (ex. „C", „Dm") — badge dreapta + scris dedesubt
+      autoKey: { type: Boolean, default: false },         // dacă true: gama se ia DINAMIC din următorul cântec din Order
       lights: { type: [{ color: String, label: String }], default: [] }, // culori de lumini (una sau mai multe)
       prayerPersonId: { type: mongoose.Schema.Types.ObjectId, ref: "PcPerson", default: null }, // „Tranziție rugăciune" = o persoană
     }, { _id: false }),

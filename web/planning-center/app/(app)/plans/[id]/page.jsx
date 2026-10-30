@@ -14,6 +14,7 @@ import { useAiSurface } from "@/lib/ai/useAiSurface";
 import PersonAvatar from "@/components/plans/PersonAvatar";
 import Skeleton from "@/components/ui/Skeleton";
 import SaveTemplateModal from "@/components/plans/SaveTemplateModal";
+import OrderTemplateModal from "@/components/plans/OrderTemplateModal";
 import AssignSidebar from "@/components/plans/AssignSidebar";
 import EditPersonModal from "@/components/plans/EditPersonModal";
 import PositionJoinModal from "@/components/plans/PositionJoinModal";
@@ -65,6 +66,8 @@ export default function PlanDetailPage() {
   // meniu 3-puncte (rename / print / copy link)
   const [menuOpen, setMenuOpen] = useState(false);
   const [savingTpl, setSavingTpl] = useState(false);
+  const [tplModal, setTplModal] = useState(false);
+  const [orderKey, setOrderKey] = useState(0); // bump = remount OrderTab (reload după „Aplică șablon")
   const [renaming, setRenaming] = useState(false);
   const [renameVal, setRenameVal] = useState("");
 
@@ -331,6 +334,12 @@ export default function PlanDetailPage() {
                     Copiază link
                   </button>
                   {!!caps.editOrder && (
+                    <button className="mi" onClick={() => { setMenuOpen(false); setTplModal(true); }} role="menuitem">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
+                      Șablon Order
+                    </button>
+                  )}
+                  {!!caps.editOrder && (
                     <button className="mi" onClick={() => { setMenuOpen(false); setSavingTpl(true); }} role="menuitem">
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
                       Save as Template
@@ -374,7 +383,7 @@ export default function PlanDetailPage() {
           {err && <div className="err">{err}</div>}
           {loading ? <Skeleton lines={5} /> : (
             <div className="body">
-              {tab === "Order" && <OrderTab planId={id} canEdit={!!caps.editOrder} onSideChange={setOrderSide} flash={flash} />}
+              {tab === "Order" && <OrderTab key={orderKey} planId={id} canEdit={!!caps.editOrder} onSideChange={setOrderSide} flash={flash} />}
               {tab === "Teams" && <TeamsTab data={cur} sel={sel} onOpenCell={openCell}
                 canAssign={canAssign} canMove={canMove} canEditNeeded={canEditNeeded}
                 onEdit={(pp, g, t) => setEditing({ planId: id, teamId: t.teamId, positionId: g.positionId, assignmentId: pp.assignmentId, name: pp.name, avatar: pp.avatar, initials: pp.initials, status: pp.status, teamName: t.name, positionName: g.positionName })}
@@ -407,6 +416,7 @@ export default function PlanDetailPage() {
       {dragActive && dragHint && <div className="drag-hint">⇄ {dragHint}</div>}
       {timeEdit && <TimeEditModal planId={id} time={timeEdit.time} defaultType={timeEdit.type || "rehearsal"} meta={data.Times || {}} onClose={() => setTimeEdit(null)} onSaved={() => { setTimeEdit(null); reloadTimes(); flash("Oră salvată."); }} />}
       {savingTpl && <SaveTemplateModal planId={id} serviceTypeId={head?.serviceTypeId} serviceTypeName={head?.serviceTypeName} onClose={() => setSavingTpl(false)} flash={flash} />}
+      {tplModal && <OrderTemplateModal planId={id} serviceTypeId={head?.serviceTypeId} serviceTypeName={head?.serviceTypeName} orderTemplateId={head?.orderTemplateId} planSortDate={head?.sortDate} canEdit={!!caps.editOrder} onClose={() => setTplModal(false)} onApplied={() => { setOrderKey((k) => k + 1); loadHead(); }} flash={flash} />}
       {toast && <div className="toast">{toast}</div>}
 
       <style jsx>{`

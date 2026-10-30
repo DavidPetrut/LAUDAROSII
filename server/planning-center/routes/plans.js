@@ -112,6 +112,9 @@ router.post("/", requireCan("services.addPlan"), async (req, res) => {
     const srcNeeded = templateId ? await PcNeededPosition.find(scoped(req, { planId: templateId })).lean() : null;
     // Șablon de ORDER (pc_orderTemplates) — recreează itemii ordinii pe fiecare plan nou.
     const orderTpl = OID(req.body?.orderTemplateId) ? await PcOrderTemplate.findOne(scoped(req, { _id: OID(req.body.orderTemplateId) })).lean() : null;
+    // Șablonul ASOCIAT planului (pointer): cel ales, altfel default-ul service-type-ului. Aplicarea rescrie itemii; aici doar eticheta.
+    let planTemplateId = orderTpl?._id || null;
+    if (!planTemplateId) { const def = await PcOrderTemplate.findOne(scoped(req, { serviceTypeId: stId, isDefault: true })).select("_id").lean(); planTemplateId = def?._id || null; }
 
     const created = [];
     for (let i = 0; i < quantity; i++) {
@@ -135,7 +138,7 @@ router.post("/", requireCan("services.addPlan"), async (req, res) => {
           if (rStart) times.push({ type: "rehearsal", name: "Repetiție", startsAt: rStart, endsAt: /^\d{2}:\d{2}$/.test(String(rt.end || "")) ? wallToUtc(rehDayStr, rt.end, tz) : null });
         }
       }
-      const plan = await PcPlan.create(stamp(req, { serviceTypeId: stId, sortDate }));
+      const plan = await PcPlan.create(stamp(req, { serviceTypeId: stId, sortDate, orderTemplateId: planTemplateId }));
       for (const t of times) await PcPlanTime.create(stamp(req, { ...t, planId: plan._id }));
       if (srcNeeded) for (const n of srcNeeded) await PcNeededPosition.create(stamp(req, { ...clean(n), planId: plan._id }));
       if (orderTpl) { let so = 0; for (const it of (orderTpl.items || [])) { const { _id, ...rest } = it; await PcPlanItem.create(stamp(req, { ...rest, planId: plan._id, sortOrder: so++ })); } }
@@ -200,6 +203,8 @@ router.get("/:id", requireCan("people.view"), async (req, res) => {
       dateLabel: plan.sortDate ? new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date(plan.sortDate)) : "",
       prevId: prev?._id || null,
       nextId: next?._id || null,
+      orderTemplateId: plan.orderTemplateId ? String(plan.orderTemplateId) : null, // șablonul Order asociat (pt. „⋮ → Șablon")
+      sortDate: plan.sortDate,
       myAssignments, me,
     });
   } catch (err) {
@@ -331,17 +336,33 @@ async function resolveMinistries(req, items, planId) {
   return map;
 }
 
-// Tip „transition": rezolvă gama (text), luminile (culori) și persoana de rugăciune (avatar).
-async function resolveTransitions(req, items) {
+// Tip „transition": gama (manual SAU dinamic din următorul cântec), luminile și persoana de rugăciune.
+// `ordered` = toți itemii planului sortați (pt. autoKey → caută înainte primul cântec/medley cu gamă).
+async function resolveTransitions(req, items, ordered) {
+  const seq = ordered || items;
   const pids = [];
   for (const it of items) if (it.transition && it.transition.prayerPersonId) pids.push(it.transition.prayerPersonId);
   const persons = pids.length ? await PcPerson.find(scoped(req, { _id: { $in: pids } })).select("firstName lastName avatar").lean() : [];
   const byId = Object.fromEntries(persons.map((p) => [String(p._id), personMini(p)]));
+  // autoKey: primul cântec/medley cu gamă DUPĂ poziția tranziției (dinamic — urmărește schimbarea gamei cântecului).
+  const nextSongKey = (itemId) => {
+    const idx = seq.findIndex((s) => String(s._id) === String(itemId));
+    if (idx < 0) return { key: "", source: "" };
+    for (let j = idx + 1; j < seq.length; j++) {
+      const s = seq[j];
+      if ((s.type === "song" || s.type === "medley") && s.keyName) return { key: s.keyName, source: s.title || "" };
+    }
+    return { key: "", source: "" };
+  };
   const map = {};
   for (const it of items) {
     const t = it.transition || {};
+    let key = t.key || ""; const keyAuto = !!t.autoKey; let keySource = "";
+    if (keyAuto) { const ns = nextSongKey(it._id); key = ns.key; keySource = ns.source; }
     map[String(it._id)] = {
-      key: t.key || "",
+      key,
+      autoKey: keyAuto,
+      keySource,
       lights: (t.lights || []).map((l) => ({ color: l.color || "", label: l.label || "" })),
       prayer: (t.prayerPersonId && byId[String(t.prayerPersonId)]) ? byId[String(t.prayerPersonId)] : null,
     };
@@ -413,6 +434,29 @@ router.get("/:id/order", requireCan("people.view"), async (req, res) => {
   }
 });
 
+/* ───────── POST /:id/apply-order-template — aplică un șablon DOAR pe acest plan (rescrie ordinea) ─────────
+   ISTORIC-SAFE: atinge EXCLUSIV itemii acestui planId (soft-delete + recreare din snapshot). Niciun alt plan. */
+router.post("/:id/apply-order-template", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id);
+    const tid = OID(req.body?.templateId);
+    if (!planId || !tid) return res.status(400).json({ error: "ID invalid." });
+    const plan = await PcPlan.findOne(scoped(req, { _id: planId })).select("_id").lean();
+    if (!plan) return res.status(404).json({ error: "Plan inexistent." });
+    const tpl = await PcOrderTemplate.findOne(scoped(req, { _id: tid })).lean();
+    if (!tpl) return res.status(404).json({ error: "Șablon inexistent." });
+    // soft-delete DOAR itemii acestui plan — istoricul altor planuri rămâne complet neatins
+    await PcPlanItem.updateMany(scoped(req, { planId }), { $set: { deletedAt: new Date() } });
+    let so = 0;
+    for (const it of (tpl.items || [])) { const { _id, sortOrder, ...rest } = it; await PcPlanItem.create(stamp(req, { ...rest, planId, sortOrder: so++ })); }
+    await PcPlan.updateOne(scoped(req, { _id: planId }), { $set: { orderTemplateId: tid } });
+    res.json({ ok: true, created: (tpl.items || []).length });
+  } catch (err) {
+    console.error("[pc] POST apply-order-template:", err.message);
+    res.status(500).json({ error: "Eroare la aplicarea șablonului." });
+  }
+});
+
 /* ───────── GET /:id/items/:itemId — detaliu item (ecranul Item) ───────── */
 router.get("/:id/items/:itemId", requireCan("people.view"), async (req, res) => {
   try {
@@ -424,7 +468,11 @@ router.get("/:id/items/:itemId", requireCan("people.view"), async (req, res) => 
     const leadersMap = await resolveItemLeaders(req, planId, [it]);
     const voicesMap = await resolveVoices(req, [it]);
     const ministriesMap = await resolveMinistries(req, [it], planId);
-    const transMap = await resolveTransitions(req, [it]);
+    // Pt. autoKey (gama din următorul cântec) avem nevoie de frații ordonați ai planului.
+    const ordered = it.type === "transition" && it.transition?.autoKey
+      ? await PcPlanItem.find(scoped(req, { planId })).sort({ sortOrder: 1 }).select("type keyName title sortOrder").lean()
+      : [it];
+    const transMap = await resolveTransitions(req, [it], ordered);
     const files = await PcPlanFile.find(scoped(req, { itemId })).sort({ sortOrder: 1 }).lean();
     // ore de serviciu (pt. checkbox-urile During/Before/After per oră)
     const serviceTimes = await PcPlanTime.find(scoped(req, { planId, type: "service" })).sort({ startsAt: 1 }).lean();
@@ -451,7 +499,7 @@ router.get("/:id/items/:itemId", requireCan("people.view"), async (req, res) => 
       leaders: leadersMap[String(it._id)] || [],
       voices: voicesMap[String(it._id)] || [],
       ministries: ministriesMap[String(it._id)] || [],
-      transition: transMap[String(it._id)] || { key: "", lights: [], prayer: null },
+      transition: transMap[String(it._id)] || { key: "", autoKey: false, keySource: "", lights: [], prayer: null },
       medley: (it.medley || []).slice().sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)).map((c) => ({
         songId: c.songId ? String(c.songId) : null, arrangementId: c.arrangementId ? String(c.arrangementId) : null,
         keyId: c.keyId ? String(c.keyId) : null, keyName: c.keyName || "", title: c.title || "",
@@ -559,6 +607,7 @@ router.patch("/:id/items/:itemId", requireCan("services.editOrder"), async (req,
     if (b.transition && typeof b.transition === "object") {
       const t = b.transition;
       if (t.key !== undefined) set["transition.key"] = String(t.key || "").trim();
+      if (t.autoKey !== undefined) set["transition.autoKey"] = !!t.autoKey;
       if (Array.isArray(t.lights)) set["transition.lights"] = t.lights.map((l) => ({ color: String(l.color || "").trim(), label: String(l.label || "").trim() })).filter((l) => l.color || l.label);
       if (t.prayerPersonId !== undefined) set["transition.prayerPersonId"] = t.prayerPersonId ? OID(t.prayerPersonId) : null;
     }

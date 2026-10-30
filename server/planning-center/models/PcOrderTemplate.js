@@ -25,6 +25,7 @@ const itemSnap = {
   voices: { type: [Mixed], default: [] },
   ministries: { type: [Mixed], default: [] },
   leaders: { type: [Mixed], default: [] },
+  transition: { type: Mixed, default: null }, // tip „transition": gamă (key/autoKey) + lumini; persoana de rugăciune se scoate
   songId: { type: OID, ref: "PcSong", default: null },
   arrangementId: { type: OID, ref: "PcArrangement", default: null },
   keyId: { type: OID, ref: "PcKey", default: null },

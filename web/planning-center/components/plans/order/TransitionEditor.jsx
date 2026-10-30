@@ -8,17 +8,20 @@
  */
 import { useState } from "react";
 import PersonAvatar from "@/components/plans/PersonAvatar";
+import { keyToRo } from "@/lib/keyName";
 
 const SWATCHES = ["#e5534b", "#e2a03f", "#f0d94d", "#57b98a", "#2f81f7", "#9b6cf0", "#ff7ab6", "#ffffff"];
 
 export default function TransitionEditor({ value = {}, week = [], canEdit = false, onChange }) {
   const key = value.key || "";
+  const autoKey = !!value.autoKey;
+  const keySource = value.keySource || "";
   const lights = value.lights || [];
   const prayer = value.prayer || null;
 
   // Containerele „active" = cele cu date SAU adăugate manual de user în sesiunea curentă.
   const [added, setAdded] = useState({ key: false, lights: false, prayer: false });
-  const hasKey = key || added.key;
+  const hasKey = key || autoKey || added.key;
   const hasLights = lights.length || added.lights;
   const hasPrayer = prayer || added.prayer;
 
@@ -26,9 +29,10 @@ export default function TransitionEditor({ value = {}, week = [], canEdit = fals
   const [q, setQ] = useState("");
 
   // Trimite întreaga stare (backend folosește dotted paths, deci nu se suprascriu între ele).
-  const emit = (patch) => onChange({ key, lights, prayerPersonId: prayer ? prayer.id : null, ...patch });
+  const emit = (patch) => onChange({ key, autoKey, lights, prayerPersonId: prayer ? prayer.id : null, ...patch });
 
   const setKey = (k) => emit({ key: k });
+  const setAuto = (v) => emit({ autoKey: v });
   const addLight = () => { setAdded((a) => ({ ...a, lights: true })); emit({ lights: [...lights, { color: SWATCHES[4], label: "" }] }); };
   const setLight = (i, next) => emit({ lights: lights.map((l, idx) => (idx === i ? { ...l, ...next } : l)) });
   const delLight = (i) => emit({ lights: lights.filter((_, idx) => idx !== i) });
@@ -43,8 +47,24 @@ export default function TransitionEditor({ value = {}, week = [], canEdit = fals
       {hasKey ? (
         <div className="tbox">
           <div className="tb-h"><span className="tb-ic">♪</span> Gamă</div>
-          <input className="tb-key" value={key} disabled={!canEdit} onChange={(e) => setKey(e.target.value)}
-            placeholder="ex. C, Dm, G→A" />
+          {canEdit && (
+            <label className="tb-auto">
+              <input type="checkbox" checked={autoKey} onChange={(e) => setAuto(e.target.checked)} />
+              <span>Mapează la următorul cântec <em>— ia automat gama cântecului care urmează în Order</em></span>
+            </label>
+          )}
+          {autoKey ? (
+            <div className="tb-autoval">
+              {key ? (
+                <><span className="tb-sym">{key}</span><span className="tb-ro">{keyToRo(key)}</span>{keySource && <span className="tb-src">din „{keySource}"</span>}</>
+              ) : <span className="tb-none">Niciun cântec după tranziție (încă).</span>}
+            </div>
+          ) : (
+            <>
+              <input className="tb-key" value={key} disabled={!canEdit} onChange={(e) => setKey(e.target.value)} placeholder="ex. C, Dm, G→A" />
+              {key && <div className="tb-roline">= <b>{keyToRo(key)}</b></div>}
+            </>
+          )}
           <div className="tb-hint">Apare ca badge pe rând și scris dedesubt pentru echipă.</div>
         </div>
       ) : canEdit && <button className="te-add" onClick={() => setAdded((a) => ({ ...a, key: true }))}>+ Gamă</button>}
@@ -109,6 +129,16 @@ export default function TransitionEditor({ value = {}, week = [], canEdit = fals
         .tb-key { width: 100%; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text); padding: 8px 10px; font-size: 14px; font-weight: 600; font-family: inherit; }
         .tb-key:focus { outline: none; border-color: var(--primary); }
         .tb-hint { color: var(--text-faint); font-size: 11px; margin-top: 6px; }
+        .tb-auto { display: flex; align-items: flex-start; gap: 8px; color: var(--text-dim); font-size: 12.5px; cursor: pointer; margin-bottom: 9px; }
+        .tb-auto input { margin-top: 2px; accent-color: var(--primary); }
+        .tb-auto em { color: var(--text-faint); font-style: normal; font-size: 11.5px; }
+        .tb-autoval { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; background: var(--surface-3); border: 1px dashed var(--border-strong); border-radius: 7px; padding: 8px 10px; }
+        .tb-sym { color: #fff; background: #6fa02e; font-size: 13px; font-weight: 700; border-radius: 999px; padding: 1px 9px; }
+        .tb-ro { color: var(--text); font-size: 13px; font-weight: 600; }
+        .tb-src { color: var(--text-faint); font-size: 11.5px; }
+        .tb-none { color: var(--text-faint); font-size: 12px; }
+        .tb-roline { color: var(--text-dim); font-size: 12px; margin-top: 6px; }
+        .tb-roline b { color: var(--text); }
         .light { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
         .l-sw { width: 34px; height: 30px; padding: 0; border: 1px solid var(--border-strong); border-radius: 6px; background: transparent; cursor: pointer; flex: none; }
         .l-lbl { flex: 1; min-width: 0; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text); padding: 7px 9px; font-size: 12.5px; font-family: inherit; }

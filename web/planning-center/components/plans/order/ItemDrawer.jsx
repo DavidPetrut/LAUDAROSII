@@ -90,9 +90,12 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
   function saveTransition(next) {
     const wp = next.prayerPersonId ? mPool.week.find((p) => String(p.personId) === String(next.prayerPersonId)) : null;
     const prayerMini = wp ? { id: wp.personId, name: wp.name, avatar: wp.avatar, initials: wp.initials } : (next.prayerPersonId && trans.prayer ? trans.prayer : null);
-    const merged = { key: next.key || "", lights: next.lights || [], prayer: prayerMini };
+    const merged = { key: next.key || "", autoKey: !!next.autoKey, keySource: trans.keySource || "", lights: next.lights || [], prayer: prayerMini };
     setTrans(merged);
-    plansApi.updateItem(planId, itemId, { transition: { key: merged.key, lights: merged.lights, prayerPersonId: next.prayerPersonId || null } }).then(() => onChanged?.()).catch((e) => flash?.(e?.message || "Eroare."));
+    plansApi.updateItem(planId, itemId, { transition: { key: merged.key, autoKey: merged.autoKey, lights: merged.lights, prayerPersonId: next.prayerPersonId || null } })
+      .then(() => { onChanged?.(); return plansApi.itemDetail(planId, itemId); }) // re-rezolvă gama auto (din următorul cântec)
+      .then((r) => { if (r?.transition) setTrans(r.transition); })
+      .catch((e) => flash?.(e?.message || "Eroare."));
   }
   // „+ Tranziție" (quick-insert): creează un element simplu (fără lead) imediat DEDESUBT, cu titlu fix.
   async function addQuickTransition(title) {

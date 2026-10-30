@@ -14,6 +14,7 @@ import AddItemMenu from "./AddItemMenu";
 import SongPickerModal from "./SongPickerModal";
 import ItemDrawer from "./ItemDrawer";
 import { formatVoices } from "./VoicesPicker";
+import { keyToRo } from "@/lib/keyName";
 import Skeleton from "@/components/ui/Skeleton";
 
 // „Alte slujiri" pe rând: etichete scurte + prenume cu majuscule.
@@ -158,7 +159,7 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                       {ministryLine && <div className="r-min">{ministryLine}</div>}
                       {tr && (tr.key || (tr.lights || []).length || tr.prayer) && (
                         <div className="r-trans">
-                          {tr.key && <span className="rt-part">Gamă: <b>{tr.key}</b></span>}
+                          {tr.key && <span className="rt-part">Gamă: <b>{keyToRo(tr.key)}</b> <span className="rt-sym">({tr.key})</span>{tr.autoKey && <span className="rt-auto" title={tr.keySource ? `din „${tr.keySource}"` : "din următorul cântec"}>· auto</span>}</span>}
                           {(tr.lights || []).length > 0 && (
                             <span className="rt-part rt-lights">Lumini:{tr.lights.map((l, i) => <span key={i} className="rt-dot" style={{ background: l.color || "#888" }} title={l.label || l.color} />)}</span>
                           )}
@@ -230,6 +231,8 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
         .r-trans { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; color: var(--text-dim); font-size: 12px; margin-top: 3px; }
         .rt-part { display: inline-flex; align-items: center; gap: 5px; }
         .rt-part b { color: var(--text); font-weight: 700; }
+        .rt-sym { color: var(--text-faint); }
+        .rt-auto { color: var(--primary); font-size: 11px; font-weight: 700; }
         .rt-lights { gap: 4px; }
         .rt-dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--border-strong); display: inline-block; }
         .r-sub { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 2px; white-space: pre-wrap; max-width: 640px; }

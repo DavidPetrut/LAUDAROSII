@@ -124,6 +124,8 @@ export const plansApi = {
   deleteItemFile: (id, itemId, fileId) => api.del(`/plans/${id}/items/${itemId}/files/${fileId}`),
   // Medley (Faza 4)
   createMedley: (id, payload) => api.post(`/plans/${id}/items/medley`, payload), // { itemIds?|songIds?, afterItemId? }
+  // Aplică un șablon de Order DOAR pe acest plan (rescrie ordinea; istoric-safe — niciun alt plan atins)
+  applyOrderTemplate: (id, templateId) => api.post(`/plans/${id}/apply-order-template`, { templateId }),
   updateMedley: (id, itemId, payload) => api.patch(`/plans/${id}/items/${itemId}/medley`, payload), // { medley: [...] }
   medleyChart: (id, itemId) => api.get(`/plans/${id}/items/${itemId}/medley-chart`),
   // Planning Center Alerts (tab Alerts) — { title, body, teamIds, attachments, links, scheduledAt? }
@@ -180,7 +182,8 @@ export const orderTemplatesApi = {
   list: (serviceTypeId) => api.get(`/order-templates${serviceTypeId ? `?serviceTypeId=${encodeURIComponent(serviceTypeId)}` : ""}`),
   get: (tid) => api.get(`/order-templates/${tid}`),
   create: (payload) => api.post(`/order-templates`, payload), // { planId, name, serviceTypeId?, isDefault?, itemIds? }
-  update: (tid, payload) => api.patch(`/order-templates/${tid}`, payload),
+  update: (tid, payload) => api.patch(`/order-templates/${tid}`, payload), // { name?, isDefault? }
+  overwrite: (tid, payload) => api.patch(`/order-templates/${tid}`, payload), // { planId, itemIds? } → rescrie structura șablonului
   remove: (tid) => api.del(`/order-templates/${tid}`),
 };
 

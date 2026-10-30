@@ -18,6 +18,8 @@ const snapItem = (it, i) => {
   for (const f of SNAP_FIELDS) if (it[f] !== undefined) o[f] = it[f];
   // Slujirile salvează ROLUL, nu persoana — la aplicare se iau automat din Matrix-ul noului plan.
   o.ministries = (it.ministries || []).map((m) => ({ kind: m.kind })).filter((m) => m.kind);
+  // Tranziție: păstrăm gama (key/autoKey) + luminile; persoana de rugăciune NU se salvează (ca la slujiri).
+  o.transition = it.transition ? { key: it.transition.key || "", autoKey: !!it.transition.autoKey, lights: (it.transition.lights || []).map((l) => ({ color: l.color || "", label: l.label || "" })) } : null;
   return o;
 };
 
@@ -76,6 +78,19 @@ router.patch("/:tid", requireCan("services.editOrder"), async (req, res) => {
     if (b.isDefault !== undefined) set.isDefault = !!b.isDefault;
     const cur = await PcOrderTemplate.findOne(scoped(req, { _id: tid })).select("serviceTypeId").lean();
     if (!cur) return res.status(404).json({ error: "Șablon inexistent." });
+    // „Rescrie șablonul": re-snapshot structura unui plan PESTE șablon. NU atinge niciun plan — doar șablonul.
+    if (b.planId) {
+      const planId = OID(b.planId);
+      const plan = planId ? await PcPlan.findOne(scoped(req, { _id: planId })).select("_id").lean() : null;
+      if (!plan) return res.status(400).json({ error: "planId invalid." });
+      const items = await PcPlanItem.find(scoped(req, { planId })).sort({ sortOrder: 1 }).lean();
+      let ordered = items;
+      if (Array.isArray(b.itemIds) && b.itemIds.length) {
+        const byId = Object.fromEntries(items.map((it) => [String(it._id), it]));
+        ordered = b.itemIds.map((id) => byId[String(id)]).filter(Boolean);
+      }
+      set.items = ordered.map(snapItem);
+    }
     if (set.isDefault && cur.serviceTypeId) await PcOrderTemplate.updateMany(scoped(req, { serviceTypeId: cur.serviceTypeId, _id: { $ne: tid } }), { $set: { isDefault: false } });
     await PcOrderTemplate.updateOne(scoped(req, { _id: tid }), { $set: set });
     res.json({ ok: true });

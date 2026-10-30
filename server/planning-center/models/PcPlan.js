@@ -4,6 +4,9 @@ const { pcSchema, pcModel } = require("../core/schema");
 
 const schema = pcSchema({
   serviceTypeId: { type: mongoose.Schema.Types.ObjectId, ref: "PcServiceType", required: true },
+  // Șablonul Order ASOCIAT acestui plan (etichetă/sursă): setat la creare (ales sau default-ul service-type-ului)
+  // și la „Aplică șablon". E doar un pointer — aplicarea e cea care rescrie itemii; editarea șablonului NU atinge planul.
+  orderTemplateId: { type: mongoose.Schema.Types.ObjectId, ref: "PcOrderTemplate", default: null },
   title: { type: String, default: "" }, // ex. „Contemporary Service" (opțional; data e principală)
   seriesId: { type: mongoose.Schema.Types.ObjectId, ref: "PcSeries", default: null },
   seriesTitle: { type: String, default: "" }, // serie fără artwork (PCO series_title)
