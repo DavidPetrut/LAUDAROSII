@@ -14,6 +14,7 @@ import { pcColors } from "../../theme";
 import { PcScreen, PcUnderlineTabs, PcAvatar, PcButton, PcBottomSheet, PcCheckbox, PcSearchBar, PcSelect } from "../../components";
 import { usePc } from "../../navigation/PcContext";
 import { usePcAudio } from "../../navigation/PcAudioContext";
+import { ROLE_META, BASE_ROLES, parseVoicesText } from "../../lib/voices";
 
 // Numele vine uneori URL-encodat (ex. „My%20Song.mp3") → afișat/redat decodat, lizibil.
 const prettyName = (n) => { const s = String(n || ""); if (!s.includes("%")) return s; try { return decodeURIComponent(s); } catch (e) { return s; } };
@@ -69,6 +70,9 @@ export function ItemDetailScreen({ route, navigation }) {
   const [leaderOpen, setLeaderOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [searchRes, setSearchRes] = useState({ positions: [], people: [] });
+  const [voices, setVoices] = useState([]);
+  const [pool, setPool] = useState([]);
+  const [voiceRole, setVoiceRole] = useState(null); // rolul pt. care alegem din pool (sheet)
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,6 +83,8 @@ export function ItemDetailScreen({ route, navigation }) {
       setMin(String(Math.floor((it.lengthSec || 0) / 60)));
       setSec(String((it.lengthSec || 0) % 60));
       setDesc(it.description || "");
+      setVoices(it.voices || []);
+      pcApi.plans.voicesPool(planId).then((r) => setPool(r.people || [])).catch(() => {});
       setTab((t) => (t === "FILES" && it.type === "song" ? "SONG" : t));
       // Edit a song from a plan: aduce aranjamentele + detaliul aranjamentului linkat.
       if (it.type === "song" && it.songId) {
@@ -107,6 +113,32 @@ export function ItemDetailScreen({ route, navigation }) {
     if (total !== item?.lengthSec) patch({ lengthSec: total }).then(load);
   };
   const saveDesc = () => canEdit && desc !== item?.description && patch({ description: desc });
+
+  // ── Voci structurate ──
+  const saveVoices = (next) => { setVoices(next); patch({ voices: next.map((v) => ({ role: v.role, personId: v.personId || undefined, name: v.personId ? undefined : (v.name || "") })) }); };
+  const toggleVoice = (role, person) => {
+    const key = String(person.personId || person.name);
+    const has = voices.some((v) => v.role === role && String(v.personId || v.name) === key);
+    if (has) saveVoices(voices.filter((v) => !(v.role === role && String(v.personId || v.name) === key)));
+    else saveVoices([...voices, { role, personId: person.personId || null, name: person.personId ? "" : (person.name || ""), avatar: person.avatar, initials: person.initials }]);
+  };
+  const removeVoiceAt = (role, idx) => { let seen = -1; return voices.filter((v) => { if (v.role !== role) return true; seen++; return seen !== idx; }); };
+  const importVoices = () => {
+    const parsed = parseVoicesText(desc);
+    if (!parsed.length) { showInfo("Nu am găsit voci în descriere."); return; }
+    const mapped = parsed.map((v) => {
+      const p = pool.find((x) => x.name.toLowerCase().startsWith(v.name.toLowerCase()) || v.name.toLowerCase().startsWith((x.name.split(" ")[0] || "").toLowerCase()));
+      return p ? { role: v.role, personId: p.personId, name: "", avatar: p.avatar, initials: p.initials } : { role: v.role, personId: null, name: v.name };
+    });
+    saveVoices(mapped);
+  };
+  const toggleTransition = () => { if (!canEdit) return; patch({ isTransition: !item?.isTransition }).then(load); };
+
+  // ── Medley ──
+  const saveMedley = async (next) => {
+    try { await pcApi.plans.updateMedley(planId, itemId, { medley: next.map((c) => ({ songId: c.songId, arrangementId: c.arrangementId, keyId: c.keyId, keyName: c.keyName, title: c.title, sequence: c.sequence, lengthSec: c.lengthSec, note: c.note })) }); load(); }
+    catch (e) { showError(e?.message || "Nu s-a salvat medley-ul."); }
+  };
 
   const savePlacement = async (placement, timeIds, allTimes) => {
     await patch({ placement, timeIds: allTimes ? [] : timeIds, duringAll: allTimes });
@@ -167,10 +199,47 @@ export function ItemDetailScreen({ route, navigation }) {
             </Pressable>
           </View>
 
+          {item.type !== "header" && (
+            <Pressable style={styles.transRow} onPress={toggleTransition}>
+              <PcCheckbox checked={!!item.isTransition} onPress={toggleTransition} size={20} />
+              <Text style={styles.transTxt}>Tranziție <Text style={{ color: pcColors.textMuted }}>— timp neinclus, marcat „!"</Text></Text>
+            </Pressable>
+          )}
+
+          <View style={styles.block}>
+            <View style={styles.vhead}>
+              <Text style={styles.label}>Voci</Text>
+              {canEdit && !!desc && <Pressable onPress={importVoices}><Text style={styles.importV}>Importă din descriere</Text></Pressable>}
+            </View>
+            {ROLE_META.filter((r) => BASE_ROLES.includes(r.k) || voices.some((v) => v.role === r.k)).map((r) => {
+              const picks = voices.filter((v) => v.role === r.k);
+              return (
+                <View key={r.k} style={styles.vrow}>
+                  <Text style={styles.vlabel}>{r.s ? `${r.s} · ` : ""}{r.l}</Text>
+                  <View style={styles.vpeople}>
+                    {picks.map((v, i) => (
+                      <View key={i} style={styles.vchip}>
+                        {v.personId ? <PcAvatar uri={v.avatar} initials={v.initials} size={18} /> : null}
+                        <Text style={styles.vchipTxt}>{v.name || "—"}</Text>
+                        {canEdit && <Pressable onPress={() => saveVoices(removeVoiceAt(r.k, i))} hitSlop={6}><Ionicons name="close" size={13} color={pcColors.textMuted} /></Pressable>}
+                      </View>
+                    ))}
+                    {canEdit && <Pressable style={styles.vadd} onPress={() => setVoiceRole(r.k)}><Ionicons name="add" size={16} color={pcColors.primary} /></Pressable>}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+
           <View style={styles.block}>
             <Text style={styles.label}>Description</Text>
-            <TextInput style={styles.descIn} value={desc} onChangeText={setDesc} onEndEditing={saveDesc} editable={canEdit} multiline placeholder={canEdit ? "Tap to add description" : ""} placeholderTextColor={pcColors.textMuted} textAlignVertical="top" />
+            <TextInput style={styles.descIn} value={desc} onChangeText={setDesc} onEndEditing={saveDesc} editable={canEdit} multiline placeholder={canEdit ? "Note libere (versete, cue-uri)" : ""} placeholderTextColor={pcColors.textMuted} textAlignVertical="top" />
           </View>
+
+          {item.type === "medley" && (
+            <MedleyBlock item={item} canEdit={canEdit} onSave={saveMedley}
+              onOpenChart={(c) => c.songId && c.arrangementId && navigation.navigate("PcChartViewer", { songId: c.songId, arrangementId: c.arrangementId, initialDisplayKey: c.keyName })} />
+          )}
 
           <View style={styles.block}>
             <Text style={styles.label}>Item leader</Text>
@@ -256,7 +325,74 @@ export function ItemDetailScreen({ route, navigation }) {
           </ScrollView>
         </View>
       </PcBottomSheet>
+
+      {/* Voices pool sheet */}
+      <PcBottomSheet visible={!!voiceRole} onClose={() => setVoiceRole(null)} maxHeightPct={0.7}>
+        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+          <Text style={styles.sheetTitle}>Alege — {ROLE_META.find((r) => r.k === voiceRole)?.l || ""}</Text>
+          <Text style={styles.resLabel}>VOCALIȘTII SĂPTĂMÂNII</Text>
+          <ScrollView style={{ maxHeight: 360, marginTop: 6 }} keyboardShouldPersistTaps="handled">
+            {pool.map((p) => {
+              const on = voices.some((v) => v.role === voiceRole && String(v.personId) === String(p.personId));
+              return (
+                <Pressable key={String(p.personId)} style={styles.resRow} onPress={() => toggleVoice(voiceRole, p)}>
+                  <PcAvatar uri={p.avatar} initials={p.initials} size={28} />
+                  <Text style={styles.resName}>{p.name}</Text>
+                  {p.isVocalist && <View style={styles.mtTag}><Text style={styles.mtTagTxt}>voce</Text></View>}
+                  {on && <Ionicons name="checkmark" size={20} color={pcColors.primary} />}
+                </Pressable>
+              );
+            })}
+            {!pool.length && <Text style={styles.emptyTxt}>Nimeni programat pe acest plan încă.</Text>}
+          </ScrollView>
+        </View>
+      </PcBottomSheet>
     </PcScreen>
+  );
+}
+
+/** MedleyBlock (mobil) — snippet-urile medley-ului, cu săgeți jos; editare key/time/parts/note, reorder, remove, chart. */
+function MedleyBlock({ item, canEdit, onSave, onOpenChart }) {
+  const [list, setList] = useState(item.medley || []);
+  React.useEffect(() => { setList(item.medley || []); }, [item.medley]);
+  const commit = (next) => { setList(next); onSave(next); };
+  const edit = (i, patch) => commit(list.map((c, j) => (j === i ? { ...c, ...patch } : c)));
+  const move = (i, dir) => { const j = i + dir; if (j < 0 || j >= list.length) return; const a = [...list]; [a[i], a[j]] = [a[j], a[i]]; commit(a); };
+  const remove = (i) => commit(list.filter((_, j) => j !== i));
+  const L = (s) => ({ m: Math.floor((s || 0) / 60), s: (s || 0) % 60 });
+  return (
+    <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+      <Text style={styles.label}>Cântece în medley</Text>
+      {list.map((c, i) => {
+        const t = L(c.lengthSec);
+        return (
+          <View key={i} style={styles.snip}>
+            <View style={styles.snHead}>
+              <Text style={styles.snN}>{i + 1}</Text>
+              <TextInput style={styles.snTitle} value={c.title} editable={canEdit} onChangeText={(v) => edit(i, { title: v })} placeholder="Titlu" placeholderTextColor={pcColors.textMuted} />
+              <TextInput style={styles.snKey} value={c.keyName} editable={canEdit} onChangeText={(v) => edit(i, { keyName: v })} placeholder="Gamă" placeholderTextColor={pcColors.textMuted} />
+              {canEdit && (
+                <>
+                  <Pressable onPress={() => move(i, -1)} hitSlop={6}><Ionicons name="chevron-up" size={18} color={pcColors.textMuted} /></Pressable>
+                  <Pressable onPress={() => move(i, 1)} hitSlop={6}><Ionicons name="chevron-down" size={18} color={pcColors.textMuted} /></Pressable>
+                  <Pressable onPress={() => remove(i)} hitSlop={6}><Ionicons name="close" size={16} color={pcColors.danger} /></Pressable>
+                </>
+              )}
+            </View>
+            <View style={styles.snRow2}>
+              <TextInput style={styles.snTime} value={String(t.m)} editable={canEdit} keyboardType="number-pad" onChangeText={(v) => edit(i, { lengthSec: (parseInt(v, 10) || 0) * 60 + t.s })} />
+              <Text style={styles.unit}>:</Text>
+              <TextInput style={styles.snTime} value={String(t.s)} editable={canEdit} keyboardType="number-pad" onChangeText={(v) => edit(i, { lengthSec: t.m * 60 + (parseInt(v, 10) || 0) })} />
+              <TextInput style={styles.snSeq} value={(c.sequence || []).join(", ")} editable={canEdit} onChangeText={(v) => edit(i, { sequence: v.split(",").map((x) => x.trim()).filter(Boolean) })} placeholder="Părți (ex: Bridge, Coda)" placeholderTextColor={pcColors.textMuted} />
+              {c.songId && c.arrangementId && <Pressable onPress={() => onOpenChart(c)} hitSlop={6}><Ionicons name="musical-notes-outline" size={20} color={pcColors.primary} /></Pressable>}
+            </View>
+            {i < list.length - 1 && <Text style={styles.snArrow}>↓</Text>}
+          </View>
+        );
+      })}
+      {!list.length && <Text style={styles.emptyTxt}>Niciun cântec în medley.</Text>}
+      {canEdit && <Text style={[styles.emptyTxt, { textAlign: "left", fontSize: 13, marginTop: 10 }]}>Adaugă cântece în medley din aplicația web.</Text>}
+    </View>
   );
 }
 
@@ -393,6 +529,25 @@ const styles = StyleSheet.create({
   placeRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
   placeTxt: { color: pcColors.textPrimary, fontSize: 16, fontWeight: "600" },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: pcColors.divider, marginVertical: 8 },
+  transRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
+  transTxt: { color: pcColors.textPrimary, fontSize: 14, fontWeight: "600" },
+  vhead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  importV: { color: pcColors.primary, fontSize: 12.5, fontWeight: "600" },
+  vrow: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 5 },
+  vlabel: { width: 78, color: pcColors.textSecondary, fontSize: 13, paddingTop: 4 },
+  vpeople: { flex: 1, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 },
+  vchip: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: pcColors.card, borderRadius: 999, paddingVertical: 3, paddingHorizontal: 9 },
+  vchipTxt: { color: pcColors.textPrimary, fontSize: 13 },
+  vadd: { width: 26, height: 26, borderRadius: 13, borderWidth: 1, borderColor: pcColors.inputBorder, alignItems: "center", justifyContent: "center" },
+  snip: { backgroundColor: pcColors.card, borderRadius: 10, padding: 10, marginBottom: 8 },
+  snHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  snN: { width: 20, height: 20, borderRadius: 10, backgroundColor: pcColors.input, color: pcColors.textSecondary, fontSize: 11, fontWeight: "700", textAlign: "center", lineHeight: 20 },
+  snTitle: { flex: 1, color: pcColors.textPrimary, fontSize: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: pcColors.inputBorder, paddingVertical: 2 },
+  snKey: { width: 54, color: pcColors.primary, fontSize: 13, fontWeight: "700", textAlign: "center", borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: pcColors.inputBorder, paddingVertical: 2 },
+  snRow2: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
+  snTime: { width: 36, backgroundColor: pcColors.input, borderRadius: 6, color: pcColors.textPrimary, fontSize: 13, textAlign: "center", paddingVertical: 4 },
+  snSeq: { flex: 1, backgroundColor: pcColors.input, borderRadius: 6, color: pcColors.textPrimary, fontSize: 13, paddingHorizontal: 8, paddingVertical: 5 },
+  snArrow: { color: pcColors.primary, fontSize: 16, textAlign: "center", marginTop: 6 },
 });
 
 export default ItemDetailScreen;

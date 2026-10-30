@@ -15,6 +15,7 @@ import PersonAvatar from "@/components/plans/PersonAvatar";
 import AssignSidebar from "@/components/plans/AssignSidebar";
 import EditPersonModal from "@/components/plans/EditPersonModal";
 import PositionJoinModal from "@/components/plans/PositionJoinModal";
+import OrderTab from "@/components/plans/order/OrderTab";
 
 const TABS = ["Order", "Teams", "Rehearse"]; // Times/Files/Notes mutate în sidebar-ul STÂNGA (ca în PCO)
 
@@ -30,6 +31,7 @@ export default function PlanDetailPage() {
   const router = useRouter();
   const { id } = useParams();
   const [tab, setTab] = useState("Teams");
+  const [orderSide, setOrderSide] = useState(false); // drawer „View item" deschis (Order) → face loc ca .has-side
   const [head, setHead] = useState(null);
   const [data, setData] = useState({});
   const [loading, setLoading] = useState(true);
@@ -96,10 +98,12 @@ export default function PlanDetailPage() {
 
   useEffect(() => {
     if (data[tab]) return;
-    const fn = { Order: plansApi.order, Teams: plansApi.teams, Rehearse: plansApi.rehearse }[tab];
+    // Order se auto-gestionează în componenta OrderTab (fetch + reload la editări).
+    const fn = { Teams: plansApi.teams, Rehearse: plansApi.rehearse }[tab];
     if (!fn) return;
     fn(id).then((r) => setData((d) => ({ ...d, [tab]: r }))).catch((e) => setErr(e?.message || "Eroare."));
   }, [tab, id, data]);
+  useEffect(() => { if (tab !== "Order") setOrderSide(false); }, [tab]);
 
   const reconcileTeams = useCallback(async () => {
     try { const r = await plansApi.teams(id); setData((d) => ({ ...d, Teams: r })); } catch {}
@@ -280,7 +284,7 @@ export default function PlanDetailPage() {
   const cur = data[tab];
 
   return (
-    <div className={`pd pc-full ${sel ? "has-side" : ""}`}>
+    <div className={`pd pc-full ${(sel || orderSide) ? "has-side" : ""}`}>
       <div className="top">
         <button className="back" onClick={() => router.push("/plans")} title="Înapoi">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M10 3L5 8l5 5" /></svg>
@@ -360,7 +364,7 @@ export default function PlanDetailPage() {
           {err && <div className="err">{err}</div>}
           {loading ? <div className="empty">Se încarcă…</div> : (
             <div className="body">
-              {tab === "Order" && <OrderTab data={cur} />}
+              {tab === "Order" && <OrderTab planId={id} canEdit={!!caps.editOrder} onSideChange={setOrderSide} flash={flash} />}
               {tab === "Teams" && <TeamsTab data={cur} sel={sel} onOpenCell={openCell}
                 canAssign={canAssign} canMove={canMove} canEditNeeded={canEditNeeded}
                 onEdit={(pp, g, t) => setEditing({ planId: id, teamId: t.teamId, positionId: g.positionId, assignmentId: pp.assignmentId, name: pp.name, avatar: pp.avatar, initials: pp.initials, status: pp.status, teamName: t.name, positionName: g.positionName })}
@@ -461,38 +465,6 @@ export default function PlanDetailPage() {
       <style jsx global>{`
         .pd .muted { padding: 24px 4px; color: var(--text-faint); font-size: 13.5px; }
       `}</style>
-    </div>
-  );
-}
-
-/* ── Order ── */
-function OrderTab({ data }) {
-  if (!data) return <div className="muted">Se încarcă…</div>;
-  const items = data.items || [];
-  if (!items.length) return <div className="muted">Niciun item în ordinea serviciului.</div>;
-  return (
-    <div className="order">
-      {items.map((it) => (
-        <div key={it.id} className={`item ${it.type === "header" ? "hdr" : ""}`} style={{ borderLeftColor: it.rowColor || "transparent" }}>
-          <div className="it-main">
-            <span className="it-title">{it.title}</span>
-            {it.keyName ? <span className="it-key">{it.keyName}</span> : null}
-          </div>
-          <div className="it-right">
-            {(it.leaders || []).map((l, i) => <span key={i} className="it-leader">{l.name || l.positionName}{l.needed ? " (needed)" : ""}</span>)}
-            {it.lengthLabel ? <span className="it-len">{it.lengthLabel}</span> : null}
-          </div>
-          <style jsx>{`
-            .item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px; border-left: 3px solid transparent; border-bottom: 1px solid var(--border-soft); }
-            .item.hdr { background: var(--section-head-bg); }
-            .it-title { color: var(--text); font-size: 14px; }
-            .item.hdr .it-title { font-weight: 700; text-transform: uppercase; font-size: 12px; letter-spacing: .5px; }
-            .it-key { margin-left: 8px; color: var(--product); font-size: 12px; border: 1px solid var(--product); border-radius: 4px; padding: 0 6px; }
-            .it-right { display: flex; align-items: center; gap: 12px; color: var(--text-faint); font-size: 12px; }
-            .it-leader { color: var(--text-dim); }
-          `}</style>
-        </div>
-      ))}
     </div>
   );
 }

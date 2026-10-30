@@ -12,7 +12,7 @@ import { pcColors } from "../../theme";
 import { PcScreen, PcSearchBar, PcButton, PcCheckbox } from "../../components";
 
 export function SelectSongScreen({ route, navigation }) {
-  const { planId, afterItemId } = route.params || {};
+  const { planId, afterItemId, medley } = route.params || {};
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -35,16 +35,24 @@ export function SelectSongScreen({ route, navigation }) {
 
   const addSelected = async () => {
     if (selected.length === 0) return;
+    if (medley && selected.length < 2) return showError("Alege cel puțin 2 cântece pentru medley.");
     setBusy(true);
     try {
-      // păstrează ordinea selecției; fiecare nou item după cel anterior
-      let after = afterItemId;
-      for (const songId of selected) {
-        const res = await pcApi.plans.addItem(planId, { type: "song", songId, afterItemId: after });
-        after = res.id; // următorul după acesta
+      if (medley) {
+        const res = await pcApi.plans.createMedley(planId, { songIds: selected, afterItemId });
+        showSuccess("Medley creat");
+        navigation.goBack();
+        if (res?.id) navigation.navigate("PcItemDetail", { planId, itemId: res.id });
+      } else {
+        // păstrează ordinea selecției; fiecare nou item după cel anterior
+        let after = afterItemId;
+        for (const songId of selected) {
+          const res = await pcApi.plans.addItem(planId, { type: "song", songId, afterItemId: after });
+          after = res.id; // următorul după acesta
+        }
+        showSuccess(`${selected.length} cântec(e) adăugat(e)`);
+        navigation.goBack();
       }
-      showSuccess(`${selected.length} cântec(e) adăugat(e)`);
-      navigation.goBack();
     } catch (e) {
       showError(e?.message || "Nu s-a putut adăuga.");
     } finally {
@@ -71,7 +79,7 @@ export function SelectSongScreen({ route, navigation }) {
         <Pressable onPress={() => navigation.goBack()} hitSlop={10}>
           <Ionicons name="close" size={26} color={pcColors.primary} />
         </Pressable>
-        <Text style={styles.headerTitle}>Select Song</Text>
+        <Text style={styles.headerTitle}>{medley ? "Medley — alege cântece" : "Select Song"}</Text>
         <Pressable onPress={createNew} hitSlop={10}>
           <Text style={styles.new}>New</Text>
         </Pressable>
@@ -102,7 +110,7 @@ export function SelectSongScreen({ route, navigation }) {
 
       {selected.length > 0 && (
         <View style={[styles.addBar, { paddingBottom: (insets.bottom || 8) + 10 }]}>
-          <PcButton title={`Add ${selected.length}`} onPress={addSelected} loading={busy} block />
+          <PcButton title={medley ? `Creează medley (${selected.length})` : `Add ${selected.length}`} onPress={addSelected} loading={busy} block />
         </View>
       )}
     </PcScreen>

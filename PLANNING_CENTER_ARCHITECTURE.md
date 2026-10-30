@@ -1375,3 +1375,19 @@ Nicio funcționalitate AI concretă. Doar: gateway + registry + config + audit +
 - ⬜ **Calendar** (rooms/resources/bookings/anti-double-booking).
 - ⬜ Scheduling avansat (auto-scheduler/matrix), forms/automations/lists/workflows, files/media/songs-avansat/audio-transpose.
 - ⏸️ Services LIVE, Reporting (CCLI), dashboards, mobile polish (widgets/CarPlay/offline) — amânate explicit.
+
+---
+
+## 17. ORDER MODULE — reguli stricte (web parity + voci + tranziții + medley)
+> Context: Order-ul e deja editabil pe mobil + complet pe backend (`routes/plans.js` CRUD iteme/lideri/reorder). Se finalizează pe **web** (identic PCO, drawer dreapta) + 2 îmbunătățiri proprii: **voci structurate** (picker din Matrix) și **tranziții/medley**. Reguli de respectat la ORICE schimbare viitoare:
+
+1. **O singură sursă de adevăr = `PcAssignment` (= Matrix).** Liderii-poziție și **pool-ul de voci** se derivă din assignments-urile planului (`resolveItemLeaders` + `GET /:id/voices-pool`). NU se dublează „cine slujește" în altă colecție. O schimbare în Matrix se vede imediat în Order (același endpoint, aceeași dată).
+2. **Schemă DOAR aditivă pe `PcPlanItem`.** Câmpuri noi: `voices[]`, `isTransition`, `medley[]`, `type:"medley"`. Niciun câmp existent redenumit/mutat. Migrații aditive (`schemaVersion`). Planurile vechi se citesc neschimbat.
+3. **Voci PCO-safe (dual, cu sursă clară):** `voices[]` = autoritativ pt. părți (lead/S/A/T…); `description` = text liber (restul notelor). Serializer `voices → "LEAD / S: .. A: .. T: .."` pt. **export PCO**; parser best-effort `description → voices` la **import PCO**. **Afișare:** dacă `voices` gol → se afișează `description` (datele PCO importate care au S/A/T doar în text se randează corect).
+4. **Zero fork de logică per client.** web + mobil consumă **aceleași** rute `/api/pc/v1/plans/...`. Orice feature nou = întâi serviciu+API, apoi ambii clienți (99% useri = mobil → tot ce apare pe web trebuie să se randeze pe mobil).
+5. **Tranziție = `isTransition:true`** → UI indent + „!" roșu + **timpul exclus din total**. Separat de `itemTimes[].exclude` (excludere per-oră). Totalul planului (`totalLabel`) = Σ `lengthSec` fără tranziții și fără placements before/after (ca PCO).
+6. **Medley = `type:"medley"` + `medley[]`** (snippet-uri de cântec, în ordine). Chartul combinat se **randează DERIVAT** (concatenează chord chart-urile copiilor în ordine) — fără storage nou. Reutilizează renderer-ul ChordPro.
+7. **Seam-uri AI:** date structurate (voci/tranziții/medley) consumabile de AI; seam `POST /plans/:id/ai/order-suggest` (501 acum) + audit `pc_aiRuns`. NU se implementează AI acum; doar structura permite adăugarea fără refactor.
+8. **PCO import/export:** mapările de la pct. 3 + câmpurile `remoteId/remoteSource` (deja pe schema) păstrează compatibilitatea in/out cu Planning Center online.
+
+**Entități atinse (aditiv):** `PcPlanItem` (+voices/isTransition/medley/type), `PcItemNote` (rute noi), `PcPlanFile` (scope `item`). **Rute noi:** `/:id/voices-pool`, `/:id/items/:itemId/notes` (CRUD), `/:id/items/:itemId/files` (POST/DELETE), `/:id/items/medley`, `/:id/items/:itemId/medley` (PATCH), `/:id/items/:itemId/medley-chart`, `/:id/ai/order-suggest` (seam).

@@ -64,6 +64,10 @@ export const pcApi = {
     removeLeader: (planId, itemId, { personId, positionId }) =>
       api.delete(`${B}/plans/${planId}/items/${itemId}/leaders${personId ? `?personId=${personId}` : positionId ? `?positionId=${positionId}` : ""}`),
     leaderSearch: (planId, q) => api.get(`${B}/plans/${planId}/leader-search${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+    // Voci structurate (pool Matrix) + medley
+    voicesPool: (planId) => api.get(`${B}/plans/${planId}/voices-pool`),
+    createMedley: (planId, data) => api.post(`${B}/plans/${planId}/items/medley`, data),
+    updateMedley: (planId, itemId, data) => api.patch(`${B}/plans/${planId}/items/${itemId}/medley`, data),
     // Scheduling
     schedulable: (planId, q) => api.get(`${B}/plans/${planId}/schedulable${q ? `?q=${encodeURIComponent(q)}` : ""}`),
     assign: (planId, data) => api.post(`${B}/plans/${planId}/assignments`, data),

@@ -10,7 +10,8 @@ const { pcSchema, pcModel } = require("../core/schema");
 
 const schema = pcSchema({
   planId: { type: mongoose.Schema.Types.ObjectId, ref: "PcPlan", required: true },
-  type: { type: String, enum: ["header", "item", "song", "media"], default: "item" },
+  // medley = container cu mai multe „snippet"-uri de cântec (vezi `medley[]` mai jos), afișat cu săgeți jos.
+  type: { type: String, enum: ["header", "item", "song", "media", "medley"], default: "item" },
   title: { type: String, default: "" },
   description: { type: String, default: "" },
   lengthSec: { type: Number, default: 0 },
@@ -33,6 +34,36 @@ const schema = pcSchema({
   sequence: { type: [String], default: [] }, // secvență one-time pt. acest plan (gol = moștenește din aranjament)
   rowColor: { type: String, default: "" },
   sortOrder: { type: Number, default: 0 },
+  // ── Voci structurate (aditiv) — lead / support(S) / alto(A) / tenor(T)… ─────────────────────
+  // Sursa de adevăr pt. părți. `description` rămâne text liber (restul notelor). La afișare, dacă
+  // `voices` e gol se cade pe `description` (datele PCO importate care au S/A/T doar în text se randează).
+  // Multi-rol permis: aceeași persoană poate apărea în mai multe roluri. `name` = fallback pt. guest.
+  voices: {
+    type: [{
+      role: { type: String, enum: ["lead", "support", "alto", "tenor", "soprano", "bass", "custom"], default: "lead" },
+      personId: { type: mongoose.Schema.Types.ObjectId, ref: "PcPerson", default: null },
+      name: { type: String, default: "" },
+    }],
+    default: [],
+  },
+  // ── Tranziție (aditiv) — cântec/parte folosit(ă) doar ca punte: indent + „!" + timp EXCLUS din total.
+  isTransition: { type: Boolean, default: false },
+  // ── Medley (aditiv) — pt. type:"medley": listă de snippet-uri de cântec, în ordine (săgeți jos).
+  // Chartul combinat se randează DERIVAT (concatenează chord chart-urile copiilor) — fără storage nou.
+  medley: {
+    type: [{
+      songId: { type: mongoose.Schema.Types.ObjectId, ref: "PcSong", default: null },
+      arrangementId: { type: mongoose.Schema.Types.ObjectId, ref: "PcArrangement", default: null },
+      keyId: { type: mongoose.Schema.Types.ObjectId, ref: "PcKey", default: null },
+      keyName: { type: String, default: "" },
+      title: { type: String, default: "" },
+      sequence: { type: [String], default: [] }, // doar părțile cântate (ex. „Bridge", „Coda")
+      lengthSec: { type: Number, default: 0 },
+      note: { type: String, default: "" },
+      sortOrder: { type: Number, default: 0 },
+    }],
+    default: [],
+  },
   // ── Import PCO (aditiv) ──
   htmlDetails: { type: String, default: "" }, // tab „Detail" (rich-text → raport)
   // Per-service-time: exclude item de la un timp + offset de lungime (pt. „exclude item from a time").

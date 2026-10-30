@@ -6,7 +6,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const {
-  PcPlan, PcPlanTime, PcPlanItem, PcAssignment, PcNeededPosition, PcPlanNote, PcPlanFile,
+  PcPlan, PcPlanTime, PcPlanItem, PcAssignment, PcNeededPosition, PcPlanNote, PcPlanFile, PcItemNote,
   PcPositionGuestLog,
   PcServiceType, PcTeam, PcPosition, PcTeamMember, PcPerson, PcOrg, PcCampus, PcSong,
   PcArrangement, PcKey, PcSongFile, PcBlockout,
@@ -242,6 +242,24 @@ async function resolveItemLeaders(req, planId, items) {
   return map;
 }
 
+const VOICE_ROLES = ["lead", "support", "alto", "tenor", "soprano", "bass", "custom"];
+/** Rezolvă vocile structurate (lead/S/A/T…) pt. o listă de itemi → map itemId → [{role,name,initials,avatar,personId?}]. */
+async function resolveVoices(req, items) {
+  const personIds = [];
+  for (const it of items) for (const v of it.voices || []) if (v.personId) personIds.push(v.personId);
+  const persons = personIds.length ? await PcPerson.find(scoped(req, { _id: { $in: personIds } })).select("firstName lastName avatar").lean() : [];
+  const byId = Object.fromEntries(persons.map((p) => [String(p._id), p]));
+  const map = {};
+  for (const it of items) {
+    map[String(it._id)] = (it.voices || []).map((v) => {
+      const role = VOICE_ROLES.includes(v.role) ? v.role : "lead";
+      if (v.personId && byId[String(v.personId)]) { const m = personMini(byId[String(v.personId)]); return { role, name: m.name, initials: m.initials, avatar: m.avatar, personId: String(v.personId) }; }
+      return { role, name: v.name || "", initials: (v.name || "").slice(0, 2).toUpperCase(), avatar: "" };
+    }).filter((v) => v.name);
+  }
+  return map;
+}
+
 /* ───────── GET /:id/order — ordinea serviciului (secțiuni + itemi) ───────── */
 router.get("/:id/order", requireCan("people.view"), async (req, res) => {
   try {
@@ -249,11 +267,37 @@ router.get("/:id/order", requireCan("people.view"), async (req, res) => {
     if (!id) return res.status(400).json({ error: "ID invalid" });
     const items = await PcPlanItem.find(scoped(req, { planId: id })).sort({ sortOrder: 1 }).lean();
     const leadersMap = await resolveItemLeaders(req, id, items);
+    const voicesMap = await resolveVoices(req, items);
     // reguli de culoare din service type
     const plan = await PcPlan.findOne(scoped(req, { _id: id })).select("serviceTypeId").lean();
     const st = plan ? await PcServiceType.findOne(scoped(req, { _id: plan.serviceTypeId })).select("itemRowColors useCustomRowColors").lean() : null;
     const rules = st && st.useCustomRowColors === false ? [] : (st && st.itemRowColors && st.itemRowColors.length ? st.itemRowColors : DEFAULT_ITEM_ROW_COLORS);
+    // ── nr. fișiere per item (paperclip): fișiere item-scope + fișierele cântecului (aranjament + cheia aleasă) ──
+    const itemIds = items.map((i) => i._id);
+    const arrIds = items.filter((i) => i.arrangementId).map((i) => i.arrangementId);
+    const [planFiles, songFiles] = await Promise.all([
+      PcPlanFile.find(scoped(req, { itemId: { $in: itemIds } })).select("itemId").lean(),
+      arrIds.length ? PcSongFile.find(scoped(req, { arrangementId: { $in: arrIds } })).select("arrangementId keyId").lean() : [],
+    ]);
+    const planFileCount = {};
+    for (const f of planFiles) planFileCount[String(f.itemId)] = (planFileCount[String(f.itemId)] || 0) + 1;
+    const songFileCount = (it) => {
+      if (!it.arrangementId) return 0;
+      const aid = String(it.arrangementId), kid = it.keyId ? String(it.keyId) : null;
+      let n = 0;
+      for (const f of songFiles) { if (String(f.arrangementId) !== aid) continue; if (!f.keyId || (kid && String(f.keyId) === kid)) n++; }
+      return n;
+    };
+    // ── total timp: Σ lengthSec, EXCLUZÂND headers, tranziții și placements before/after (ca PCO) ──
+    let totalSec = 0;
+    for (const it of items) {
+      if (it.type === "header" || it.isTransition) continue;
+      if ((it.placement || "during") !== "during") continue;
+      totalSec += it.lengthSec || 0;
+    }
     res.json({
+      totalSec,
+      totalLabel: fmtLen(totalSec),
       items: items.map((it) => ({
         id: it._id,
         type: it.type,
@@ -262,6 +306,10 @@ router.get("/:id/order", requireCan("people.view"), async (req, res) => {
         lengthLabel: fmtLen(it.lengthSec),
         keyName: it.keyName || "",
         rowColor: rowColorFor(it, rules),
+        isTransition: !!it.isTransition,
+        medleyCount: Array.isArray(it.medley) ? it.medley.length : 0,
+        fileCount: (planFileCount[String(it._id)] || 0) + songFileCount(it),
+        voices: voicesMap[String(it._id)] || [],
         leaders: leadersMap[String(it._id)] || [],
         leader: (leadersMap[String(it._id)] || [])[0] || null,
       })),
@@ -281,6 +329,7 @@ router.get("/:id/items/:itemId", requireCan("people.view"), async (req, res) => 
     if (!it) return res.status(404).json({ error: "Item inexistent" });
     const planId = OID(req.params.id);
     const leadersMap = await resolveItemLeaders(req, planId, [it]);
+    const voicesMap = await resolveVoices(req, [it]);
     const files = await PcPlanFile.find(scoped(req, { itemId })).sort({ sortOrder: 1 }).lean();
     // ore de serviciu (pt. checkbox-urile During/Before/After per oră)
     const serviceTimes = await PcPlanTime.find(scoped(req, { planId, type: "service" })).sort({ startsAt: 1 }).lean();
@@ -296,6 +345,8 @@ router.get("/:id/items/:itemId", requireCan("people.view"), async (req, res) => 
       duringAll: it.duringAll !== false,
       timeIds: (it.timeIds || []).map(String),
       keyName: it.keyName || "",
+      htmlDetails: it.htmlDetails || "",
+      isTransition: !!it.isTransition,
       // Linkaj song (pt. tab-ul SONG / Edit a song from a plan + Sequence):
       songId: it.songId ? String(it.songId) : null,
       arrangementId: it.arrangementId ? String(it.arrangementId) : null,
@@ -303,6 +354,12 @@ router.get("/:id/items/:itemId", requireCan("people.view"), async (req, res) => 
       sequence: Array.isArray(it.sequence) ? it.sequence : [],
       duringLabel: (it.placement && it.placement !== "during") ? `${it.placement[0].toUpperCase()}${it.placement.slice(1)} All` : (it.duringAll !== false ? "During All" : `${(it.timeIds || []).length} time(s)`),
       leaders: leadersMap[String(it._id)] || [],
+      voices: voicesMap[String(it._id)] || [],
+      medley: (it.medley || []).slice().sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)).map((c) => ({
+        songId: c.songId ? String(c.songId) : null, arrangementId: c.arrangementId ? String(c.arrangementId) : null,
+        keyId: c.keyId ? String(c.keyId) : null, keyName: c.keyName || "", title: c.title || "",
+        sequence: c.sequence || [], lengthSec: c.lengthSec || 0, lengthLabel: fmtLen(c.lengthSec), note: c.note || "", sortOrder: c.sortOrder || 0,
+      })),
       serviceTimes: serviceTimes.map((t) => ({ id: t._id, label: fmtTime(t.startsAt, tz) })),
       files: files.map((f) => ({ id: f._id, name: f.name, kind: f.kind, url: f.url || null })),
     });
@@ -318,11 +375,11 @@ router.post("/:id/items", requireCan("services.editOrder"), async (req, res) => 
     const planId = OID(req.params.id);
     if (!planId) return res.status(400).json({ error: "ID invalid" });
     const b = req.body || {};
-    const type = ["item", "header", "song", "media"].includes(b.type) ? b.type : "item";
+    const type = ["item", "header", "song", "media", "medley"].includes(b.type) ? b.type : "item";
 
     const doc = {
       planId, type,
-      title: String(b.title || (type === "header" ? "Header" : type === "song" ? "New Song" : type === "media" ? "New Media" : "New Item")).trim(),
+      title: String(b.title || (type === "header" ? "Header" : type === "song" ? "New Song" : type === "media" ? "New Media" : type === "medley" ? "Medley" : "New Item")).trim(),
       description: b.description || "",
       lengthSec: Number(b.lengthSec) || 0,
       placement: ["before", "during", "after"].includes(b.placement) ? b.placement : "during",
@@ -330,11 +387,15 @@ router.post("/:id/items", requireCan("services.editOrder"), async (req, res) => 
       timeIds: Array.isArray(b.timeIds) ? b.timeIds.map(OID).filter(Boolean) : [],
       keyName: b.keyName || "",
     };
-    // Song din bibliotecă
+    // Song din bibliotecă (+ aranjament/cheie opțional, ca să nu mai fie nevoie de un PATCH ulterior).
     if (type === "song" && b.songId) {
       const song = await PcSong.findOne(scoped(req, { _id: OID(b.songId) })).lean();
       if (song) { doc.songId = song._id; doc.title = song.title; doc.keyName = b.keyName || song.defaultKey || ""; if (!doc.lengthSec) doc.lengthSec = song.lengthSec || 0; }
+      if (b.arrangementId) { const arr = await PcArrangement.findOne(scoped(req, { _id: OID(b.arrangementId) })).select("_id lengthSec").lean(); if (arr) { doc.arrangementId = arr._id; if (!doc.lengthSec) doc.lengthSec = arr.lengthSec || 0; } }
+      if (b.keyId) { const key = await PcKey.findOne(scoped(req, { _id: OID(b.keyId) })).select("startKey").lean(); if (key) { doc.keyId = key._id; doc.keyName = key.startKey || doc.keyName; } }
     }
+    // Media din bibliotecă
+    if (type === "media" && b.mediaItemId) { const oid = OID(b.mediaItemId); if (oid) doc.mediaItemId = oid; }
 
     // poziție în ordine: după afterItemId, altfel la final
     if (b.afterItemId) {
@@ -368,6 +429,16 @@ router.patch("/:id/items/:itemId", requireCan("services.editOrder"), async (req,
     if (b.duringAll !== undefined) set.duringAll = !!b.duringAll;
     if (Array.isArray(b.timeIds)) set.timeIds = b.timeIds.map(OID).filter(Boolean);
     if (b.keyName !== undefined) set.keyName = String(b.keyName);
+    if (b.htmlDetails !== undefined) set.htmlDetails = String(b.htmlDetails);
+    if (b.isTransition !== undefined) set.isTransition = !!b.isTransition;
+    // Voci structurate (lead/S/A/T…): [{ role, personId?, name? }]
+    if (Array.isArray(b.voices)) {
+      set.voices = b.voices.map((v) => ({
+        role: VOICE_ROLES.includes(v.role) ? v.role : "lead",
+        personId: v.personId ? OID(v.personId) : null,
+        name: v.personId ? "" : String(v.name || ""),
+      })).filter((v) => v.personId || v.name);
+    }
     // Secvență one-time pt. acest plan (Edit Sequence from a plan).
     if (Array.isArray(b.sequence)) set.sequence = b.sequence.map((s) => String(s)).filter(Boolean);
     // Edit a song from a plan: schimbă aranjamentul / cheia linkate (keyName se auto-rezolvă).
@@ -498,6 +569,154 @@ router.get("/:id/leader-search", requireCan("services.editOrder"), async (req, r
     console.error("[pc] GET /plans/:id/leader-search:", err.message);
     res.status(500).json({ error: "Eroare la căutare." });
   }
+});
+
+/* ───────── POST /:id/items/medley — creează un item MEDLEY din iteme existente SAU din cântece ───────── */
+router.post("/:id/items/medley", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id);
+    if (!planId) return res.status(400).json({ error: "ID invalid" });
+    const b = req.body || {};
+    const itemIds = Array.isArray(b.itemIds) ? b.itemIds.map(OID).filter(Boolean) : [];
+    const songIds = Array.isArray(b.songIds) ? b.songIds.map(OID).filter(Boolean) : [];
+    const children = [];
+    let anchorSort = null;
+    if (itemIds.length) {
+      const its = await PcPlanItem.find(scoped(req, { _id: { $in: itemIds }, planId })).lean();
+      const byId = Object.fromEntries(its.map((i) => [String(i._id), i]));
+      let k = 0;
+      for (const idv of itemIds) {
+        const it = byId[String(idv)]; if (!it) continue;
+        if (anchorSort === null) anchorSort = it.sortOrder;
+        children.push({ songId: it.songId || null, arrangementId: it.arrangementId || null, keyId: it.keyId || null, keyName: it.keyName || "", title: it.title || "", sequence: it.sequence || [], lengthSec: it.lengthSec || 0, note: "", sortOrder: k++ });
+      }
+      await PcPlanItem.updateMany(scoped(req, { _id: { $in: itemIds } }), { $set: { deletedAt: new Date() } });
+    } else if (songIds.length) {
+      const songs = await PcSong.find(scoped(req, { _id: { $in: songIds } })).lean();
+      const byId = Object.fromEntries(songs.map((s) => [String(s._id), s]));
+      let k = 0;
+      for (const sid of songIds) { const s = byId[String(sid)]; if (!s) continue; children.push({ songId: s._id, arrangementId: null, keyId: null, keyName: s.defaultKey || "", title: s.title, sequence: [], lengthSec: s.lengthSec || 0, note: "", sortOrder: k++ }); }
+    }
+    if (!children.length) return res.status(400).json({ error: "Trimite itemIds sau songIds." });
+    const title = String(b.title || children.map((c) => c.title).filter(Boolean).slice(0, 3).join(" / ") || "Medley");
+    const totalLen = children.reduce((s, c) => s + (c.lengthSec || 0), 0);
+    let sortOrder;
+    if (anchorSort !== null) sortOrder = anchorSort;
+    else if (b.afterItemId) { const after = await PcPlanItem.findOne(scoped(req, { _id: OID(b.afterItemId) })).select("sortOrder").lean(); const at = after ? after.sortOrder : 0; await PcPlanItem.updateMany(scoped(req, { planId, sortOrder: { $gt: at } }), { $inc: { sortOrder: 1 } }); sortOrder = at + 1; }
+    else { const last = await PcPlanItem.findOne(scoped(req, { planId })).sort({ sortOrder: -1 }).select("sortOrder").lean(); sortOrder = last ? last.sortOrder + 1 : 0; }
+    const item = await PcPlanItem.create(stamp(req, { planId, type: "medley", title, lengthSec: totalLen, medley: children, sortOrder }));
+    res.status(201).json({ id: item._id });
+  } catch (err) { console.error("[pc] POST medley:", err.message); res.status(500).json({ error: "Eroare la medley: " + err.message }); }
+});
+
+/* ───────── PATCH /:id/items/:itemId/medley — actualizează copiii (add/remove/reorder/edit snippet) ───────── */
+router.patch("/:id/items/:itemId/medley", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const itemId = OID(req.params.itemId);
+    const arr = Array.isArray(req.body?.medley) ? req.body.medley : [];
+    const medley = arr.map((c, i) => ({
+      songId: c.songId ? OID(c.songId) : null, arrangementId: c.arrangementId ? OID(c.arrangementId) : null, keyId: c.keyId ? OID(c.keyId) : null,
+      keyName: String(c.keyName || ""), title: String(c.title || ""), sequence: Array.isArray(c.sequence) ? c.sequence.map(String) : [], lengthSec: Number(c.lengthSec) || 0, note: String(c.note || ""), sortOrder: i,
+    }));
+    const totalLen = medley.reduce((s, c) => s + (c.lengthSec || 0), 0);
+    const p = await PcPlanItem.findOneAndUpdate(scoped(req, { _id: itemId }), { $set: { medley, lengthSec: totalLen } }).select("_id").lean();
+    if (!p) return res.status(404).json({ error: "Item inexistent" });
+    res.json({ ok: true });
+  } catch (err) { console.error("[pc] PATCH medley:", err.message); res.status(500).json({ error: "Eroare la medley." }); }
+});
+
+/* ───────── POST /:id/ai/order-suggest — SEAM (neimplementat) pt. sugestii AI pe ordine/voci/tranziții/medley ─────────
+   Date structurate (voices/isTransition/medley) sunt consumabile de AI; aici e portița, fără implementare (§10/§17). */
+router.post("/:id/ai/order-suggest", requireCan("services.editOrder"), async (req, res) => {
+  res.status(501).json({ seam: true, error: "AI order-suggest: seam neimplementat (vezi secțiunea 17 din PLANNING_CENTER_ARCHITECTURE.md)." });
+});
+
+/* ───────── GET /:id/voices-pool — oamenii programați pe plan (vocaliști întâi) pt. pickerul de voci ───────── */
+router.get("/:id/voices-pool", requireCan("people.view"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id);
+    if (!planId) return res.status(400).json({ error: "ID invalid" });
+    const assigns = await PcAssignment.find(scoped(req, { planId, status: { $ne: "declined" } })).lean();
+    const personIds = [...new Set(assigns.map((a) => String(a.personId)).filter(Boolean))];
+    const positionIds = [...new Set(assigns.map((a) => a.positionId).filter(Boolean).map(String))];
+    const teamIds = [...new Set(assigns.map((a) => a.teamId).filter(Boolean).map(String))];
+    const [persons, positions, teams] = await Promise.all([
+      PcPerson.find(scoped(req, { _id: { $in: personIds.map(OID) } })).select("firstName lastName avatar").lean(),
+      PcPosition.find(scoped(req, { _id: { $in: positionIds.map(OID) } })).select("name teamId").lean(),
+      PcTeam.find(scoped(req, { _id: { $in: teamIds.map(OID) } })).select("name").lean(),
+    ]);
+    const personById = Object.fromEntries(persons.map((p) => [String(p._id), p]));
+    const posById = Object.fromEntries(positions.map((p) => [String(p._id), p]));
+    const teamById = Object.fromEntries(teams.map((t) => [String(t._id), t]));
+    const VOCAL_RX = /vocal|soprano|alto|tenor|bass/i;
+    const byPerson = {};
+    for (const a of assigns) {
+      const pid = String(a.personId); if (!pid || !personById[pid]) continue;
+      const pos = posById[String(a.positionId)], team = teamById[String(a.teamId)];
+      const isVoc = VOCAL_RX.test(pos?.name || "");
+      if (!byPerson[pid]) { const m = personMini(personById[pid]); byPerson[pid] = { personId: pid, name: m.name, avatar: m.avatar, initials: m.initials, positionName: pos?.name || "", teamName: team?.name || "", isVocalist: isVoc }; }
+      else if (isVoc && !byPerson[pid].isVocalist) { byPerson[pid].isVocalist = true; byPerson[pid].positionName = pos?.name || byPerson[pid].positionName; }
+    }
+    const people = Object.values(byPerson).sort((a, b) => (Number(b.isVocalist) - Number(a.isVocalist)) || a.name.localeCompare(b.name, "ro"));
+    res.json({ people });
+  } catch (err) {
+    console.error("[pc] GET /plans/:id/voices-pool:", err.message);
+    res.status(500).json({ error: "Eroare la pool-ul de voci." });
+  }
+});
+
+/* ───────── Fișiere per ITEM (tab Files din drawer „View item") — scope:"item" ───────── */
+router.post("/:id/items/:itemId/files", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id), itemId = OID(req.params.itemId);
+    const it = await PcPlanItem.findOne(scoped(req, { _id: itemId, planId })).select("_id").lean();
+    if (!it) return res.status(404).json({ error: "Item inexistent." });
+    const name = String(req.body?.name || "").trim();
+    if (!name) return res.status(400).json({ error: "Nume fișier lipsă." });
+    const doc = await PcPlanFile.create(stamp(req, { planId, itemId, scope: "item", name, url: String(req.body?.url || "").trim(), kind: req.body?.kind || "upload" }));
+    res.status(201).json({ id: doc._id, name: doc.name, url: doc.url || null, kind: doc.kind });
+  } catch (err) { console.error("[pc] POST item file:", err.message); res.status(500).json({ error: "Eroare la fișier." }); }
+});
+router.delete("/:id/items/:itemId/files/:fileId", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const f = await PcPlanFile.findOneAndUpdate(scoped(req, { _id: OID(req.params.fileId), itemId: OID(req.params.itemId), scope: "item" }), { $set: { deletedAt: new Date() } }).select("_id").lean();
+    if (!f) return res.status(404).json({ error: "Fișier inexistent." });
+    res.json({ ok: true });
+  } catch (err) { console.error("[pc] DELETE item file:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
+/* ───────── Note per ITEM (tab Notes din drawer) — PcItemNote ───────── */
+router.get("/:id/items/:itemId/notes", requireCan("people.view"), async (req, res) => {
+  try {
+    const notes = await PcItemNote.find(scoped(req, { planItemId: OID(req.params.itemId) })).sort({ createdAt: 1 }).lean();
+    res.json({ notes: notes.map((n) => ({ id: n._id, content: n.content || "", category: n.categoryName || "" })) });
+  } catch (err) { console.error("[pc] GET item notes:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+router.post("/:id/items/:itemId/notes", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id), planItemId = OID(req.params.itemId);
+    const it = await PcPlanItem.findOne(scoped(req, { _id: planItemId, planId })).select("_id").lean();
+    if (!it) return res.status(404).json({ error: "Item inexistent." });
+    const n = await PcItemNote.create(stamp(req, { planId, planItemId, content: String(req.body?.content || ""), categoryName: String(req.body?.category || "") }));
+    res.status(201).json({ id: n._id });
+  } catch (err) { console.error("[pc] POST item note:", err.message); res.status(500).json({ error: "Eroare la notă." }); }
+});
+router.patch("/:id/items/:itemId/notes/:noteId", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const set = {};
+    if (req.body?.content !== undefined) set.content = String(req.body.content);
+    if (req.body?.category !== undefined) set.categoryName = String(req.body.category);
+    const n = await PcItemNote.findOneAndUpdate(scoped(req, { _id: OID(req.params.noteId), planItemId: OID(req.params.itemId) }), { $set: set }).select("_id").lean();
+    if (!n) return res.status(404).json({ error: "Notă inexistentă." });
+    res.json({ ok: true });
+  } catch (err) { console.error("[pc] PATCH item note:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+router.delete("/:id/items/:itemId/notes/:noteId", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const n = await PcItemNote.findOneAndUpdate(scoped(req, { _id: OID(req.params.noteId), planItemId: OID(req.params.itemId) }), { $set: { deletedAt: new Date() } }).select("_id").lean();
+    if (!n) return res.status(404).json({ error: "Notă inexistentă." });
+    res.json({ ok: true });
+  } catch (err) { console.error("[pc] DELETE item note:", err.message); res.status(500).json({ error: "Eroare." }); }
 });
 
 /* ───────── GET /:id/teams — echipe grupate (My/Other) cu poziții + oameni + status ───────── */

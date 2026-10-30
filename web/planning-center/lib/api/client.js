@@ -94,6 +94,32 @@ export const plansApi = {
   rehearse: (id) => api.get(`/plans/${id}/rehearse`), // cântecele planului (Rehearse tab)
   times: (id) => api.get(`/plans/${id}/times`),
   order: (id) => api.get(`/plans/${id}/order`),
+  // ─── Order items (editor) — server/planning-center/routes/plans.js ───
+  itemDetail: (id, itemId) => api.get(`/plans/${id}/items/${itemId}`),
+  addItem: (id, payload) => api.post(`/plans/${id}/items`, payload), // { type, title?, songId?, arrangementId?, keyId?, mediaItemId?, afterItemId? }
+  updateItem: (id, itemId, payload) => api.patch(`/plans/${id}/items/${itemId}`, payload),
+  deleteItem: (id, itemId) => api.del(`/plans/${id}/items/${itemId}`),
+  reorderItems: (id, itemIds) => api.post(`/plans/${id}/items/reorder`, { itemIds }),
+  addLeader: (id, itemId, payload) => api.post(`/plans/${id}/items/${itemId}/leaders`, payload), // { personId } | { positionId }
+  removeLeader: (id, itemId, { personId, positionId } = {}) => {
+    const qs = new URLSearchParams(Object.entries({ personId, positionId }).filter(([, v]) => v)).toString();
+    return api.del(`/plans/${id}/items/${itemId}/leaders${qs ? `?${qs}` : ""}`);
+  },
+  leaderSearch: (id, q) => api.get(`/plans/${id}/leader-search${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  // Voci structurate (Faza 2): pool-ul de oameni programați pe plan (vocaliști prioritizați).
+  voicesPool: (id) => api.get(`/plans/${id}/voices-pool`),
+  // Item notes (Faza 1/2)
+  itemNotes: (id, itemId) => api.get(`/plans/${id}/items/${itemId}/notes`),
+  addItemNote: (id, itemId, payload) => api.post(`/plans/${id}/items/${itemId}/notes`, payload),
+  updateItemNote: (id, itemId, noteId, payload) => api.patch(`/plans/${id}/items/${itemId}/notes/${noteId}`, payload),
+  deleteItemNote: (id, itemId, noteId) => api.del(`/plans/${id}/items/${itemId}/notes/${noteId}`),
+  // Item files (scope item) (Faza 1)
+  addItemFile: (id, itemId, payload) => api.post(`/plans/${id}/items/${itemId}/files`, payload),
+  deleteItemFile: (id, itemId, fileId) => api.del(`/plans/${id}/items/${itemId}/files/${fileId}`),
+  // Medley (Faza 4)
+  createMedley: (id, payload) => api.post(`/plans/${id}/items/medley`, payload), // { itemIds?|songIds?, afterItemId? }
+  updateMedley: (id, itemId, payload) => api.patch(`/plans/${id}/items/${itemId}/medley`, payload), // { medley: [...] }
+  medleyChart: (id, itemId) => api.get(`/plans/${id}/items/${itemId}/medley-chart`),
   notes: (id) => api.get(`/plans/${id}/notes`),
   files: (id) => api.get(`/plans/${id}/files`),
   schedulable: (id, q) => api.get(`/plans/${id}/schedulable${q ? `?q=${encodeURIComponent(q)}` : ""}`),

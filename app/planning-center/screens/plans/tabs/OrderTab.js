@@ -9,12 +9,14 @@ import { pcApi } from "../../../api/pcApi";
 import { pcColors, hexToRgba } from "../../../theme";
 import { PcButton, PcAvatar, PcBottomSheet } from "../../../components";
 import { usePc } from "../../../navigation/PcContext";
+import { formatVoices } from "../../../lib/voices";
 
 const ADD_TYPES = [
-  { key: "item", label: "Item", icon: "ellipse-outline", short: "i" },
-  { key: "header", label: "Header", icon: "remove-outline", short: "h" },
   { key: "song", label: "Song", icon: "musical-notes-outline", short: "s" },
+  { key: "header", label: "Header", icon: "remove-outline", short: "h" },
+  { key: "item", label: "Item", icon: "ellipse-outline", short: "i" },
   { key: "media", label: "Media", icon: "videocam-outline", short: "m" },
+  { key: "medley", label: "Medley", icon: "git-merge-outline", short: "" },
 ];
 
 export function OrderTab({ planId, navigation, head, tabsBar }) {
@@ -23,12 +25,13 @@ export function OrderTab({ planId, navigation, head, tabsBar }) {
   const bottomSafe = insets.bottom > 0 ? insets.bottom : 10; // nu lăsa FAB-ul/lista sub bara nativă (Samsung)
   const canEdit = !!me?.capabilities?.editOrder;
   const [items, setItems] = useState([]);
+  const [total, setTotal] = useState("");
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setItems((await pcApi.plans.order(planId)).items || []); }
+    try { const r = await pcApi.plans.order(planId); setItems(r.items || []); setTotal(r.totalLabel || ""); }
     catch (e) { showError(e?.message || "Eroare la ordine."); }
     finally { setLoading(false); }
   }, [planId]);
@@ -37,6 +40,7 @@ export function OrderTab({ planId, navigation, head, tabsBar }) {
   const addType = async (type) => {
     setAddOpen(false);
     if (type === "song") { navigation.navigate("PcSelectSong", { planId }); return; }
+    if (type === "medley") { navigation.navigate("PcSelectSong", { planId, medley: true }); return; }
     try {
       const res = await pcApi.plans.addItem(planId, { type });
       await load();
@@ -54,10 +58,12 @@ export function OrderTab({ planId, navigation, head, tabsBar }) {
         </Pressable>
       );
     }
+    const voiceLine = item.voices?.length ? formatVoices(item.voices) : "";
     return (
       <Pressable
         style={[
           styles.row,
+          item.isTransition ? styles.rowTrans : null,
           // Default: FĂRĂ fundal special (curat, ca în PCO). Dacă itemul are o culoare,
           // o arătăm doar ca accent subtil pe margine stângă — nu umplem rândul.
           item.rowColor ? { borderLeftWidth: 3, borderLeftColor: item.rowColor } : null,
@@ -67,9 +73,12 @@ export function OrderTab({ planId, navigation, head, tabsBar }) {
         <Text style={styles.len}>{item.lengthLabel}</Text>
         <View style={{ flex: 1 }}>
           <View style={styles.titleRow}>
+            {item.isTransition && <View style={styles.bang}><Text style={styles.bangTxt}>!</Text></View>}
+            {item.type === "medley" && <View style={styles.mtag}><Text style={styles.mtagTxt}>medley · {item.medleyCount}</Text></View>}
             <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
             {!!item.keyName && <View style={styles.keyBadge}><Text style={styles.keyTxt}>{item.keyName}</Text></View>}
           </View>
+          {!!voiceLine && <Text style={styles.voiceLine}>{voiceLine}</Text>}
           {!!item.description && <Text style={styles.desc}>{item.description}</Text>}
         </View>
         {(item.leaders || []).slice(0, 3).map((l, i) =>
@@ -116,7 +125,15 @@ export function OrderTab({ planId, navigation, head, tabsBar }) {
             {canEdit && <PcButton title="Add your first item" onPress={() => setAddOpen(true)} style={{ marginTop: 14, paddingHorizontal: 24 }} />}
           </View>
         ) : (
-          items.map((it, i) => <React.Fragment key={String(it.id || i)}>{renderRow(it)}</React.Fragment>)
+          <>
+            {items.map((it, i) => <React.Fragment key={String(it.id || i)}>{renderRow(it)}</React.Fragment>)}
+            {!!total && (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLen}>{total}</Text>
+                <Text style={styles.totalLbl}>Total</Text>
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
 
@@ -163,7 +180,16 @@ const styles = StyleSheet.create({
   // Pastilă verde de cheie (ex. „Gb", „C#m") — ca în PCO, lățime automată.
   keyBadge: { backgroundColor: pcColors.primary, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 3, minWidth: 34, alignItems: "center", justifyContent: "center", marginTop: 1 },
   keyTxt: { color: "#0A0A0A", fontSize: 13, fontWeight: "800" },
+  voiceLine: { color: pcColors.textPrimary, fontSize: 13.5, marginTop: 3, lineHeight: 19, fontWeight: "600" },
   desc: { color: pcColors.textSecondary, fontSize: 13.5, marginTop: 3, lineHeight: 19 },
+  rowTrans: { paddingLeft: 44 },
+  bang: { width: 20, height: 20, borderRadius: 10, backgroundColor: pcColors.danger, alignItems: "center", justifyContent: "center", marginTop: 1 },
+  bangTxt: { color: "#fff", fontWeight: "800", fontSize: 12 },
+  mtag: { borderWidth: 1, borderColor: pcColors.primary, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 1, marginTop: 2 },
+  mtagTxt: { color: pcColors.primary, fontSize: 10, fontWeight: "800", textTransform: "uppercase" },
+  totalRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: pcColors.divider },
+  totalLen: { color: pcColors.textPrimary, width: 60, fontSize: 15, fontWeight: "800" },
+  totalLbl: { color: pcColors.textMuted, fontSize: 12, fontWeight: "700", letterSpacing: 0.5, textTransform: "uppercase" },
   neededDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: pcColors.orange, alignItems: "center", justifyContent: "center" },
   neededNum: { color: "#0A0A0A", fontWeight: "800", fontSize: 12 },
   emptyWrap: { alignItems: "center", marginTop: 50 },
