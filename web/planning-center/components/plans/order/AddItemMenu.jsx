@@ -7,17 +7,19 @@ import { useState } from "react";
 
 const TYPES = [
   { type: "song", label: "Cântec", short: "s", d: "Din biblioteca de cântece (cu aranjament, gamă, fișiere)." },
+  { type: "songEmpty", label: "Cântec fără muzică", short: "", d: "Cântec gol — pui doar vocile (lead/suport/alto/tenor); muzica o legi după din tab-ul Song. Ideal pt. template." },
   { type: "header", label: "Secțiune", short: "h", d: "Bară de secțiune (ex. ÎNCHINARE PRIN CÂNTARE)." },
   { type: "item", label: "Element", short: "i", d: "Element liber (ex. Verificări, Welcome, anunțuri)." },
   { type: "media", label: "Media", short: "m", d: "Element media (video/imagine)." },
   { type: "medley", label: "Medley", short: "", d: "Mai multe cântece combinate, cu tranziții." },
 ];
 
-export default function AddItemMenu({ onAdd, onAddSong, onAddMedley }) {
+export default function AddItemMenu({ onAdd, onAddSong, onAddEmptySong, onAddMedley }) {
   const [open, setOpen] = useState(false);
   function pick(type) {
     setOpen(false);
     if (type === "song") return onAddSong?.();
+    if (type === "songEmpty") return onAddEmptySong?.();
     if (type === "medley") return onAddMedley ? onAddMedley() : onAdd?.("medley");
     onAdd?.(type);
   }

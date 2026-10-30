@@ -56,6 +56,13 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
       if (type !== "header" && r?.id) setOpenId(r.id);
     } catch (e) { flash?.(e?.message || "Eroare la adăugare."); }
   }
+  async function addEmptySong() {
+    try {
+      const r = await plansApi.addItem(planId, { type: "song", title: "Cântec", afterItemId: lastId || undefined });
+      await load();
+      if (r?.id) setOpenId(r.id); // deschide drawer-ul: pui vocile + legi muzica din tab-ul Song
+    } catch (e) { flash?.(e?.message || "Eroare."); }
+  }
   async function addSongs(songs) {
     setSongPicker(false);
     let after = lastId;
@@ -97,7 +104,7 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
 
       <div className="ord-toolbar">
         <div className="ord-cols"><span className="c-len">LENGTH</span><span className="c-title">TITLE</span></div>
-        {canEdit && <AddItemMenu onAdd={addSimple} onAddSong={() => { setPickerMode("songs"); setSongPicker(true); }} onAddMedley={() => { setPickerMode("medley"); setSongPicker(true); }} />}
+        {canEdit && <AddItemMenu onAdd={addSimple} onAddSong={() => { setPickerMode("songs"); setSongPicker(true); }} onAddEmptySong={addEmptySong} onAddMedley={() => { setPickerMode("medley"); setSongPicker(true); }} />}
       </div>
 
       {!items.length ? (

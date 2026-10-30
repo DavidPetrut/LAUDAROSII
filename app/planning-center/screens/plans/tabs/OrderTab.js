@@ -13,6 +13,7 @@ import { formatVoices } from "../../../lib/voices";
 
 const ADD_TYPES = [
   { key: "song", label: "Song", icon: "musical-notes-outline", short: "s" },
+  { key: "songEmpty", label: "Cântec fără muzică", icon: "mic-outline", short: "" },
   { key: "header", label: "Header", icon: "remove-outline", short: "h" },
   { key: "item", label: "Item", icon: "ellipse-outline", short: "i" },
   { key: "media", label: "Media", icon: "videocam-outline", short: "m" },
@@ -42,7 +43,8 @@ export function OrderTab({ planId, navigation, head, tabsBar }) {
     if (type === "song") { navigation.navigate("PcSelectSong", { planId }); return; }
     if (type === "medley") { navigation.navigate("PcSelectSong", { planId, medley: true }); return; }
     try {
-      const res = await pcApi.plans.addItem(planId, { type });
+      // „Cântec fără muzică" = item de tip song, fără song linkat (voci acum, muzica din tab-ul Song după).
+      const res = await pcApi.plans.addItem(planId, type === "songEmpty" ? { type: "song", title: "Cântec" } : { type });
       await load();
       if (type !== "header") navigation.navigate("PcItemDetail", { planId, itemId: res.id });
     } catch (e) { showError(e?.message || "Nu s-a putut adăuga."); }
