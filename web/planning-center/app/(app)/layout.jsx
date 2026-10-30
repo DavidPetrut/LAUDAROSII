@@ -10,6 +10,7 @@ import TopNav from "@/components/shell/TopNav";
 import AiCommandBar from "@/components/ai/AiCommandBar";
 import { PlayerProvider } from "@/lib/player/PlayerProvider";
 import PlayerBar from "@/components/player/PlayerBar";
+import AlertGate from "@/components/AlertGate";
 
 export default function AppLayout({ children }) {
   const router = useRouter();
@@ -30,6 +31,7 @@ export default function AppLayout({ children }) {
       </main>
       <AiCommandBar />
       <PlayerBar />
+      <AlertGate />
     </PlayerProvider>
   );
 }

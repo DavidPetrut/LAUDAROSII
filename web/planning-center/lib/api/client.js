@@ -93,6 +93,9 @@ export const plansApi = {
   teams: (id) => api.get(`/plans/${id}/teams`),
   rehearse: (id) => api.get(`/plans/${id}/rehearse`), // cântecele planului (Rehearse tab)
   times: (id) => api.get(`/plans/${id}/times`),
+  addTime: (id, payload) => api.post(`/plans/${id}/times`, payload),       // { type, name, date, startTime, endTime }
+  updateTime: (id, timeId, payload) => api.patch(`/plans/${id}/times/${timeId}`, payload),
+  deleteTime: (id, timeId) => api.del(`/plans/${id}/times/${timeId}`),
   order: (id) => api.get(`/plans/${id}/order`),
   // ─── Order items (editor) — server/planning-center/routes/plans.js ───
   itemDetail: (id, itemId) => api.get(`/plans/${id}/items/${itemId}`),
@@ -120,7 +123,20 @@ export const plansApi = {
   createMedley: (id, payload) => api.post(`/plans/${id}/items/medley`, payload), // { itemIds?|songIds?, afterItemId? }
   updateMedley: (id, itemId, payload) => api.patch(`/plans/${id}/items/${itemId}/medley`, payload), // { medley: [...] }
   medleyChart: (id, itemId) => api.get(`/plans/${id}/items/${itemId}/medley-chart`),
+  // Planning Center Alerts (tab Alerts) — { title, body, teamIds, attachments, links, scheduledAt? }
+  alerts: (id) => api.get(`/plans/${id}/alerts`),
+  createAlert: (id, payload) => api.post(`/plans/${id}/alerts`, payload),
+  updateAlert: (id, alertId, payload) => api.patch(`/plans/${id}/alerts/${alertId}`, payload),
+  deleteAlert: (id, alertId) => api.del(`/plans/${id}/alerts/${alertId}`),
   notes: (id) => api.get(`/plans/${id}/notes`),
+  // Note de plan cu view-uri țintite (PcNoteView)
+  myNote: (id) => api.get(`/plans/${id}/my-note`),                       // nota aplicabilă mie (viewer)
+  calendarPrefill: (id) => api.get(`/plans/${id}/calendar-prefill`),     // evenimente precompletate pt. „adaugă în calendar"
+  noteViews: (id) => api.get(`/plans/${id}/note-views`),                 // toate view-urile + picker (editor)
+  createNoteView: (id, payload) => api.post(`/plans/${id}/note-views`, payload),
+  updateNoteView: (id, viewId, payload) => api.patch(`/plans/${id}/note-views/${viewId}`, payload),
+  deleteNoteView: (id, viewId) => api.del(`/plans/${id}/note-views/${viewId}`),
+  reorderNoteViews: (id, viewIds) => api.post(`/plans/${id}/note-views/reorder`, { viewIds }),
   files: (id) => api.get(`/plans/${id}/files`),
   schedulable: (id, q) => api.get(`/plans/${id}/schedulable${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   // bara dreaptă: candidați pt. o poziție (due + conflicte). Nu trimite nimic.
@@ -245,6 +261,20 @@ export const scheduleApi = {
   respond: (assignmentId, action, reason) => api.post(`/schedule/assignments/${assignmentId}/respond`, { action, reason }),
   planRespond: (planId, action, reason) => api.post(`/schedule/plans/${planId}/respond`, { action, reason }),
   acceptAll: () => api.post("/schedule/accept-all", {}),
+};
+
+/* ─── Integrări calendar (OAuth Google) — server/planning-center/routes/integrations.js ─── */
+export const integrationsApi = {
+  googleStatus: () => api.get("/integrations/google/status"),
+  googleConnect: () => api.get("/integrations/google/connect"),  // → { url, configured }
+  googleDisconnect: () => api.post("/integrations/google/disconnect", {}),
+  createEvents: (events) => api.post("/integrations/google/events", { events }),
+};
+
+/* ─── Planning Center Alerts (viewer) — server/planning-center/routes/alerts.js ─── */
+export const alertsApi = {
+  pending: () => api.get("/alerts/pending"),      // alertele mele neconfirmate (pop-up obligatoriu)
+  ack: (alertId) => api.post(`/alerts/${alertId}/ack`, {}),
 };
 
 /* ─── Media — server/planning-center/routes/media.js ─── */

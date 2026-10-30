@@ -16,6 +16,9 @@ import AssignSidebar from "@/components/plans/AssignSidebar";
 import EditPersonModal from "@/components/plans/EditPersonModal";
 import PositionJoinModal from "@/components/plans/PositionJoinModal";
 import OrderTab from "@/components/plans/order/OrderTab";
+import TimeEditModal from "@/components/plans/TimeEditModal";
+import AlertsTab from "@/components/plans/AlertsTab";
+import NotesBoard from "@/components/plans/NotesBoard";
 
 const TABS = ["Order", "Teams", "Rehearse"]; // Times/Files/Notes mutate în sidebar-ul STÂNGA (ca în PCO)
 
@@ -32,6 +35,7 @@ export default function PlanDetailPage() {
   const { id } = useParams();
   const [tab, setTab] = useState("Teams");
   const [orderSide, setOrderSide] = useState(false); // drawer „View item" deschis (Order) → face loc ca .has-side
+  const [timeEdit, setTimeEdit] = useState(null);    // { time } (editare) | { type } (adăugare)
   const [head, setHead] = useState(null);
   const [data, setData] = useState({});
   const [loading, setLoading] = useState(true);
@@ -88,13 +92,9 @@ export default function PlanDetailPage() {
   }, [id]);
   useEffect(() => { loadHead(); }, [loadHead]);
 
-  // sidebar-ul STÂNGA (Times/Files/Notes) se încarcă din start, nu la click pe tab
-  useEffect(() => {
-    ["Times", "Notes", "Files"].forEach((k) => {
-      const fn = { Times: plansApi.times, Notes: plansApi.notes, Files: plansApi.files }[k];
-      fn(id).then((r) => setData((d) => ({ ...d, [k]: r }))).catch(() => {});
-    });
-  }, [id]);
+  // sidebar-ul STÂNGA: Times se încarcă din start (Files scos; Notes = NotesBoard self-load)
+  useEffect(() => { plansApi.times(id).then((r) => setData((d) => ({ ...d, Times: r }))).catch(() => {}); }, [id]);
+  const reloadTimes = useCallback(() => { plansApi.times(id).then((r) => setData((d) => ({ ...d, Times: r }))).catch(() => {}); }, [id]);
 
   useEffect(() => {
     if (data[tab]) return;
@@ -351,15 +351,14 @@ export default function PlanDetailPage() {
               ))}
             </div>
           )}
-          <div className="lcard"><div className="lc-h">Times</div><TimesTab data={data.Times} /></div>
-          <div className="lcard"><div className="lc-h">Files</div><FilesTab data={data.Files} /></div>
-          <div className="lcard"><div className="lc-h">Notes <span className="lc-tag">doar admin</span></div><NotesTab data={data.Notes} /></div>
+          <div className="lcard"><div className="lc-h">Times</div><TimesTab data={data.Times} canEdit={!!caps.editOrder} onEditTime={(t) => setTimeEdit({ time: t })} onAddTime={(type) => setTimeEdit({ type })} /></div>
+          <div className="lcard"><NotesBoard planId={id} canEdit={!!caps.editOrder} flash={flash} /></div>
         </aside>
 
         {/* ── principal: Order / Teams ── */}
         <div className="pd-main">
           <div className="tabs">
-            {TABS.map((t) => <button key={t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>{t}</button>)}
+            {(caps.editOrder ? [...TABS, "Alerts"] : TABS).map((t) => <button key={t} className={`tab ${tab === t ? "active" : ""} ${t === "Alerts" ? "alert" : ""}`} onClick={() => setTab(t)}>{t}</button>)}
           </div>
           {err && <div className="err">{err}</div>}
           {loading ? <div className="empty">Se încarcă…</div> : (
@@ -371,6 +370,7 @@ export default function PlanDetailPage() {
                 onRemove={removePerson} onNeeded={changeNeeded}
                 dragActive={dragActive} dropKey={dropKey} setDropKey={setDropKey} onDragStartP={onPersonDragStart} onDropPos={dropOnPos} onDragEndP={() => { setDragActive(false); setDropKey(null); setDragHint(""); }} />}
               {tab === "Rehearse" && <RehearseTab data={cur} />}
+              {tab === "Alerts" && <AlertsTab planId={id} flash={flash} />}
             </div>
           )}
         </div>
@@ -394,6 +394,7 @@ export default function PlanDetailPage() {
       )}
       <PositionJoinModal data={joinModal} busy={joinBusy} onGuest={confirmJoinGuest} onPermanent={confirmJoinPermanent} onClose={() => !joinBusy && cancelJoin()} />
       {dragActive && dragHint && <div className="drag-hint">⇄ {dragHint}</div>}
+      {timeEdit && <TimeEditModal planId={id} time={timeEdit.time} defaultType={timeEdit.type || "rehearsal"} onClose={() => setTimeEdit(null)} onSaved={() => { setTimeEdit(null); reloadTimes(); flash("Oră salvată."); }} />}
       {toast && <div className="toast">{toast}</div>}
 
       <style jsx>{`
@@ -458,6 +459,7 @@ export default function PlanDetailPage() {
         .tab { background: transparent; border: none; color: var(--text-dim); padding: 9px 4px; margin-right: 10px; cursor: pointer; font-size: 14px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
         .tab:hover { color: var(--text); }
         .tab.active { color: var(--text); border-bottom-color: var(--primary); font-weight: 600; }
+        .tab.alert.active { border-bottom-color: var(--danger); }
         .empty { padding: 30px 4px; color: var(--text-faint); }
         .err { background: rgba(229,83,75,.12); border: 1px solid rgba(229,83,75,.4); color: #f0a7a2; padding: 10px 12px; border-radius: 6px; margin-bottom: 12px; }
         .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text); padding: 10px 18px; border-radius: 8px; font-size: 13px; z-index: 60; box-shadow: 0 8px 28px rgba(0,0,0,.4); }
@@ -691,34 +693,43 @@ function RehearseTab({ data }) {
   );
 }
 
-/* ── Times ── */
-function TimesTab({ data }) {
+/* ── Times (editabil) — zi 3 litere RO + culoare, 24h; click pe rând = editează ── */
+function TimesTab({ data, canEdit, onEditTime, onAddTime }) {
   if (!data) return <div className="muted">Se încarcă…</div>;
-  const blocks = [["Service", data.service], ["Rehearsal", data.rehearsal], ["Other", data.other]].filter(([, v]) => v && v.length);
-  if (!blocks.length) return <div className="muted">Nicio oră setată.</div>;
+  const blocks = [["Service", "service", data.service || []], ["Repetiții", "rehearsal", data.rehearsal || []], ["Alte ore", "other", data.other || []]];
+  const any = blocks.some(([, , l]) => l.length);
+  if (!any && !canEdit) return <div className="muted">Nicio oră setată.</div>;
   return (
     <div className="times">
-      {blocks.map(([label, list]) => (
-        <div key={label} className="tblock">
-          <div className="tb-label">{label}</div>
-          {list.map((t) => (
-            <div key={t.id} className="trow">
-              <span className="tw">{t.weekday}</span>
-              <span className="tr">{t.range}{t.name ? <span className="tn"> · {t.name}</span> : null}</span>
-              <span className="td">{t.date}</span>
-            </div>
-          ))}
-        </div>
+      {blocks.map(([label, type, list]) => (
+        (list.length || canEdit) ? (
+          <div key={type} className="tblock">
+            <div className="tb-label">{label}{canEdit && <button className="tb-add" title="Adaugă oră" onClick={() => onAddTime(type)}>+</button>}</div>
+            {list.map((t) => (
+              <button key={t.id} className="trow" onClick={() => canEdit && onEditTime(t)} disabled={!canEdit}>
+                <span className="tw" style={{ background: t.weekdayColor || "#2f81f7" }}>{t.weekday}</span>
+                <span className="tr">{t.range || "—:—"}{t.name ? <span className="tn"> · {t.name}</span> : null}</span>
+                <span className="td">{t.date}</span>
+              </button>
+            ))}
+            {!list.length && canEdit && <button className="tb-empty" onClick={() => onAddTime(type)}>+ setează</button>}
+          </div>
+        ) : null
       ))}
       <style jsx>{`
-        .tblock { margin-bottom: 16px; } .tblock:last-child { margin-bottom: 0; }
-        .tb-label { color: var(--text-faint); font-size: 10.5px; letter-spacing: .5px; margin-bottom: 4px; text-transform: uppercase; }
-        .trow { display: flex; align-items: baseline; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border-soft); font-size: 13px; }
+        .tblock { margin-bottom: 14px; } .tblock:last-child { margin-bottom: 0; }
+        .tb-label { display: flex; align-items: center; justify-content: space-between; color: var(--text-faint); font-size: 10.5px; letter-spacing: .5px; margin-bottom: 4px; text-transform: uppercase; }
+        .tb-add { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 2px; }
+        .tb-add:hover { color: var(--primary); }
+        .trow { display: flex; align-items: center; gap: 9px; padding: 8px 2px; border-bottom: 1px solid var(--border-soft); font-size: 13px; width: 100%; background: transparent; border-top: none; border-left: none; border-right: none; text-align: left; cursor: ${canEdit ? "pointer" : "default"}; }
+        .trow:hover:not(:disabled) { background: var(--row-hover); }
         .trow:last-child { border-bottom: none; }
-        .tw { color: var(--product); font-weight: 700; width: 26px; flex: none; font-size: 12px; text-transform: uppercase; }
-        .tr { color: var(--text); flex: 1; min-width: 0; }
-        .td { color: var(--text-dim); margin-left: auto; flex: none; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+        .tw { color: #0b1016; font-weight: 800; flex: none; font-size: 9.5px; letter-spacing: .3px; border-radius: 5px; padding: 2px 6px; }
+        .tr { color: var(--text); flex: 1; min-width: 0; font-variant-numeric: tabular-nums; }
+        .td { color: var(--text-dim); margin-left: auto; flex: none; font-size: 12px; font-variant-numeric: tabular-nums; }
         .tn { color: var(--text-faint); }
+        .tb-empty { background: transparent; border: 1px dashed var(--border-strong); color: var(--text-faint); border-radius: 6px; padding: 5px 10px; font-size: 11.5px; cursor: pointer; width: 100%; }
+        .tb-empty:hover { color: var(--primary); border-color: var(--primary); }
       `}</style>
     </div>
   );

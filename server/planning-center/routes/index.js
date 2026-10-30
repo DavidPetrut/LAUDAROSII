@@ -9,6 +9,9 @@ const { orgScope } = require("../core/orgScope");
 
 const router = express.Router();
 
+// Callback OAuth Google = PUBLIC (Google redirectează fără Bearer); identificare prin `state` (JWT). ÎNAINTE de auth.
+router.use("/v1/integrations/google/callback", require("./integrations").callback);
+
 router.use(authMiddleware); // req.user = { id, role }
 router.use(orgScope); // req.pcOrgId (seam multi-tenant §1.13)
 
@@ -21,6 +24,8 @@ router.use("/v1/songs", require("./songs"));
 router.use("/v1/media", require("./media"));
 router.use("/v1/uploads", require("./uploads"));
 router.use("/v1/schedule", require("./schedule"));
+router.use("/v1/alerts", require("./alerts"));
+router.use("/v1/integrations", require("./integrations").router);
 router.use("/v1/matrix", require("./matrix"));
 router.use("/v1/whatsapp", require("./whatsapp"));
 router.use("/v1/reports", require("./reports"));

@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { scheduleApi } from "@/lib/api/client";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 import BlockoutModal from "@/components/schedule/BlockoutModal";
+import CalendarModal from "@/components/schedule/CalendarModal";
 
 const MONTHS = ["Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie", "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie"];
 const WD = ["DUM", "LUN", "MAR", "MIE", "JOI", "VIN", "SÂM"];
@@ -80,7 +81,7 @@ function MiniCalendar({ cal, onMonth, calData, selDay, onSelDay }) {
 }
 
 /* ───────── card programare (dreapta) — IDENTIC cu mobilul (MyScheduleScreen Card) ───────── */
-function SchedCard({ g, kind, onOpen, onAccept, onDecline, busy, flash }) {
+function SchedCard({ g, kind, onOpen, onAccept, onDecline, busy, flash, onPlanner }) {
   const [showTimes, setShowTimes] = useState(false);
   return (
     <div className="card" onClick={() => onOpen(g.planId)}>
@@ -90,11 +91,9 @@ function SchedCard({ g, kind, onOpen, onAccept, onDecline, busy, flash }) {
           <div className="c-st">{g.serviceTypeName}</div>
         </div>
         <div className="c-icons" onClick={(e) => e.stopPropagation()}>
-          {kind === "confirmed" && (
-            <button className="c-ic" title="Media" onClick={() => flash?.("Media player — în curând.")}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="9" /><path d="M10 9l5 3-5 3z" fill="currentColor" /></svg>
-            </button>
-          )}
+          <button className="c-ic" title="Adaugă în calendar" onClick={() => onPlanner?.(g.planId)}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><rect x="3" y="4.5" width="18" height="17" rx="2.5" /><path d="M3 9h18M8 2.5v4M16 2.5v4M12 13v5M9.5 15.5h5" /></svg>
+          </button>
           {(g.times || []).length > 0 && (
             <button className="c-ic" title="Ore" onClick={() => setShowTimes((v) => !v)}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2.2" /></svg>
@@ -115,6 +114,12 @@ function SchedCard({ g, kind, onOpen, onAccept, onDecline, busy, flash }) {
           </div>
         ))}
       </div>
+      {(g.times || []).filter((t) => t.type === "rehearsal").map((t, i) => (
+        <div key={i} className="c-reh">
+          <span className="reh-day" style={{ background: t.dayColor || "#2f81f7" }}>{t.day}</span>
+          <span className="reh-l">{t.name || "Repetiție"}: <b>{t.range}</b></span>
+        </div>
+      ))}
       {kind === "pending" && (
         <div className="c-act" onClick={(e) => e.stopPropagation()}>
           <button className="tbtn split" onClick={() => onOpen(g.planId)}>SPLIT</button>
@@ -143,6 +148,9 @@ function SchedCard({ g, kind, onOpen, onAccept, onDecline, busy, flash }) {
         .pbody { min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .pn { color: var(--text); font-size: 15px; font-weight: 700; }
         .pt { color: var(--text-dim); font-size: 14px; }
+        .c-reh { display: flex; align-items: center; gap: 7px; margin-top: 10px; }
+        .reh-day { color: #0b1016; font-weight: 800; font-size: 9px; letter-spacing: .3px; border-radius: 4px; padding: 2px 5px; flex: none; }
+        .reh-l { color: var(--text-dim); font-size: 12.5px; } .reh-l b { color: var(--text); font-variant-numeric: tabular-nums; }
         .c-act { display: flex; align-items: center; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
         .tbtn { background: transparent; border: none; cursor: pointer; font-size: 12.5px; font-weight: 800; letter-spacing: .5px; padding: 0; }
         .tbtn.split { color: var(--text-faint); }
@@ -202,6 +210,7 @@ export default function MySchedulePage() {
   const [toast, setToast] = useState("");
   const [confirmDel, setConfirmDel] = useState(null);
   const [busy, setBusy] = useState(null);
+  const [calPlan, setCalPlan] = useState(null); // planId pt. „adaugă în calendar"
   const now = new Date();
   const [cal, setCal] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
   const [calData, setCalData] = useState(null);
@@ -214,6 +223,10 @@ export default function MySchedulePage() {
     catch (e) { setErr(e?.message || "Eroare."); } finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("gcal");
+    if (p) { setToast(p === "connected" ? "Google Calendar conectat ✓" : "Conectarea Google a eșuat."); setTimeout(() => setToast(""), 3600); window.history.replaceState({}, "", window.location.pathname); }
+  }, []);
 
   const loadCal = useCallback(async (y, m) => { try { setCalData(await scheduleApi.calendar(y, m)); } catch { setCalData(null); } }, []);
   useEffect(() => { loadCal(cal.year, cal.month); }, [cal, loadCal]);
@@ -306,17 +319,17 @@ export default function MySchedulePage() {
               {pendCount > 0 && (
                 <>
                   <div className="sec"><span className="sec-t">Pending <b>{pendCount}</b></span><button className="sec-act" disabled={busy === "all"} onClick={acceptAll}>Accept all</button></div>
-                  <div className="grid">{data.pending.map((g, i) => <SchedCard key={i} g={g} kind="pending" onOpen={open} onAccept={(id) => respond(id, "accept")} onDecline={(id) => respond(id, "decline")} busy={busy === g.planId} />)}</div>
+                  <div className="grid">{data.pending.map((g, i) => <SchedCard key={i} g={g} kind="pending" onOpen={open} onAccept={(id) => respond(id, "accept")} onDecline={(id) => respond(id, "decline")} busy={busy === g.planId} onPlanner={setCalPlan} />)}</div>
                 </>
               )}
 
               <div className="sec"><span className="sec-t">Confirmed <b>{(data.confirmed || []).length}</b></span></div>
-              {(data.confirmed || []).length === 0 ? <div className="muted">Nimic confirmat.</div> : <div className="grid">{data.confirmed.map((g, i) => <SchedCard key={i} g={g} kind="confirmed" onOpen={open} flash={flash} />)}</div>}
+              {(data.confirmed || []).length === 0 ? <div className="muted">Nimic confirmat.</div> : <div className="grid">{data.confirmed.map((g, i) => <SchedCard key={i} g={g} kind="confirmed" onOpen={open} flash={flash} onPlanner={setCalPlan} />)}</div>}
 
               {(data.declined || []).length > 0 && (
                 <>
                   <div className="sec"><span className="sec-t">Declined <b>{data.declined.length}</b></span></div>
-                  <div className="grid">{data.declined.map((g, i) => <SchedCard key={i} g={g} kind="declined" onOpen={open} />)}</div>
+                  <div className="grid">{data.declined.map((g, i) => <SchedCard key={i} g={g} kind="declined" onOpen={open} onPlanner={setCalPlan} />)}</div>
                 </>
               )}
 
@@ -333,6 +346,7 @@ export default function MySchedulePage() {
       </div>
 
       {showAdd && <BlockoutModal onClose={() => setShowAdd(false)} onSaved={onSaved} />}
+      {calPlan && <CalendarModal planId={calPlan} onClose={() => setCalPlan(null)} flash={flash} />}
       {toast && <div className="toast">{toast}</div>}
 
       <style jsx>{`

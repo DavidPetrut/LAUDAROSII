@@ -7,7 +7,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const {
   PcPlan, PcPlanTime, PcPlanItem, PcAssignment, PcNeededPosition, PcPlanNote, PcPlanFile, PcItemNote,
-  PcPositionGuestLog,
+  PcAlert, PcAlertAck, PcNoteView, PcPositionGuestLog,
   PcServiceType, PcTeam, PcPosition, PcTeamMember, PcPerson, PcOrg, PcCampus, PcSong,
   PcArrangement, PcKey, PcSongFile, PcBlockout,
 } = require("../models");
@@ -39,6 +39,12 @@ const fmtDate = (d, tz) => (d ? new Intl.DateTimeFormat("en-US", { timeZone: tz,
 const fmtWeekday = (d, tz) => (d ? new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(new Date(d)).toUpperCase() : "");
 const fmtFullDate = (d, tz) => (d ? new Intl.DateTimeFormat("en-GB", { timeZone: tz, day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(d)) : "");
 const fmtTime = (d, tz) => (d ? new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(d)) : "");
+// Ora în format 24h FĂRĂ AM/PM (cerință David), ex. „22:10".
+const fmt24 = (d, tz) => (d ? new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(d)) : "");
+// Ziua săptămânii, 3 litere RO + o culoare specifică (7 culori, cerință David).
+const RO_WD = { Sun: { ro: "DUM", color: "#57b98a" }, Mon: { ro: "LUN", color: "#2f81f7" }, Tue: { ro: "MAR", color: "#a371f7" }, Wed: { ro: "MIE", color: "#e3934f" }, Thu: { ro: "JOI", color: "#3fb6b2" }, Fri: { ro: "VIN", color: "#e85aad" }, Sat: { ro: "SÂM", color: "#d6a427" } };
+const weekdayRo = (d, tz) => { if (!d) return { ro: "", color: "#8b949e" }; const w = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(new Date(d)); return RO_WD[w] || { ro: w.toUpperCase(), color: "#8b949e" }; };
+const isoDateTz = (d, tz) => (d ? new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(d)) : "");
 const fmtLen = (sec) => { const s = Math.max(0, Math.floor(sec || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 const personMini = (p) => (p ? { id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "), avatar: p.avatar || "", initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase() } : null);
 
@@ -1477,12 +1483,18 @@ router.get("/:id/times", requireCan("people.view"), async (req, res) => {
     if (!id) return res.status(400).json({ error: "ID invalid" });
     const tz = await campusTz(req);
     const times = await PcPlanTime.find(scoped(req, { planId: id })).sort({ startsAt: 1 }).lean();
-    const map = (t) => ({
-      id: t._id, type: t.type, name: t.name || "",
-      weekday: fmtWeekday(t.startsAt, tz),
-      date: fmtFullDate(t.startsAt, tz),
-      range: `${fmtTime(t.startsAt, tz)}${t.endsAt ? " - " + fmtTime(t.endsAt, tz) : ""}`,
-    });
+    const map = (t) => {
+      const wd = weekdayRo(t.startsAt, tz);
+      return {
+        id: t._id, type: t.type, name: t.name || "",
+        weekday: wd.ro, weekdayColor: wd.color,          // 3 litere RO + culoare
+        date: fmtFullDate(t.startsAt, tz),
+        dateISO: isoDateTz(t.startsAt, tz),              // pt. editor (YYYY-MM-DD)
+        startTime: fmt24(t.startsAt, tz),                // 24h, fără AM/PM
+        endTime: t.endsAt ? fmt24(t.endsAt, tz) : "",
+        range: `${fmt24(t.startsAt, tz)}${t.endsAt ? " - " + fmt24(t.endsAt, tz) : ""}`,
+      };
+    };
     res.json({
       service: times.filter((t) => t.type === "service").map(map),
       rehearsal: times.filter((t) => t.type === "rehearsal").map(map),
@@ -1492,6 +1504,131 @@ router.get("/:id/times", requireCan("people.view"), async (req, res) => {
     console.error("[pc] GET /plans/:id/times:", err.message);
     res.status(500).json({ error: "Eroare la încărcarea orelor." });
   }
+});
+
+/* ───────── POST /:id/times — adaugă o oră (service/rehearsal/other), 24h ───────── */
+router.post("/:id/times", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id);
+    if (!planId) return res.status(400).json({ error: "ID invalid" });
+    const b = req.body || {};
+    const type = ["service", "rehearsal", "other"].includes(b.type) ? b.type : "rehearsal";
+    const date = String(b.date || ""), start = String(b.startTime || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(start)) return res.status(400).json({ error: "Dată/oră invalidă (YYYY-MM-DD, HH:MM)." });
+    const tz = await campusTz(req);
+    const startsAt = wallToUtc(date, start, tz);
+    const endsAt = /^\d{2}:\d{2}$/.test(String(b.endTime || "")) ? wallToUtc(date, b.endTime, tz) : null;
+    const doc = await PcPlanTime.create(stamp(req, { planId, type, name: String(b.name || ""), startsAt, endsAt }));
+    res.status(201).json({ id: doc._id });
+  } catch (err) { console.error("[pc] POST time:", err.message); res.status(500).json({ error: "Eroare la adăugarea orei." }); }
+});
+
+/* ───────── PATCH /:id/times/:timeId — editează o oră (dată + oră 24h + nume) ───────── */
+router.patch("/:id/times/:timeId", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const timeId = OID(req.params.timeId);
+    const t = await PcPlanTime.findOne(scoped(req, { _id: timeId })).lean();
+    if (!t) return res.status(404).json({ error: "Oră inexistentă." });
+    const b = req.body || {}, tz = await campusTz(req), set = {};
+    if (b.name !== undefined) set.name = String(b.name);
+    if (b.type !== undefined && ["service", "rehearsal", "other"].includes(b.type)) set.type = b.type;
+    const date = b.date !== undefined ? String(b.date) : isoDateTz(t.startsAt, tz);
+    if (b.startTime !== undefined) { if (!/^\d{2}:\d{2}$/.test(String(b.startTime))) return res.status(400).json({ error: "Oră invalidă." }); set.startsAt = wallToUtc(date, b.startTime, tz); }
+    else if (b.date !== undefined) set.startsAt = wallToUtc(date, fmt24(t.startsAt, tz), tz);
+    if (b.endTime !== undefined) set.endsAt = /^\d{2}:\d{2}$/.test(String(b.endTime)) ? wallToUtc(date, b.endTime, tz) : null;
+    await PcPlanTime.updateOne(scoped(req, { _id: timeId }), { $set: set });
+    res.json({ ok: true });
+  } catch (err) { console.error("[pc] PATCH time:", err.message); res.status(500).json({ error: "Eroare la editarea orei." }); }
+});
+
+/* ───────── DELETE /:id/times/:timeId ───────── */
+router.delete("/:id/times/:timeId", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const t = await PcPlanTime.findOneAndUpdate(scoped(req, { _id: OID(req.params.timeId) }), { $set: { deletedAt: new Date() } }).select("_id").lean();
+    if (!t) return res.status(404).json({ error: "Oră inexistentă." });
+    res.json({ ok: true });
+  } catch (err) { console.error("[pc] DELETE time:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
+/* ═════════ Planning Center ALERTS (tab Alerts, doar cine are editOrder) ═════════ */
+async function alertStats(req, planId, al) {
+  // destinatari = oameni programați (ne-declinați) în echipele-țintă pe acest plan
+  const recipients = al.teamIds?.length
+    ? await PcAssignment.distinct("personId", scoped(req, { planId, teamId: { $in: al.teamIds }, status: { $ne: "declined" } }))
+    : [];
+  const ackCount = await PcAlertAck.countDocuments(scoped(req, { alertId: al._id }));
+  return { recipientCount: recipients.length, ackCount };
+}
+
+/* GET /:id/alerts — lista alertelor planului (+ contoare citire) */
+router.get("/:id/alerts", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id);
+    const alerts = await PcAlert.find(scoped(req, { planId })).sort({ createdAt: -1 }).lean();
+    const teams = await PcTeam.find(scoped(req, { _id: { $in: alerts.flatMap((a) => a.teamIds || []) } })).select("name").lean();
+    const tName = Object.fromEntries(teams.map((t) => [String(t._id), t.name]));
+    const out = [];
+    for (const a of alerts) {
+      const s = await alertStats(req, planId, a);
+      out.push({
+        id: a._id, title: a.title, body: a.body, status: a.status, scheduledAt: a.scheduledAt, sentAt: a.sentAt,
+        teamIds: (a.teamIds || []).map(String), teamNames: (a.teamIds || []).map((t) => tName[String(t)] || "—"),
+        attachments: a.attachments || [], links: a.links || [], ...s,
+      });
+    }
+    res.json({ alerts: out });
+  } catch (err) { console.error("[pc] GET alerts:", err.message); res.status(500).json({ error: "Eroare la alerte." }); }
+});
+
+/* POST /:id/alerts — creează (trimite acum sau programează) */
+router.post("/:id/alerts", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id);
+    const b = req.body || {};
+    const title = String(b.title || "").trim();
+    if (!title) return res.status(400).json({ error: "Titlul alertei e obligatoriu." });
+    const teamIds = Array.isArray(b.teamIds) ? b.teamIds.map(OID).filter(Boolean) : [];
+    if (!teamIds.length) return res.status(400).json({ error: "Alege cel puțin o echipă căreia îi trimiți." });
+    const me = await PcPerson.findOne(scoped(req, { userId: req.user.id })).select("_id").lean();
+    const schedule = b.scheduledAt ? new Date(b.scheduledAt) : null;
+    const status = schedule && schedule > new Date() ? "scheduled" : "sent";
+    const doc = await PcAlert.create(stamp(req, {
+      planId, createdByPersonId: me?._id || null, title, body: String(b.body || ""),
+      teamIds, attachments: Array.isArray(b.attachments) ? b.attachments : [], links: Array.isArray(b.links) ? b.links : [],
+      status, scheduledAt: status === "scheduled" ? schedule : null, sentAt: status === "sent" ? new Date() : null,
+    }));
+    res.status(201).json({ id: doc._id, status });
+  } catch (err) { console.error("[pc] POST alert:", err.message); res.status(500).json({ error: "Eroare la crearea alertei." }); }
+});
+
+/* PATCH /:id/alerts/:alertId — editează (util mai ales pt. cele programate) */
+router.patch("/:id/alerts/:alertId", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const alertId = OID(req.params.alertId);
+    const b = req.body || {}, set = {};
+    if (b.title !== undefined) set.title = String(b.title);
+    if (b.body !== undefined) set.body = String(b.body);
+    if (Array.isArray(b.teamIds)) set.teamIds = b.teamIds.map(OID).filter(Boolean);
+    if (Array.isArray(b.attachments)) set.attachments = b.attachments;
+    if (Array.isArray(b.links)) set.links = b.links;
+    if (b.scheduledAt !== undefined) {
+      const schedule = b.scheduledAt ? new Date(b.scheduledAt) : null;
+      if (schedule && schedule > new Date()) { set.status = "scheduled"; set.scheduledAt = schedule; set.sentAt = null; }
+      else { set.status = "sent"; set.scheduledAt = null; set.sentAt = new Date(); }
+    }
+    const a = await PcAlert.findOneAndUpdate(scoped(req, { _id: alertId }), { $set: set }).select("_id").lean();
+    if (!a) return res.status(404).json({ error: "Alertă inexistentă." });
+    res.json({ ok: true });
+  } catch (err) { console.error("[pc] PATCH alert:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
+/* DELETE /:id/alerts/:alertId */
+router.delete("/:id/alerts/:alertId", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const a = await PcAlert.findOneAndUpdate(scoped(req, { _id: OID(req.params.alertId) }), { $set: { deletedAt: new Date() } }).select("_id").lean();
+    if (!a) return res.status(404).json({ error: "Alertă inexistentă." });
+    res.json({ ok: true });
+  } catch (err) { console.error("[pc] DELETE alert:", err.message); res.status(500).json({ error: "Eroare." }); }
 });
 
 /* ───────── GET /:id/notes — note grupate pe categorii ───────── */
@@ -1505,6 +1642,128 @@ router.get("/:id/notes", requireCan("people.view"), async (req, res) => {
     console.error("[pc] GET /plans/:id/notes:", err.message);
     res.status(500).json({ error: "Eroare la încărcarea notelor." });
   }
+});
+
+/* ═════════ Note de plan cu VIEW-URI țintite (PcNoteView) ═════════ */
+
+/** Echipele/pozițiile/oamenii de pe plan — sursă pt. pickerul de audiență al view-urilor. */
+async function notePicker(req, planId) {
+  const assigns = await PcAssignment.find(scoped(req, { planId, status: { $ne: "declined" } })).lean();
+  const teamIds = [...new Set(assigns.map((a) => String(a.teamId)).filter(Boolean))].map(OID);
+  const posIds = [...new Set(assigns.map((a) => String(a.positionId)).filter(Boolean))].map(OID);
+  const perIds = [...new Set(assigns.map((a) => String(a.personId)).filter(Boolean))].map(OID);
+  const [teams, positions, people] = await Promise.all([
+    PcTeam.find(scoped(req, { _id: { $in: teamIds } })).select("name").lean(),
+    PcPosition.find(scoped(req, { _id: { $in: posIds } })).select("name teamId").lean(),
+    PcPerson.find(scoped(req, { _id: { $in: perIds } })).select("firstName lastName avatar").lean(),
+  ]);
+  const tName = Object.fromEntries(teams.map((t) => [String(t._id), t.name]));
+  const posById = Object.fromEntries(positions.map((p) => [String(p._id), p]));
+  const perById = Object.fromEntries(people.map((p) => [String(p._id), p]));
+  const byTeam = {};
+  for (const a of assigns) {
+    const tid = String(a.teamId); if (!tid) continue;
+    byTeam[tid] = byTeam[tid] || { teamId: tid, name: tName[tid] || "Echipă", roles: new Set(), people: {} };
+    const pos = posById[String(a.positionId)]; if (pos?.name) byTeam[tid].roles.add(pos.name);
+    const per = perById[String(a.personId)]; if (per) byTeam[tid].people[String(per._id)] = { personId: String(per._id), name: [per.firstName, per.lastName].filter(Boolean).join(" "), avatar: per.avatar || "" };
+  }
+  return Object.values(byTeam).map((t) => ({ teamId: t.teamId, name: t.name, roles: [...t.roles], people: Object.values(t.people) }));
+}
+
+/* GET /:id/my-note — nota aplicabilă MIE (un singur view: cel mai prioritar care mă prinde) */
+router.get("/:id/my-note", requireCan("people.view"), async (req, res) => {
+  try {
+    const id = OID(req.params.id);
+    const me = await PcPerson.findOne(scoped(req, { userId: req.user.id })).select("_id").lean();
+    if (!me) return res.json({ note: null });
+    const meId = String(me._id);
+    const myAssigns = await PcAssignment.find(scoped(req, { planId: id, personId: me._id, status: { $ne: "declined" } })).select("teamId positionId").lean();
+    const myTeams = new Set(myAssigns.map((a) => String(a.teamId)));
+    const positions = await PcPosition.find(scoped(req, { _id: { $in: myAssigns.map((a) => a.positionId).filter(Boolean) } })).select("name").lean();
+    const myRoles = new Set(positions.map((p) => p.name));
+    const views = await PcNoteView.find(scoped(req, { planId: id })).sort({ priority: -1 }).lean();
+    const pinned = views.filter((v) => v.pinned && (v.specificPersonIds || []).some((p) => String(p) === meId)).sort((a, b) => b.priority - a.priority);
+    const role = views.filter((v) => !v.pinned && (v.teamIds || []).some((t) => myTeams.has(String(t))) && (v.roleNames || []).some((r) => myRoles.has(r))).sort((a, b) => b.priority - a.priority);
+    const v = pinned[0] || role[0] || null;
+    res.json({ note: v ? { id: v._id, title: v.title, content: v.content } : null });
+  } catch (err) { console.error("[pc] GET my-note:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
+/* GET /:id/note-views — toate view-urile + picker (doar coordonatori/editOrder) */
+router.get("/:id/note-views", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const id = OID(req.params.id);
+    const views = await PcNoteView.find(scoped(req, { planId: id })).sort({ pinned: -1, priority: -1 }).lean();
+    const perIds = [...new Set(views.flatMap((v) => (v.specificPersonIds || []).map(String)))].map(OID);
+    const people = perIds.length ? await PcPerson.find(scoped(req, { _id: { $in: perIds } })).select("firstName lastName").lean() : [];
+    const pName = Object.fromEntries(people.map((p) => [String(p._id), [p.firstName, p.lastName].filter(Boolean).join(" ")]));
+    res.json({
+      views: views.map((v) => ({ id: v._id, title: v.title, content: v.content, teamIds: (v.teamIds || []).map(String), roleNames: v.roleNames || [], specificPersonIds: (v.specificPersonIds || []).map(String), specificNames: (v.specificPersonIds || []).map((p) => pName[String(p)] || "—"), pinned: !!v.pinned, priority: v.priority || 0 })),
+      picker: await notePicker(req, id),
+    });
+  } catch (err) { console.error("[pc] GET note-views:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
+const sanitizeView = (b) => {
+  const spec = Array.isArray(b.specificPersonIds) ? b.specificPersonIds.map(OID).filter(Boolean) : [];
+  return {
+    title: String(b.title || ""), content: String(b.content || ""),
+    teamIds: Array.isArray(b.teamIds) ? b.teamIds.map(OID).filter(Boolean) : [],
+    roleNames: Array.isArray(b.roleNames) ? b.roleNames.map(String) : [],
+    specificPersonIds: spec, pinned: spec.length > 0,
+  };
+};
+router.post("/:id/note-views", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id);
+    const last = await PcNoteView.findOne(scoped(req, { planId })).sort({ priority: -1 }).select("priority").lean();
+    const doc = await PcNoteView.create(stamp(req, { planId, createdByPersonId: (await PcPerson.findOne(scoped(req, { userId: req.user.id })).select("_id").lean())?._id || null, priority: (last?.priority || 0) + 1, ...sanitizeView(req.body || {}) }));
+    res.status(201).json({ id: doc._id });
+  } catch (err) { console.error("[pc] POST note-view:", err.message); res.status(500).json({ error: "Eroare la view." }); }
+});
+router.patch("/:id/note-views/:viewId", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const v = await PcNoteView.findOneAndUpdate(scoped(req, { _id: OID(req.params.viewId) }), { $set: sanitizeView(req.body || {}) }).select("_id").lean();
+    if (!v) return res.status(404).json({ error: "View inexistent." });
+    res.json({ ok: true });
+  } catch (err) { console.error("[pc] PATCH note-view:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+router.delete("/:id/note-views/:viewId", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const v = await PcNoteView.findOneAndUpdate(scoped(req, { _id: OID(req.params.viewId) }), { $set: { deletedAt: new Date() } }).select("_id").lean();
+    if (!v) return res.status(404).json({ error: "View inexistent." });
+    res.json({ ok: true });
+  } catch (err) { console.error("[pc] DELETE note-view:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+/* reorder: ordinea view-urilor NEPINNED (prioritate); pinned rămân mereu deasupra */
+router.post("/:id/note-views/reorder", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.viewIds) ? req.body.viewIds : [];
+    // primul din listă = cel mai prioritar → priority mare
+    for (let i = 0; i < ids.length; i++) { const oid = OID(ids[i]); if (oid) await PcNoteView.updateOne(scoped(req, { _id: oid }), { $set: { priority: ids.length - i } }); }
+    res.json({ ok: true });
+  } catch (err) { console.error("[pc] reorder note-views:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
+/* ───────── GET /:id/calendar-prefill — evenimente precompletate pt. „adaugă în calendar" ───────── */
+router.get("/:id/calendar-prefill", requireCan("people.view"), async (req, res) => {
+  try {
+    const id = OID(req.params.id);
+    const plan = await PcPlan.findOne(scoped(req, { _id: id })).select("serviceTypeId sortDate").lean();
+    if (!plan) return res.status(404).json({ error: "Plan inexistent." });
+    const st = await PcServiceType.findOne(scoped(req, { _id: plan.serviceTypeId })).select("name").lean();
+    const times = await PcPlanTime.find(scoped(req, { planId: id })).sort({ startsAt: 1 }).lean();
+    const stName = st?.name || "Slujire";
+    const addH = (d, h) => new Date(new Date(d).getTime() + h * 3600000).toISOString();
+    const events = times.filter((t) => t.startsAt).map((t) => ({
+      summary: t.type === "rehearsal" ? `${stName} — Repetiție` : (t.type === "other" ? `${stName} — ${t.name || "Alt timp"}` : stName),
+      start: new Date(t.startsAt).toISOString(),
+      end: t.endsAt ? new Date(t.endsAt).toISOString() : addH(t.startsAt, 1.5),
+      description: `${stName}${t.name ? ` · ${t.name}` : ""}`,
+    }));
+    if (!events.length && plan.sortDate) events.push({ summary: stName, start: new Date(plan.sortDate).toISOString(), end: addH(plan.sortDate, 1.5), description: stName });
+    res.json({ serviceType: stName, events });
+  } catch (err) { console.error("[pc] calendar-prefill:", err.message); res.status(500).json({ error: "Eroare." }); }
 });
 
 /* ───────── GET /:id/files — fișiere grupate pe scope ───────── */

@@ -28,6 +28,9 @@ async function campusTz(req) {
 }
 const fmtDate = (d, tz) => (d ? new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(d)) : "");
 const fmtTime = (d, tz) => (d ? new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(d)) : "");
+const fmt24 = (d, tz) => (d ? new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(d)) : "");
+const RO_WD = { Sun: { ro: "DUM", color: "#57b98a" }, Mon: { ro: "LUN", color: "#2f81f7" }, Tue: { ro: "MAR", color: "#a371f7" }, Wed: { ro: "MIE", color: "#e3934f" }, Thu: { ro: "JOI", color: "#3fb6b2" }, Fri: { ro: "VIN", color: "#e85aad" }, Sat: { ro: "SÂM", color: "#d6a427" } };
+const weekdayRo = (d, tz) => { if (!d) return { ro: "", color: "#8b949e" }; const w = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(new Date(d)); return RO_WD[w] || { ro: w.toUpperCase(), color: "#8b949e" }; };
 const isoDate = (d, tz) => (d ? new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(d)) : "");
 const weekdayOf = (ds) => new Date(ds + "T12:00:00Z").getUTCDay();
 
@@ -71,12 +74,16 @@ async function buildGroups(req, assigns, tz) {
         dateLabel: fmtDate(plan.sortDate, tz),
         serviceTypeName: stName[String(plan.serviceTypeId)] || "",
         positions: [],
-        times: planTimes.map((t) => ({
-          type: t.type || "service",
-          name: t.type === "service" ? "Service" : (t.name || "Rehearsal"),
-          dateLabel: new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", month: "2-digit", day: "2-digit", year: "2-digit" }).format(new Date(t.startsAt)),
-          range: `${fmtTime(t.startsAt, tz)}${t.endsAt ? ` - ${fmtTime(t.endsAt, tz)}` : ""}`,
-        })),
+        times: planTimes.map((t) => {
+          const wd = weekdayRo(t.startsAt, tz);
+          return {
+            type: t.type || "service",
+            name: t.type === "service" ? "Service" : (t.name || (t.type === "rehearsal" ? "Repetiție" : "Alt timp")),
+            day: wd.ro, dayColor: wd.color,
+            dateLabel: new Intl.DateTimeFormat("en-GB", { timeZone: tz, day: "2-digit", month: "2-digit" }).format(new Date(t.startsAt)),
+            range: `${fmt24(t.startsAt, tz)}${t.endsAt ? ` - ${fmt24(t.endsAt, tz)}` : ""}`,
+          };
+        }),
         hasAudio: false,
       };
     }
