@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 import Modal from "@/components/ui/Modal";
 import { servicesApi, teamsApi } from "@/lib/api/client";
+import Skeleton from "@/components/ui/Skeleton";
 
 const FREQ = [
   ["weekly", "Săptămânal"], ["everyOtherWeek", "La două săptămâni"], ["monthly", "Lunar"],
@@ -141,7 +142,7 @@ export default function ServiceTypeSettingsModal({ serviceType, onClose, onSaved
   return (
     <Modal title={`Setări — ${serviceType.name}`} onClose={onClose} footer={footer} width={560}>
       {loading ? (
-        <div className="sts-muted">Se încarcă…</div>
+        <Skeleton lines={5} />
       ) : (
         <div className="sts">
           {err ? <div className="sts-err">{err}</div> : null}

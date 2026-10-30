@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import { api, songsApi } from "@/lib/api/client";
+import Skeleton from "@/components/ui/Skeleton";
 import { abbreviateSequence } from "@/lib/songs/sequence";
 import { renderChordPro } from "@/lib/songs/chordpro";
 import { generateChartPdf } from "@/lib/songs/pdf";
@@ -400,7 +401,7 @@ export default function SongDetail() {
   }, [song, arr, id]);
 
   if (err) return <div className="pad err">{err}</div>;
-  if (!song) return <div className="pad dim">Se încarcă…</div>;
+  if (!song) return <div className="pad"><Skeleton lines={5} /></div>;
 
   const seqTokens = abbreviateSequence(arr?.sequence || []);
 
@@ -443,7 +444,7 @@ export default function SongDetail() {
 
         {/* Main */}
         <section className="main">
-          {!arr ? <div className="dim">Se încarcă aranjamentul…</div> : (
+          {!arr ? <Skeleton lines={4} /> : (
             <>
               <div className="arr-title-row">
                 <h2 className="arr-title">{arr.name}</h2>

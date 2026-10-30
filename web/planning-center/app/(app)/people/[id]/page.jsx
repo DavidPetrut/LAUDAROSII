@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { peopleApi } from "@/lib/api/client";
+import Skeleton from "@/components/ui/Skeleton";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 
 const fmt = (d) => (d ? new Date(d).toLocaleDateString("ro-RO", { day: "numeric", month: "long", year: "numeric" }) : "");
@@ -92,7 +93,7 @@ export default function PersonPage() {
     actions: [{ id: "tab", label: "Schimbă tab", params: { name: "string" }, run: ({ name }) => setTab(name) }],
   }, [id, p, tab, confirmed, unconfirmed, teams]);
 
-  if (loading) return <div className="wrap"><div className="muted">Se încarcă…</div></div>;
+  if (loading) return <div className="wrap"><Skeleton rows={4} /></div>;
   if (err) return <div className="wrap"><div className="err">{err}</div></div>;
 
   return (
@@ -220,7 +221,7 @@ export default function PersonPage() {
       {tab === "Communication" && (
         <div className="card">
           <div className="card-h">Mesaje</div>
-          {!msgs ? <div className="muted">Se încarcă…</div> : (msgs.received || []).length === 0 ? <div className="muted">Niciun mesaj.</div> :
+          {!msgs ? <Skeleton rows={2} /> : (msgs.received || []).length === 0 ? <div className="muted">Niciun mesaj.</div> :
             (msgs.received || []).map((m) => (
               <div key={m.id} className={`msg ${m.read ? "" : "unread"}`}>
                 <div className="m-sub">{m.subject}</div>

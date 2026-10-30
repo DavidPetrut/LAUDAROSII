@@ -152,13 +152,16 @@ export default function VoicesPicker({ value = [], pool = [], description = "", 
 
 /* Formatează vocile pt. afișare (2 rânduri): lead (fără etichetă) pe rândul 1, apoi
    „Suport: X -- Alto: Y -- Tenor: Z" pe rândul 2. Întoarce text cu „\n" (randat pre-line, gri ca descrierea). */
+// Doar PRENUMELE (primul cuvânt, fără cratimă) + UPPERCASE — echipă mică, numele complet e inutil.
+const firstUpper = (full) => String(full || "").trim().split(/[\s\-–—]+/)[0].toUpperCase();
+
 export function formatVoices(voices = []) {
   if (!voices.length) return "";
   const label = { support: "Suport", alto: "Alto", tenor: "Tenor" };
   const order = ["support", "alto", "tenor"];
   const byRole = {};
   for (const v of voices) { (byRole[v.role] = byRole[v.role] || []).push(v.name); }
-  const lead = (byRole.lead || []).join(", ");
-  const sub = order.filter((r) => byRole[r]).map((r) => `${label[r]}: ${byRole[r].join(", ")}`).join(" -- ");
-  return [lead ? lead.toUpperCase() : "", sub].filter(Boolean).join("\n");
+  const lead = (byRole.lead || []).map(firstUpper).join(", ");
+  const sub = order.filter((r) => byRole[r]).map((r) => `${label[r]}: ${byRole[r].map(firstUpper).join(", ")}`).join(" -- ");
+  return [lead, sub].filter(Boolean).join("\n");
 }

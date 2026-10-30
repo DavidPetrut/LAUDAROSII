@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import PersonAvatar from "./PersonAvatar";
 import PositionJoinModal from "./PositionJoinModal";
 import { plansApi, peopleApi } from "@/lib/api/client";
+import Skeleton from "@/components/ui/Skeleton";
 
 const simOf = (name = "") => { const m = String(name).match(/\(\s*(?:sim\s*)?([12])\s*\)/i); return m ? m[1] : ""; };
 const withTeam = (pos, team) => `${pos || "Poziție"}${team ? ` · ${team}` : ""}`;
@@ -162,7 +163,7 @@ export default function ConflictModal({ open, planId, person, positionId, target
         </div>
 
         <div className="cm-body">
-          {loading && <div className="cm-muted">Se încarcă…</div>}
+          {loading && <Skeleton lines={3} />}
           {nothing && <div className="cm-ok">✓ Niciun conflict rămas — totul e curat.</div>}
 
           {active.length > 0 && (

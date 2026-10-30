@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Modal from "@/components/ui/Modal";
 import { teamsApi } from "@/lib/api/client";
+import Skeleton from "@/components/ui/Skeleton";
 
 /* comutator mic, identic cu ServiceTypeSettingsModal */
 function Toggle({ on, onChange, label, hint }) {
@@ -182,7 +183,7 @@ export default function TeamsManagerModal({ serviceTypeId, onClose, onChanged, i
           <button className="tm-retry" onClick={load}>Reîncearcă</button>
         </div>
       ) : loading ? (
-        <div className="tm-load">Se încarcă echipele…</div>
+        <Skeleton rows={4} />
       ) : (
         <div className="tm">
           {/* STÂNGA — lista echipelor */}

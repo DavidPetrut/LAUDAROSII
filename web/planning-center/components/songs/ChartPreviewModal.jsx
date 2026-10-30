@@ -6,6 +6,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api/client";
+import Skeleton from "@/components/ui/Skeleton";
 import { renderChordPro, lyricToHtml, buildWords, wordsTextToLines, sequenceFromChordpro } from "@/lib/songs/chordpro";
 import { paginateLines } from "@/lib/songs/paginate";
 import { generateChartPdf } from "@/lib/songs/pdf";
@@ -87,7 +88,7 @@ export default function ChartPreviewModal({ songId, arrId, song, arr, mode = "ch
         </div>
       </div>
       <div className="scroll">
-        {loading ? <div className="sheet"><div className="body"><div className="dim">Se încarcă…</div></div></div> : pages.map((pageLines, pi) => (
+        {loading ? <div className="sheet"><div className="body"><Skeleton lines={8} /></div></div> : pages.map((pageLines, pi) => (
           <div className="sheet" key={pi}>
             {isWords ? (
               pi === 0 ? <div className="hdr-words">{wordsTitle || "…"}</div> : null

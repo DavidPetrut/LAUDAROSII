@@ -12,6 +12,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { reportsApi, peopleApi } from "@/lib/api/client";
+import Skeleton from "@/components/ui/Skeleton";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 import { StatCard, Donut, Legend, ColumnChart, BarList } from "@/components/reports/Charts";
 import BlockedPeopleModal from "@/components/people/BlockedPeopleModal";
@@ -146,7 +147,7 @@ export default function ReportsPage() {
       </nav>
 
       {err ? <div className="err">{err}</div> : null}
-      {loading ? <div className="muted">Se încarcă…</div> : (
+      {loading ? <Skeleton lines={6} /> : (
         <>
           {tab === "overview" && overview && <OverviewView d={overview} />}
           {tab === "songs" && songs && <SongsView d={songs} />}

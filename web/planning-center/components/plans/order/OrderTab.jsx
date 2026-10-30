@@ -14,6 +14,7 @@ import AddItemMenu from "./AddItemMenu";
 import SongPickerModal from "./SongPickerModal";
 import ItemDrawer from "./ItemDrawer";
 import { formatVoices } from "./VoicesPicker";
+import Skeleton from "@/components/ui/Skeleton";
 
 function Clip({ n }) {
   if (!n) return null;
@@ -84,7 +85,7 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
     plansApi.reorderItems(planId, arr.map((x) => x.id)).then(() => flash?.("Reordonat.")).catch((e) => { flash?.(e?.message || "Eroare."); load(); });
   }
 
-  if (items === null) return <div className="muted">Se încarcă…</div>;
+  if (items === null) return <Skeleton lines={6} />;
 
   return (
     <div className="ord">

@@ -14,15 +14,13 @@ const TYPE_LABEL = { service: "Slujire", rehearsal: "Repetiție", other: "Alt ti
 function TimeRow({ t, onPress }) {
   const Wrap = onPress ? Pressable : View;
   return (
-    <Wrap style={styles.row} onPress={onPress}>
-      {t.weekday ? (
-        <View style={[styles.badge, t.weekdayColor && { backgroundColor: t.weekdayColor }]}><Text style={styles.badgeTxt}>{t.weekday}</Text></View>
-      ) : <View style={styles.badge} />}
-      <View style={{ flex: 1 }}>
-        {!!t.name && <Text style={styles.name}>{t.name}</Text>}
-        <Text style={styles.range}>{t.range}</Text>
+    <Wrap style={styles.card} onPress={onPress}>
+      <View style={styles.cardTop}>
+        <View style={[styles.badge, t.weekdayColor && { backgroundColor: t.weekdayColor }]}><Text style={styles.badgeTxt}>{t.weekday || ""}</Text></View>
+        <Text style={styles.time}>{t.range}</Text>
         <Text style={styles.date}>{t.date}</Text>
       </View>
+      {!!t.name && <Text style={styles.name}>{t.name}</Text>}
     </Wrap>
   );
 }
@@ -157,12 +155,13 @@ const styles = StyleSheet.create({
   secHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 18, marginBottom: 8 },
   section: { color: pcColors.textSecondary, fontWeight: "700", letterSpacing: 0.5, fontSize: 13 },
   add: { color: pcColors.primary, fontWeight: "700", fontSize: 14 },
-  row: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: pcColors.divider },
-  badge: { width: 46, height: 46, borderRadius: 23, backgroundColor: pcColors.primary, alignItems: "center", justifyContent: "center" },
-  badgeTxt: { color: "#0A0A0A", fontWeight: "800", fontSize: 13 },
-  name: { color: pcColors.textPrimary, fontSize: 16, fontWeight: "700" },
-  range: { color: pcColors.textPrimary, fontSize: 16, fontWeight: "600" },
-  date: { color: pcColors.primary, fontSize: 13, marginTop: 2 },
+  card: { backgroundColor: pcColors.bgInput || "#1c222b", borderWidth: StyleSheet.hairlineWidth, borderColor: pcColors.chipBorder, borderRadius: 12, padding: 12, marginBottom: 8 },
+  cardTop: { flexDirection: "row", alignItems: "center", gap: 10 },
+  badge: { minWidth: 42, height: 24, paddingHorizontal: 8, borderRadius: 7, backgroundColor: pcColors.primary, alignItems: "center", justifyContent: "center" },
+  badgeTxt: { color: "#0A0A0A", fontWeight: "800", fontSize: 11, letterSpacing: 0.3 },
+  time: { color: pcColors.textPrimary, fontSize: 15, fontWeight: "600" },
+  date: { color: pcColors.textSecondary, fontSize: 12.5, marginLeft: "auto" },
+  name: { color: pcColors.textSecondary, fontSize: 14, marginTop: 6, lineHeight: 19 },
   emptyRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 },
   emptyTxt: { color: pcColors.textMuted, fontSize: 14 },
   tpl: { color: pcColors.primary, fontSize: 13, fontWeight: "600" },

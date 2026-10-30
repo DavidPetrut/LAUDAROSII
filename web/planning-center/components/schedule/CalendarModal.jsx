@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import Modal from "@/components/ui/Modal";
 import { plansApi, integrationsApi } from "@/lib/api/client";
+import Skeleton from "@/components/ui/Skeleton";
 
 const fmt = (iso) => { try { return new Date(iso).toLocaleString("ro-RO", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }); } catch { return iso; } };
 const icsDate = (iso) => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
@@ -62,7 +63,7 @@ export default function CalendarModal({ planId, onClose, flash }) {
         {status && !status.connected && <div className="cm-note">{status.configured ? "Conectează-te cu Google o singură dată ca să scrii direct în calendarul tău. Până atunci poți folosi .ics." : "Google OAuth nu e configurat pe server (env). Poți folosi .ics (Apple/Google/Outlook)."}</div>}
         {status?.connected && <div className="cm-ok">✓ Conectat{status.email ? ` · ${status.email}` : ""}</div>}
 
-        {events === null ? <div className="muted">Se încarcă…</div> : !events.length ? <div className="muted">Nicio oră pe acest plan. Setează orele în Times.</div> : (
+        {events === null ? <Skeleton rows={3} /> : !events.length ? <div className="muted">Nicio oră pe acest plan. Setează orele în Times.</div> : (
           <div className="cm-list">
             {events.map((e, i) => (
               <label key={i} className={`cm-ev ${e.include ? "on" : ""}`}>

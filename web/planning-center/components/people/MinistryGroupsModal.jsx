@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Modal from "@/components/ui/Modal";
 import { teamsApi } from "@/lib/api/client";
+import Skeleton from "@/components/ui/Skeleton";
 
 export default function MinistryGroupsModal({ groups = [], onClose, onChanged, initialTeams = null }) {
   const [teams, setTeams] = useState(initialTeams || []);
@@ -46,7 +47,7 @@ export default function MinistryGroupsModal({ groups = [], onClose, onChanged, i
         <div className="mg-hint">Mapează fiecare echipă la una din cele 5 slujiri mari.</div>
         <input className="input mg-search" placeholder="Caută echipă" value={q} onChange={(e) => setQ(e.target.value)} />
         {err ? <div className="mg-err">{err}</div> : null}
-        {loading ? <div className="mg-muted">Se încarcă…</div> : (
+        {loading ? <Skeleton rows={3} /> : (
           <div className="mg-list">
             {filtered.length === 0 && <div className="mg-muted">Nicio echipă.</div>}
             {filtered.map((t) => (

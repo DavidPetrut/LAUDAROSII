@@ -185,6 +185,10 @@ router.get("/:id", requireCan("people.view"), async (req, res) => {
       }));
     }
 
+    // avatarul viewerului (pt. „Rolul meu")
+    let me = null;
+    if (vpid) { const vp = await PcPerson.findOne(scoped(req, { _id: vpid })).select("firstName lastName avatar").lean(); if (vp) me = personMini(vp); }
+
     res.json({
       id: plan._id,
       title: plan.title || st?.name || "Plan",
@@ -193,7 +197,7 @@ router.get("/:id", requireCan("people.view"), async (req, res) => {
       dateLabel: plan.sortDate ? new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date(plan.sortDate)) : "",
       prevId: prev?._id || null,
       nextId: next?._id || null,
-      myAssignments,
+      myAssignments, me,
     });
   } catch (err) {
     console.error("[pc] GET /plans/:id:", err.message);
@@ -1761,9 +1765,14 @@ async function notePicker(req, planId) {
     const tid = String(a.teamId); if (!tid) continue;
     byTeam[tid] = byTeam[tid] || { teamId: tid, name: tName[tid] || "Echipă", roles: new Set(), people: {} };
     const pos = posById[String(a.positionId)]; if (pos?.name) byTeam[tid].roles.add(pos.name);
-    const per = perById[String(a.personId)]; if (per) byTeam[tid].people[String(per._id)] = { personId: String(per._id), name: [per.firstName, per.lastName].filter(Boolean).join(" "), avatar: per.avatar || "" };
+    const per = perById[String(a.personId)];
+    if (per) {
+      const pid = String(per._id);
+      byTeam[tid].people[pid] = byTeam[tid].people[pid] || { personId: pid, name: [per.firstName, per.lastName].filter(Boolean).join(" "), avatar: per.avatar || "", roles: new Set() };
+      if (pos?.name) byTeam[tid].people[pid].roles.add(pos.name); // rolul exact pe care-l are pe acest plan (pt. filtrare)
+    }
   }
-  return Object.values(byTeam).map((t) => ({ teamId: t.teamId, name: t.name, roles: [...t.roles], people: Object.values(t.people) }));
+  return Object.values(byTeam).map((t) => ({ teamId: t.teamId, name: t.name, roles: [...t.roles], people: Object.values(t.people).map((p) => ({ personId: p.personId, name: p.name, avatar: p.avatar, roles: [...p.roles] })) }));
 }
 
 /* GET /:id/my-note — nota aplicabilă MIE (un singur view: cel mai prioritar care mă prinde) */

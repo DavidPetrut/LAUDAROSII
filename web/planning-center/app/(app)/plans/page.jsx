@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { plansApi, peopleApi } from "@/lib/api/client";
 import ServiceTypeSettingsModal from "@/components/plans/ServiceTypeSettingsModal";
+import Skeleton from "@/components/ui/Skeleton";
 import { getStoredUser } from "@/lib/auth/auth";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 
@@ -173,7 +174,7 @@ export default function PlansPage() {
         {/* ── dreapta: Service Types ── */}
         <section className="main">
           <div className="main-head"><h2>Service Types</h2></div>
-          {loading ? <div className="empty">Se încarcă…</div> : serviceTypes.map((st) => {
+          {loading ? <Skeleton lines={5} /> : serviceTypes.map((st) => {
             const isCol = collapsed.has(st.id);
             // cele mai recente întâi (viitoare + trecute), ca în PCO; afișăm max `limit`, restul cu „vezi mai vechi"
             const ordered = [...(st.plans || [])].sort((a, b) => new Date(b.sortDate || 0) - new Date(a.sortDate || 0));

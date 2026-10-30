@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { plansApi, alertsApi } from "@/lib/api/client";
 import Modal from "@/components/ui/Modal";
 import PersonAvatar from "@/components/plans/PersonAvatar";
+import Skeleton from "@/components/ui/Skeleton";
 
 const AUD = /\.(mp3|m4a|aac|wav|ogg|flac|opus|aiff?)$/i;
 const IMG = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
@@ -29,7 +30,7 @@ function AlertsViewOnly({ planId }) {
   const [list, setList] = useState(null);
   const [open, setOpen] = useState(null);
   useEffect(() => { alertsApi.mine().then((r) => setList(r.alerts || [])).catch(() => setList([])); }, [planId]);
-  if (list === null) return <div className="vo-muted">Se încarcă…</div>;
+  if (list === null) return <Skeleton rows={3} />;
   return (
     <div className="vo">
       {!list.length ? <div className="vo-muted">Nu ai nicio alertă.</div> : (
@@ -292,7 +293,11 @@ function ScheduleModal({ initial, onClose, onConfirm }) {
 function SeenModal({ alert, onClose }) {
   const seen = alert.ackedPeople || [], notSeen = alert.pendingPeople || [];
   const Row = ({ p, ok }) => (
-    <div className="sr"><PersonAvatar person={{ avatar: p.avatar, initials: p.initials }} size={28} /><span className="sr-n">{p.name}</span><span className={`sr-b ${ok ? "ok" : "no"}`}>{ok ? "✓ a văzut" : "○ n-a văzut"}</span></div>
+    <div className="sr">
+      <PersonAvatar person={{ avatar: p.avatar, initials: p.initials }} size={32} />
+      <span className="sr-n">{p.name}</span>
+      <span className={`sr-b ${ok ? "ok" : "no"}`}><i>{ok ? "✓" : "✕"}</i>{ok ? "Văzut" : "Nevăzut"}</span>
+    </div>
   );
   return (
     <Modal title={`Citit · ${seen.length}/${seen.length + notSeen.length}`} width={420} onClose={onClose}
@@ -307,9 +312,13 @@ function SeenModal({ alert, onClose }) {
         .seen-h { color: var(--text-faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; margin: 12px 0 5px; }
         .seen-h:first-child { margin-top: 2px; }
         .seen-m { color: var(--text-faint); font-size: 13px; padding: 10px 0; }
-        .sr { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
-        .sr-n { color: var(--text); font-size: 13.5px; flex: 1; }
-        .sr-b { font-size: 11px; font-weight: 700; } .sr-b.ok { color: var(--product); } .sr-b.no { color: var(--text-faint); }
+        .sr { display: flex; align-items: center; gap: 11px; padding: 10px 2px; border-bottom: 1px solid var(--border-soft); }
+        .sr:last-child { border-bottom: none; }
+        .sr-n { color: var(--text); font-size: 14px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .sr-b { flex: none; display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; }
+        .sr-b i { font-style: normal; width: 19px; height: 19px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; }
+        .sr-b.ok { color: var(--product); } .sr-b.ok i { background: rgba(87,185,138,.16); }
+        .sr-b.no { color: var(--text-faint); } .sr-b.no i { background: var(--surface-3); color: var(--text-dim); }
       `}</style>
     </Modal>
   );

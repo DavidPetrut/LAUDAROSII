@@ -12,6 +12,7 @@ import { useParams, useRouter } from "next/navigation";
 import { plansApi, peopleApi } from "@/lib/api/client";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 import PersonAvatar from "@/components/plans/PersonAvatar";
+import Skeleton from "@/components/ui/Skeleton";
 import AssignSidebar from "@/components/plans/AssignSidebar";
 import EditPersonModal from "@/components/plans/EditPersonModal";
 import PositionJoinModal from "@/components/plans/PositionJoinModal";
@@ -33,7 +34,7 @@ const eq = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").tr
 export default function PlanDetailPage() {
   const router = useRouter();
   const { id } = useParams();
-  const [tab, setTab] = useState("Teams");
+  const [tab, setTab] = useState("Order");
   const [orderSide, setOrderSide] = useState(false); // drawer „View item" deschis (Order) → face loc ca .has-side
   const [timeEdit, setTimeEdit] = useState(null);    // { time } (editare) | { type } (adăugare)
   const [head, setHead] = useState(null);
@@ -339,7 +340,7 @@ export default function PlanDetailPage() {
         <aside className="pd-left">
           {head?.myAssignments?.length > 0 && (
             <div className="lcard">
-              <div className="lc-h">Rolul meu</div>
+              <div className="lc-h">{head.me && <PersonAvatar person={head.me} size={22} />}Rolul meu</div>
               {head.myAssignments.map((a) => (
                 <div key={a.assignmentId} className="myitem">
                   <div className={`myrow ${a.confirmed ? "ok" : a.declined ? "no" : ""}`}>
@@ -361,7 +362,7 @@ export default function PlanDetailPage() {
             {[...TABS, "Alerts"].map((t) => <button key={t} className={`tab ${tab === t ? "active" : ""} ${t === "Alerts" ? "alert" : ""}`} onClick={() => setTab(t)}>{t}</button>)}
           </div>
           {err && <div className="err">{err}</div>}
-          {loading ? <div className="empty">Se încarcă…</div> : (
+          {loading ? <Skeleton lines={5} /> : (
             <div className="body">
               {tab === "Order" && <OrderTab planId={id} canEdit={!!caps.editOrder} onSideChange={setOrderSide} flash={flash} />}
               {tab === "Teams" && <TeamsTab data={cur} sel={sel} onOpenCell={openCell}
@@ -611,7 +612,7 @@ function TeamCol({ t, sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes 
   );
 }
 function TeamsTab({ data, sel, onOpenCell, onEdit, onRemove, onNeeded, dragActive, dropKey, setDropKey, onDragStartP, onDropPos, onDragEndP, canAssign = true, canMove = true, canEditNeeded = true }) {
-  if (!data) return <div className="muted">Se încarcă…</div>;
+  if (!data) return <Skeleton lines={3} />;
   const my = data.myTeams || [], other = data.otherTeams || [];
   if (!my.length && !other.length) return <div className="muted">Nicio echipă pe acest plan.</div>;
   const props = { sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes: data.serviceTimes || [], dragActive, dropKey, setDropKey, onDragStartP, onDropPos, onDragEndP, canAssign, canMove, canEditNeeded };
@@ -632,7 +633,7 @@ function TeamsTab({ data, sel, onOpenCell, onEdit, onRemove, onNeeded, dragActiv
 /* ── Rehearse ── cântecele planului (structuri + documente + media), ca în PCO ── */
 function RehearseTab({ data }) {
   const [selId, setSelId] = useState(null);
-  if (!data) return <div className="muted">Se încarcă…</div>;
+  if (!data) return <Skeleton lines={3} />;
   const songs = data.songs || [];
   if (!songs.length) return <div className="muted">Niciun cântec în acest plan. Adaugă cântece din tab-ul „Order".</div>;
   const sel = songs.find((s) => String(s.itemId) === String(selId)) || songs[0];
@@ -695,7 +696,7 @@ function RehearseTab({ data }) {
 
 /* ── Times (editabil) — zi 3 litere RO + culoare, 24h; click pe rând = editează ── */
 function TimesTab({ data, canEdit, onEditTime, onAddTime, onApplyTemplate }) {
-  if (!data) return <div className="muted">Se încarcă…</div>;
+  if (!data) return <Skeleton lines={3} />;
   const blocks = [["Slujire", "service", data.service || []], ["Repetiții", "rehearsal", data.rehearsal || []], ["Alte ore", "other", data.other || []]];
   const any = blocks.some(([, , l]) => l.length);
   const hasTpl = !!(data.rehearsalTemplate && data.rehearsalTemplate.enabled);
@@ -707,10 +708,13 @@ function TimesTab({ data, canEdit, onEditTime, onAddTime, onApplyTemplate }) {
           <div key={type} className="tblock">
             <div className="tb-label">{label}{canEdit && <button className="tb-add" title="Adaugă oră" onClick={() => onAddTime(type)}>+</button>}</div>
             {list.map((t) => (
-              <button key={t.id} className="trow" onClick={() => canEdit && onEditTime(t)} disabled={!canEdit}>
-                <span className="tw" style={{ background: t.weekdayColor || "#2f81f7" }}>{t.weekday}</span>
-                <span className="tr">{t.range || "—:—"}{t.name ? <span className="tn"> · {t.name}</span> : null}</span>
-                <span className="td">{t.date}</span>
+              <button key={t.id} className="tcard" onClick={() => canEdit && onEditTime(t)} disabled={!canEdit}>
+                <div className="tc-top">
+                  <span className="tw" style={{ background: t.weekdayColor || "#2f81f7" }}>{t.weekday}</span>
+                  <span className="tc-time">{t.range || "—:—"}</span>
+                  <span className="tc-date">{t.date}</span>
+                </div>
+                {t.name ? <div className="tc-name">{t.name}</div> : null}
               </button>
             ))}
             {!list.length && canEdit && (
@@ -727,13 +731,14 @@ function TimesTab({ data, canEdit, onEditTime, onAddTime, onApplyTemplate }) {
         .tb-label { display: flex; align-items: center; justify-content: space-between; color: var(--text-faint); font-size: 10.5px; letter-spacing: .5px; margin-bottom: 4px; text-transform: uppercase; }
         .tb-add { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 2px; }
         .tb-add:hover { color: var(--primary); }
-        .trow { display: flex; align-items: center; gap: 9px; padding: 8px 2px; border-bottom: 1px solid var(--border-soft); font-size: 13px; width: 100%; background: transparent; border-top: none; border-left: none; border-right: none; text-align: left; cursor: ${canEdit ? "pointer" : "default"}; }
-        .trow:hover:not(:disabled) { background: var(--row-hover); }
-        .trow:last-child { border-bottom: none; }
+        .tcard { display: flex; flex-direction: column; gap: 5px; width: 100%; text-align: left; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; margin-bottom: 7px; cursor: ${canEdit ? "pointer" : "default"}; transition: border-color .14s ease, transform .14s ease; }
+        .tcard:last-child { margin-bottom: 0; }
+        .tcard:hover:not(:disabled) { border-color: var(--border-strong); transform: translateY(-1px); }
+        .tc-top { display: flex; align-items: center; gap: 8px; }
         .tw { color: #0b1016; font-weight: 800; flex: none; font-size: 9.5px; letter-spacing: .3px; border-radius: 5px; padding: 2px 6px; }
-        .tr { color: var(--text); flex: 1; min-width: 0; font-variant-numeric: tabular-nums; }
-        .td { color: var(--text-dim); margin-left: auto; flex: none; font-size: 12px; font-variant-numeric: tabular-nums; }
-        .tn { color: var(--text-faint); }
+        .tc-time { color: var(--text); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .tc-date { margin-left: auto; flex: none; color: var(--text-dim); font-size: 12px; font-variant-numeric: tabular-nums; }
+        .tc-name { color: var(--text-dim); font-size: 12.5px; line-height: 1.45; }
         .tb-empties { display: flex; gap: 6px; }
         .tb-empty { background: transparent; border: 1px dashed var(--border-strong); color: var(--text-faint); border-radius: 6px; padding: 5px 10px; font-size: 11.5px; cursor: pointer; flex: 1; }
         .tb-empty:hover { color: var(--primary); border-color: var(--primary); }
@@ -745,7 +750,7 @@ function TimesTab({ data, canEdit, onEditTime, onAddTime, onApplyTemplate }) {
 
 /* ── Notes ── */
 function NotesTab({ data }) {
-  if (!data) return <div className="muted">Se încarcă…</div>;
+  if (!data) return <Skeleton lines={3} />;
   const notes = data.notes || [];
   if (!notes.length) return <div className="muted">Nicio notă.</div>;
   return (
@@ -767,7 +772,7 @@ function NotesTab({ data }) {
 
 /* ── Files ── */
 function FilesTab({ data }) {
-  if (!data) return <div className="muted">Se încarcă…</div>;
+  if (!data) return <Skeleton lines={3} />;
   const groups = data.groups || [];
   if (!groups.length) return <div className="muted">Nu există fișiere pentru acest plan.</div>;
   return (

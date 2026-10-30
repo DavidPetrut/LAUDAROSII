@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { matrixApi } from "@/lib/api/client";
 import PersonAvatar from "@/components/plans/PersonAvatar";
+import Skeleton from "@/components/ui/Skeleton";
 
 export default function CoveragePage() {
   const { serviceTypeId } = useParams();
@@ -72,7 +73,7 @@ export default function CoveragePage() {
       </div>
 
       {err && <div className="err">{err}</div>}
-      {loading && !data ? <div className="empty">Se încarcă raportul…</div> : (
+      {loading && !data ? <Skeleton lines={6} /> : (
         <div className="cols">
           {buckets.map((b) => (
             <div key={b.times} className={`col ${b.times === 0 ? "col0" : ""}`}>

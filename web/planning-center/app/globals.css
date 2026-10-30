@@ -106,8 +106,39 @@ button { font-family: inherit; }
   border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
   font-size: 13px; outline: none;
 }
-.input:focus { border-color: var(--primary); }
+.input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent); }
 .input::placeholder { color: var(--text-faint); }
+
+/* =============================================================================
+   PC CARD — cardul nostru standard (design system). ORICE listă/entitate se
+   afișează ca pe un card cu asta, NU cu linii orizontale între rânduri.
+   Variante: .pc-card-hover (ridică la hover, pt. carduri clicabile),
+   .pc-card-flush (fără margin, când părintele dă gap). Vezi web/planning-center/DESIGN.md.
+   ============================================================================= */
+.pc-card {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 11px 13px; margin-bottom: 8px;
+}
+.pc-card:last-child { margin-bottom: 0; }
+.pc-card-hover { cursor: pointer; transition: border-color .14s ease, transform .14s ease; }
+.pc-card-hover:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.pc-card-flush { margin-bottom: 0; }
+
+/* =============================================================================
+   SKELETON — animație de încărcare (shimmer) STANDARD. Orice loc care încarcă
+   date din API (modale, taburi, liste) afișează <Skeleton/> cât timp încarcă,
+   NU text „Se încarcă…". Clase globale ca să meargă și în styled-jsx.
+   ============================================================================= */
+@keyframes pc-shimmer { 100% { transform: translateX(100%); } }
+.pc-sk-wrap { padding: 4px 0; }
+.pc-sk-line, .pc-sk-circle { position: relative; overflow: hidden; background: var(--surface-2); }
+.pc-sk-line { height: 13px; border-radius: 6px; margin-bottom: 9px; }
+.pc-sk-line.sk-last { margin-bottom: 0; }
+.pc-sk-line.w35 { width: 35%; } .pc-sk-line.w50 { width: 50%; } .pc-sk-line.w65 { width: 65%; } .pc-sk-line.w80 { width: 80%; } .pc-sk-line.w100 { width: 100%; }
+.pc-sk-circle { border-radius: 50%; flex: none; }
+.pc-sk-row { display: flex; align-items: center; gap: 11px; margin-bottom: 13px; }
+.pc-sk-row:last-child { margin-bottom: 0; }
+.pc-sk-line::after, .pc-sk-circle::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255,255,255,.07), transparent); animation: pc-shimmer 1.3s infinite; }
 
 /* =============================================================================
    Planning (Plans / Matrix / Teams): lățime completă ca în PCO.

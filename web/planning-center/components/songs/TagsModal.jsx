@@ -9,6 +9,7 @@
 import { useEffect, useState } from "react";
 import Modal from "@/components/ui/Modal";
 import { songsApi } from "@/lib/api/client";
+import Skeleton from "@/components/ui/Skeleton";
 
 export default function TagsModal({ domain = "song", selectedIds = [], onClose, onSave }) {
   const [groups, setGroups] = useState([]);
@@ -63,7 +64,7 @@ export default function TagsModal({ domain = "song", selectedIds = [], onClose, 
       </>}>
       {err && <div className="err">{err}</div>}
       {loading ? (
-        <div className="dim">Se încarcă…</div>
+        <Skeleton lines={4} />
       ) : (
         <>
           {groups.length === 0 && <div className="dim">Niciun grup de tag-uri. Creează unul mai jos.</div>}

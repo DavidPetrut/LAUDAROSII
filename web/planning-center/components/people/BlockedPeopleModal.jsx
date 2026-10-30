@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Modal from "@/components/ui/Modal";
 import { peopleApi } from "@/lib/api/client";
+import Skeleton from "@/components/ui/Skeleton";
 
 const KIND = {
   churchBlock: { label: "Blocat de biserică", cls: "church" },
@@ -51,7 +52,7 @@ export default function BlockedPeopleModal({ onClose, onChanged, initialRows = n
     <Modal title={`Blocați acum${rows.length ? ` (${rows.length})` : ""}`} onClose={onClose} footer={footer} width={520}>
       <div className="bp">
         {err ? <div className="bp-err">{err}</div> : null}
-        {loading ? <div className="bp-muted">Se încarcă…</div> : rows.length === 0 ? (
+        {loading ? <Skeleton rows={3} /> : rows.length === 0 ? (
           <div className="bp-empty"><span className="bp-ok">Nimeni blocat acum.</span><span className="bp-sub">Toți oamenii apar în listele de planificare.</span></div>
         ) : (
           <div className="bp-list">

@@ -12,6 +12,7 @@ import { scheduleApi } from "@/lib/api/client";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 import BlockoutModal from "@/components/schedule/BlockoutModal";
 import CalendarModal from "@/components/schedule/CalendarModal";
+import Skeleton from "@/components/ui/Skeleton";
 
 const MONTHS = ["Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie", "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie"];
 const WD = ["DUM", "LUN", "MAR", "MIE", "JOI", "VIN", "SÂM"];
@@ -314,7 +315,7 @@ export default function MySchedulePage() {
           </div>
 
           {err && <div className="err">{err}</div>}
-          {loading ? <div className="muted">Se încarcă…</div> : (
+          {loading ? <Skeleton rows={3} /> : (
             <>
               {pendCount > 0 && (
                 <>

@@ -3,16 +3,19 @@
  * Modal — shell reutilizabil, stil PCO (fundal întunecat, titlu, corp, footer Cancel/Submit).
  * Folosit de Add Song, Add Arrangement, Add File, Edit Sequence, Song Information etc.
  */
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 export default function Modal({ title, onClose, children, footer, width = 520 }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   useEffect(() => {
     const onKey = (e) => e.key === "Escape" && onClose?.();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  return (
+  const node = (
     <div className="ov" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
       <div className="modal" style={{ width }}>
         <div className="head">
@@ -23,7 +26,7 @@ export default function Modal({ title, onClose, children, footer, width = 520 })
         {footer && <div className="foot">{footer}</div>}
       </div>
       <style jsx>{`
-        .ov { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.55);
+        .ov { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.6); backdrop-filter: blur(2px);
           display: flex; align-items: flex-start; justify-content: center; padding: 64px 16px; }
         .modal { background: var(--modal-bg); border: 1px solid var(--border-strong);
           border-radius: 10px; max-width: 100%; box-shadow: 0 24px 64px rgba(0,0,0,.5);
@@ -38,4 +41,6 @@ export default function Modal({ title, onClose, children, footer, width = 520 })
       `}</style>
     </div>
   );
+
+  return mounted ? createPortal(node, document.body) : null;
 }

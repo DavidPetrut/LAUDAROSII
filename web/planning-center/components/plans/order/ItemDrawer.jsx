@@ -11,13 +11,14 @@ import PersonAvatar from "@/components/plans/PersonAvatar";
 import VoicesPicker from "./VoicesPicker";
 import MedleyEditor from "./MedleyEditor";
 import SongPickerModal from "./SongPickerModal";
+import Skeleton from "@/components/ui/Skeleton";
 
-const TABS = ["Notes", "Detail", "Song", "Media", "Files"];
+const TABS = ["Files", "Song", "Detail", "Media", "Notes"];
 const splitLen = (s) => ({ m: Math.floor((s || 0) / 60), s: (s || 0) % 60 });
 
 export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, onChanged, flash }) {
   const [d, setD] = useState(null);
-  const [tab, setTab] = useState("Song");
+  const [tab, setTab] = useState("Files");
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [mm, setMm] = useState(0);
@@ -47,7 +48,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
       setD(r); setTitle(r.title || ""); setDesc(r.description || ""); setVoices(r.voices || []);
       const L = splitLen(r.lengthSec); setMm(L.m); setSs(L.s);
       plansApi.voicesPool(planId).then((pr) => setPool(pr.people || [])).catch(() => {});
-      setTab(r.type === "song" ? "Song" : r.type === "media" ? "Media" : r.type === "medley" ? "Notes" : "Files");
+      setTab("Files"); // David: Files mereu primul la deschidere
       if (r.songId) {
         songsApi.get(r.songId).then(setSong).catch(() => {});
         if (r.arrangementId) songsApi.arrangement(r.songId, r.arrangementId).then(setArr).catch(() => {});
@@ -114,7 +115,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
         {canEdit && <button className="d-del" onClick={del}>Șterge</button>}
       </div>
 
-      {!d ? <div className="d-load">Se încarcă…</div> : (
+      {!d ? <div className="d-load"><Skeleton lines={4} /></div> : (
         <div className="d-scroll">
           <input className="d-title" value={title} disabled={ro} onChange={(e) => setTitle(e.target.value)} onBlur={saveTitle}
             onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} placeholder="Titlu" />
@@ -252,7 +253,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
 
             {tab === "Notes" && (
               <div className="notes-tab">
-                {notes === null ? <div className="d-none">Se încarcă…</div> : (
+                {notes === null ? <Skeleton lines={2} /> : (
                   <>
                     {notes.map((n) => (
                       <div key={n.id} className="note">

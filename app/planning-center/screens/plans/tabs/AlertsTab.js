@@ -167,7 +167,13 @@ function Manage({ planId, insets }) {
 
 function SeenSheet({ alert, onClose }) {
   const seen = alert.ackedPeople || [], notSeen = alert.pendingPeople || [];
-  const Row = ({ p, ok }) => (<View style={s.sr}><Text style={s.srN}>{p.name}</Text><Text style={ok ? s.srOk : s.srNo}>{ok ? "✓ a văzut" : "○ n-a văzut"}</Text></View>);
+  const Row = ({ p, ok }) => (
+    <View style={s.sr}>
+      {p.avatar ? <Image source={{ uri: p.avatar }} style={s.srAv} /> : <View style={[s.srAv, s.srAvDot]}><Text style={s.srAvTx}>{p.initials || "?"}</Text></View>}
+      <Text style={s.srN} numberOfLines={1}>{p.name}</Text>
+      <View style={[s.srB, ok ? s.srBok : s.srBno]}><Text style={ok ? s.srBokT : s.srBnoT}>{ok ? "✓ Văzut" : "✕ Nevăzut"}</Text></View>
+    </View>
+  );
   return (
     <PcBottomSheet visible onClose={onClose} maxHeightPct={0.7}>
       <ScrollView contentContainerStyle={{ padding: 16 }}>
@@ -244,10 +250,16 @@ const s = StyleSheet.create({
   act: { color: pcColors.textSecondary, fontSize: 13 },
   actSnd: { color: pcColors.primary, fontSize: 13, fontWeight: "700" },
   actDel: { color: DANGER, fontSize: 13 },
-  sr: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: pcColors.divider },
-  srN: { color: pcColors.textPrimary, fontSize: 14 },
-  srOk: { color: pcColors.product || "#57b98a", fontSize: 12, fontWeight: "700" },
-  srNo: { color: pcColors.textMuted, fontSize: 12, fontWeight: "700" },
+  sr: { flexDirection: "row", alignItems: "center", gap: 11, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: pcColors.divider },
+  srAv: { width: 34, height: 34, borderRadius: 17 },
+  srAvDot: { backgroundColor: pcColors.chipBorder, alignItems: "center", justifyContent: "center" },
+  srAvTx: { color: pcColors.textPrimary, fontSize: 12, fontWeight: "700" },
+  srN: { color: pcColors.textPrimary, fontSize: 14, flex: 1 },
+  srB: { flexDirection: "row", alignItems: "center", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  srBok: { backgroundColor: "rgba(87,185,138,0.16)" },
+  srBno: { backgroundColor: pcColors.bgInput || "#1c222b" },
+  srBokT: { color: pcColors.product || "#57b98a", fontSize: 11.5, fontWeight: "700" },
+  srBnoT: { color: pcColors.textMuted, fontSize: 11.5, fontWeight: "700" },
   sheetH: { color: pcColors.textPrimary, fontSize: 17, fontWeight: "700", marginBottom: 6 },
   detailTitle: { color: pcColors.textPrimary, fontSize: 21, fontWeight: "800", marginTop: 10, marginBottom: 10 },
   detailBody: { color: pcColors.textSecondary, fontSize: 15, lineHeight: 23 },

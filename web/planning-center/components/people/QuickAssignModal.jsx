@@ -6,6 +6,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { peopleApi } from "@/lib/api/client";
+import Skeleton from "@/components/ui/Skeleton";
 
 const norm = (s) => String(s).toLowerCase();
 const eqSet = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
@@ -115,7 +116,7 @@ export default function QuickAssignModal({ person, onClose, onChanged }) {
             {q && <button className="sx" onClick={() => setQ("")}>×</button>}
           </div>
 
-          {ministries === null ? <div className="load">Se încarcă lucrările…</div> : (
+          {ministries === null ? <Skeleton rows={3} /> : (
             <div className="list">
               {filtered.map((m) => {
                 const onN = m.positions.filter(isOn).length;
