@@ -12,6 +12,7 @@ const TYPES = [
   { type: "item", label: "Element", short: "i", d: "Element liber (ex. Verificări, Welcome, anunțuri)." },
   { type: "media", label: "Media", short: "m", d: "Element media (video/imagine)." },
   { type: "medley", label: "Medley", short: "", d: "Mai multe cântece combinate, cu tranziții." },
+  { type: "transition", label: "Tranziție", short: "t", d: "Punte între momente: gamă, lumini, rugăciune (toate opționale)." },
 ];
 
 export default function AddItemMenu({ onAdd, onAddSong, onAddEmptySong, onAddMedley }) {

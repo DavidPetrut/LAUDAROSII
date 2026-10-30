@@ -124,8 +124,10 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
             // Slujirile rezolvă persoana automat din Matrix (m.people) sau override. Pe rând: doar numele, fără prefix.
             const minPeople = (it.ministries || []).flatMap((m) => m.people || []);
             const ministryLine = (it.ministries || []).map((m) => (m.people || []).map((p) => minFirst(p.name)).join(", ")).filter(Boolean).join("  ||  ");
-            // Avatarul = lead vocal SAU, dacă nu există, prima persoană de la o slujire.
-            const avatarPerson = leadVoice || minPeople[0] || null;
+            // Tip „transition": gamă (badge + text), lumini (culori), rugăciune (avatar dreapta).
+            const tr = it.type === "transition" ? (it.transition || {}) : null;
+            // Avatarul = lead vocal SAU prima persoană de la o slujire SAU persoana de rugăciune (tranziție).
+            const avatarPerson = leadVoice || minPeople[0] || (tr && tr.prayer) || null;
             return (
               <div
                 key={it.id}
@@ -149,10 +151,20 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                         {isMedley && <span className="mtag" title="Medley">medley · {it.medleyCount}</span>}
                         <span className="r-title">{it.title || "—"}</span>
                         {it.keyName && <span className={`r-key ${it.type === "media" ? "media" : ""}`}>{it.keyName}</span>}
+                        {tr && tr.key && <span className="r-key" title="Gamă tranziție">{tr.key}</span>}
                         {avatarPerson && <span className="r-leadav" title={avatarPerson.name}><PersonAvatar person={avatarPerson} size={33} /></span>}
                       </div>
                       {voiceLine && <div className="r-voices">{voiceLine}</div>}
                       {ministryLine && <div className="r-min">{ministryLine}</div>}
+                      {tr && (tr.key || (tr.lights || []).length || tr.prayer) && (
+                        <div className="r-trans">
+                          {tr.key && <span className="rt-part">Gamă: <b>{tr.key}</b></span>}
+                          {(tr.lights || []).length > 0 && (
+                            <span className="rt-part rt-lights">Lumini:{tr.lights.map((l, i) => <span key={i} className="rt-dot" style={{ background: l.color || "#888" }} title={l.label || l.color} />)}</span>
+                          )}
+                          {tr.prayer && <span className="rt-part">Tranziție rugăciune: {tr.prayer.name}</span>}
+                        </div>
+                      )}
                       {it.description && <div className="r-sub">{it.description}</div>}
                     </div>
                     <div className="r-right">
@@ -215,6 +227,11 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
         .mexp:hover { color: var(--text); }
         .r-voices { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 2px; white-space: pre-line; }
         .r-min { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 2px; }
+        .r-trans { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; color: var(--text-dim); font-size: 12px; margin-top: 3px; }
+        .rt-part { display: inline-flex; align-items: center; gap: 5px; }
+        .rt-part b { color: var(--text); font-weight: 700; }
+        .rt-lights { gap: 4px; }
+        .rt-dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--border-strong); display: inline-block; }
         .r-sub { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 2px; white-space: pre-wrap; max-width: 640px; }
         .r-right { display: flex; align-items: center; gap: 4px; margin-left: auto; flex: none; }
         .lead-av { display: inline-flex; }

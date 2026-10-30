@@ -284,7 +284,15 @@ async function resolveVoices(req, items) {
 
 // „Alte slujiri" pe un item: slujiri non-vocale din Matrix-ul săptămânii. Mapare kind → pattern poziție (pt. pool/predicatori).
 const MINISTRY_KINDS = ["host", "communion", "prayer", "preach", "worship"];
-const MINISTRY_POS_RX = { host: /gazd/i, communion: /cin[ăa]|comuniune|\beuharist/i, prayer: /\b(indemn|îndemn)|rug[ăa]ciune/i, preach: /predic/i, worship: /lider.*(inchinare|închinare)/i };
+// Ancorat la ÎNCEPUTUL numelui poziției: altfel „predic"/„cin" prind și pozițiile media/ushering
+// (Video predica, Reel predica, Design Prezentari Predici, Impartire Cina) → persoane random pe rol.
+const MINISTRY_POS_RX = {
+  host: /^_?\s*gazd/i,
+  communion: /^_?\s*(vorbitor.*cin[ăa]|comuniune|euharist)/i,
+  prayer: /^_?\s*(indemn|îndemn|rug[ăa]ciune)/i,
+  preach: /^_?\s*predic/i,
+  worship: /^_?\s*lider.*(inchinare|închinare)/i,
+};
 
 // Slujirea stochează ROLUL (kind); persoana se ia AUTOMAT din Matrix (byKind). `personId` = override MANUAL (opțional).
 async function ministryByKind(req, planId) {
@@ -323,6 +331,24 @@ async function resolveMinistries(req, items, planId) {
   return map;
 }
 
+// Tip „transition": rezolvă gama (text), luminile (culori) și persoana de rugăciune (avatar).
+async function resolveTransitions(req, items) {
+  const pids = [];
+  for (const it of items) if (it.transition && it.transition.prayerPersonId) pids.push(it.transition.prayerPersonId);
+  const persons = pids.length ? await PcPerson.find(scoped(req, { _id: { $in: pids } })).select("firstName lastName avatar").lean() : [];
+  const byId = Object.fromEntries(persons.map((p) => [String(p._id), personMini(p)]));
+  const map = {};
+  for (const it of items) {
+    const t = it.transition || {};
+    map[String(it._id)] = {
+      key: t.key || "",
+      lights: (t.lights || []).map((l) => ({ color: l.color || "", label: l.label || "" })),
+      prayer: (t.prayerPersonId && byId[String(t.prayerPersonId)]) ? byId[String(t.prayerPersonId)] : null,
+    };
+  }
+  return map;
+}
+
 /* ───────── GET /:id/order — ordinea serviciului (secțiuni + itemi) ───────── */
 router.get("/:id/order", requireCan("people.view"), async (req, res) => {
   try {
@@ -332,6 +358,7 @@ router.get("/:id/order", requireCan("people.view"), async (req, res) => {
     const leadersMap = await resolveItemLeaders(req, id, items);
     const voicesMap = await resolveVoices(req, items);
     const ministriesMap = await resolveMinistries(req, items, id);
+    const transMap = await resolveTransitions(req, items);
     // reguli de culoare din service type
     const plan = await PcPlan.findOne(scoped(req, { _id: id })).select("serviceTypeId").lean();
     const st = plan ? await PcServiceType.findOne(scoped(req, { _id: plan.serviceTypeId })).select("itemRowColors useCustomRowColors").lean() : null;
@@ -375,6 +402,7 @@ router.get("/:id/order", requireCan("people.view"), async (req, res) => {
         fileCount: (planFileCount[String(it._id)] || 0) + songFileCount(it),
         voices: voicesMap[String(it._id)] || [],
         ministries: ministriesMap[String(it._id)] || [],
+        transition: it.type === "transition" ? transMap[String(it._id)] : undefined,
         leaders: leadersMap[String(it._id)] || [],
         leader: (leadersMap[String(it._id)] || [])[0] || null,
       })),
@@ -396,6 +424,7 @@ router.get("/:id/items/:itemId", requireCan("people.view"), async (req, res) => 
     const leadersMap = await resolveItemLeaders(req, planId, [it]);
     const voicesMap = await resolveVoices(req, [it]);
     const ministriesMap = await resolveMinistries(req, [it], planId);
+    const transMap = await resolveTransitions(req, [it]);
     const files = await PcPlanFile.find(scoped(req, { itemId })).sort({ sortOrder: 1 }).lean();
     // ore de serviciu (pt. checkbox-urile During/Before/After per oră)
     const serviceTimes = await PcPlanTime.find(scoped(req, { planId, type: "service" })).sort({ startsAt: 1 }).lean();
@@ -422,6 +451,7 @@ router.get("/:id/items/:itemId", requireCan("people.view"), async (req, res) => 
       leaders: leadersMap[String(it._id)] || [],
       voices: voicesMap[String(it._id)] || [],
       ministries: ministriesMap[String(it._id)] || [],
+      transition: transMap[String(it._id)] || { key: "", lights: [], prayer: null },
       medley: (it.medley || []).slice().sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)).map((c) => ({
         songId: c.songId ? String(c.songId) : null, arrangementId: c.arrangementId ? String(c.arrangementId) : null,
         keyId: c.keyId ? String(c.keyId) : null, keyName: c.keyName || "", title: c.title || "",
@@ -442,11 +472,11 @@ router.post("/:id/items", requireCan("services.editOrder"), async (req, res) => 
     const planId = OID(req.params.id);
     if (!planId) return res.status(400).json({ error: "ID invalid" });
     const b = req.body || {};
-    const type = ["item", "header", "song", "media", "medley"].includes(b.type) ? b.type : "item";
+    const type = ["item", "header", "song", "media", "medley", "transition"].includes(b.type) ? b.type : "item";
 
     const doc = {
       planId, type,
-      title: String(b.title || (type === "header" ? "Header" : type === "song" ? "New Song" : type === "media" ? "New Media" : type === "medley" ? "Medley" : "New Item")).trim(),
+      title: String(b.title || (type === "header" ? "Header" : type === "song" ? "New Song" : type === "media" ? "New Media" : type === "medley" ? "Medley" : type === "transition" ? "Tranziție" : "New Item")).trim(),
       description: b.description || "",
       lengthSec: Number(b.lengthSec) || 0,
       placement: ["before", "during", "after"].includes(b.placement) ? b.placement : "during",
@@ -523,6 +553,14 @@ router.patch("/:id/items/:itemId", requireCan("services.editOrder"), async (req,
         personId: m.personId ? OID(m.personId) : null,
         name: m.personId ? "" : String(m.name || ""),
       })).filter((m) => m.kind);
+    }
+    // Tip „transition": gamă (text), lumini (culori), persoană de rugăciune. Containere OPȚIONALE,
+    // actualizate independent (dotted paths) ca să nu se șteargă unele pe altele la salvare parțială.
+    if (b.transition && typeof b.transition === "object") {
+      const t = b.transition;
+      if (t.key !== undefined) set["transition.key"] = String(t.key || "").trim();
+      if (Array.isArray(t.lights)) set["transition.lights"] = t.lights.map((l) => ({ color: String(l.color || "").trim(), label: String(l.label || "").trim() })).filter((l) => l.color || l.label);
+      if (t.prayerPersonId !== undefined) set["transition.prayerPersonId"] = t.prayerPersonId ? OID(t.prayerPersonId) : null;
     }
     // Secvență one-time pt. acest plan (Edit Sequence from a plan).
     if (Array.isArray(b.sequence)) set.sequence = b.sequence.map((s) => String(s)).filter(Boolean);

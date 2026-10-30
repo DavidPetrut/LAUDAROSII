@@ -10,7 +10,14 @@ import { plansApi, songsApi } from "@/lib/api/client";
 import PersonAvatar from "@/components/plans/PersonAvatar";
 import VoicesPicker from "./VoicesPicker";
 import MinistriesPicker from "./MinistriesPicker";
+import TransitionEditor from "./TransitionEditor";
 import MedleyEditor from "./MedleyEditor";
+
+// „+ Tranziție" (quick-insert): creează un ELEMENT simplu dedesubt, cu titlu fix, fără lead.
+const QUICK_TRANS = [
+  { k: "prayer", label: "Tranziție cu rugăciune", title: "Rugăciune cu biserică" },
+  { k: "word", label: "Tranziție verbală", title: "Tranziție prin cuvânt" },
+];
 import SongPickerModal from "./SongPickerModal";
 import Skeleton from "@/components/ui/Skeleton";
 
@@ -33,9 +40,11 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
   const [notes, setNotes] = useState(null);
   const [voices, setVoices] = useState([]);
   const [ministries, setMinistries] = useState([]);
+  const [trans, setTrans] = useState({ key: "", lights: [], prayer: null });
   const [mPool, setMPool] = useState({ week: [], preachers: [], byKind: {} });
   const [pool, setPool] = useState([]);
   const [songPicker, setSongPicker] = useState(false);
+  const [qtOpen, setQtOpen] = useState(false); // meniul „+ Tranziție"
   const lt = useRef(null);
 
   async function linkSong(songs) {
@@ -49,9 +58,10 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
     try {
       const r = await plansApi.itemDetail(planId, itemId);
       setD(r); setTitle(r.title || ""); setDesc(r.description || ""); setVoices(r.voices || []); setMinistries(r.ministries || []);
+      setTrans(r.transition || { key: "", lights: [], prayer: null });
       const L = splitLen(r.lengthSec); setMm(L.m); setSs(L.s);
       plansApi.voicesPool(planId).then((pr) => setPool(pr.people || [])).catch(() => {});
-      if (r.type === "item") plansApi.ministryPool(planId).then((pr) => setMPool({ week: pr.week || [], preachers: pr.preachers || [], byKind: pr.byKind || {} })).catch(() => {});
+      if (r.type === "item" || r.type === "transition") plansApi.ministryPool(planId).then((pr) => setMPool({ week: pr.week || [], preachers: pr.preachers || [], byKind: pr.byKind || {} })).catch(() => {});
       setTab("Files"); // David: Files mereu primul la deschidere
       if (r.songId) {
         songsApi.get(r.songId).then(setSong).catch(() => {});
@@ -75,6 +85,20 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
   function saveMinistries(next) {
     setMinistries(next);
     plansApi.updateItem(planId, itemId, { ministries: next.map((m) => ({ kind: m.kind, personId: m.personId || undefined, name: m.personId ? undefined : (m.name || "") })) }).then(() => onChanged?.()).catch((e) => flash?.(e?.message || "Eroare."));
+  }
+  // Tip „transition": salvează gamă/lumini/rugăciune. `next` = { key, lights, prayerPersonId }.
+  function saveTransition(next) {
+    const wp = next.prayerPersonId ? mPool.week.find((p) => String(p.personId) === String(next.prayerPersonId)) : null;
+    const prayerMini = wp ? { id: wp.personId, name: wp.name, avatar: wp.avatar, initials: wp.initials } : (next.prayerPersonId && trans.prayer ? trans.prayer : null);
+    const merged = { key: next.key || "", lights: next.lights || [], prayer: prayerMini };
+    setTrans(merged);
+    plansApi.updateItem(planId, itemId, { transition: { key: merged.key, lights: merged.lights, prayerPersonId: next.prayerPersonId || null } }).then(() => onChanged?.()).catch((e) => flash?.(e?.message || "Eroare."));
+  }
+  // „+ Tranziție" (quick-insert): creează un element simplu (fără lead) imediat DEDESUBT, cu titlu fix.
+  async function addQuickTransition(title) {
+    setQtOpen(false);
+    try { await plansApi.addItem(planId, { type: "item", title, afterItemId: itemId }); onChanged?.(); flash?.(`Adăugat dedesubt: „${title}".`); }
+    catch (e) { flash?.(e?.message || "Eroare la adăugare."); }
   }
 
   async function changeArrangement(aid) {
@@ -161,7 +185,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
             </div>
           </div>)}
 
-          {d.type !== "header" && (
+          {d.type !== "header" && d.type !== "transition" && (
             <label className="d-trans">
               <input type="checkbox" checked={!!d.isTransition} disabled={ro}
                 onChange={(e) => { patch({ isTransition: e.target.checked }, true); setD((x) => ({ ...x, isTransition: e.target.checked })); }} />
@@ -176,13 +200,43 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
             </div>
           )}
 
+          {d.type === "transition" && (
+            <div className="d-sec">
+              <div className="d-sl">Punte — gamă · lumini · rugăciune</div>
+              <TransitionEditor value={trans} week={mPool.week} canEdit={canEdit} onChange={saveTransition} />
+            </div>
+          )}
+
+          {/* „+ Tranziție" — generează un element simplu dedesubt (rugăciune / verbală). Oriunde, nu doar la cântec. */}
+          {d.type !== "header" && canEdit && (
+            <div className="d-sec qt">
+              <div className="qt-wrap">
+                <button className="qt-btn" onClick={() => setQtOpen((v) => !v)}>
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 3v10M3 8h10" /></svg>
+                  Tranziție
+                </button>
+                {qtOpen && (<>
+                  <div className="qt-back" onClick={() => setQtOpen(false)} />
+                  <div className="qt-menu">
+                    {QUICK_TRANS.map((t) => (
+                      <button key={t.k} className="qt-it" onClick={() => addQuickTransition(t.title)}>
+                        <span className="qt-l">{t.label}</span>
+                        <span className="qt-d">creează „{t.title}" dedesubt</span>
+                      </button>
+                    ))}
+                  </div>
+                </>)}
+              </div>
+            </div>
+          )}
+
           <div className="d-sec">
             <div className="d-sl">Description</div>
             <textarea className="d-desc" value={desc} disabled={ro} onChange={(e) => setDesc(e.target.value)} onBlur={saveDesc}
               placeholder={"Note libere (versete, cue-uri)…"} rows={3} />
           </div>
 
-          {d.type !== "header" && (
+          {d.type !== "header" && d.type !== "transition" && (
           <div className="d-sec">
             <div className="d-sl">Item leader</div>
             <div className="leads">
@@ -217,7 +271,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
             </div>
           )}
 
-          {d.type !== "header" && (<>
+          {d.type !== "header" && d.type !== "transition" && (<>
           {/* ── tabs ── */}
           <div className="d-tabs">
             {TABS.map((t) => <button key={t} className={`dt ${tab === t ? "on" : ""}`} onClick={() => setTab(t)}>{t}</button>)}
@@ -359,6 +413,16 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
         .note-del { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 11px; padding-top: 8px; }
         .addnote { background: var(--surface-2); border: 1px dashed var(--border-strong); color: var(--text-faint); border-radius: 7px; padding: 7px 12px; font-size: 12.5px; cursor: pointer; width: 100%; }
         .addnote:hover { color: var(--primary); border-color: var(--primary); }
+        .d-sec.qt { margin-top: 12px; }
+        .qt-wrap { position: relative; }
+        .qt-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px dashed var(--border-strong); color: var(--text-dim); border-radius: 8px; padding: 7px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+        .qt-btn:hover { color: var(--primary); border-color: var(--primary); }
+        .qt-back { position: fixed; inset: 0; z-index: 6; }
+        .qt-menu { position: absolute; z-index: 7; top: 38px; left: 0; min-width: 236px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: 0 14px 40px rgba(0,0,0,.45); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+        .qt-it { display: flex; flex-direction: column; gap: 2px; text-align: left; background: transparent; border: none; color: var(--text); padding: 8px 10px; border-radius: 7px; cursor: pointer; }
+        .qt-it:hover { background: var(--surface-2); }
+        .qt-l { font-size: 13px; font-weight: 600; }
+        .qt-d { color: var(--text-faint); font-size: 11px; }
       `}</style>
     </aside>
   );

@@ -11,7 +11,7 @@ const { pcSchema, pcModel } = require("../core/schema");
 const schema = pcSchema({
   planId: { type: mongoose.Schema.Types.ObjectId, ref: "PcPlan", required: true },
   // medley = container cu mai multe „snippet"-uri de cântec (vezi `medley[]` mai jos), afișat cu săgeți jos.
-  type: { type: String, enum: ["header", "item", "song", "media", "medley"], default: "item" },
+  type: { type: String, enum: ["header", "item", "song", "media", "medley", "transition"], default: "item" },
   title: { type: String, default: "" },
   description: { type: String, default: "" },
   lengthSec: { type: Number, default: 0 },
@@ -58,6 +58,16 @@ const schema = pcSchema({
   },
   // ── Tranziție (aditiv) — cântec/parte folosit(ă) doar ca punte: indent + „!" + timp EXCLUS din total.
   isTransition: { type: Boolean, default: false },
+  // ── Tip „transition" (aditiv) — punte între momente: gamă (ca badge), lumini (culori), rugăciune (persoană).
+  // Containere OPȚIONALE (se adaugă cu „+"). Totul se transpune în Rehearse + PDF.
+  transition: {
+    type: new mongoose.Schema({
+      key: { type: String, default: "" },                 // gamă (ex. „C", „Dm") — badge dreapta + scris dedesubt
+      lights: { type: [{ color: String, label: String }], default: [] }, // culori de lumini (una sau mai multe)
+      prayerPersonId: { type: mongoose.Schema.Types.ObjectId, ref: "PcPerson", default: null }, // „Tranziție rugăciune" = o persoană
+    }, { _id: false }),
+    default: () => ({}),
+  },
   // ── Medley (aditiv) — pt. type:"medley": listă de snippet-uri de cântec, în ordine (săgeți jos).
   // Chartul combinat se randează DERIVAT (concatenează chord chart-urile copiilor) — fără storage nou.
   medley: {
