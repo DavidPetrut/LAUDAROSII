@@ -12,10 +12,10 @@ import { PcScreen, PcIconButton, PcDateField, PcSelect } from "../../components"
 const pad = (n) => String(n).padStart(2, "0");
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 const REPEATS = [
-  { value: "none", label: "Does not repeat" },
-  { value: "weekly", label: "Weekly" },
-  { value: "monthly", label: "Monthly" },
-  { value: "yearly", label: "Yearly" },
+  { value: "none", label: "Fără" },
+  { value: "weekly", label: "Săptămânal" },
+  { value: "monthly", label: "Lunar" },
+  { value: "yearly", label: "Anual" },
 ];
 
 export function BlockoutEditorScreen({ navigation, route }) {
@@ -27,34 +27,34 @@ export function BlockoutEditorScreen({ navigation, route }) {
   const [repeat, setRepeat] = useState("none");
   const [reason, setReason] = useState("");
   const [conflicts, setConflicts] = useState([]);
-  const [conflictAction, setConflictAction] = useState("ignore"); // ignore | decline
   const [checking, setChecking] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Validare client: start <= end.
-  const rangeValid = startDate && endDate && endDate >= startDate;
+  // Repeat exclusiv cu intervalul: când se repetă, e o SINGURĂ dată de bază (fără end).
+  const isRepeat = repeat !== "none";
+  const rangeValid = isRepeat ? !!startDate : (startDate && endDate && endDate >= startDate);
+  const hasConflict = conflicts.length > 0;          // REGULĂ: orice conflict blochează salvarea
+  const canSave = rangeValid && !hasConflict && !saving;
 
   const checkConflicts = useCallback(async () => {
     if (!rangeValid) { setConflicts([]); return; }
     setChecking(true);
-    try { setConflicts((await pcApi.schedule.conflicts(startDate, endDate)).conflicts || []); }
+    const endEff = isRepeat ? startDate : endDate;
+    try { setConflicts((await pcApi.schedule.conflicts(startDate, endEff)).conflicts || []); }
     catch (e) { /* silent */ }
     finally { setChecking(false); }
-  }, [startDate, endDate, rangeValid]);
+  }, [startDate, endDate, rangeValid, isRepeat]);
   useEffect(() => { checkConflicts(); }, [checkConflicts]);
 
   // dacă endDate < startDate după schimbare, aliniază
   useEffect(() => { if (endDate < startDate) setEndDate(startDate); }, [startDate]); // eslint-disable-line
 
   const save = async () => {
-    if (!rangeValid) return showError("Interval invalid: data de final trebuie să fie ≥ data de început.");
+    if (!rangeValid) return showError(isRepeat ? "Alege data de bază." : "Interval invalid: data de final trebuie să fie ≥ data de început.");
+    if (hasConflict) return showError("Ai conflicte în interval — nu poți salva. Rezolvă din programul tău sau vorbește cu planificatorul.");
     setSaving(true);
     try {
-      await pcApi.schedule.createBlockouts([{ startDate, endDate, allDay, repeat, reason }]);
-      // Conflicte: dacă userul a ales „Decline", refuză programările din interval.
-      if (conflictAction === "decline" && conflicts.length) {
-        await Promise.all(conflicts.filter((c) => c.status === "unconfirmed" || c.status === "confirmed").map((c) => pcApi.schedule.respond(c.assignmentId, "decline", "Blockout").catch(() => {})));
-      }
+      await pcApi.schedule.createBlockouts([{ startDate, endDate: isRepeat ? startDate : endDate, allDay, repeat, reason }]);
       showSuccess("Blockout salvat.");
       navigation.goBack();
     } catch (e) { showError(e?.message || "Nu s-a putut salva."); }
@@ -66,32 +66,29 @@ export function BlockoutEditorScreen({ navigation, route }) {
       <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
         <PcIconButton icon="close" color={pcColors.primary} onPress={() => navigation.goBack()} />
         <Text style={styles.headerTitle}>New Blockout Date</Text>
-        <Pressable onPress={save} hitSlop={10} disabled={saving || !rangeValid}>
-          {saving ? <ActivityIndicator color={pcColors.primary} /> : <Ionicons name="save-outline" size={24} color={rangeValid ? pcColors.primary : pcColors.textMuted} />}
+        <Pressable onPress={save} hitSlop={10} disabled={!canSave}>
+          {saving ? <ActivityIndicator color={pcColors.primary} /> : <Ionicons name="save-outline" size={24} color={canSave ? pcColors.primary : pcColors.textMuted} />}
         </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled">
         {/* Conflicte */}
+        {/* Conflicte — VIEW ONLY. Dacă există, blockout-ul NU se poate salva (regula David). */}
         {conflicts.length > 0 && (
           <View style={styles.conflictBox}>
             <View style={styles.conflictHead}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Ionicons name="warning" size={18} color={pcColors.orange} />
-                <Text style={styles.conflictTitle}>{conflicts.length} {conflicts.length === 1 ? "Conflict" : "Conflicts"}</Text>
-              </View>
-              <View style={styles.segment}>
-                <Pressable onPress={() => setConflictAction("decline")} style={[styles.segBtn, conflictAction === "decline" && styles.segOn]}><Text style={[styles.segTxt, conflictAction === "decline" && styles.segTxtOn]}>Decline</Text></Pressable>
-                <Pressable onPress={() => setConflictAction("ignore")} style={[styles.segBtn, conflictAction === "ignore" && styles.segOn]}><Text style={[styles.segTxt, conflictAction === "ignore" && styles.segTxtOn]}>Ignore</Text></Pressable>
+                <Ionicons name="warning" size={18} color={pcColors.danger} />
+                <Text style={styles.conflictTitle}>{conflicts.length} {conflicts.length === 1 ? "conflict" : "conflicte"} — nu poți salva</Text>
               </View>
             </View>
             {conflicts.map((c) => (
               <View key={String(c.assignmentId)} style={styles.conflictRow}>
                 <Ionicons name={c.status === "confirmed" ? "checkmark-circle" : "help-circle"} size={16} color={c.status === "confirmed" ? pcColors.primary : pcColors.orange} />
-                <Text style={styles.conflictTxt} numberOfLines={1}>{c.dateLabel}  {c.label}</Text>
+                <Text style={styles.conflictTxt} numberOfLines={1}>{c.dateLabel}  {c.serviceTypeName || ""}{c.positionName ? ` · ${c.positionName}` : (c.label ? `  ${c.label}` : "")}</Text>
               </View>
             ))}
-            <Text style={styles.conflictNote}>{conflictAction === "decline" ? "Programările din interval vor fi refuzate la salvare." : "Programările rămân; blockout-ul se salvează oricum."}</Text>
+            <Text style={styles.conflictNote}>Ești deja programat în interval. Blockout-ul nu se poate pune peste o programare — rezolvă din programul tău sau vorbește cu planificatorul.</Text>
           </View>
         )}
         {checking && <Text style={styles.checking}>Verific conflicte…</Text>}
@@ -101,14 +98,24 @@ export function BlockoutEditorScreen({ navigation, route }) {
           <Switch value={allDay} onValueChange={setAllDay} trackColor={{ true: pcColors.primary, false: pcColors.inputBorder }} thumbColor="#fff" />
         </View>
 
-        <Text style={styles.fieldLbl}>Start</Text>
-        <PcDateField value={startDate} onChange={setStartDate} />
-        <Text style={styles.fieldLbl}>End</Text>
-        <PcDateField value={endDate} onChange={setEndDate} />
-        {!rangeValid && <Text style={styles.err}>Data de final trebuie să fie ≥ data de început.</Text>}
-
+        {/* Repeat SUS, exclusiv cu intervalul (regula David) */}
         <Text style={styles.fieldLbl}>Repeat</Text>
         <PcSelect value={repeat} options={REPEATS} onChange={setRepeat} />
+
+        {isRepeat ? (
+          <>
+            <Text style={styles.fieldLbl}>Dată de bază (se repetă {REPEATS.find((r) => r.value === repeat)?.label.toLowerCase()})</Text>
+            <PcDateField value={startDate} onChange={setStartDate} />
+          </>
+        ) : (
+          <>
+            <Text style={styles.fieldLbl}>Start</Text>
+            <PcDateField value={startDate} onChange={setStartDate} />
+            <Text style={styles.fieldLbl}>End</Text>
+            <PcDateField value={endDate} onChange={setEndDate} />
+            {!rangeValid && <Text style={styles.err}>Data de final trebuie să fie ≥ data de început.</Text>}
+          </>
+        )}
 
         <Text style={styles.fieldLbl}>Reason</Text>
         <TextInput style={styles.reason} value={reason} onChangeText={setReason} placeholder="Motiv (opțional)" placeholderTextColor={pcColors.textMuted} multiline textAlignVertical="top" />
@@ -120,7 +127,7 @@ export function BlockoutEditorScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   header: { backgroundColor: pcColors.bgHeader, paddingHorizontal: 8, paddingBottom: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerTitle: { color: pcColors.textPrimary, fontSize: 17, fontWeight: "700", flex: 1, textAlign: "center" },
-  conflictBox: { borderWidth: 1, borderColor: pcColors.orange, borderRadius: 12, padding: 12, marginBottom: 18, backgroundColor: "rgba(245,166,35,0.06)" },
+  conflictBox: { borderWidth: 1, borderColor: pcColors.danger, borderRadius: 12, padding: 12, marginBottom: 18, backgroundColor: "rgba(229,83,75,0.07)" },
   conflictHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   conflictTitle: { color: pcColors.textPrimary, fontSize: 15, fontWeight: "700" },
   segment: { flexDirection: "row", borderRadius: 8, overflow: "hidden", borderWidth: 1, borderColor: pcColors.chipBorder },

@@ -100,7 +100,11 @@ router.get("/my", async (req, res) => {
     const groups = await buildGroups(req, assigns, tz);
     const pending = groups.filter((g) => g.positions.some((p) => p.status === "unconfirmed"));
     const confirmed = groups.filter((g) => !g.positions.some((p) => p.status === "unconfirmed"));
-    res.json({ pending, confirmed });
+    // Declined (doar viitoare) — tab opțional în UI (apare doar dacă există).
+    const todayStr = isoDate(new Date(), tz);
+    const declinedAssigns = await PcAssignment.find(scoped(req, { personId: pid, status: "declined" })).lean();
+    const declined = (await buildGroups(req, declinedAssigns, tz)).filter((g) => g.dateStr >= todayStr);
+    res.json({ pending, confirmed, declined });
   } catch (err) {
     console.error("[pc] GET /schedule/my:", err.message);
     res.status(500).json({ error: "Eroare la programul meu." });
@@ -205,13 +209,18 @@ router.get("/blockouts/conflicts", async (req, res) => {
     const start = String(req.query.start || ""); const end = String(req.query.end || start);
     if (!DATE_RE.test(start)) return res.status(400).json({ error: "start invalid (YYYY-MM-DD)." });
     const tz = await campusTz(req);
-    const assigns = await viewerAssignments(req, pid);
+    const [assigns, person] = await Promise.all([
+      viewerAssignments(req, pid),
+      PcPerson.findOne(scoped(req, { _id: pid })).select("avatar firstName lastName").lean(),
+    ]);
+    const avatar = person?.avatar || "";
+    const initials = [person?.firstName, person?.lastName].filter(Boolean).map((s) => s[0]).join("").toUpperCase();
     const groups = await buildGroups(req, assigns, tz);
     const conflicts = [];
     for (const g of groups) {
       if (g.dateStr >= start && g.dateStr <= (DATE_RE.test(end) ? end : start)) {
         for (const p of g.positions) {
-          conflicts.push({ assignmentId: p.assignmentId, planId: g.planId, dateLabel: g.dateLabel, dateStr: g.dateStr, label: `${g.serviceTypeName}: ${p.positionName}`, status: p.status });
+          conflicts.push({ assignmentId: p.assignmentId, planId: g.planId, dateLabel: g.dateLabel, dateStr: g.dateStr, serviceTypeName: g.serviceTypeName, positionName: p.positionName, teamName: p.teamName, label: `${g.serviceTypeName}: ${p.positionName}`, status: p.status, avatar, initials });
         }
       }
     }
@@ -249,13 +258,16 @@ router.post("/blockouts", async (req, res) => {
     const assignByDay = {};
     myAssigns.forEach((a) => { const ds = planDayStr[String(a.planId)]; if (ds) (assignByDay[ds] = assignByDay[ds] || []).push(a); });
     const inRange = (ds, b) => ds >= b.startDate && ds <= b.endDate;
-    // 1) Dacă e deja programat ȘI i s-a trimis programarea (email) pe o zi acoperită → NU poate pune blockout.
+    // REGULĂ (David): blockout-ul NU se poate salva dacă se suprapune cu ORICE programare (pending SAU confirmată).
+    // Conflictele sunt doar vizibile (view-only) în modal; aici serverul le respinge. ZERO auto-decline.
+    const conflicts = [];
     for (const b of toCreate) {
       for (const [ds, arr] of Object.entries(assignByDay)) {
-        if (inRange(ds, b) && arr.some((a) => a.notificationSentAt)) {
-          return res.status(409).json({ error: `Ești deja programat pe ${ds} și ți s-a trimis deja programarea. Pentru schimb, vorbește cu planificatorul.` });
-        }
+        if (inRange(ds, b)) for (const a of arr) conflicts.push({ assignmentId: a._id, planId: a.planId, dateStr: ds, status: a.status });
       }
+    }
+    if (conflicts.length) {
+      return res.status(409).json({ error: "Nu poți pune blockout peste o programare. Rezolvă întâi din programul tău (accept/decline) sau vorbește cu planificatorul.", conflicts });
     }
 
     const created = [];
@@ -270,16 +282,8 @@ router.post("/blockouts", async (req, res) => {
       created.push({ id: doc._id, blockout: b });
     }
 
-    // 2) Programat (fără email trimis) pe o zi acoperită → auto-decline. DOAR DB, ZERO email/notificare.
-    const declineIds = [];
-    for (const b of toCreate) for (const [ds, arr] of Object.entries(assignByDay)) if (inRange(ds, b)) for (const a of arr) if (!a.notificationSentAt) declineIds.push(a._id);
-    let autoDeclined = 0;
-    if (declineIds.length) {
-      const r1 = await PcAssignment.updateMany(scoped(req, { _id: { $in: declineIds }, status: "confirmed" }), { $set: { status: "declined", declinedAt: new Date(), declineReason: "Blockout", declinedAfterConfirm: true } });
-      const r2 = await PcAssignment.updateMany(scoped(req, { _id: { $in: declineIds }, status: { $ne: "declined" } }), { $set: { status: "declined", declinedAt: new Date(), declineReason: "Blockout" } });
-      autoDeclined = (r1.modifiedCount || 0) + (r2.modifiedCount || 0);
-    }
-    res.status(201).json({ ok: true, created: created.map((c) => ({ id: c.id, deduped: c.deduped })), count: created.length, autoDeclined });
+    // (fără auto-decline — conflictele blochează salvarea mai sus; nimic nu se refuză automat.)
+    res.status(201).json({ ok: true, created: created.map((c) => ({ id: c.id, deduped: c.deduped })), count: created.length, autoDeclined: 0 });
 
     // Anunță adminii (email real) — după răspuns, fără să blocheze (cerință user „adminul sa le primeasca").
     const fresh = created.filter((c) => !c.deduped && c.blockout);
@@ -320,8 +324,10 @@ router.post("/assignments/:id/respond", async (req, res) => {
     const a = await PcAssignment.findOne(scoped(req, { _id: OID(req.params.id), personId: pid }));
     if (!a) return res.status(404).json({ error: "Programare inexistentă." });
     const wasConfirmed = a.status === "confirmed";
+    // REGULĂ (David): o programare deja confirmată NU mai poate fi refuzată (nici decline, nici prin blockout).
+    if (action === "decline" && wasConfirmed) return res.status(409).json({ error: "Nu poți refuza o programare deja confirmată. Vorbește cu planificatorul." });
     if (action === "accept") { a.status = "confirmed"; a.acceptedAt = new Date(); }
-    else { if (wasConfirmed) a.declinedAfterConfirm = true; a.status = "declined"; a.declinedAt = new Date(); a.declineReason = req.body?.reason || ""; }
+    else { a.status = "declined"; a.declinedAt = new Date(); a.declineReason = req.body?.reason || ""; }
     await a.save();
     if (action === "decline") notifyAssignmentDeclined(a.toObject(), a.declineReason).catch(() => {});
     require("../services/messageService").logMessage(req.pcOrgId, { personId: pid, direction: "sent", planId: a.planId,

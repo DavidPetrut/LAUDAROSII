@@ -236,11 +236,15 @@ export const scheduleApi = {
   my: () => api.get("/schedule/my"),
   calendar: (year, month) => api.get(`/schedule/calendar?year=${year}&month=${month}`),
   blockouts: () => api.get("/schedule/blockouts"),
-  // adaugă blockout personal (interval, all-day/ore, repeat, motiv). Backend face auto-decline pe zile acoperite.
+  // adaugă blockout personal (interval, all-day/ore, repeat, motiv). Conflict → 409 (blochează; vezi reguli).
   addBlockout: (payload) => api.post("/schedule/blockouts", payload),
   removeBlockout: (id) => api.del(`/schedule/blockouts/${id}`),
-  // programări în interval (pt. previzualizarea conflictelor în modal) — READ
+  // programări în interval (pt. panoul view-only de conflicte în modal) — READ
   conflicts: (start, end) => api.get(`/schedule/blockouts/conflicts?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end || start)}`),
+  // accept/decline (pending). Decline pe o programare CONFIRMATĂ e respins de server (409).
+  respond: (assignmentId, action, reason) => api.post(`/schedule/assignments/${assignmentId}/respond`, { action, reason }),
+  planRespond: (planId, action, reason) => api.post(`/schedule/plans/${planId}/respond`, { action, reason }),
+  acceptAll: () => api.post("/schedule/accept-all", {}),
 };
 
 /* ─── Media — server/planning-center/routes/media.js ─── */
