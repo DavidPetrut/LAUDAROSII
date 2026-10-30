@@ -113,6 +113,44 @@ function AccountCard({ a, busy, onLogout, onReconnect, onRemove }) {
   );
 }
 
+/* ── Modal cu numerele/roboții conectați (deschis din iconul robot din header) ── */
+function AccountsModal({ accounts, bridgeEnabled, busy, onClose, onConnect, onLogout, onReconnect, onRemove }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  if (!mounted || typeof document === "undefined") return null;
+  return createPortal((
+    <div className="am-ov" onClick={onClose}>
+      <div className="am-dlg" onClick={(e) => e.stopPropagation()}>
+        <div className="am-top"><div className="am-title">Numere / roboți conectați</div><button className="am-x" onClick={onClose}>×</button></div>
+        <div className="am-body">
+          {!bridgeEnabled ? (
+            <div className="am-off">Puntea rulează doar LOCAL. Pornește backend-ul cu <code>WHATSAPP_BRIDGE=1</code> și web-ul cu proxy local.</div>
+          ) : (
+            <div className="am-grid">
+              {accounts.map((a) => <AccountCard key={a.sessionId} a={a} busy={busy} onLogout={() => onLogout(a.number)} onReconnect={() => onReconnect(a.number)} onRemove={() => onRemove(a.sessionId)} />)}
+              <button className="am-add" disabled={busy === "connect"} onClick={onConnect}>{busy === "connect" ? "Se pregătește QR…" : "＋ Conectează un număr"}</button>
+            </div>
+          )}
+        </div>
+      </div>
+      <style jsx>{`
+        .am-ov { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 124; display: flex; align-items: flex-start; justify-content: center; padding: 64px 20px 20px; animation: amov .14s ease; }
+        @keyframes amov { from { opacity: 0; } to { opacity: 1; } }
+        .am-dlg { background: var(--modal-bg); border: 1px solid var(--border-strong); border-radius: 15px; width: 660px; max-width: 96vw; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 26px 70px rgba(0,0,0,.55); animation: amin .18s cubic-bezier(.2,.9,.3,1.2); }
+        @keyframes amin { from { opacity: 0; transform: translateY(-10px) scale(.98); } to { opacity: 1; transform: none; } }
+        .am-top { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+        .am-title { color: var(--text); font-size: 16px; font-weight: 700; }
+        .am-x { background: transparent; border: none; color: var(--text-faint); font-size: 23px; cursor: pointer; line-height: 1; } .am-x:hover { color: var(--text); }
+        .am-body { padding: 16px 18px; overflow: auto; }
+        .am-off { color: #e6cb74; font-size: 13px; line-height: 1.6; } .am-off code { background: var(--surface-2); padding: 1px 6px; border-radius: 4px; color: var(--text); }
+        .am-grid { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; }
+        .am-add { background: var(--surface-2); border: 1px dashed var(--border-strong); color: var(--text-dim); border-radius: 11px; padding: 12px 18px; font-size: 13px; font-weight: 600; cursor: pointer; min-width: 220px; }
+        .am-add:hover { color: var(--text); border-color: var(--text-faint); } .am-add:disabled { opacity: .5; cursor: default; }
+      `}</style>
+    </div>
+  ), document.body);
+}
+
 export default function WhatsappPage() {
   const router = useRouter();
   const [st, setSt] = useState(null);
@@ -127,12 +165,15 @@ export default function WhatsappPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [editLuc, setEditLuc] = useState(null);     // lucrarea în editare
   const [seedWeekOpen, setSeedWeekOpen] = useState(false);
+  const [accountsOpen, setAccountsOpen] = useState(false); // modalul de numere/roboți
+  const [planOpen, setPlanOpen] = useState(true);          // containerul „Planning lucrări"
   const pollRef = useRef(null);
 
   const accounts = st?.accounts || [];
   const bridgeEnabled = st?.bridgeEnabled;
   const connectedAccounts = accounts.filter((a) => a.connected);
   const accountOf = (num) => accounts.find((a) => a.number === num);
+  const robotOk = bridgeEnabled && connectedAccounts.length > 0; // bulina din iconul robot
 
   const loadStatus = useCallback(async () => { try { setSt(await whatsappApi.status()); } catch {} }, []);
   const loadMaps = useCallback(async () => { try { const r = await whatsappApi.mappings(); setMaps(r.mappings || []); } catch {} }, []);
@@ -204,25 +245,25 @@ export default function WhatsappPage() {
       <div className="wa-head">
         <button className="wa-back" onClick={() => router.push("/plans")}>‹ Plans</button>
         <h1>Grupuri WhatsApp</h1>
+        <button className={`wa-robot ${robotOk ? "" : "off"}`} title="Roboți / numere conectate" onClick={() => setAccountsOpen(true)}>
+          <img src="/iconita-robot.png" alt="roboți" />
+        </button>
         <span className="wa-note">Testează pe un grup de TEST, nu pe comunitatea reală.</span>
       </div>
       {msg && <div className="wa-flash">{msg}</div>}
+      {st && !bridgeEnabled && <div className="wa-offline-bar">Puntea rulează doar LOCAL. Pornește backend-ul cu <code>WHATSAPP_BRIDGE=1</code> și web-ul cu proxy local, apoi revino.</div>}
 
-      {/* ===== NUMERE CONECTATE ===== */}
-      <section className="wa-card">
-        <div className="wa-ct">Numere conectate</div>
-        {!st ? <div className="wa-muted">Se încarcă…</div> : !bridgeEnabled ? (
-          <div className="wa-offline">Puntea rulează doar LOCAL. Pornește backend-ul cu <code>WHATSAPP_BRIDGE=1</code> și web-ul cu proxy local, apoi revino.</div>
-        ) : (
-          <div className="acc-grid">
-            {accounts.map((a) => <AccountCard key={a.sessionId} a={a} busy={busy} onLogout={() => logout(a.number)} onReconnect={() => reconnect(a.number)} onRemove={() => removeAccount(a.sessionId)} />)}
-            <button className="acc-add" disabled={busy === "connect"} onClick={connect}>{busy === "connect" ? "Se pregătește QR…" : "＋ Conectează un număr"}</button>
-          </div>
-        )}
-      </section>
-
-      {/* ===== LANDING: carduri lucrări ===== */}
-      {!sel && bridgeEnabled && (
+      {/* ===== PLANNING LUCRĂRI (container colapsabil) ===== */}
+      {bridgeEnabled && (
+        <section className="pl">
+          <button className="pl-head" onClick={() => setPlanOpen((o) => !o)}>
+            <span className="pl-ic">{waIcon(18)}</span>
+            <div className="pl-tt"><div className="pl-title">Planning lucrări</div><div className="pl-sub">grupuri WhatsApp sincronizate cu Matrix</div></div>
+            <span className="pl-count">{lucrari.length}</span>
+            <span className="pl-chev">{planOpen ? "▾" : "▸"}</span>
+          </button>
+          {planOpen && (<div className="pl-body">
+      {!sel && (
         <>
           <div className="wa-toolbar">
             <div className="wa-ct2">Lucrări <span className="wa-count">{lucrari.length}</span></div>
@@ -241,16 +282,15 @@ export default function WhatsappPage() {
                 return (
                   <div key={l._id} className="lu-card" onClick={() => setSel(l._id)}>
                     <button className="lu-edit" title="Editează lucrarea" onClick={(e) => { e.stopPropagation(); setEditLuc(l); }}>✎</button>
-                    <div className="lu-thumb">{l.image ? <img src={l.image} alt="" /> : waIcon(26)}</div>
+                    <div className="lu-thumb">{l.image ? <img src={l.image} alt="" /> : waIcon(52)}</div>
                     <div className="lu-body">
                       <div className="lu-name">{l.name || "Fără nume"}</div>
-                      <div className="lu-meta">
-                        <span>{l.count} {l.count === 1 ? "grup" : "grupuri"}</span>
-                        <span className="lu-dot">·</span>
-                        <span className={`lu-num ${acc?.connected ? "on" : "off"}`}><span className="lu-ndot" />{acc?.me?.name || l.botNumber || "fără număr"}</span>
+                      <div className="lu-rows">
+                        <div className="lu-r"><span className="lu-k">Grupuri active:</span> <b>{l.count}</b></div>
+                        <div className="lu-r"><span className="lu-k">Număr conectat:</span> <b>{acc?.me?.name || l.botNumber || "—"}</b> <span className={`lu-sdot ${acc?.connected ? "on" : "off"}`} /></div>
+                        <div className="lu-r"><span className="lu-k">Status:</span> <b className={acc?.connected ? "lu-son" : "lu-soff"}>{acc?.connected ? "Connected" : "Disabled"}</b></div>
                       </div>
                     </div>
-                    <span className="lu-arrow">›</span>
                   </div>
                 );
               })}
@@ -329,7 +369,11 @@ export default function WhatsappPage() {
           </div>
         </>
       )}
+          </div>)}
+        </section>
+      )}
 
+      {accountsOpen && <AccountsModal accounts={accounts} bridgeEnabled={bridgeEnabled} busy={busy} onClose={() => setAccountsOpen(false)} onConnect={connect} onLogout={logout} onReconnect={reconnect} onRemove={removeAccount} />}
       {addOpen && <SetupModal accounts={connectedAccounts} lucrari={lucrari} teams={teams} mappedJids={maps.map((m) => m.jid)} prefillLucrareId={sel} onClose={() => setAddOpen(false)} onAdded={onAdded} />}
       {editLuc && <EditLucrareModal lucrare={editLuc} accounts={connectedAccounts} onClose={() => setEditLuc(null)} onSaved={onLucEdited} />}
       {seedWeekOpen && <SeedWeekModal onClose={() => setSeedWeekOpen(false)} onSeed={doSeedWeek} />}
@@ -342,6 +386,23 @@ export default function WhatsappPage() {
         .wa-head h1 { font-size: 22px; font-weight: 600; margin: 0; }
         .wa-note { color: var(--text-faint); font-size: 12px; margin-left: auto; }
         .wa-flash { background: rgba(37,211,102,.14); border: 1px solid rgba(37,211,102,.4); color: #8fe0b4; border-radius: 8px; padding: 9px 13px; margin-bottom: 14px; font-size: 13px; }
+        .wa-robot { height: 53px; flex: none; background: transparent; border: none; cursor: pointer; padding: 0; display: inline-flex; align-items: center; transition: transform .12s ease; }
+        .wa-robot:hover { transform: scale(1.1); }
+        .wa-robot:hover img { filter: brightness(1.35) drop-shadow(0 0 7px rgba(37,211,102,.8)); }
+        .wa-robot img { height: 100%; width: auto; display: block; transition: filter .12s ease; }
+        .wa-robot.off img { filter: grayscale(1); opacity: .45; }
+        .wa-offline-bar { color: #e6cb74; font-size: 12.5px; background: rgba(201,162,39,.1); border: 1px solid rgba(201,162,39,.3); border-radius: 8px; padding: 9px 13px; margin-bottom: 16px; line-height: 1.5; }
+        .wa-offline-bar code { background: var(--surface-2); padding: 1px 6px; border-radius: 4px; color: var(--text); }
+        .pl { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 18px; overflow: hidden; }
+        .pl-head { width: 100%; display: flex; align-items: center; gap: 13px; background: transparent; border: none; padding: 16px 18px; cursor: pointer; text-align: left; }
+        .pl-head:hover { background: var(--surface-2); }
+        .pl-ic { width: 38px; height: 38px; flex: none; border-radius: 10px; background: rgba(37,211,102,.14); display: flex; align-items: center; justify-content: center; }
+        .pl-tt { flex: 1; min-width: 0; }
+        .pl-title { color: var(--text); font-size: 16px; font-weight: 700; }
+        .pl-sub { color: var(--text-faint); font-size: 12px; margin-top: 1px; }
+        .pl-count { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 20px; font-size: 12px; padding: 1px 10px; flex: none; }
+        .pl-chev { color: var(--text-faint); font-size: 13px; flex: none; }
+        .pl-body { padding: 14px 18px 18px; border-top: 1px solid var(--border); }
         .wa-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 18px; }
         .wa-ct { color: var(--text-faint); font-size: 11px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; margin-bottom: 12px; }
         .wa-muted { color: var(--text-faint); font-size: 13px; }
@@ -364,21 +425,23 @@ export default function WhatsappPage() {
         .wa-empty { text-align: center; padding: 48px 20px; background: var(--surface); border: 1px dashed var(--border-strong); border-radius: 12px; }
         .wa-emptyt { color: var(--text); font-size: 16px; font-weight: 600; }
         .wa-emptys { color: var(--text-faint); font-size: 13px; margin-top: 6px; max-width: 500px; margin-left: auto; margin-right: auto; line-height: 1.5; }
-        .lu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
-        .lu-card { position: relative; text-align: left; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 14px; padding: 18px; cursor: pointer; display: flex; align-items: center; gap: 15px; transition: border-color .12s, background .12s; }
+        .lu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 16px; }
+        .lu-card { position: relative; text-align: left; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 16px; padding: 18px; cursor: pointer; display: flex; align-items: center; gap: 18px; transition: border-color .12s, background .12s; }
         .lu-card:hover { border-color: #25d366; background: var(--surface-2); }
-        .lu-edit { position: absolute; top: 10px; right: 10px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-faint); border-radius: 7px; width: 28px; height: 28px; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-        .lu-edit:hover { color: var(--text); border-color: var(--text-faint); }
-        .lu-thumb { width: 56px; height: 56px; flex: none; border-radius: 12px; background: rgba(37,211,102,.12); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .lu-edit { position: absolute; top: 12px; right: 12px; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-faint); border-radius: 8px; width: 32px; height: 32px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 2; }
+        .lu-edit:hover { color: var(--text); border-color: #25d366; }
+        .lu-thumb { width: 150px; height: 150px; flex: none; border-radius: 16px; background: rgba(37,211,102,.1); display: flex; align-items: center; justify-content: center; overflow: hidden; }
         .lu-thumb img { width: 100%; height: 100%; object-fit: cover; }
         .lu-body { flex: 1; min-width: 0; }
-        .lu-name { color: var(--text); font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .lu-meta { display: flex; align-items: center; gap: 7px; color: var(--text-faint); font-size: 12.5px; margin-top: 4px; }
-        .lu-dot { opacity: .5; }
-        .lu-num { display: inline-flex; align-items: center; gap: 5px; }
-        .lu-ndot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); }
-        .lu-num.on .lu-ndot { background: #25d366; } .lu-num.off { color: #e6cb74; } .lu-num.off .lu-ndot { background: #e6cb74; }
-        .lu-arrow { color: var(--text-faint); font-size: 22px; flex: none; }
+        .lu-name { color: var(--text); font-size: 20px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 11px; }
+        .lu-rows { display: flex; flex-direction: column; gap: 5px; }
+        .lu-r { color: var(--text-dim); font-size: 13px; display: flex; align-items: center; gap: 6px; }
+        .lu-k { color: var(--text-faint); }
+        .lu-r b { color: var(--text); font-weight: 600; }
+        .lu-sdot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+        .lu-sdot.on { background: #25d366; box-shadow: 0 0 0 3px rgba(37,211,102,.18); }
+        .lu-sdot.off { background: #e06060; }
+        .lu-son { color: #8fe0b4 !important; } .lu-soff { color: #e06060 !important; }
         .lu-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
         .lu-hthumb { width: 34px; height: 34px; flex: none; border-radius: 9px; background: rgba(37,211,102,.12); display: flex; align-items: center; justify-content: center; overflow: hidden; }
         .lu-hthumb img { width: 100%; height: 100%; object-fit: cover; }
