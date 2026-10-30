@@ -136,7 +136,7 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                 onDragEnd={() => { dragId.current = null; setOverId(null); }}
                 onDragOver={(e) => { if (dragId.current) { e.preventDefault(); if (String(overId) !== String(it.id)) setOverId(it.id); } }}
                 onDrop={() => onDrop(it.id)}
-                onClick={() => !isHeader && setOpenId(it.id)}
+                onClick={() => setOpenId(it.id)}
               >
                 {isHeader ? (
                   <div className="hdr-t">{it.title}</div>

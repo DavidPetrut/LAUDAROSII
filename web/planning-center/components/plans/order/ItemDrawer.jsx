@@ -128,6 +128,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
           <input className="d-title" value={title} disabled={ro} onChange={(e) => setTitle(e.target.value)} onBlur={saveTitle}
             onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} placeholder="Titlu" />
 
+          {d.type !== "header" && (
           <div className="d-boxes">
             <div className="d-box">
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="8" cy="8" r="6.5" /><path d="M8 4.5V8l2.4 1.6" /></svg>
@@ -158,7 +159,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
                 </div>
               )}
             </div>
-          </div>
+          </div>)}
 
           {d.type !== "header" && (
             <label className="d-trans">
@@ -181,6 +182,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
               placeholder={"Note libere (versete, cue-uri)…"} rows={3} />
           </div>
 
+          {d.type !== "header" && (
           <div className="d-sec">
             <div className="d-sl">Item leader</div>
             <div className="leads">
@@ -207,7 +209,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
                 </div>
               )}
             </div>
-          </div>
+          </div>)}
 
           {d.type === "medley" && (
             <div className="d-sec">
@@ -215,6 +217,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
             </div>
           )}
 
+          {d.type !== "header" && (<>
           {/* ── tabs ── */}
           <div className="d-tabs">
             {TABS.map((t) => <button key={t} className={`dt ${tab === t ? "on" : ""}`} onClick={() => setTab(t)}>{t}</button>)}
@@ -286,6 +289,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
 
             {tab === "Media" && <div className="d-none">Media — în curând.</div>}
           </div>
+          </>)}
         </div>
       )}
 
