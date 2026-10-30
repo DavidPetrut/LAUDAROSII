@@ -109,6 +109,7 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
             const open = String(openId) === String(it.id);
             const over = String(overId) === String(it.id);
             const voiceLine = it.voices?.length ? formatVoices(it.voices) : "";
+            const leadVoice = (it.voices || []).find((v) => v.role === "lead") || null;
             return (
               <div
                 key={it.id}
@@ -132,8 +133,10 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                         {isMedley && <span className="mtag" title="Medley">medley · {it.medleyCount}</span>}
                         <span className="r-title">{it.title || "—"}</span>
                         {it.keyName && <span className={`r-key ${it.type === "media" ? "media" : ""}`}>{it.keyName}</span>}
+                        {leadVoice && <span className="r-leadav" title={`Lead: ${leadVoice.name}`}><PersonAvatar person={leadVoice} size={33} /></span>}
                       </div>
-                      {voiceLine ? <div className="r-voices">{voiceLine}</div> : it.description ? <div className="r-sub">{it.description}</div> : null}
+                      {voiceLine && <div className="r-voices">{voiceLine}</div>}
+                      {it.description && <div className="r-sub">{it.description}</div>}
                     </div>
                     <div className="r-right">
                       {(it.leaders || []).slice(0, 3).map((l, i) => (
@@ -186,14 +189,15 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
         .r-main { flex: 1; min-width: 0; }
         .r-titleline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .r-title { color: var(--text); font-size: 14px; }
-        .r-key { color: var(--product); font-size: 11.5px; font-weight: 600; border: 1px solid var(--product); border-radius: 4px; padding: 0 6px; line-height: 1.5; }
-        .r-key.media { color: var(--primary); border-color: var(--primary); }
+        .r-key { color: #fff; background: #6fa02e; font-size: 13px; font-weight: 700; border: 1px solid #6fa02e; border-radius: 999px; padding: 1px 8px; line-height: 1.3; }
+        .r-key.media { background: var(--primary); border-color: var(--primary); color: #fff; }
+        .r-leadav { display: inline-flex; margin: -9px 0 -9px 20px; align-self: center; }
         .bang { flex: none; width: 17px; height: 17px; border-radius: 50%; background: var(--danger); color: #fff; font-weight: 800; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; }
         .mtag { flex: none; font-size: 9px; text-transform: uppercase; letter-spacing: .4px; color: var(--primary); border: 1px solid var(--primary); border-radius: 9px; padding: 0 6px; font-weight: 700; }
         .mexp { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 11.5px; padding: 0 2px; }
         .mexp:hover { color: var(--text); }
-        .r-voices { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 3px; white-space: pre-line; }
-        .r-sub { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 3px; white-space: pre-wrap; max-width: 640px; }
+        .r-voices { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 2px; white-space: pre-line; }
+        .r-sub { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 2px; white-space: pre-wrap; max-width: 640px; }
         .r-right { display: flex; align-items: center; gap: 4px; margin-left: auto; flex: none; }
         .lead-av { display: inline-flex; }
         .need-dot { width: 20px; height: 20px; border-radius: 50%; background: var(--st-unconfirmed); color: #1d1600; font-weight: 800; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; margin-left: 2px; }

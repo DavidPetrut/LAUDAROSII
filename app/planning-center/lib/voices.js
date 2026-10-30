@@ -54,6 +54,6 @@ export function formatVoices(voices = []) {
   const byRole = {};
   for (const v of voices) { (byRole[v.role] = byRole[v.role] || []).push(v.name); }
   const lead = (byRole.lead || []).map(firstUpper).join(", ");
-  const sub = order.filter((r) => byRole[r]).map((r) => `${label[r]}: ${byRole[r].map(firstUpper).join(", ")}`).join(" -- ");
+  const sub = order.filter((r) => byRole[r]).map((r) => `${label[r]}: ${byRole[r].map(firstUpper).join(", ")}`).join(" || ");
   return [lead, sub].filter(Boolean).join("\n");
 }

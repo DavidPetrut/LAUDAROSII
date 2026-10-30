@@ -59,6 +59,7 @@ export function OrderTab({ planId, navigation, head, tabsBar }) {
       );
     }
     const voiceLine = item.voices?.length ? formatVoices(item.voices) : "";
+    const leadVoice = (item.voices || []).find((v) => v.role === "lead") || null;
     return (
       <Pressable
         style={[
@@ -76,9 +77,11 @@ export function OrderTab({ planId, navigation, head, tabsBar }) {
             {item.isTransition && <View style={styles.bang}><Text style={styles.bangTxt}>!</Text></View>}
             {item.type === "medley" && <View style={styles.mtag}><Text style={styles.mtagTxt}>medley · {item.medleyCount}</Text></View>}
             <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
-            {!!item.keyName && <View style={styles.keyBadge}><Text style={styles.keyTxt}>{item.keyName}</Text></View>}
+            {!!item.keyName && <View style={[styles.keyBadge, item.type === "media" && styles.keyBadgeMedia]}><Text style={styles.keyTxt}>{item.keyName}</Text></View>}
+            {leadVoice && <View style={{ marginLeft: 20 }}><PcAvatar uri={leadVoice.avatar} initials={leadVoice.initials} size={30} /></View>}
           </View>
-          {voiceLine ? <Text style={styles.voiceLine}>{voiceLine}</Text> : (!!item.description && <Text style={styles.desc}>{item.description}</Text>)}
+          {!!voiceLine && <Text style={styles.voiceLine}>{voiceLine}</Text>}
+          {!!item.description && <Text style={styles.desc}>{item.description}</Text>}
         </View>
         {(item.leaders || []).slice(0, 3).map((l, i) =>
           l.needed ? (
@@ -177,10 +180,11 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   title: { color: pcColors.textPrimary, fontSize: 17, fontWeight: "700", flexShrink: 1, lineHeight: 22 },
   // Pastilă verde de cheie (ex. „Gb", „C#m") — ca în PCO, lățime automată.
-  keyBadge: { backgroundColor: pcColors.primary, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 3, minWidth: 34, alignItems: "center", justifyContent: "center", marginTop: 1 },
-  keyTxt: { color: "#0A0A0A", fontSize: 13, fontWeight: "800" },
-  voiceLine: { color: pcColors.textSecondary, fontSize: 13.5, marginTop: 3, lineHeight: 19 },
-  desc: { color: pcColors.textSecondary, fontSize: 13.5, marginTop: 3, lineHeight: 19 },
+  keyBadge: { backgroundColor: "#6fa02e", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 2, minWidth: 34, alignItems: "center", justifyContent: "center", marginTop: 1 },
+  keyBadgeMedia: { backgroundColor: pcColors.primary },
+  keyTxt: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  voiceLine: { color: pcColors.textSecondary, fontSize: 13.5, marginTop: 2, lineHeight: 19 },
+  desc: { color: pcColors.textSecondary, fontSize: 13.5, marginTop: 2, lineHeight: 19 },
   rowTrans: { paddingLeft: 44 },
   bang: { width: 20, height: 20, borderRadius: 10, backgroundColor: pcColors.danger, alignItems: "center", justifyContent: "center", marginTop: 1 },
   bangTxt: { color: "#fff", fontWeight: "800", fontSize: 12 },
