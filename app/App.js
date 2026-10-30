@@ -59,6 +59,7 @@ import {
 import { CoursesScreen, CourseDetailScreen } from "./screens/courses";
 // Planning Center — TOT modulul în app/planning-center/ (tab „Planificare", app-in-app).
 import PlanningCenterRoot from "./planning-center";
+import { PcAlertGate } from "./planning-center/components/PcAlertGate";
 import {
   GamesScreen,
   QuizGameScreen,
@@ -232,6 +233,7 @@ const Navigation = () => {
       }}
     >
       {user ? <AppStack /> : <AuthStack initialRouteName={pendingInviteToken ? "SetPassword" : "Login"} />}
+      {user && Platform.OS !== "web" ? <PcAlertGate /> : null}
     </NavigationContainer>
   );
 };

@@ -113,6 +113,20 @@ router.get("/:id", requireCan("people.view"), async (req, res) => {
       publicViewKeys: PUBLIC_VIEW_KEYS,
       itemTypes: Array.isArray(st.itemTypes) ? st.itemTypes.map((t) => ({ name: t.name, color: t.color || "" })) : [],
       noteCategories: noteCategories.map((c) => ({ id: c._id, kind: c.kind, name: c.name, frequentlyUsed: c.frequentlyUsed !== false })),
+      // ── Recurență + Repetiție template + preseturi ore (aditiv) ──
+      recurringDayOfWeek: (st.recurringDayOfWeek === 0 || st.recurringDayOfWeek) ? st.recurringDayOfWeek : null,
+      recurringWeekOfMonth: st.recurringWeekOfMonth || 0,
+      rehearsalTemplate: {
+        enabled: !!(st.rehearsalTemplate && st.rehearsalTemplate.enabled),
+        dayOffset: (st.rehearsalTemplate && Number.isFinite(st.rehearsalTemplate.dayOffset)) ? st.rehearsalTemplate.dayOffset : 1,
+        start: (st.rehearsalTemplate && st.rehearsalTemplate.start) || "",
+        end: (st.rehearsalTemplate && st.rehearsalTemplate.end) || "",
+        visibleToTeamIds: (st.rehearsalTemplate && st.rehearsalTemplate.visibleToTeamIds || []).map((x) => String(x)),
+        visibleCapability: (st.rehearsalTemplate && st.rehearsalTemplate.visibleCapability) || "",
+      },
+      timePresets: (Array.isArray(st.timePresets) && st.timePresets.length)
+        ? st.timePresets.map((p) => ({ label: p.label || "", start: p.start || "", end: p.end || "" }))
+        : [{ label: "SIM 1", start: "10:00", end: "12:00" }, { label: "SIM 2", start: "12:00", end: "14:00" }],
     });
   } catch (err) {
     console.error("[pc] GET /service-types/:id:", err.message);
@@ -143,6 +157,32 @@ router.patch("/:id", requireCan("services.manageServiceTypes"), async (req, res)
       set.itemRowColors = b.itemRowColors
         .filter((r) => r && r.match)
         .map((r) => ({ match: String(r.match), label: String(r.label || r.match), color: String(r.color || "") }));
+    }
+    // ── Recurență + Repetiție template + preseturi ore (aditiv) ──
+    const HHMM = (s) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || "").trim()); if (!m) return ""; const h = Math.min(23, +m[1]); const mi = Math.min(59, +m[2]); return `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`; };
+    if (b.recurringDayOfWeek !== undefined) {
+      const d = b.recurringDayOfWeek;
+      set.recurringDayOfWeek = (d === null || d === "") ? null : Math.max(0, Math.min(6, parseInt(d, 10) || 0));
+    }
+    if (b.recurringWeekOfMonth !== undefined) {
+      const w = parseInt(b.recurringWeekOfMonth, 10); set.recurringWeekOfMonth = Number.isFinite(w) ? Math.max(-1, Math.min(4, w)) : 0;
+    }
+    if (b.rehearsalTemplate && typeof b.rehearsalTemplate === "object") {
+      const t = b.rehearsalTemplate;
+      set.rehearsalTemplate = {
+        enabled: !!t.enabled,
+        dayOffset: Number.isFinite(parseInt(t.dayOffset, 10)) ? Math.max(0, Math.min(14, parseInt(t.dayOffset, 10))) : 1,
+        start: HHMM(t.start),
+        end: HHMM(t.end),
+        visibleToTeamIds: Array.isArray(t.visibleToTeamIds) ? t.visibleToTeamIds.filter(Boolean).map((x) => { try { return OID(x); } catch { return null; } }).filter(Boolean) : [],
+        visibleCapability: String(t.visibleCapability || "").slice(0, 60),
+      };
+    }
+    if (Array.isArray(b.timePresets)) {
+      set.timePresets = b.timePresets
+        .filter((p) => p && (p.label || p.start))
+        .map((p) => ({ label: String(p.label || "").slice(0, 24), start: HHMM(p.start), end: HHMM(p.end) }))
+        .slice(0, 8);
     }
     if (!Object.keys(set).length) return res.status(400).json({ error: "Nimic de salvat." });
     const st = await PcServiceType.findOneAndUpdate(scoped(req, { _id: OID(req.params.id) }), { $set: set }, { new: true }).select("_id").lean();

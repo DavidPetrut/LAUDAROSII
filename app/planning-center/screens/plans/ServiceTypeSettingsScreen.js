@@ -19,6 +19,8 @@ const RECUR = [
 ];
 const PALETTE = ["#86C13F", "#5AA9F6", "#B794F6", "#F27BA0", "#4FD1C5", "#F6C453", "#F6A86B", "#EF4444", "#9AA0A6", ""];
 const TYPES = ["header", "song", "media"];
+const WD_OPTS = [{ value: "", label: "—" }, { value: "0", label: "Duminică" }, { value: "1", label: "Luni" }, { value: "2", label: "Marți" }, { value: "3", label: "Miercuri" }, { value: "4", label: "Joi" }, { value: "5", label: "Vineri" }, { value: "6", label: "Sâmbătă" }];
+const WOM_OPTS = [{ value: "0", label: "Fiecare" }, { value: "1", label: "Prima" }, { value: "2", label: "A doua" }, { value: "3", label: "A treia" }, { value: "4", label: "A patra" }, { value: "-1", label: "Ultima" }];
 
 export function ServiceTypeSettingsScreen({ route, navigation }) {
   const { serviceTypeId } = route.params || {};
@@ -30,6 +32,11 @@ export function ServiceTypeSettingsScreen({ route, navigation }) {
   const [useColors, setUseColors] = useState(true);
   const [rows, setRows] = useState([]);
   const [colorFor, setColorFor] = useState(null); // index pt. palette sheet
+  // Recurență + Repetiție template
+  const [recDay, setRecDay] = useState("");
+  const [recWeek, setRecWeek] = useState("0");
+  const [reh, setReh] = useState({ enabled: false, dayOffset: "1", start: "", end: "", visibleToTeamIds: [], visibleCapability: "" });
+  const [teams, setTeams] = useState([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,10 +46,17 @@ export function ServiceTypeSettingsScreen({ route, navigation }) {
       setFrequency(st.frequency || "weekly");
       setUseColors(st.useCustomRowColors !== false);
       setRows(st.itemRowColors || []);
+      setRecDay(st.recurringDayOfWeek === 0 || st.recurringDayOfWeek ? String(st.recurringDayOfWeek) : "");
+      setRecWeek(String(st.recurringWeekOfMonth || 0));
+      const t = st.rehearsalTemplate || {};
+      setReh({ enabled: !!t.enabled, dayOffset: String(Number.isFinite(t.dayOffset) ? t.dayOffset : 1), start: t.start || "", end: t.end || "", visibleToTeamIds: (t.visibleToTeamIds || []).map(String), visibleCapability: t.visibleCapability || "" });
+      try { const r = await pcApi.teams.manage(serviceTypeId); setTeams((r?.teams || []).map((x) => ({ id: String(x.id), name: x.name }))); } catch {}
     } catch (e) { showError(e?.message || "Eroare la setări."); }
     finally { setLoading(false); }
   }, [serviceTypeId]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const toggleRehTeam = (id) => setReh((s) => ({ ...s, visibleToTeamIds: s.visibleToTeamIds.includes(id) ? s.visibleToTeamIds.filter((x) => x !== id) : [...s.visibleToTeamIds, id] }));
 
   const setRow = (i, patch) => setRows((a) => a.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
 
@@ -52,6 +66,9 @@ export function ServiceTypeSettingsScreen({ route, navigation }) {
       await pcApi.serviceTypes.update(serviceTypeId, {
         frequency, useCustomRowColors: useColors,
         itemRowColors: rows.filter((r) => r.match && r.match.trim()),
+        recurringDayOfWeek: recDay === "" ? null : parseInt(recDay, 10),
+        recurringWeekOfMonth: parseInt(recWeek, 10) || 0,
+        rehearsalTemplate: { ...reh, dayOffset: parseInt(reh.dayOffset, 10) || 0 },
       });
       showSuccess("Setări salvate");
       navigation.goBack();
@@ -81,6 +98,45 @@ export function ServiceTypeSettingsScreen({ route, navigation }) {
           <View style={styles.block}>
             <Text style={styles.label}>Frequency</Text>
             <PcSelect value={frequency} options={RECUR} onChange={setFrequency} />
+          </View>
+
+          <View style={styles.block}>
+            <Text style={styles.label}>Ziua slujbei</Text>
+            <PcSelect value={recDay} options={WD_OPTS} onChange={setRecDay} />
+            {frequency === "monthly" && (
+              <>
+                <Text style={[styles.label, { marginTop: 12 }]}>Săptămâna</Text>
+                <PcSelect value={recWeek} options={WOM_OPTS} onChange={setRecWeek} />
+              </>
+            )}
+            <Text style={styles.hint}>Ziua recurentă = sugestie de dată la planuri/ore.</Text>
+          </View>
+
+          <View style={styles.block}>
+            <Pressable style={styles.toggleRow2} onPress={() => setReh((s) => ({ ...s, enabled: !s.enabled }))}>
+              <PcCheckbox checked={reh.enabled} onPress={() => setReh((s) => ({ ...s, enabled: !s.enabled }))} size={22} />
+              <Text style={styles.toggleTxt}>Are repetiție (se creează automat la plan nou)</Text>
+            </Pressable>
+            {reh.enabled && (
+              <View style={{ marginTop: 8 }}>
+                <Text style={styles.label}>Cu câte zile înainte</Text>
+                <TextInput style={styles.inp} value={String(reh.dayOffset)} onChangeText={(v) => setReh((s) => ({ ...s, dayOffset: v.replace(/[^0-9]/g, "") }))} keyboardType="number-pad" placeholder="1" placeholderTextColor={pcColors.textMuted} />
+                <View style={styles.timeRow}>
+                  <View style={{ flex: 1 }}><Text style={styles.label}>De la</Text><TextInput style={styles.inp} value={reh.start} onChangeText={(v) => setReh((s) => ({ ...s, start: v }))} placeholder="18:00" placeholderTextColor={pcColors.textMuted} /></View>
+                  <View style={{ flex: 1 }}><Text style={styles.label}>Până la</Text><TextInput style={styles.inp} value={reh.end} onChangeText={(v) => setReh((s) => ({ ...s, end: v }))} placeholder="20:00" placeholderTextColor={pcColors.textMuted} /></View>
+                </View>
+                <Text style={[styles.label, { marginTop: 12 }]}>Cine vede repetiția</Text>
+                <View style={styles.chips}>
+                  {teams.length === 0 && <Text style={styles.hint}>Nicio echipă</Text>}
+                  {teams.map((t) => (
+                    <Pressable key={t.id} onPress={() => toggleRehTeam(t.id)} style={[styles.chip, reh.visibleToTeamIds.includes(t.id) && styles.chipOn]}>
+                      <Text style={[styles.chipTxt, reh.visibleToTeamIds.includes(t.id) && styles.chipTxtOn]}>{t.name}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={styles.hint}>{reh.visibleToTeamIds.length ? "Doar echipele bifate (+ cine editează Order) văd ora." : "Fără restricție → toți cei programați văd ora."}</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.rowBetween}>
@@ -157,7 +213,16 @@ const styles = StyleSheet.create({
   rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 },
   add: { color: pcColors.primary, fontWeight: "700", fontSize: 15 },
   toggleRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 10 },
-  toggleTxt: { color: pcColors.textPrimary, fontSize: 15 },
+  toggleRow2: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 },
+  toggleTxt: { color: pcColors.textPrimary, fontSize: 15, flex: 1 },
+  hint: { color: pcColors.textMuted, fontSize: 12, marginTop: 8, lineHeight: 17 },
+  inp: { color: pcColors.textPrimary, fontSize: 16, backgroundColor: pcColors.bgInput || "#1c222b", borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: pcColors.chipBorder, paddingHorizontal: 12, paddingVertical: 9, marginTop: 2 },
+  timeRow: { flexDirection: "row", gap: 12, marginTop: 10 },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
+  chip: { borderWidth: 1, borderColor: pcColors.chipBorder, borderRadius: 999, paddingHorizontal: 13, paddingVertical: 6 },
+  chipOn: { backgroundColor: pcColors.primary, borderColor: pcColors.primary },
+  chipTxt: { color: pcColors.textSecondary, fontSize: 13 },
+  chipTxtOn: { color: "#fff", fontWeight: "700" },
   colorRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: pcColors.divider },
   swatch: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   ruleLabel: { color: pcColors.textPrimary, fontSize: 16, fontWeight: "600", flex: 1 },

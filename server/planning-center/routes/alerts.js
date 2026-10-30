@@ -53,6 +53,42 @@ router.get("/pending", async (req, res) => {
   } catch (err) { console.error("[pc] GET /alerts/pending:", err.message); res.status(500).json({ error: "Eroare." }); }
 });
 
+/* ───────── GET /mine — toate alertele active care mă vizează (ack-uite sau nu) pt. tab-ul view-only ───────── */
+router.get("/mine", async (req, res) => {
+  try {
+    const pid = await viewerPerson(req);
+    if (!pid) return res.json({ alerts: [] });
+    const assigns = await PcAssignment.find(scoped(req, { personId: pid, status: { $ne: "declined" } })).select("planId teamId").lean();
+    if (!assigns.length) return res.json({ alerts: [] });
+    const teamsByPlan = {};
+    for (const a of assigns) { const k = String(a.planId); (teamsByPlan[k] = teamsByPlan[k] || new Set()).add(String(a.teamId)); }
+    const planIds = Object.keys(teamsByPlan).map(OID);
+    const now = new Date();
+    const alerts = await PcAlert.find(scoped(req, {
+      planId: { $in: planIds },
+      $or: [{ status: "sent" }, { status: "scheduled", scheduledAt: { $lte: now } }],
+    })).sort({ createdAt: -1 }).lean();
+    const mine = alerts.filter((al) => (al.teamIds || []).some((t) => teamsByPlan[String(al.planId)]?.has(String(t))));
+    if (!mine.length) return res.json({ alerts: [] });
+    const acked = new Set((await PcAlertAck.find(scoped(req, { personId: pid, alertId: { $in: mine.map((a) => a._id) } })).select("alertId").lean()).map((a) => String(a.alertId)));
+    const creatorIds = [...new Set(mine.map((a) => String(a.createdByPersonId)).filter((x) => x && x !== "null"))].map(OID);
+    const creators = creatorIds.length ? await PcPerson.find(scoped(req, { _id: { $in: creatorIds } })).select("firstName lastName avatar").lean() : [];
+    const cById = Object.fromEntries(creators.map((c) => [String(c._id), c]));
+    res.json({
+      alerts: mine.map((a) => {
+        const c = cById[String(a.createdByPersonId)];
+        return {
+          id: a._id, title: a.title || "", body: a.body || "",
+          attachments: a.attachments || [], links: a.links || [],
+          by: c ? { name: [c.firstName, c.lastName].filter(Boolean).join(" "), avatar: c.avatar || "", initials: [c.firstName, c.lastName].filter(Boolean).map((s) => s[0]).join("").toUpperCase() } : null,
+          at: a.sentAt || a.scheduledAt || a.createdAt,
+          acked: acked.has(String(a._id)),
+        };
+      }),
+    });
+  } catch (err) { console.error("[pc] GET /alerts/mine:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
 /* ───────── POST /:alertId/ack — „Am înțeles" ───────── */
 router.post("/:alertId/ack", async (req, res) => {
   try {

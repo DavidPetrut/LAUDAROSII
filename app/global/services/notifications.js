@@ -49,6 +49,13 @@ export const registerForPushNotifications = async () => {
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
       });
+      // Canal dedicat alertelor Planning Center (prioritate maximă, vibrație distinctă).
+      await Notifications.setNotificationChannelAsync("alerts", {
+        name: "Alerte",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 300, 150, 300, 150, 300],
+        lightColor: "#E5534B",
+      });
     }
 
     await saveDeviceToken(token);

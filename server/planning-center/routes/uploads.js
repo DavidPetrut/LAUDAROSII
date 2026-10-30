@@ -29,7 +29,7 @@ try {
 
 async function canUpload(req, res, next) {
   try {
-    if ((await can(req, "songs.edit")) || (await can(req, "media.edit"))) return next();
+    if ((await can(req, "songs.edit")) || (await can(req, "media.edit")) || (await can(req, "services.editOrder"))) return next();
     return res.status(403).json({ error: "Nu ai permisiunea să încarci fișiere." });
   } catch (e) { return res.status(500).json({ error: "Eroare la permisiuni." }); }
 }

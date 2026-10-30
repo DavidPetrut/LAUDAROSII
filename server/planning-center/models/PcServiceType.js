@@ -26,6 +26,26 @@ const schema = pcSchema({
   publicView: { type: Object, default: {} },
   // Tipuri de item (PCO item types) per service type. Aditiv — importul le mapează sau le ignoră.
   itemTypes: { type: [{ name: String, color: String }], default: [] },
+  // ── Recurență (aditiv) — ziua în care pică slujba, pt. sugestii de dată la Times ──
+  recurringDayOfWeek: { type: Number, default: null }, // 0=Dum … 6=Sâm (null = nesetat)
+  recurringWeekOfMonth: { type: Number, default: 0 },  // 0=fiecare; 1-4=a n-a; -1=ultima (cadență lunară)
+  // ── Template de repetiție (aditiv) — materializat ca PcPlanTime type:"rehearsal" la crearea planului ──
+  rehearsalTemplate: {
+    type: new mongoose.Schema({
+      enabled: { type: Boolean, default: false },
+      dayOffset: { type: Number, default: 1 },        // zile ÎNAINTE de slujbă (1 = ziua dinainte)
+      start: { type: String, default: "" },           // "HH:MM" 24h
+      end: { type: String, default: "" },
+      visibleToTeamIds: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: "PcTeam" }], default: [] },
+      visibleCapability: { type: String, default: "" }, // opțional, suplimentar echipelor
+    }, { _id: false }),
+    default: () => ({}),
+  },
+  // Preseturi de ore (chips în modalul Times) — editabile per service type.
+  timePresets: {
+    type: [{ label: String, start: String, end: String }],
+    default: () => ([{ label: "SIM 1", start: "10:00", end: "12:00" }, { label: "SIM 2", start: "12:00", end: "14:00" }]),
+  },
 });
 
 schema.index({ orgId: 1, sortOrder: 1 });

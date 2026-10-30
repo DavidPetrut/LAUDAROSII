@@ -11,6 +11,7 @@ import PersonAvatar from "@/components/plans/PersonAvatar";
 export default function AlertGate() {
   const [queue, setQueue] = useState([]);
   const [atEnd, setAtEnd] = useState(false);
+  const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
   const bodyRef = useRef(null);
 
@@ -19,9 +20,9 @@ export default function AlertGate() {
 
   const cur = queue[0] || null;
 
-  // la fiecare alertă nouă: resetează „atEnd"; dacă nu e nevoie de scroll, îl permite direct
+  // la fiecare alertă nouă: resetează „atEnd" + bifa; dacă nu e nevoie de scroll, dezvăluie direct bifa
   useEffect(() => {
-    setAtEnd(false);
+    setAtEnd(false); setChecked(false);
     const el = bodyRef.current;
     if (el && el.scrollHeight <= el.clientHeight + 4) setAtEnd(true);
   }, [cur?.id]);
@@ -31,7 +32,7 @@ export default function AlertGate() {
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 6) setAtEnd(true);
   }
   async function ack() {
-    if (!cur || !atEnd || busy) return;
+    if (!cur || !atEnd || !checked || busy) return;
     setBusy(true);
     try { await alertsApi.ack(cur.id); setQueue((q) => q.filter((a) => String(a.id) !== String(cur.id))); }
     catch { /* rămâne în coadă, reîncearcă */ } finally { setBusy(false); }
@@ -69,8 +70,14 @@ export default function AlertGate() {
           )}
         </div>
         <div className="ag-foot">
-          {!atEnd && <div className="ag-scrollhint">Derulează până jos ca să confirmi ▾</div>}
-          <button className="ag-ok" disabled={!atEnd || busy} onClick={ack}>{busy ? "…" : "Am înțeles"}</button>
+          {!atEnd ? <div className="ag-scrollhint">Derulează până jos ca să confirmi ▾</div> : (
+            <label className="ag-check">
+              <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} />
+              <span className="ag-box" />
+              <span className="ag-ctx">Am citit și am înțeles această alertă</span>
+            </label>
+          )}
+          <button className="ag-ok" disabled={!atEnd || !checked || busy} onClick={ack}>{busy ? "…" : "Am înțeles"}</button>
         </div>
         {queue.length > 1 && <div className="ag-more">+{queue.length - 1} alte alerte</div>}
       </div>
@@ -93,6 +100,12 @@ export default function AlertGate() {
         .ag-foot { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--border); }
         .ag-scrollhint { color: var(--text-faint); font-size: 12px; text-align: center; animation: bob 1.1s ease-in-out infinite; }
         @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(2px); } }
+        .ag-check { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; padding: 2px 0; animation: agIn .18s ease; }
+        .ag-check input { position: absolute; opacity: 0; width: 0; height: 0; }
+        .ag-box { width: 20px; height: 20px; flex: none; border-radius: 6px; border: 2px solid var(--border-strong); background: var(--surface-2); position: relative; transition: all .14s ease; }
+        .ag-check input:checked + .ag-box { background: var(--danger); border-color: var(--danger); }
+        .ag-check input:checked + .ag-box::after { content: "✓"; position: absolute; inset: 0; color: #fff; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+        .ag-ctx { color: var(--text); font-size: 13px; }
         .ag-ok { background: var(--danger); border: none; color: #fff; border-radius: 9px; padding: 12px; font-size: 14px; font-weight: 700; cursor: pointer; }
         .ag-ok:disabled { opacity: .4; cursor: default; }
         .ag-more { text-align: center; color: var(--text-faint); font-size: 11.5px; padding: 0 0 10px; }

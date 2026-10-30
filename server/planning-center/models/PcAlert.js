@@ -12,11 +12,12 @@ const schema = pcSchema({
   title: { type: String, default: "" },
   body: { type: String, default: "" },
   teamIds: { type: [mongoose.Schema.Types.ObjectId], ref: "PcTeam", default: [] }, // echipele-țintă (din săptămâna aceea)
-  attachments: { type: [{ name: String, url: String, kind: String }], default: [] }, // kind: file|image|video
+  attachments: { type: [{ name: String, url: String, kind: String, resourceType: String, bytes: Number }], default: [] }, // kind: file|image|video|audio
   links: { type: [{ label: String, url: String }], default: [] },
   status: { type: String, enum: ["sent", "scheduled"], default: "sent" },
   scheduledAt: { type: Date, default: null }, // dacă status=scheduled → devine activă când scheduledAt <= now
   sentAt: { type: Date, default: null },
+  pushedAt: { type: Date, default: null }, // push trimis o singură dată (guard pt. scheduler)
 });
 
 schema.index({ orgId: 1, planId: 1, createdAt: -1 });

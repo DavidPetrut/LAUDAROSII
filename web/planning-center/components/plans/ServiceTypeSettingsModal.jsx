@@ -10,12 +10,15 @@
  */
 import { useEffect, useState } from "react";
 import Modal from "@/components/ui/Modal";
-import { servicesApi } from "@/lib/api/client";
+import { servicesApi, teamsApi } from "@/lib/api/client";
 
 const FREQ = [
   ["weekly", "Săptămânal"], ["everyOtherWeek", "La două săptămâni"], ["monthly", "Lunar"],
   ["daily", "Zilnic"], ["everyWeekday", "În fiecare zi lucrătoare"], ["randomly", "Ocazional"],
 ];
+const WD = [["", "—"], ["0", "Duminică"], ["1", "Luni"], ["2", "Marți"], ["3", "Miercuri"], ["4", "Joi"], ["5", "Vineri"], ["6", "Sâmbătă"]];
+const WOM = [["0", "Fiecare"], ["1", "Prima"], ["2", "A doua"], ["3", "A treia"], ["4", "A patra"], ["-1", "Ultima"]];
+const HHMM = /^\d{1,2}:\d{2}$/;
 const PV_LABELS = {
   dates: "Date", serviceTimes: "Ore de serviciu", planTitles: "Titluri planuri", series: "Serii",
   items: "Elemente (order)", itemLengths: "Durate elemente", itemDescriptions: "Descrieri elemente",
@@ -57,6 +60,11 @@ export default function ServiceTypeSettingsModal({ serviceType, onClose, onSaved
   const [noteCats, setNoteCats] = useState([]);
   const [newType, setNewType] = useState({ name: "", color: "#2f81f7" });
   const [newCat, setNewCat] = useState({ item: "", plan: "" });
+  // Recurență + Repetiție template
+  const [recDay, setRecDay] = useState("");
+  const [recWeek, setRecWeek] = useState("0");
+  const [reh, setReh] = useState({ enabled: false, dayOffset: 1, start: "", end: "", visibleToTeamIds: [], visibleCapability: "" });
+  const [teams, setTeams] = useState([]);
 
   const apply = (d) => {
     setData(d);
@@ -64,10 +72,15 @@ export default function ServiceTypeSettingsModal({ serviceType, onClose, onSaved
     setSchedulePublish(!!d.scheduledPublish); setLimitedFiles(!!d.limitedFileVisibility);
     setPv(d.publicView || {}); setPvKeys(d.publicViewKeys || []);
     setItemTypes(d.itemTypes || []); setNoteCats(d.noteCategories || []);
+    setRecDay(d.recurringDayOfWeek === 0 || d.recurringDayOfWeek ? String(d.recurringDayOfWeek) : "");
+    setRecWeek(String(d.recurringWeekOfMonth || 0));
+    const t = d.rehearsalTemplate || {};
+    setReh({ enabled: !!t.enabled, dayOffset: Number.isFinite(t.dayOffset) ? t.dayOffset : 1, start: t.start || "", end: t.end || "", visibleToTeamIds: (t.visibleToTeamIds || []).map(String), visibleCapability: t.visibleCapability || "" });
   };
 
   useEffect(() => {
     let alive = true;
+    teamsApi.manage(serviceType.id).then((r) => { if (alive) setTeams((r?.teams || []).map((t) => ({ id: String(t.id), name: t.name }))); }).catch(() => {});
     if (initialData) { apply(initialData); setLoading(false); return; } // preview/test (producția nu-l pasează)
     setLoading(true); setErr("");
     servicesApi.get(serviceType.id).then((d) => { if (alive) apply(d); })
@@ -77,12 +90,17 @@ export default function ServiceTypeSettingsModal({ serviceType, onClose, onSaved
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serviceType.id]);
 
+  const toggleTeam = (id) => setReh((s) => ({ ...s, visibleToTeamIds: s.visibleToTeamIds.includes(id) ? s.visibleToTeamIds.filter((x) => x !== id) : [...s.visibleToTeamIds, id] }));
+
   async function save() {
     setBusy(true); setErr("");
     try {
       await servicesApi.patch(serviceType.id, {
         name: name.trim(), frequency, scheduledPublish: schedulePublish,
         limitedFileVisibility: limitedFiles, publicView: pv, itemTypes,
+        recurringDayOfWeek: recDay === "" ? null : parseInt(recDay, 10),
+        recurringWeekOfMonth: parseInt(recWeek, 10) || 0,
+        rehearsalTemplate: { ...reh, dayOffset: parseInt(reh.dayOffset, 10) || 0 },
       });
       onSaved?.({ id: serviceType.id, name: name.trim() });
       onClose?.();
@@ -138,6 +156,51 @@ export default function ServiceTypeSettingsModal({ serviceType, onClose, onSaved
                 {FREQ.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </label>
+          </section>
+
+          <section className="sts-sec">
+            <div className="sts-h">Recurență</div>
+            <label className="fld"><span className="fl">Ziua slujbei</span>
+              <select className="sel" value={recDay} onChange={(e) => setRecDay(e.target.value)}>
+                {WD.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </label>
+            {frequency === "monthly" && (
+              <label className="fld"><span className="fl">Săptămâna</span>
+                <select className="sel" value={recWeek} onChange={(e) => setRecWeek(e.target.value)}>
+                  {WOM.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </label>
+            )}
+            <div className="sts-note">Ziua recurentă = sugestie de dată când adaugi un plan sau o oră.</div>
+          </section>
+
+          <section className="sts-sec">
+            <div className="sts-h">Repetiție</div>
+            <Toggle on={reh.enabled} onChange={(v) => setReh((s) => ({ ...s, enabled: v }))} label="Are repetiție" hint="se creează automat la fiecare plan nou" />
+            {reh.enabled && (
+              <div className="reh-cfg">
+                <label className="fld"><span className="fl">Cu câte zile înainte</span>
+                  <input className="input sm reh-num" type="number" min="0" max="14" value={reh.dayOffset} onChange={(e) => setReh((s) => ({ ...s, dayOffset: e.target.value }))} />
+                  <span className="reh-hint">0 = în ziua slujbei</span>
+                </label>
+                <div className="fld"><span className="fl">Ora</span>
+                  <input className="input sm reh-time" placeholder="18:00" value={reh.start} onChange={(e) => setReh((s) => ({ ...s, start: e.target.value }))} inputMode="numeric" />
+                  <span className="reh-dash">–</span>
+                  <input className="input sm reh-time" placeholder="20:00" value={reh.end} onChange={(e) => setReh((s) => ({ ...s, end: e.target.value }))} inputMode="numeric" />
+                </div>
+                <div className="reh-who">
+                  <div className="reh-wl">Cine vede repetiția</div>
+                  <div className="reh-chips">
+                    {teams.length === 0 && <span className="nc-none">Nicio echipă</span>}
+                    {teams.map((t) => (
+                      <button key={t.id} type="button" className={`reh-chip ${reh.visibleToTeamIds.includes(t.id) ? "on" : ""}`} onClick={() => toggleTeam(t.id)}>{t.name}</button>
+                    ))}
+                  </div>
+                  <div className="sts-note">{reh.visibleToTeamIds.length ? "Doar echipele bifate (+ cine poate edita Order) văd ora repetiției." : "Fără restricție → toți cei programați văd ora repetiției."}</div>
+                </div>
+              </div>
+            )}
           </section>
 
           <section className="sts-sec">
@@ -231,6 +294,18 @@ export default function ServiceTypeSettingsModal({ serviceType, onClose, onSaved
         .it-x { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 15px; line-height: 1; }
         .it-x:hover { color: var(--danger); }
         .it-color { width: 32px; height: 32px; flex: none; padding: 0; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface-2); cursor: pointer; }
+        .sts-note { color: var(--text-faint); font-size: 11.5px; line-height: 1.45; margin-top: 4px; }
+        .reh-cfg { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; animation: stsIn .16s ease; }
+        .reh-num { width: 72px; flex: none; }
+        .reh-time { width: 86px; flex: none; text-align: center; font-variant-numeric: tabular-nums; }
+        .reh-dash { color: var(--text-faint); }
+        .reh-hint { color: var(--text-faint); font-size: 11.5px; }
+        .reh-who { margin-top: 8px; }
+        .reh-wl { color: var(--text-dim); font-size: 12px; margin-bottom: 7px; }
+        .reh-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+        .reh-chip { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 999px; padding: 5px 12px; font-size: 12.5px; cursor: pointer; transition: all .14s ease; }
+        .reh-chip:hover { color: var(--text); border-color: var(--primary); }
+        .reh-chip.on { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
       `}</style>
     </Modal>
   );

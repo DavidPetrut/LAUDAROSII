@@ -63,7 +63,7 @@ const PARTIAL_CAPS = new Set([
   "people.view", "people.viewAll", "people.assignTags", "people.manageBlocks", "people.roster",
   "services.manageServiceTypes", "services.addPlan", "services.editOrder", "services.schedule",
   "services.viewMatrix", "services.assign", "services.move", "services.editNeeded",
-  "services.blockouts", "services.manageTeams", "services.positionRules",
+  "services.blockouts", "services.manageTeams", "services.positionRules", "services.viewRehearsal",
   "songs.edit", "songs.import", "media.edit", "reports.view", "whatsapp.manage",
 ]);
 // „basic" — doar vizualizare: vede directorul de oameni (toți), citește planuri/songs/media, își vede

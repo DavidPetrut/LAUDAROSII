@@ -13,7 +13,7 @@ const chunk = (arr, size) => {
  * le inghita. Intoarce { sent, errors, invalidTokens } — invalidTokens pot fi curatati de apelant.
  * Trimite in loturi de 100 (limita Expo).
  */
-const sendExpoPush = async (tokens, { title, body, data = {} }) => {
+const sendExpoPush = async (tokens, { title, body, data = {}, channelId = "default", sound = "default" }) => {
   const valid = [...new Set(tokens)].filter(
     (t) => typeof t === "string" && t.startsWith("ExponentPushToken"),
   );
@@ -25,7 +25,7 @@ const sendExpoPush = async (tokens, { title, body, data = {} }) => {
   const tickets = []; // { token, id }
 
   for (const group of chunk(valid, 100)) {
-    const messages = group.map((to) => ({ to, title, body, data, sound: "default", channelId: "default" }));
+    const messages = group.map((to) => ({ to, title, body, data, sound, channelId }));
     try {
       const res = await fetch(EXPO_SEND, {
         method: "POST",

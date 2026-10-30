@@ -109,6 +109,7 @@ router.get("/me", async (req, res) => {
         addPlan: await can(req, "services.addPlan"),
         manageServiceTypes: await can(req, "services.manageServiceTypes"),
         editOrder: await can(req, "services.editOrder"),
+        viewRehearsal: await can(req, "services.viewRehearsal"),
         schedule: await can(req, "services.schedule"),
         // granular Matrix/Teams (umbrella services.schedule le dă pe toate)
         viewMatrix: await canAny(req, CAN_VIEW_MATRIX),

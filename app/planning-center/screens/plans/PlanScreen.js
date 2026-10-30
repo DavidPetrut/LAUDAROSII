@@ -15,6 +15,7 @@ import { usePc } from "../../navigation/PcContext";
 import { OrderTab } from "./tabs/OrderTab";
 import { TeamsTab } from "./tabs/TeamsTab";
 import { TimesTab } from "./tabs/TimesTab";
+import { AlertsTab } from "./tabs/AlertsTab";
 import { NotesTab } from "./tabs/NotesTab";
 import { FilesTab } from "./tabs/FilesTab";
 import { RehearseTab } from "../rehearse/RehearseTab";
@@ -26,6 +27,7 @@ const TABS = [
   { key: "TIMES", label: "TIMES" },
   { key: "NOTES", label: "NOTES" },
   { key: "FILES", label: "FILES" },
+  { key: "ALERTS", label: "ALERTS" },
 ];
 
 const MENU = [
@@ -193,6 +195,7 @@ export function PlanScreen({ route, navigation }) {
             {tab === "TIMES" && <TimesTab planId={planId} />}
             {tab === "NOTES" && <NotesTab planId={planId} />}
             {tab === "FILES" && <FilesTab planId={planId} />}
+            {tab === "ALERTS" && <AlertsTab planId={planId} />}
           </View>
         </>
       )}

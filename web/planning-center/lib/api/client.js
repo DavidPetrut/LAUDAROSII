@@ -96,6 +96,8 @@ export const plansApi = {
   addTime: (id, payload) => api.post(`/plans/${id}/times`, payload),       // { type, name, date, startTime, endTime }
   updateTime: (id, timeId, payload) => api.patch(`/plans/${id}/times/${timeId}`, payload),
   deleteTime: (id, timeId) => api.del(`/plans/${id}/times/${timeId}`),
+  applyRehearsalTemplate: (id) => api.post(`/plans/${id}/times/apply-rehearsal-template`, {}),
+  linkMeta: (id, url) => api.get(`/plans/${id}/link-meta?url=${encodeURIComponent(url)}`), // titlu auto YouTube
   order: (id) => api.get(`/plans/${id}/order`),
   // ─── Order items (editor) — server/planning-center/routes/plans.js ───
   itemDetail: (id, itemId) => api.get(`/plans/${id}/items/${itemId}`),
@@ -168,6 +170,8 @@ export const plansApi = {
   addPositionFile: (positionId, payload) => api.post(`/plans/positions/${positionId}/files`, payload),
   deletePositionFile: (positionId, fileId) => api.del(`/plans/positions/${positionId}/files/${fileId}`),
   uploadFile: (file) => { const fd = new FormData(); fd.append("file", file); fd.append("name", file.name); return api.post("/uploads", fd); },
+  // upload cu resource type explicit (ex. rt="raw" pt. PDF/doc, ca să nu fie blocat de ACL-ul Cloudinary pe „image")
+  uploadFileRt: (file, rt) => { const fd = new FormData(); fd.append("file", file); fd.append("name", file.name); return api.post(`/uploads${rt ? `?rt=${rt}` : ""}`, fd); },
 };
 
 /* ─── Service Types (settings) — server/planning-center/routes/services.js ─── */
@@ -274,6 +278,7 @@ export const integrationsApi = {
 /* ─── Planning Center Alerts (viewer) — server/planning-center/routes/alerts.js ─── */
 export const alertsApi = {
   pending: () => api.get("/alerts/pending"),      // alertele mele neconfirmate (pop-up obligatoriu)
+  mine: () => api.get("/alerts/mine"),            // toate alertele active care mă vizează (tab view-only)
   ack: (alertId) => api.post(`/alerts/${alertId}/ack`, {}),
 };
 

@@ -351,14 +351,14 @@ export default function PlanDetailPage() {
               ))}
             </div>
           )}
-          <div className="lcard"><div className="lc-h">Times</div><TimesTab data={data.Times} canEdit={!!caps.editOrder} onEditTime={(t) => setTimeEdit({ time: t })} onAddTime={(type) => setTimeEdit({ type })} /></div>
+          <div className="lcard"><div className="lc-h">Times</div><TimesTab data={data.Times} canEdit={!!caps.editOrder} onEditTime={(t) => setTimeEdit({ time: t })} onAddTime={(type) => setTimeEdit({ type })} onApplyTemplate={async () => { try { await plansApi.applyRehearsalTemplate(id); reloadTimes(); flash("Repetiție setată din template."); } catch (e) { flash(e?.message || "Eroare."); } }} /></div>
           <div className="lcard"><NotesBoard planId={id} canEdit={!!caps.editOrder} flash={flash} /></div>
         </aside>
 
         {/* ── principal: Order / Teams ── */}
         <div className="pd-main">
           <div className="tabs">
-            {(caps.editOrder ? [...TABS, "Alerts"] : TABS).map((t) => <button key={t} className={`tab ${tab === t ? "active" : ""} ${t === "Alerts" ? "alert" : ""}`} onClick={() => setTab(t)}>{t}</button>)}
+            {[...TABS, "Alerts"].map((t) => <button key={t} className={`tab ${tab === t ? "active" : ""} ${t === "Alerts" ? "alert" : ""}`} onClick={() => setTab(t)}>{t}</button>)}
           </div>
           {err && <div className="err">{err}</div>}
           {loading ? <div className="empty">Se încarcă…</div> : (
@@ -370,7 +370,7 @@ export default function PlanDetailPage() {
                 onRemove={removePerson} onNeeded={changeNeeded}
                 dragActive={dragActive} dropKey={dropKey} setDropKey={setDropKey} onDragStartP={onPersonDragStart} onDropPos={dropOnPos} onDragEndP={() => { setDragActive(false); setDropKey(null); setDragHint(""); }} />}
               {tab === "Rehearse" && <RehearseTab data={cur} />}
-              {tab === "Alerts" && <AlertsTab planId={id} flash={flash} />}
+              {tab === "Alerts" && <AlertsTab planId={id} flash={flash} canEdit={!!caps.editOrder} />}
             </div>
           )}
         </div>
@@ -394,7 +394,7 @@ export default function PlanDetailPage() {
       )}
       <PositionJoinModal data={joinModal} busy={joinBusy} onGuest={confirmJoinGuest} onPermanent={confirmJoinPermanent} onClose={() => !joinBusy && cancelJoin()} />
       {dragActive && dragHint && <div className="drag-hint">⇄ {dragHint}</div>}
-      {timeEdit && <TimeEditModal planId={id} time={timeEdit.time} defaultType={timeEdit.type || "rehearsal"} onClose={() => setTimeEdit(null)} onSaved={() => { setTimeEdit(null); reloadTimes(); flash("Oră salvată."); }} />}
+      {timeEdit && <TimeEditModal planId={id} time={timeEdit.time} defaultType={timeEdit.type || "rehearsal"} meta={data.Times || {}} onClose={() => setTimeEdit(null)} onSaved={() => { setTimeEdit(null); reloadTimes(); flash("Oră salvată."); }} />}
       {toast && <div className="toast">{toast}</div>}
 
       <style jsx>{`
@@ -694,10 +694,11 @@ function RehearseTab({ data }) {
 }
 
 /* ── Times (editabil) — zi 3 litere RO + culoare, 24h; click pe rând = editează ── */
-function TimesTab({ data, canEdit, onEditTime, onAddTime }) {
+function TimesTab({ data, canEdit, onEditTime, onAddTime, onApplyTemplate }) {
   if (!data) return <div className="muted">Se încarcă…</div>;
-  const blocks = [["Service", "service", data.service || []], ["Repetiții", "rehearsal", data.rehearsal || []], ["Alte ore", "other", data.other || []]];
+  const blocks = [["Slujire", "service", data.service || []], ["Repetiții", "rehearsal", data.rehearsal || []], ["Alte ore", "other", data.other || []]];
   const any = blocks.some(([, , l]) => l.length);
+  const hasTpl = !!(data.rehearsalTemplate && data.rehearsalTemplate.enabled);
   if (!any && !canEdit) return <div className="muted">Nicio oră setată.</div>;
   return (
     <div className="times">
@@ -712,7 +713,12 @@ function TimesTab({ data, canEdit, onEditTime, onAddTime }) {
                 <span className="td">{t.date}</span>
               </button>
             ))}
-            {!list.length && canEdit && <button className="tb-empty" onClick={() => onAddTime(type)}>+ setează</button>}
+            {!list.length && canEdit && (
+              <div className="tb-empties">
+                <button className="tb-empty" onClick={() => onAddTime(type)}>+ setează</button>
+                {type === "rehearsal" && hasTpl && <button className="tb-empty tpl" onClick={() => onApplyTemplate?.()}>↺ din template</button>}
+              </div>
+            )}
           </div>
         ) : null
       ))}
@@ -728,8 +734,10 @@ function TimesTab({ data, canEdit, onEditTime, onAddTime }) {
         .tr { color: var(--text); flex: 1; min-width: 0; font-variant-numeric: tabular-nums; }
         .td { color: var(--text-dim); margin-left: auto; flex: none; font-size: 12px; font-variant-numeric: tabular-nums; }
         .tn { color: var(--text-faint); }
-        .tb-empty { background: transparent; border: 1px dashed var(--border-strong); color: var(--text-faint); border-radius: 6px; padding: 5px 10px; font-size: 11.5px; cursor: pointer; width: 100%; }
+        .tb-empties { display: flex; gap: 6px; }
+        .tb-empty { background: transparent; border: 1px dashed var(--border-strong); color: var(--text-faint); border-radius: 6px; padding: 5px 10px; font-size: 11.5px; cursor: pointer; flex: 1; }
         .tb-empty:hover { color: var(--primary); border-color: var(--primary); }
+        .tb-empty.tpl:hover { color: var(--product); border-color: var(--product); }
       `}</style>
     </div>
   );

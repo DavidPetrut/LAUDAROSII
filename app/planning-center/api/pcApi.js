@@ -52,6 +52,16 @@ export const pcApi = {
     item: (id, itemId) => api.get(`${B}/plans/${id}/items/${itemId}`),
     teams: (id) => api.get(`${B}/plans/${id}/teams`),
     times: (id) => api.get(`${B}/plans/${id}/times`),
+    addTime: (id, data) => api.post(`${B}/plans/${id}/times`, data),            // { type, name, date, startTime, endTime }
+    updateTime: (id, timeId, data) => api.patch(`${B}/plans/${id}/times/${timeId}`, data),
+    deleteTime: (id, timeId) => api.delete(`${B}/plans/${id}/times/${timeId}`),
+    applyRehearsalTemplate: (id) => api.post(`${B}/plans/${id}/times/apply-rehearsal-template`, {}),
+    linkMeta: (id, url) => api.get(`${B}/plans/${id}/link-meta?url=${encodeURIComponent(url)}`),
+    // Planning Center Alerts (editOrder)
+    alerts: (id) => api.get(`${B}/plans/${id}/alerts`),
+    createAlert: (id, data) => api.post(`${B}/plans/${id}/alerts`, data),
+    updateAlert: (id, alertId, data) => api.patch(`${B}/plans/${id}/alerts/${alertId}`, data),
+    deleteAlert: (id, alertId) => api.delete(`${B}/plans/${id}/alerts/${alertId}`),
     notes: (id) => api.get(`${B}/plans/${id}/notes`),
     files: (id) => api.get(`${B}/plans/${id}/files`),
     duplicate: (id, body) => api.post(`${B}/plans/${id}/duplicate`, body),
@@ -74,6 +84,18 @@ export const pcApi = {
     unassign: (planId, aid) => api.delete(`${B}/plans/${planId}/assignments/${aid}`),
     sendScheduleEmails: (planId, teamId) => api.post(`${B}/plans/${planId}/send-schedule-emails`, teamId ? { teamId } : {}),
     rehearse: (planId) => api.get(`${B}/plans/${planId}/rehearse`),
+  },
+
+  // Planning Center Alerts — latura viewer (toți userii)
+  alertsViewer: {
+    pending: () => api.get(`${B}/alerts/pending`),
+    mine: () => api.get(`${B}/alerts/mine`),
+    ack: (alertId) => api.post(`${B}/alerts/${alertId}/ack`, {}),
+  },
+
+  teams: {
+    list: () => api.get(`${B}/teams`),
+    manage: (serviceTypeId) => api.get(`${B}/teams/manage?serviceTypeId=${encodeURIComponent(serviceTypeId)}`),
   },
 
   media: {
