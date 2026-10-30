@@ -13,6 +13,7 @@ const KINDS = [
   { k: "communion", l: "Vorbitor cină" },
   { k: "prayer", l: "Îndemn rugăciune" },
   { k: "preach", l: "Predică" },
+  { k: "worship", l: "Lider de închinare" },
 ];
 const kindLabel = (k) => (KINDS.find((x) => x.k === k) || {}).l || k;
 
@@ -25,12 +26,11 @@ export default function MinistriesPicker({ value = [], week = [], preachers = []
   const setPerson = (idx, p) => { onChange(value.map((m, i) => (i === idx ? { ...m, personId: p.personId, name: p.name, avatar: p.avatar, initials: p.initials } : m))); setOpenIdx(null); setQ(""); };
   const removeAt = (idx) => onChange(value.filter((_, i) => i !== idx));
 
-  // Implicit: DOAR cine are slujirea asta pe Matrix săpt. asta (byKind). La search: toți programații (+ predicatori la Predică).
+  // Implicit: DOAR cine are slujirea asta pe Matrix săpt. asta (byKind). La search: restul programaților.
   const poolFor = (kind) => {
     const s = q.trim().toLowerCase();
     if (!s) return byKind[kind] || [];
-    const base = kind === "preach" ? [...preachers, ...week.filter((w) => !preachers.some((p) => String(p.personId) === String(w.personId)))] : week;
-    return base.filter((p) => p.name.toLowerCase().includes(s));
+    return week.filter((p) => p.name.toLowerCase().includes(s));
   };
 
   return (
@@ -56,15 +56,13 @@ export default function MinistriesPicker({ value = [], week = [], preachers = []
 
           {openIdx === idx && canEdit && (
             <div className="mp-pop">
-              <input className="mp-search" autoFocus value={q} onChange={(e) => setQ(e.target.value)}
-                placeholder={m.kind === "preach" ? "Caută altă persoană (+ predicatori)…" : "Caută altă persoană…"} />
+              <input className="mp-search" autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Caută altă persoană…" />
               <div className="mp-list">
                 {!q.trim() && !(byKind[m.kind] || []).length && <div className="mp-empty">Nimeni pe această slujire săptămâna asta. Caută mai jos.</div>}
                 {poolFor(m.kind).map((p) => (
                   <button key={p.personId} className="mp-item" onClick={() => setPerson(idx, p)}>
                     <PersonAvatar person={p} size={22} />
                     <span className="mp-nm">{p.name}</span>
-                    {m.kind === "preach" && preachers.some((x) => String(x.personId) === String(p.personId)) && <span className="mp-tag">predicator</span>}
                   </button>
                 ))}
                 {!poolFor(m.kind).length && <div className="mp-empty">Nimic găsit.</div>}

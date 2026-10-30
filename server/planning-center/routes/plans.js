@@ -283,8 +283,8 @@ async function resolveVoices(req, items) {
 }
 
 // „Alte slujiri" pe un item: slujiri non-vocale din Matrix-ul săptămânii. Mapare kind → pattern poziție (pt. pool/predicatori).
-const MINISTRY_KINDS = ["host", "communion", "prayer", "preach"];
-const MINISTRY_POS_RX = { host: /gazd/i, communion: /cin[ăa]|comuniune|\beuharist/i, prayer: /\b(indemn|îndemn)|rug[ăa]ciune/i, preach: /predic|cuv[âa]nt|mesaj/i };
+const MINISTRY_KINDS = ["host", "communion", "prayer", "preach", "worship"];
+const MINISTRY_POS_RX = { host: /gazd/i, communion: /cin[ăa]|comuniune|\beuharist/i, prayer: /\b(indemn|îndemn)|rug[ăa]ciune/i, preach: /predic/i, worship: /lider.*(inchinare|închinare)/i };
 
 async function resolveMinistries(req, items) {
   const personIds = [];
@@ -744,7 +744,7 @@ router.get("/:id/ministry-pool", requireCan("people.view"), async (req, res) => 
     const personById = Object.fromEntries(persons.map((p) => [String(p._id), p]));
     const posById = Object.fromEntries(positions.map((p) => [String(p._id), p]));
     const byPerson = {};
-    const byKind = { host: {}, communion: {}, prayer: {}, preach: {} }; // cine e programat pe slujirea respectivă săpt. asta
+    const byKind = { host: {}, communion: {}, prayer: {}, preach: {}, worship: {} }; // cine e programat pe slujirea respectivă săpt. asta
     for (const a of assigns) {
       const pid = String(a.personId); if (!pid || !personById[pid]) continue;
       const m = personMini(personById[pid]);
@@ -754,17 +754,8 @@ router.get("/:id/ministry-pool", requireCan("people.view"), async (req, res) => 
     }
     const week = Object.values(byPerson).sort((a, b) => a.name.localeCompare(b.name, "ro"));
     const byKindOut = {}; for (const k of MINISTRY_KINDS) byKindOut[k] = Object.values(byKind[k]).sort((a, b) => a.name.localeCompare(b.name, "ro"));
-    // preachers = rosterul pozițiilor de tip „Predică" (pt. căutarea extra, dacă nu e programat în Matrix)
-    const allPos = await PcPosition.find(scoped(req, {})).select("name").lean();
-    const preachPosIds = allPos.filter((p) => MINISTRY_POS_RX.preach.test(p.name || "")).map((p) => p._id);
-    let preachers = [];
-    if (preachPosIds.length) {
-      const members = await PcTeamMember.find(scoped(req, { positionIds: { $in: preachPosIds } })).select("personId").lean();
-      const prIds = [...new Set(members.map((m) => String(m.personId)).filter(Boolean))].map(OID);
-      const prPersons = prIds.length ? await PcPerson.find(scoped(req, { _id: { $in: prIds } })).select("firstName lastName avatar").lean() : [];
-      preachers = prPersons.map((p) => { const m = personMini(p); return { personId: String(p._id), name: m.name, avatar: m.avatar, initials: m.initials }; }).sort((a, b) => a.name.localeCompare(b.name, "ro"));
-    }
-    res.json({ week, preachers, byKind: byKindOut });
+    // Toate slujirile (inclusiv Predică) = DOAR persoana din Matrix pe rolul respectiv (byKind); search = restul programaților.
+    res.json({ week, preachers: [], byKind: byKindOut });
   } catch (err) { console.error("[pc] GET ministry-pool:", err.message); res.status(500).json({ error: "Eroare la pool." }); }
 });
 
