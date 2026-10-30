@@ -121,10 +121,11 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
             const over = String(overId) === String(it.id);
             const voiceLine = it.voices?.length ? formatVoices(it.voices) : "";
             const leadVoice = (it.voices || []).find((v) => v.role === "lead") || null;
-            // Pe rând: DOAR numele (ca la lead), fără prefix „Îndemn:" etc.
-            const ministryLine = (it.ministries || []).map((m) => minFirst(m.name)).filter(Boolean).join("  ||  ");
+            // Slujirile rezolvă persoana automat din Matrix (m.people) sau override. Pe rând: doar numele, fără prefix.
+            const minPeople = (it.ministries || []).flatMap((m) => m.people || []);
+            const ministryLine = (it.ministries || []).map((m) => (m.people || []).map((p) => minFirst(p.name)).join(", ")).filter(Boolean).join("  ||  ");
             // Avatarul = lead vocal SAU, dacă nu există, prima persoană de la o slujire.
-            const avatarPerson = leadVoice || (it.ministries || []).find((m) => m.personId || m.name) || null;
+            const avatarPerson = leadVoice || minPeople[0] || null;
             return (
               <div
                 key={it.id}

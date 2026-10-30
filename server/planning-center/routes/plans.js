@@ -286,16 +286,38 @@ async function resolveVoices(req, items) {
 const MINISTRY_KINDS = ["host", "communion", "prayer", "preach", "worship"];
 const MINISTRY_POS_RX = { host: /gazd/i, communion: /cin[ăa]|comuniune|\beuharist/i, prayer: /\b(indemn|îndemn)|rug[ăa]ciune/i, preach: /predic/i, worship: /lider.*(inchinare|închinare)/i };
 
-async function resolveMinistries(req, items) {
-  const personIds = [];
-  for (const it of items) for (const m of it.ministries || []) if (m.personId) personIds.push(m.personId);
-  const persons = personIds.length ? await PcPerson.find(scoped(req, { _id: { $in: personIds } })).select("firstName lastName avatar").lean() : [];
-  const byId = Object.fromEntries(persons.map((p) => [String(p._id), p]));
+// Slujirea stochează ROLUL (kind); persoana se ia AUTOMAT din Matrix (byKind). `personId` = override MANUAL (opțional).
+async function ministryByKind(req, planId) {
+  const out = { host: [], communion: [], prayer: [], preach: [], worship: [] };
+  if (!planId) return out;
+  const assigns = await PcAssignment.find(scoped(req, { planId, status: { $ne: "declined" } })).lean();
+  const posIds = [...new Set(assigns.map((a) => String(a.positionId)).filter(Boolean))].map(OID);
+  const perIds = [...new Set(assigns.map((a) => String(a.personId)).filter(Boolean))].map(OID);
+  const [positions, persons] = await Promise.all([
+    PcPosition.find(scoped(req, { _id: { $in: posIds } })).select("name").lean(),
+    PcPerson.find(scoped(req, { _id: { $in: perIds } })).select("firstName lastName avatar").lean(),
+  ]);
+  const posById = Object.fromEntries(positions.map((p) => [String(p._id), p]));
+  const perById = Object.fromEntries(persons.map((p) => [String(p._id), p]));
+  const seen = { host: new Set(), communion: new Set(), prayer: new Set(), preach: new Set(), worship: new Set() };
+  for (const a of assigns) {
+    const per = perById[String(a.personId)]; if (!per) continue;
+    const posName = (posById[String(a.positionId)] || {}).name || "";
+    for (const k of MINISTRY_KINDS) if (MINISTRY_POS_RX[k].test(posName) && !seen[k].has(String(per._id))) { seen[k].add(String(per._id)); const m = personMini(per); out[k].push({ personId: String(per._id), name: m.name, avatar: m.avatar, initials: m.initials }); }
+  }
+  return out;
+}
+async function resolveMinistries(req, items, planId) {
+  const byKind = await ministryByKind(req, planId);
+  const ovIds = [];
+  for (const it of items) for (const m of it.ministries || []) if (m.personId) ovIds.push(m.personId);
+  const ovPersons = ovIds.length ? await PcPerson.find(scoped(req, { _id: { $in: ovIds } })).select("firstName lastName avatar").lean() : [];
+  const ovById = Object.fromEntries(ovPersons.map((p) => [String(p._id), personMini(p)]));
   const map = {};
   for (const it of items) {
     map[String(it._id)] = (it.ministries || []).map((m) => {
-      if (m.personId && byId[String(m.personId)]) { const mm = personMini(byId[String(m.personId)]); return { kind: m.kind || "", personId: String(m.personId), name: mm.name, initials: mm.initials, avatar: mm.avatar }; }
-      return { kind: m.kind || "", personId: null, name: m.name || "", initials: (m.name || "").slice(0, 2).toUpperCase(), avatar: "" };
+      if (m.personId && ovById[String(m.personId)]) { const p = ovById[String(m.personId)]; return { kind: m.kind || "", override: true, people: [{ personId: String(m.personId), name: p.name, avatar: p.avatar, initials: p.initials }] }; }
+      return { kind: m.kind || "", override: false, people: byKind[m.kind] || [] }; // AUTOMAT din Matrix
     }).filter((m) => m.kind);
   }
   return map;
@@ -309,7 +331,7 @@ router.get("/:id/order", requireCan("people.view"), async (req, res) => {
     const items = await PcPlanItem.find(scoped(req, { planId: id })).sort({ sortOrder: 1 }).lean();
     const leadersMap = await resolveItemLeaders(req, id, items);
     const voicesMap = await resolveVoices(req, items);
-    const ministriesMap = await resolveMinistries(req, items);
+    const ministriesMap = await resolveMinistries(req, items, id);
     // reguli de culoare din service type
     const plan = await PcPlan.findOne(scoped(req, { _id: id })).select("serviceTypeId").lean();
     const st = plan ? await PcServiceType.findOne(scoped(req, { _id: plan.serviceTypeId })).select("itemRowColors useCustomRowColors").lean() : null;
@@ -373,7 +395,7 @@ router.get("/:id/items/:itemId", requireCan("people.view"), async (req, res) => 
     const planId = OID(req.params.id);
     const leadersMap = await resolveItemLeaders(req, planId, [it]);
     const voicesMap = await resolveVoices(req, [it]);
-    const ministriesMap = await resolveMinistries(req, [it]);
+    const ministriesMap = await resolveMinistries(req, [it], planId);
     const files = await PcPlanFile.find(scoped(req, { itemId })).sort({ sortOrder: 1 }).lean();
     // ore de serviciu (pt. checkbox-urile During/Before/After per oră)
     const serviceTimes = await PcPlanTime.find(scoped(req, { planId, type: "service" })).sort({ startsAt: 1 }).lean();

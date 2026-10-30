@@ -13,7 +13,13 @@ const router = express.Router();
 const OID = (v) => (mongoose.Types.ObjectId.isValid(v) ? new mongoose.Types.ObjectId(v) : null);
 
 const SNAP_FIELDS = ["type", "title", "description", "lengthSec", "keyName", "placement", "duringAll", "rowColor", "isTransition", "voices", "ministries", "leaders", "songId", "arrangementId", "keyId", "sequence", "medley"];
-const snapItem = (it, i) => { const o = { sortOrder: i }; for (const f of SNAP_FIELDS) if (it[f] !== undefined) o[f] = it[f]; return o; };
+const snapItem = (it, i) => {
+  const o = { sortOrder: i };
+  for (const f of SNAP_FIELDS) if (it[f] !== undefined) o[f] = it[f];
+  // Slujirile salvează ROLUL, nu persoana — la aplicare se iau automat din Matrix-ul noului plan.
+  o.ministries = (it.ministries || []).map((m) => ({ kind: m.kind })).filter((m) => m.kind);
+  return o;
+};
 
 /* GET / — șabloane pt. un service type (+ globale) */
 router.get("/", requireCan("people.view"), async (req, res) => {
