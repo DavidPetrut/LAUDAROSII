@@ -14,6 +14,7 @@ const schema = pcSchema({
   teamId: { type: mongoose.Schema.Types.ObjectId, ref: "PcTeam", default: null },
   // ancoră STABILĂ: a câta slujire din LUNĂ (1-5). Grupul rămâne pe aceeași săptămână-din-lună prin rotație
   // (ex. „a 3-a" ia mereu a 3-a slujire a lunii curente/următoare). Numele se regenerează, slotul rămâne fix.
+  cadence: { type: String, default: "monthly" }, // monthly = pe o săptămână anume (o dată/lună) | weekly = orice săptămână (rotește săptămânal)
   weekOfMonth: { type: Number, default: 1 },
   weekOffset: { type: Number, default: 0 },          // (învechit) fostul offset relativ; păstrat pt. compat.
   lucrareId: { type: mongoose.Schema.Types.ObjectId, ref: "PcWhatsappLucrare", default: null }, // containerul (lucrarea) editabil

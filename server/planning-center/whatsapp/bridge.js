@@ -259,11 +259,25 @@ function selfIds(number) {
   return [locPart(u.id), locPart(u.lid)].filter(Boolean);
 }
 
-/** Membrii unui grup ca numere (preferă numărul de telefon `jid` în fața LID-ului). */
+/** Membrii unui grup ca numere de telefon. Rezolvă LID-urile (@lid) → număr prin signalRepository.lidMapping. */
 async function groupMembers(number, jid) {
   const sock = sockOf(number);
   const meta = await sock.groupMetadata(jid);
-  return (meta.participants || []).map((p) => locPart(p.jid || p.id));
+  const parts = meta.participants || [];
+  const lidMap = sock.signalRepository?.lidMapping;
+  const lids = [...new Set(parts.map((p) => p.jid || p.id || "").filter((id) => id.includes("@lid")))];
+  const pnByLid = {};
+  if (lids.length && lidMap?.getPNsForLIDs) {
+    try {
+      const res = await lidMap.getPNsForLIDs(lids);
+      (res || []).forEach((r) => { if (r?.lid && r?.pn) pnByLid[r.lid] = r.pn; });
+    } catch { /* fără rezolvare → cad pe LID */ }
+  }
+  return parts.map((p) => {
+    const id = p.jid || p.id || "";
+    const resolved = id.includes("@lid") ? (pnByLid[id] || id) : id;
+    return locPart(resolved);
+  });
 }
 
 /** Sincronizează grupul cu lista-țintă de numere: scoate cine nu mai e, adaugă cine lipsește. */

@@ -265,7 +265,7 @@ export const whatsappApi = {
   teams: () => api.get(`/whatsapp/teams`),
   teamWeeks: (teamId) => api.get(`/whatsapp/team/${teamId}/weeks`),
   teamPositions: (teamId) => api.get(`/whatsapp/team/${teamId}/positions`),
-  targetPreview: (teamId, weekOfMonth, leaderPositionId) => api.get(`/whatsapp/target-preview?teamId=${teamId}&weekOfMonth=${weekOfMonth || 1}&leaderPositionId=${leaderPositionId || ""}`),
+  targetPreview: (teamId, weekOfMonth, leaderPositionId, cadence) => api.get(`/whatsapp/target-preview?teamId=${teamId}&weekOfMonth=${weekOfMonth || 1}&leaderPositionId=${leaderPositionId || ""}&cadence=${cadence || "monthly"}`),
   mappings: () => api.get(`/whatsapp/mappings`),
   removeAccount: (sessionId) => api.post(`/whatsapp/account/remove`, { sessionId }),
   lucrari: () => api.get(`/whatsapp/lucrari`),

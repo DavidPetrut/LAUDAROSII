@@ -54,34 +54,18 @@ async function monthlyPlans(req, team) {
   return plans;
 }
 
-/** Cine trebuie în grup = oamenii ECHIPEI pe a `weekOfMonth`-a slujire din lună (ancoră STABILĂ prin rotație). */
-async function weekTarget(req, mapping) {
-  const empty = { weekLabel: "", weekShort: "", leaderName: "", teamName: "", planIds: [], people: [], numbers: [], missingPhone: [], emptyMatrix: true };
-  if (!mapping.teamId) return empty;
-  const team = await PcTeam.findOne(scoped(req, { _id: mapping.teamId })).select("name serviceTypeId serviceTypeIds ministryGroup").lean();
-  if (!team) return empty;
-  const N = Math.min(5, Math.max(1, mapping.weekOfMonth || 1));
-  const plans = await monthlyPlans(req, team);
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-  const target = plans.find((p) => p.ord === N && new Date(p.sortDate) >= todayStart); // prima a N-a slujire din lună, de azi înainte
-  if (!target) return { ...empty, teamName: team.name };
-  const ds = new Date(target.sortDate); ds.setHours(0, 0, 0, 0);
-  const assigns = await PcAssignment.find(scoped(req, { planId: target._id, teamId: team._id, status: { $ne: "declined" } })).select("personId positionId").lean();
+/** Rosterul unei echipe pe un plan dat: oameni (nume+număr), numere, fără-număr, lider. Reutilizat de weekTarget + rotationView. */
+async function rosterForPlan(req, team, planId, leaderPositionId) {
+  const assigns = await PcAssignment.find(scoped(req, { planId, teamId: team._id, status: { $ne: "declined" } })).select("personId positionId").lean();
   const personIds = [...new Set(assigns.map((a) => String(a.personId)))];
   const positions = await PcPosition.find(scoped(req, { _id: { $in: [...new Set(assigns.map((a) => a.positionId).filter(Boolean))] } })).select("name").lean();
   const posName = Object.fromEntries(positions.map((p) => [String(p._id), p.name || ""]));
   const people = await PcPerson.find(scoped(req, { _id: { $in: personIds.map(OID).filter(Boolean) } })).select("firstName lastName phones").lean();
   const nameById = Object.fromEntries(people.map((p) => [String(p._id), [p.firstName, p.lastName].filter(Boolean).join(" ")]));
-
-  // LIDER pt. nume: dacă maparea are o poziție-lider setată → cine e pe EA; altfel fallback pe regex „Lider...".
   let leaderA = null;
-  if (mapping.leaderPositionId) leaderA = assigns.find((a) => String(a.positionId) === String(mapping.leaderPositionId));
-  if (!leaderA) {
-    const isLeaderPos = (n = "") => /lider|lead/i.test(n) && !/asist/i.test(n);
-    leaderA = assigns.find((a) => a.positionId && isLeaderPos(posName[String(a.positionId)]));
-  }
+  if (leaderPositionId) leaderA = assigns.find((a) => String(a.positionId) === String(leaderPositionId));
+  if (!leaderA) { const isLeaderPos = (n = "") => /lider|lead/i.test(n) && !/asist/i.test(n); leaderA = assigns.find((a) => a.positionId && isLeaderPos(posName[String(a.positionId)])); }
   const leaderName = leaderA ? (nameById[String(leaderA.personId)] || "") : "";
-
   const out = [], numbers = [], missingPhone = [];
   people.forEach((p) => {
     const name = [p.firstName, p.lastName].filter(Boolean).join(" ");
@@ -90,7 +74,60 @@ async function weekTarget(req, mapping) {
     if (normalized) { numbers.push(normalized); out.push({ id: p._id, name, number, normalized }); }
     else missingPhone.push(name);
   });
-  return { weekLabel: fmtDay(ds), weekShort: roShort(ds), leaderName, teamName: team.name, planIds: [target._id], people: out, numbers: [...new Set(numbers)], missingPhone, emptyMatrix: personIds.length === 0 };
+  return { people: out, numbers: [...new Set(numbers)], missingPhone, leaderName, personCount: personIds.length };
+}
+
+/** Cine trebuie în grup = oamenii ECHIPEI pe a `weekOfMonth`-a slujire din lună (prima ≥ azi). */
+async function weekTarget(req, mapping) {
+  const empty = { weekLabel: "", weekShort: "", leaderName: "", teamName: "", planIds: [], people: [], numbers: [], missingPhone: [], emptyMatrix: true };
+  if (!mapping.teamId) return empty;
+  const team = await PcTeam.findOne(scoped(req, { _id: mapping.teamId })).select("name serviceTypeId serviceTypeIds ministryGroup").lean();
+  if (!team) return empty;
+  const N = Math.min(5, Math.max(1, mapping.weekOfMonth || 1));
+  const plans = await monthlyPlans(req, team);
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  // weekly = prima slujire ≥ azi (orice săptămână, rotește săptămânal); monthly = a N-a slujire din lună
+  const target = (mapping.cadence === "weekly" ? plans.filter((p) => new Date(p.sortDate) >= todayStart) : plans.filter((p) => p.ord === N && new Date(p.sortDate) >= todayStart))[0];
+  if (!target) return { ...empty, teamName: team.name };
+  const ds = new Date(target.sortDate); ds.setHours(0, 0, 0, 0);
+  const r = await rosterForPlan(req, team, target._id, mapping.leaderPositionId);
+  return { weekLabel: fmtDay(ds), weekShort: roShort(ds), leaderName: r.leaderName, teamName: team.name, planIds: [target._id], people: r.people, numbers: r.numbers, missingPhone: r.missingPhone, emptyMatrix: r.personCount === 0 };
+}
+
+/** Vedere rotație: slujirea curentă (E_curr) vs următoarea (E_next). Rotația = ziua de după eveniment. */
+async function rotationView(req, mapping) {
+  if (!mapping.teamId) return null;
+  const team = await PcTeam.findOne(scoped(req, { _id: mapping.teamId })).select("name serviceTypeId serviceTypeIds").lean();
+  if (!team) return null;
+  const N = Math.min(5, Math.max(1, mapping.weekOfMonth || 1));
+  const plans = await monthlyPlans(req, team);
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const occ = mapping.cadence === "weekly" ? plans.filter((p) => new Date(p.sortDate) >= todayStart) : plans.filter((p) => p.ord === N && new Date(p.sortDate) >= todayStart);
+  const eCurr = occ[0], eNext = occ[1];
+  if (!eCurr) return { dCurr: "", dNext: "", rotationDate: "", ies: [], intra: [], nextRoster: [], currNumbers: [] };
+  const rCurr = await rosterForPlan(req, team, eCurr._id, mapping.leaderPositionId);
+  const rNext = eNext ? await rosterForPlan(req, team, eNext._id, mapping.leaderPositionId) : { people: [], numbers: [] };
+  const currSet = new Set(rCurr.numbers), nextSet = new Set(rNext.numbers);
+  const slim = (p) => ({ name: p.name, number: p.number });
+  const rotD = new Date(eCurr.sortDate); rotD.setDate(rotD.getDate() + 1);
+  return {
+    dCurr: fmtDay(eCurr.sortDate), dNext: eNext ? fmtDay(eNext.sortDate) : "", rotationDate: fmtDay(rotD),
+    ies: rCurr.people.filter((p) => !nextSet.has(p.normalized)).map(slim),       // pleacă pe rotationDate
+    intra: rNext.people.filter((p) => !currSet.has(p.normalized)).map(slim),      // intră pe rotationDate (pt. D_next)
+    nextRoster: rNext.people.map(slim), currNumbers: rCurr.numbers,
+  };
+}
+
+/** Rezolvă numere (E.164) → nume de persoane din DB (best-effort, pt. „cine iese"). */
+async function namesByNumber(req, numbers) {
+  const want = new Set((numbers || []).filter(Boolean));
+  if (!want.size) return {};
+  const people = await PcPerson.find(scoped(req, { "phones.0": { $exists: true } })).select("firstName lastName phones").lean();
+  const map = {};
+  people.forEach((p) => {
+    (p.phones || []).forEach((ph) => { const n = bridge.normalizeNumber(ph.number); if (n && want.has(n) && !map[n]) map[n] = [p.firstName, p.lastName].filter(Boolean).join(" "); });
+  });
+  return map;
 }
 
 /** Construiește obiectul de salvare al unei mapări (reutilizat de /map și /map/bulk). */
@@ -99,6 +136,7 @@ async function buildMapSet(req, b) {
   return {
     jid: String(b.jid), nameCached: b.nameCached || "",
     teamId: OID(b.teamId), weekOfMonth: Math.min(5, Math.max(1, parseInt(b.weekOfMonth, 10) || 1)),
+    cadence: b.cadence === "weekly" ? "weekly" : "monthly",
     lucrareId: b.lucrareId ? OID(b.lucrareId) : null,
     ministryGroup: team?.ministryGroup || "",
     namePrefix: String(b.namePrefix || "").slice(0, 60),
@@ -190,9 +228,9 @@ router.get("/team/:id/positions", CAN, async (req, res) => {
 // preview-țintă FĂRĂ mapare (la configurare): câți oameni din Matrix + liderul real pe (echipă + săptămână).
 router.get("/target-preview", CAN, async (req, res) => {
   try {
-    const { teamId, weekOfMonth, leaderPositionId } = req.query;
+    const { teamId, weekOfMonth, leaderPositionId, cadence } = req.query;
     if (!teamId) return res.json({ people: 0, emptyMatrix: true });
-    const t = await weekTarget(req, { teamId: OID(teamId), weekOfMonth: parseInt(weekOfMonth, 10) || 1, leaderPositionId: leaderPositionId ? OID(leaderPositionId) : null });
+    const t = await weekTarget(req, { teamId: OID(teamId), weekOfMonth: parseInt(weekOfMonth, 10) || 1, cadence: cadence === "weekly" ? "weekly" : "monthly", leaderPositionId: leaderPositionId ? OID(leaderPositionId) : null });
     res.json({ people: t.people.length, withPhone: t.numbers.length, weekShort: t.weekShort, weekLabel: t.weekLabel, leaderName: t.leaderName, emptyMatrix: t.emptyMatrix, missingPhone: t.missingPhone });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -307,16 +345,30 @@ router.get("/preview/:id", CAN, async (req, res) => {
     if (!m) return res.status(404).json({ error: "Mapare inexistentă." });
     const t = await weekTarget(req, m);
     let currentNumbers = [], toAdd = t.numbers, toRemove = [], liveError = "";
+    let currentDetail = [], toRemoveDetail = [], realCount = 0;
     if (bridge.status(m.botNumber).connected) {
       try {
         currentNumbers = await bridge.groupMembers(m.botNumber, m.jid);
-        const cur = new Set(currentNumbers), tgt = new Set(t.numbers), self = new Set(bridge.selfIds(m.botNumber));
-        toAdd = t.numbers.filter((n) => !cur.has(n) && !self.has(n));
-        toRemove = currentNumbers.filter((n) => !tgt.has(n) && !self.has(n)); // nu număra robotul (num/LID) la scoși
+        const tgt = new Set(t.numbers), self = new Set(bridge.selfIds(m.botNumber));
+        const curNoSelf = currentNumbers.filter((n) => !self.has(n)); // membrii reali (fără robot)
+        const curSet = new Set(curNoSelf);
+        realCount = curNoSelf.length;
+        toAdd = t.numbers.filter((n) => !curSet.has(n));
+        toRemove = curNoSelf.filter((n) => !tgt.has(n));
+        const curMap = await namesByNumber(req, curNoSelf); // nume pt. membrii actuali (acoperă și toRemove)
+        currentDetail = curNoSelf.map((n) => ({ number: n, name: curMap[n] || "" }));
+        toRemoveDetail = toRemove.map((n) => ({ number: n, name: curMap[n] || "" }));
       } catch (e) { liveError = e.message; }
     } else liveError = "Numărul-robot al acestei lucrări nu e conectat.";
     const plannedName = buildGroupName(m.namePrefix, t.weekShort, t.leaderName, t.teamName);
-    res.json({ weekLabel: t.weekLabel, leaderName: t.leaderName, plannedName, people: t.people, missingPhone: t.missingPhone, currentCount: currentNumbers.length, toAdd, toRemove, emptyMatrix: t.emptyMatrix, liveError });
+    const rotation = await rotationView(req, m); // slujirea curentă vs următoarea (rotația + datele)
+    const connected = bridge.status(m.botNumber).connected;
+    let status = "offline";
+    if (connected) {
+      if (liveError) status = "error";
+      else { const liveSet = new Set(currentDetail.map((d) => d.number)); const tgt = new Set(t.numbers); status = (liveSet.size === tgt.size && [...tgt].every((n) => liveSet.has(n))) ? "synced" : "pending"; }
+    }
+    res.json({ cadence: m.cadence || "monthly", weekOfMonth: m.weekOfMonth || 1, weekLabel: t.weekLabel, weekShort: t.weekShort, leaderName: t.leaderName, plannedName, people: t.people, missingPhone: t.missingPhone, currentCount: realCount, currentDetail, toAdd, toRemove, toRemoveDetail, emptyMatrix: t.emptyMatrix, liveError, rotation, status });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
