@@ -431,6 +431,17 @@ router.patch("/:id/items/:itemId", requireCan("services.editOrder"), async (req,
     if (b.keyName !== undefined) set.keyName = String(b.keyName);
     if (b.htmlDetails !== undefined) set.htmlDetails = String(b.htmlDetails);
     if (b.isTransition !== undefined) set.isTransition = !!b.isTransition;
+    // Leagă (sau dezleagă) un cântec de un item existent (din tab-ul Song → „+ cântec").
+    if (b.songId !== undefined) {
+      const sid = OID(b.songId);
+      set.songId = sid;
+      if (sid) {
+        const song = await PcSong.findOne(scoped(req, { _id: sid })).select("title defaultKey").lean();
+        if (!song) return res.status(400).json({ error: "Cântec inexistent." });
+        set.type = "song";
+        if (b.keyName === undefined && b.keyId === undefined) set.keyName = song.defaultKey || "";
+      } else { set.arrangementId = null; set.keyId = null; set.keyName = ""; }
+    }
     // Voci structurate (lead/S/A/T…): [{ role, personId?, name? }]
     if (Array.isArray(b.voices)) {
       set.voices = b.voices.map((v) => ({
@@ -648,7 +659,7 @@ router.get("/:id/voices-pool", requireCan("people.view"), async (req, res) => {
     const personById = Object.fromEntries(persons.map((p) => [String(p._id), p]));
     const posById = Object.fromEntries(positions.map((p) => [String(p._id), p]));
     const teamById = Object.fromEntries(teams.map((t) => [String(t._id), t]));
-    const VOCAL_RX = /vocal|soprano|alto|tenor|bass/i;
+    const VOCAL_RX = /vocal/i; // DOAR poziția „Vocalisti" (nu Bass/instrumente care conțineau alto/tenor/bass)
     const byPerson = {};
     for (const a of assigns) {
       const pid = String(a.personId); if (!pid || !personById[pid]) continue;
@@ -657,7 +668,8 @@ router.get("/:id/voices-pool", requireCan("people.view"), async (req, res) => {
       if (!byPerson[pid]) { const m = personMini(personById[pid]); byPerson[pid] = { personId: pid, name: m.name, avatar: m.avatar, initials: m.initials, positionName: pos?.name || "", teamName: team?.name || "", isVocalist: isVoc }; }
       else if (isVoc && !byPerson[pid].isVocalist) { byPerson[pid].isVocalist = true; byPerson[pid].positionName = pos?.name || byPerson[pid].positionName; }
     }
-    const people = Object.values(byPerson).sort((a, b) => (Number(b.isVocalist) - Number(a.isVocalist)) || a.name.localeCompare(b.name, "ro"));
+    // DOAR vocaliștii săptămânii (poziția „Vocalisti" din Matrix), nu toți oamenii programați (cerință David).
+    const people = Object.values(byPerson).filter((p) => p.isVocalist).sort((a, b) => a.name.localeCompare(b.name, "ro"));
     res.json({ people });
   } catch (err) {
     console.error("[pc] GET /plans/:id/voices-pool:", err.message);

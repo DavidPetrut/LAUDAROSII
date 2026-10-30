@@ -8,15 +8,13 @@
 import { useState } from "react";
 import PersonAvatar from "@/components/plans/PersonAvatar";
 
+// DOAR lead/suport/alto/tenor (fără soprano/bass — cerință David).
 const ROLES = [
   { k: "lead", l: "Lead", s: "" },
   { k: "support", l: "Suport", s: "S" },
   { k: "alto", l: "Alto", s: "A" },
   { k: "tenor", l: "Tenor", s: "T" },
-  { k: "soprano", l: "Soprano", s: "Sop" },
-  { k: "bass", l: "Bass", s: "B" },
 ];
-const BASE = ["lead", "support", "alto", "tenor"];
 
 /* ── parser description → voci (best-effort; gestionează ambele stiluri reale) ── */
 const ROLE_PATS = [
@@ -24,8 +22,6 @@ const ROLE_PATS = [
   { role: "support", rx: /^(suport(\s*vocal)?|support|s)$/i },
   { role: "alto", rx: /^(alto?|a)$/i },
   { role: "tenor", rx: /^(tenor|t)$/i },
-  { role: "soprano", rx: /^(soprano|soprana|sop)$/i },
-  { role: "bass", rx: /^(bass?|bas|b)$/i },
 ];
 const splitNames = (s) => s.split(/[+,&]|\bși\b|\bsi\b/i).map((x) => x.trim()).filter(Boolean);
 export function parseVoicesText(text) {
@@ -54,8 +50,7 @@ export default function VoicesPicker({ value = [], pool = [], description = "", 
   const [openRole, setOpenRole] = useState(null);
 
   const byRole = (r) => value.filter((v) => v.role === r);
-  const activeRoles = ROLES.filter((r) => BASE.includes(r.k) || byRole(r.k).length);
-  const extraRoles = ROLES.filter((r) => !BASE.includes(r.k) && !byRole(r.k).length);
+  const activeRoles = ROLES;
 
   const findInPool = (name) => pool.find((p) => p.name.toLowerCase() === name.toLowerCase() || p.name.toLowerCase().startsWith(name.toLowerCase() + " ") || name.toLowerCase().startsWith(p.name.toLowerCase().split(" ")[0].toLowerCase()));
 
@@ -74,6 +69,7 @@ export default function VoicesPicker({ value = [], pool = [], description = "", 
 
   return (
     <div className="vp">
+      {openRole && <div className="vp-back" onClick={() => setOpenRole(null)} />}
       <div className="vp-head">
         <span className="vp-h">Voci</span>
         {canEdit && description && <button className="vp-imp" onClick={importFromDesc} title="Parsează descrierea în voci structurate">Importă din descriere</button>}
@@ -119,13 +115,9 @@ export default function VoicesPicker({ value = [], pool = [], description = "", 
           </div>
         );
       })}
-      {canEdit && extraRoles.length > 0 && (
-        <div className="vr-extra">
-          {extraRoles.map((r) => <button key={r.k} className="vr-add-role" onClick={() => setOpenRole(r.k)}>+ {r.l}</button>)}
-        </div>
-      )}
       <style jsx>{`
         .vp { }
+        .vp-back { position: fixed; inset: 0; z-index: 6; }
         .vp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
         .vp-h { color: var(--text-faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; }
         .vp-imp { background: transparent; border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; font-size: 11px; padding: 3px 8px; cursor: pointer; }
@@ -158,18 +150,15 @@ export default function VoicesPicker({ value = [], pool = [], description = "", 
   );
 }
 
-/* Formatează vocile pt. afișare pe card: „DAVID · S: Gabi · A: Nao · T: Kati". */
+/* Formatează vocile pt. afișare (2 rânduri): lead (fără etichetă) pe rândul 1, apoi
+   „Suport: X -- Alto: Y -- Tenor: Z" pe rândul 2. Întoarce text cu „\n" (randat pre-line, gri ca descrierea). */
 export function formatVoices(voices = []) {
   if (!voices.length) return "";
-  const order = ["lead", "support", "alto", "tenor", "soprano", "bass", "custom"];
-  const label = { support: "S", alto: "A", tenor: "T", soprano: "Sop", bass: "B" };
+  const label = { support: "Suport", alto: "Alto", tenor: "Tenor" };
+  const order = ["support", "alto", "tenor"];
   const byRole = {};
   for (const v of voices) { (byRole[v.role] = byRole[v.role] || []).push(v.name); }
-  const parts = [];
-  for (const r of order) {
-    if (!byRole[r]) continue;
-    const names = byRole[r].join(", ");
-    parts.push(r === "lead" ? names.toUpperCase() : `${label[r] || r}: ${names}`);
-  }
-  return parts.join(" · ");
+  const lead = (byRole.lead || []).join(", ");
+  const sub = order.filter((r) => byRole[r]).map((r) => `${label[r]}: ${byRole[r].join(", ")}`).join(" -- ");
+  return [lead ? lead.toUpperCase() : "", sub].filter(Boolean).join("\n");
 }

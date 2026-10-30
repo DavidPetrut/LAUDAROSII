@@ -132,8 +132,7 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                         <span className="r-title">{it.title || "—"}</span>
                         {it.keyName && <span className={`r-key ${it.type === "media" ? "media" : ""}`}>{it.keyName}</span>}
                       </div>
-                      {voiceLine && <div className="r-voices">{voiceLine}</div>}
-                      {it.description && <div className="r-sub">{it.description}</div>}
+                      {voiceLine ? <div className="r-voices">{voiceLine}</div> : it.description ? <div className="r-sub">{it.description}</div> : null}
                     </div>
                     <div className="r-right">
                       {(it.leaders || []).slice(0, 3).map((l, i) => (
@@ -192,7 +191,7 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
         .mtag { flex: none; font-size: 9px; text-transform: uppercase; letter-spacing: .4px; color: var(--primary); border: 1px solid var(--primary); border-radius: 9px; padding: 0 6px; font-weight: 700; }
         .mexp { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 11.5px; padding: 0 2px; }
         .mexp:hover { color: var(--text); }
-        .r-voices { color: var(--text); font-size: 12px; line-height: 1.5; margin-top: 3px; font-weight: 500; }
+        .r-voices { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 3px; white-space: pre-line; }
         .r-sub { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 3px; white-space: pre-wrap; max-width: 640px; }
         .r-right { display: flex; align-items: center; gap: 4px; margin-left: auto; flex: none; }
         .lead-av { display: inline-flex; }

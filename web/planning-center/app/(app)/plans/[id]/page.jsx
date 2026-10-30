@@ -613,12 +613,11 @@ function TeamsTab({ data, sel, onOpenCell, onEdit, onRemove, onNeeded, dragActiv
   const my = data.myTeams || [], other = data.otherTeams || [];
   if (!my.length && !other.length) return <div className="muted">Nicio echipă pe acest plan.</div>;
   const props = { sel, onOpenCell, onEdit, onRemove, onNeeded, serviceTimes: data.serviceTimes || [], dragActive, dropKey, setDropKey, onDragStartP, onDropPos, onDragEndP, canAssign, canMove, canEditNeeded };
+  // Toate echipele pe UN SINGUR rând (my întâi, apoi other) — fără header-ele MY/OTHER TEAMS (cerință David).
   return (
     <div className="teams">
-      {my.length > 0 && <><div className="grp-label">MY TEAMS</div><div className="carousel">{my.map((t) => <TeamCol key={t.teamId} t={t} {...props} />)}</div></>}
-      {other.length > 0 && <><div className="grp-label">OTHER TEAMS</div><div className="carousel">{other.map((t) => <TeamCol key={t.teamId} t={t} {...props} />)}</div></>}
+      <div className="carousel">{[...my, ...other].map((t) => <TeamCol key={t.teamId} t={t} {...props} />)}</div>
       <style jsx>{`
-        .grp-label { color: var(--text-faint); font-size: 11px; letter-spacing: .5px; margin: 6px 0 10px; }
         .carousel { display: flex; flex-wrap: nowrap; gap: 14px; margin-bottom: 24px; align-items: flex-start; overflow-x: auto; padding-bottom: 8px; scrollbar-width: auto; }
         .carousel::-webkit-scrollbar { height: 18px; }
         .carousel::-webkit-scrollbar-thumb { background: #39434f; border-radius: 9px; border: 4px solid transparent; background-clip: content-box; }

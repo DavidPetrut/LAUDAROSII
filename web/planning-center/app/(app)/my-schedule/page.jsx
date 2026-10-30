@@ -79,21 +79,28 @@ function MiniCalendar({ cal, onMonth, calData, selDay, onSelDay }) {
   );
 }
 
-/* ───────── card programare (dreapta) — identic cu mobilul ───────── */
-function SchedCard({ g, kind, onOpen, onAccept, onDecline, busy }) {
+/* ───────── card programare (dreapta) — IDENTIC cu mobilul (MyScheduleScreen Card) ───────── */
+function SchedCard({ g, kind, onOpen, onAccept, onDecline, busy, flash }) {
   const [showTimes, setShowTimes] = useState(false);
   return (
-    <div className={`card ${kind}`} onClick={() => onOpen(g.planId)}>
+    <div className="card" onClick={() => onOpen(g.planId)}>
       <div className="c-head">
         <div className="c-dates">
           <div className="c-date">{g.dateLabel || g.dateStr}</div>
           <div className="c-st">{g.serviceTypeName}</div>
         </div>
-        {(g.times || []).length > 0 && (
-          <button className="c-clock" onClick={(e) => { e.stopPropagation(); setShowTimes((v) => !v); }} title="Ore">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="8" cy="8" r="6.5" /><path d="M8 4.5V8l2.4 1.6" /></svg>
-          </button>
-        )}
+        <div className="c-icons" onClick={(e) => e.stopPropagation()}>
+          {kind === "confirmed" && (
+            <button className="c-ic" title="Media" onClick={() => flash?.("Media player — în curând.")}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="9" /><path d="M10 9l5 3-5 3z" fill="currentColor" /></svg>
+            </button>
+          )}
+          {(g.times || []).length > 0 && (
+            <button className="c-ic" title="Ore" onClick={() => setShowTimes((v) => !v)}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2.2" /></svg>
+            </button>
+          )}
+        </div>
       </div>
       {showTimes && (
         <div className="c-times" onClick={(e) => e.stopPropagation()}>
@@ -103,44 +110,46 @@ function SchedCard({ g, kind, onOpen, onAccept, onDecline, busy }) {
       <div className="c-pos">
         {(g.positions || []).map((p, i) => (
           <div key={i} className="pos">
-            <span className={`pdot ${p.status === "confirmed" ? "ok" : p.status === "declined" ? "no" : "un"}`}>
-              {p.status === "confirmed" ? "✓" : p.status === "declined" ? "✕" : "?"}
-            </span>
-            <span className="pn">{p.positionName || p.name || "Poziție"}</span>
-            {p.teamName && <span className="pt">{p.teamName}</span>}
+            <span className={`pdot ${p.status}`}>{p.status === "confirmed" ? "✓" : p.status === "declined" ? "✕" : "?"}</span>
+            <span className="pbody"><span className="pn">{p.positionName || p.name || "Poziție"}</span>{p.teamName && <span className="pt"> {p.teamName}</span>}</span>
           </div>
         ))}
       </div>
       {kind === "pending" && (
         <div className="c-act" onClick={(e) => e.stopPropagation()}>
-          <button className="split" onClick={() => onOpen(g.planId)}>Split</button>
+          <button className="tbtn split" onClick={() => onOpen(g.planId)}>SPLIT</button>
           <span style={{ flex: 1 }} />
-          <button className="decline" disabled={busy} onClick={() => onDecline(g.planId)}>Decline</button>
-          <button className="accept" disabled={busy} onClick={() => onAccept(g.planId)}>Accept</button>
+          <button className="tbtn decline" disabled={busy} onClick={() => onDecline(g.planId)}>DECLINE</button>
+          <button className="tbtn accept" disabled={busy} onClick={() => onAccept(g.planId)}>ACCEPT</button>
         </div>
       )}
       <style jsx>{`
-        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 15px; cursor: pointer; transition: border-color .12s; }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; cursor: pointer; transition: border-color .12s; }
         .card:hover { border-color: var(--border-strong); }
-        .c-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-        .c-date { color: var(--text); font-weight: 600; font-size: 15px; }
-        .c-st { color: var(--text-dim); font-size: 12.5px; margin-top: 2px; }
-        .c-clock { background: transparent; border: none; color: var(--text-faint); cursor: pointer; padding: 2px; flex: none; }
-        .c-clock:hover { color: var(--text); }
-        .c-times { margin-top: 8px; background: var(--surface-2); border-radius: 7px; padding: 8px 10px; }
+        .c-head { display: flex; align-items: center; gap: 10px; }
+        .c-dates { flex: 1; min-width: 0; }
+        .c-date { color: var(--text); font-weight: 700; font-size: 18px; }
+        .c-st { color: var(--text-dim); font-size: 13px; margin-top: 1px; }
+        .c-icons { display: flex; align-items: center; gap: 6px; flex: none; }
+        .c-ic { background: transparent; border: none; color: var(--text-faint); cursor: pointer; padding: 2px; display: inline-flex; }
+        .c-ic:hover { color: var(--text); }
+        .c-times { margin-top: 8px; background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
         .ct-row { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; padding: 2px 0; }
         .ct-n { color: var(--text-dim); } .ct-r { color: var(--text-faint); font-variant-numeric: tabular-nums; }
-        .c-pos { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+        .c-pos { display: flex; flex-direction: column; gap: 8px; margin-top: 11px; }
         .pos { display: flex; align-items: center; gap: 8px; }
-        .pdot { width: 17px; height: 17px; border-radius: 50%; font-size: 10px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; flex: none; }
-        .pdot.ok { background: var(--product); color: #0b2018; } .pdot.un { background: var(--st-unconfirmed); color: #1d1600; } .pdot.no { background: var(--danger); color: #fff; }
-        .pn { color: var(--text); font-size: 13px; font-weight: 600; }
-        .pt { color: var(--text-faint); font-size: 12px; }
-        .c-act { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
-        .split { background: transparent; border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 7px; padding: 6px 12px; font-size: 12.5px; cursor: pointer; }
-        .decline { background: transparent; border: 1px solid var(--danger); color: var(--danger); border-radius: 7px; padding: 6px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
-        .accept { background: var(--product); border: 1px solid var(--product); color: #0b2018; border-radius: 7px; padding: 6px 16px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
-        .accept:disabled, .decline:disabled { opacity: .5; cursor: default; }
+        .pdot { width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+        .pdot.confirmed { background: var(--product); color: #0b2018; } .pdot.unconfirmed { background: var(--st-unconfirmed); color: #1d1600; } .pdot.declined { background: var(--danger); color: #fff; }
+        .pbody { min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pn { color: var(--text); font-size: 15px; font-weight: 700; }
+        .pt { color: var(--text-dim); font-size: 14px; }
+        .c-act { display: flex; align-items: center; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+        .tbtn { background: transparent; border: none; cursor: pointer; font-size: 12.5px; font-weight: 800; letter-spacing: .5px; padding: 0; }
+        .tbtn.split { color: var(--text-faint); }
+        .tbtn.decline { color: var(--text-faint); margin-right: 20px; }
+        .tbtn.decline:hover { color: var(--danger); }
+        .tbtn.accept { color: var(--product); }
+        .tbtn:disabled { opacity: .5; cursor: default; }
       `}</style>
     </div>
   );
@@ -302,7 +311,7 @@ export default function MySchedulePage() {
               )}
 
               <div className="sec"><span className="sec-t">Confirmed <b>{(data.confirmed || []).length}</b></span></div>
-              {(data.confirmed || []).length === 0 ? <div className="muted">Nimic confirmat.</div> : <div className="grid">{data.confirmed.map((g, i) => <SchedCard key={i} g={g} kind="confirmed" onOpen={open} />)}</div>}
+              {(data.confirmed || []).length === 0 ? <div className="muted">Nimic confirmat.</div> : <div className="grid">{data.confirmed.map((g, i) => <SchedCard key={i} g={g} kind="confirmed" onOpen={open} flash={flash} />)}</div>}
 
               {(data.declined || []).length > 0 && (
                 <>
@@ -311,12 +320,12 @@ export default function MySchedulePage() {
                 </>
               )}
 
-              {/* Blockouts — header + carduri, ca Confirmed (cerință David) */}
-              <div className="sec"><span className="sec-t">Blockouts <b>{myBlockouts.length}</b></span></div>
-              {myBlockouts.length === 0 ? (
-                <div className="bo-empty">Niciun interval blocat. Apasă <b>„Block Out Dates"</b> ca să marchezi când nu ești disponibil.</div>
-              ) : (
-                <div className="grid">{myBlockouts.map((b) => <BlockoutCard key={b.id} b={b} confirming={confirmDel === b.id} onAskDelete={setConfirmDel} onCancelDelete={() => setConfirmDel(null)} onDelete={removeBlockout} />)}</div>
+              {/* Blockouts — DOAR dacă există (cerință David: fără „Blockouts 0") */}
+              {myBlockouts.length > 0 && (
+                <>
+                  <div className="sec"><span className="sec-t">Blockouts <b>{myBlockouts.length}</b></span></div>
+                  <div className="grid">{myBlockouts.map((b) => <BlockoutCard key={b.id} b={b} confirming={confirmDel === b.id} onAskDelete={setConfirmDel} onCancelDelete={() => setConfirmDel(null)} onDelete={removeBlockout} />)}</div>
+                </>
               )}
             </>
           )}
@@ -350,7 +359,7 @@ export default function MySchedulePage() {
         .sec-t { color: var(--text); font-size: 15px; } .sec-t b { color: var(--product); font-weight: 700; margin-left: 4px; }
         .sec-act { background: var(--product); border: none; color: #0b2018; border-radius: 7px; padding: 6px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
         .sec-act:disabled { opacity: .5; cursor: default; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 12px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(276px, 1fr)); gap: 16px; }
         .muted { color: var(--text-faint); font-size: 13px; }
         .bo-empty { color: var(--text-faint); font-size: 13px; line-height: 1.6; background: var(--surface); border: 1px dashed var(--border-strong); border-radius: 10px; padding: 16px 18px; } .bo-empty b { color: var(--text-dim); }
         .err { background: rgba(229,83,75,.12); border: 1px solid rgba(229,83,75,.4); color: #f0a7a2; padding: 10px 12px; border-radius: 6px; }

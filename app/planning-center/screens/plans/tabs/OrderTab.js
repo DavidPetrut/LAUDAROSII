@@ -78,8 +78,7 @@ export function OrderTab({ planId, navigation, head, tabsBar }) {
             <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
             {!!item.keyName && <View style={styles.keyBadge}><Text style={styles.keyTxt}>{item.keyName}</Text></View>}
           </View>
-          {!!voiceLine && <Text style={styles.voiceLine}>{voiceLine}</Text>}
-          {!!item.description && <Text style={styles.desc}>{item.description}</Text>}
+          {voiceLine ? <Text style={styles.voiceLine}>{voiceLine}</Text> : (!!item.description && <Text style={styles.desc}>{item.description}</Text>)}
         </View>
         {(item.leaders || []).slice(0, 3).map((l, i) =>
           l.needed ? (
@@ -180,7 +179,7 @@ const styles = StyleSheet.create({
   // Pastilă verde de cheie (ex. „Gb", „C#m") — ca în PCO, lățime automată.
   keyBadge: { backgroundColor: pcColors.primary, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 3, minWidth: 34, alignItems: "center", justifyContent: "center", marginTop: 1 },
   keyTxt: { color: "#0A0A0A", fontSize: 13, fontWeight: "800" },
-  voiceLine: { color: pcColors.textPrimary, fontSize: 13.5, marginTop: 3, lineHeight: 19, fontWeight: "600" },
+  voiceLine: { color: pcColors.textSecondary, fontSize: 13.5, marginTop: 3, lineHeight: 19 },
   desc: { color: pcColors.textSecondary, fontSize: 13.5, marginTop: 3, lineHeight: 19 },
   rowTrans: { paddingLeft: 44 },
   bang: { width: 20, height: 20, borderRadius: 10, backgroundColor: pcColors.danger, alignItems: "center", justifyContent: "center", marginTop: 1 },

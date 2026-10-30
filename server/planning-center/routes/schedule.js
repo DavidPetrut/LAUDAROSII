@@ -97,11 +97,11 @@ router.get("/my", async (req, res) => {
     if (!pid) return res.json({ pending: [], confirmed: [] });
     const tz = await campusTz(req);
     const assigns = await viewerAssignments(req, pid);
-    const groups = await buildGroups(req, assigns, tz);
+    const todayStr = isoDate(new Date(), tz);
+    // DOAR VIITOR (incl. azi), sortat prezent→viitor (buildGroups sortează ascendent). Fără istoric.
+    const groups = (await buildGroups(req, assigns, tz)).filter((g) => g.dateStr >= todayStr);
     const pending = groups.filter((g) => g.positions.some((p) => p.status === "unconfirmed"));
     const confirmed = groups.filter((g) => !g.positions.some((p) => p.status === "unconfirmed"));
-    // Declined (doar viitoare) — tab opțional în UI (apare doar dacă există).
-    const todayStr = isoDate(new Date(), tz);
     const declinedAssigns = await PcAssignment.find(scoped(req, { personId: pid, status: "declined" })).lean();
     const declined = (await buildGroups(req, declinedAssigns, tz)).filter((g) => g.dateStr >= todayStr);
     res.json({ pending, confirmed, declined });
@@ -196,8 +196,12 @@ router.get("/blockouts", async (req, res) => {
   try {
     const pid = await viewerPerson(req);
     if (!pid) return res.json({ blockouts: [] });
+    const tz = await campusTz(req);
+    const todayStr = isoDate(new Date(), tz);
     const blockouts = await PcBlockout.find(scoped(req, { personId: pid })).sort({ startDate: 1 }).lean();
-    res.json({ blockouts: blockouts.map(dtoBlockout) });
+    // DOAR VIITOR: blockout care se termină azi/în viitor SAU care se repetă (perpetuu). Fără istoric.
+    const future = blockouts.filter((b) => (b.repeat && b.repeat !== "none") || b.endDate >= todayStr);
+    res.json({ blockouts: future.map(dtoBlockout) });
   } catch (err) { console.error("[pc] GET /schedule/blockouts:", err.message); res.status(500).json({ error: "Eroare." }); }
 });
 

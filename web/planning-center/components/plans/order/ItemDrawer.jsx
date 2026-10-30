@@ -10,6 +10,7 @@ import { plansApi, songsApi } from "@/lib/api/client";
 import PersonAvatar from "@/components/plans/PersonAvatar";
 import VoicesPicker from "./VoicesPicker";
 import MedleyEditor from "./MedleyEditor";
+import SongPickerModal from "./SongPickerModal";
 
 const TABS = ["Notes", "Detail", "Song", "Media", "Files"];
 const splitLen = (s) => ({ m: Math.floor((s || 0) / 60), s: (s || 0) % 60 });
@@ -30,7 +31,15 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
   const [notes, setNotes] = useState(null);
   const [voices, setVoices] = useState([]);
   const [pool, setPool] = useState([]);
+  const [songPicker, setSongPicker] = useState(false);
   const lt = useRef(null);
+
+  async function linkSong(songs) {
+    setSongPicker(false);
+    const s = songs?.[0]; if (!s) return;
+    try { await plansApi.updateItem(planId, itemId, { songId: s.id }); await load(); onChanged?.(); }
+    catch (e) { flash?.(e?.message || "Eroare la legarea cântecului."); }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -225,7 +234,12 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
                     {!(arr?.arrangementFiles || []).length && !keyFiles.length && <div className="st-none">Niciun fișier pe acest aranjament.</div>}
                   </div>
                 </div>
-              ) : <div className="d-none">Acest item nu e legat de un cântec.</div>
+              ) : (
+                <div className="song-link">
+                  <div className="d-none">Acest item nu e legat de un cântec.</div>
+                  {canEdit && <button className="st-linkbtn" onClick={() => setSongPicker(true)}>+ Leagă un cântec</button>}
+                </div>
+              )
             )}
 
             {tab === "Files" && (
@@ -262,6 +276,8 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
           </div>
         </div>
       )}
+
+      {songPicker && <SongPickerModal onClose={() => setSongPicker(false)} onPick={linkSong} />}
 
       <style jsx>{`
         .drawer { position: fixed; top: var(--nav-h); right: 0; bottom: 0; width: 340px; background: var(--surface); border-left: 1px solid var(--border-strong); z-index: 50; display: flex; flex-direction: column; box-shadow: -8px 0 28px rgba(0,0,0,.28); animation: drIn .16s ease; }
@@ -309,8 +325,8 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
         .lead-it:hover { background: var(--surface-2); }
         .li-ic { color: var(--text-faint); } .li-sub { color: var(--text-faint); font-size: 11px; margin-left: auto; }
         .li-none { color: var(--text-faint); font-size: 12px; padding: 8px; }
-        .d-tabs { display: flex; gap: 2px; margin-top: 18px; border-bottom: 1px solid var(--border); overflow-x: auto; }
-        .dt { background: transparent; border: none; color: var(--text-dim); padding: 8px 10px; cursor: pointer; font-size: 12.5px; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+        .d-tabs { display: flex; margin-top: 18px; border-bottom: 1px solid var(--border); }
+        .dt { flex: 1; text-align: center; background: transparent; border: none; color: var(--text-dim); padding: 8px 4px; cursor: pointer; font-size: 12px; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
         .dt:hover { color: var(--text); } .dt.on { color: var(--text); border-bottom-color: var(--primary); font-weight: 600; }
         .d-pane { padding-top: 14px; }
         .d-none { color: var(--text-faint); font-size: 12.5px; padding: 12px 2px; }
@@ -320,6 +336,9 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
         .st-sl { color: var(--text-faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; margin-right: 6px; }
         .stf-h { color: var(--text-faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; margin: 10px 0 6px; }
         .st-none { color: var(--text-faint); font-size: 12px; padding: 4px 0; }
+        .song-link { padding: 8px 0; }
+        .st-linkbtn { margin-top: 10px; background: var(--surface-2); border: 1px dashed var(--border-strong); color: var(--text-faint); border-radius: 7px; padding: 8px 14px; font-size: 12.5px; cursor: pointer; }
+        .st-linkbtn:hover { color: var(--primary); border-color: var(--primary); }
         .note { display: flex; gap: 6px; align-items: flex-start; margin-bottom: 8px; }
         .note-del { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 11px; padding-top: 8px; }
         .addnote { background: var(--surface-2); border: 1px dashed var(--border-strong); color: var(--text-faint); border-radius: 7px; padding: 7px 12px; font-size: 12.5px; cursor: pointer; width: 100%; }
