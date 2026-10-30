@@ -1,24 +1,18 @@
 /**
- * Puntea WhatsApp (Baileys) — self-hosted, rulează DOAR local/always-on (flag WHATSAPP_BRIDGE=1).
- * Acționează ca un „linked device" (WhatsApp Web) al unui NUMĂR-ROBOT admin în grupuri.
- * Sesiunea (creds+keys) se salvează în Mongo (PcWhatsappSession), nu pe disc → supraviețuiește restart-urilor.
+ * Puntea WhatsApp (Baileys) MULTI-SESIUNE — self-hosted, DOAR local (flag WHATSAPP_BRIDGE=1).
+ * Ține MAI MULTE numere-robot conectate simultan: hub keyed pe `sessionId` (id-ul docului PcWhatsappSession).
+ * Fiecare sesiune (creds+keys) se salvează în Mongo (PcWhatsappSession, 1 doc / număr) → supraviețuiește restart-urilor.
  *
- * NU se încarcă pe Render: `require("@whiskeysockets/baileys")` e LAZY, doar în start()/authState.
- * Expune: start(), status(), listGroups(), groupMembers(jid), syncGroup(jid, targetNumbers), inviteLink(jid),
- *         logoutAndReset(), normalizeNumber(raw). Faza 1 = un singur socket (un număr-robot).
+ * NU se încarcă pe Render: `require("@whiskeysockets/baileys")` e LAZY, doar în start/authState.
+ * Expune: startAll(), connectNew(), reconnect(number), logout(number), statuses(), status(number),
+ *   listGroups(number), groupMembers(number, jid), syncGroup(number, jid, nums), inviteLink(number, jid),
+ *   groupName(number, jid), renameGroup(number, jid, s), selfIds(number), normalizeNumber(raw).
  */
 const { PcOrg } = require("../models");
 const PcWhatsappSession = require("../models/PcWhatsappSession");
 
-let sock = null;
-let connState = "disconnected"; // disconnected|connecting|qr|connected|logged-out
-let currentQr = null;           // data URL (PNG) al QR-ului curent, cât timp e nevoie de pairing
-let meInfo = null;              // { id, name }
-let lastError = "";
 let orgId = null;
-let sessionDoc = null;
-let saveTimer = null;
-let starting = false;
+const hub = {}; // sessionId(string) -> { sessionId, sock, connState, currentQr, meInfo, lastError, sessionDoc, saveTimer, starting, number }
 
 async function getOrgId() {
   if (orgId) return orgId;
@@ -38,27 +32,34 @@ function normalizeNumber(raw) {
   return s.length >= 10 ? s : null;
 }
 const jidOf = (num) => `${num}@s.whatsapp.net`;
+const locPart = (x) => (x || "").split("@")[0].split(":")[0];
+const numOf = (sock) => normalizeNumber(locPart(sock?.user?.id)) || locPart(sock?.user?.id) || null;
 
-/** Auth state stocat în Mongo (echivalentul useMultiFileAuthState, dar pe un document). */
-async function useMongoAuthState(baileys) {
+function entryByNumber(number) {
+  const n = normalizeNumber(number) || number;
+  return Object.values(hub).find((x) => x.number === n);
+}
+function sockOf(number) {
+  const e = entryByNumber(number);
+  if (!e || !e.sock || e.connState !== "connected") throw new Error("Numărul-robot nu e conectat.");
+  return e.sock;
+}
+
+/** Auth state (creds+keys) legat de o intrare hub (docul ei PcWhatsappSession). */
+function useMongoAuthState(baileys, entry) {
   const { initAuthCreds, BufferJSON, proto } = baileys;
-  const oid = await getOrgId();
-  sessionDoc = await PcWhatsappSession.findOne({ orgId: oid, deletedAt: null });
-  if (!sessionDoc) sessionDoc = await PcWhatsappSession.create({ orgId: oid, data: {} });
-
-  const stored = sessionDoc.data || {};
-  const creds = stored.creds
-    ? JSON.parse(JSON.stringify(stored.creds), BufferJSON.reviver)
-    : initAuthCreds();
+  const stored = entry.sessionDoc.data || {};
+  const creds = stored.creds ? JSON.parse(JSON.stringify(stored.creds), BufferJSON.reviver) : initAuthCreds();
   const keys = stored.keys || {};
 
   const persist = () => {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(async () => {
+    clearTimeout(entry.saveTimer);
+    entry.saveTimer = setTimeout(async () => {
       try {
         const data = JSON.parse(JSON.stringify({ creds, keys }, BufferJSON.replacer));
-        await PcWhatsappSession.updateOne({ _id: sessionDoc._id }, { $set: { data, status: connState, me: meInfo, lastError } });
-      } catch (e) { /* ignoră erorile de salvare tranzitorii */ }
+        await PcWhatsappSession.updateOne({ _id: entry.sessionDoc._id },
+          { $set: { data, status: entry.connState, me: entry.meInfo, lastError: entry.lastError, botNumber: entry.number || entry.sessionDoc.botNumber || null } });
+      } catch (e) { /* ignoră erorile tranzitorii */ }
     }, 800);
   };
 
@@ -95,85 +96,141 @@ async function useMongoAuthState(baileys) {
   return { state, saveCreds: () => persist() };
 }
 
-async function start() {
-  if (sock || starting) return;
-  starting = true;
+async function startEntry(baileys, entry) {
+  if (entry.sock || entry.starting) return;
+  entry.starting = true;
   try {
-    const baileys = require("@whiskeysockets/baileys");
     const makeWASocket = baileys.default;
     const { DisconnectReason, Browsers, fetchLatestBaileysVersion } = baileys;
     const QRCode = require("qrcode");
 
-    const { state, saveCreds } = await useMongoAuthState(baileys);
+    const { state, saveCreds } = useMongoAuthState(baileys, entry);
     let version;
     try { ({ version } = await fetchLatestBaileysVersion()); } catch { version = undefined; }
 
-    connState = "connecting";
-    sock = makeWASocket({
-      auth: state,
-      version,
-      printQRInTerminal: false,
-      browser: Browsers.appropriate("Chrome"),
-      syncFullHistory: false,
+    entry.connState = "connecting";
+    const sock = makeWASocket({
+      auth: state, version, printQRInTerminal: false,
+      browser: Browsers.appropriate("Chrome"), syncFullHistory: false,
       logger: require("pino")({ level: "silent" }),
     });
-
+    entry.sock = sock;
     sock.ev.on("creds.update", saveCreds);
 
     sock.ev.on("connection.update", async (u) => {
       const { connection, lastDisconnect, qr } = u;
       if (qr) {
-        connState = "qr";
-        try { currentQr = await QRCode.toDataURL(qr); } catch { currentQr = null; }
+        entry.connState = "qr";
+        try { entry.currentQr = await QRCode.toDataURL(qr); } catch { entry.currentQr = null; }
       }
       if (connection === "open") {
-        connState = "connected"; currentQr = null; lastError = "";
-        meInfo = sock?.user ? { id: sock.user.id, name: sock.user.name || sock.user.verifiedName || "" } : null;
-        try { await PcWhatsappSession.updateOne({ _id: sessionDoc?._id }, { $set: { status: "connected", me: meInfo, lastConnectedAt: new Date(), lastError: "" } }); } catch {}
+        entry.connState = "connected"; entry.currentQr = null; entry.lastError = "";
+        entry.meInfo = sock.user ? { id: sock.user.id, name: sock.user.name || sock.user.verifiedName || "" } : null;
+        entry.number = numOf(sock);
+        try {
+          const oid = await getOrgId();
+          // re-pairing același număr: scoatem docurile/intrările vechi cu acest număr (păstrăm sesiunea nouă)
+          await PcWhatsappSession.updateMany({ orgId: oid, botNumber: entry.number, _id: { $ne: entry.sessionDoc._id }, deletedAt: null }, { $set: { deletedAt: new Date() } });
+          Object.values(hub).forEach((x) => { if (x !== entry && x.number === entry.number) { try { x.sock?.end?.(); } catch {} delete hub[x.sessionId]; } });
+          await PcWhatsappSession.updateOne({ _id: entry.sessionDoc._id }, { $set: { botNumber: entry.number, status: "connected", me: entry.meInfo, lastConnectedAt: new Date(), lastError: "" } });
+        } catch {}
       }
       if (connection === "close") {
         const code = lastDisconnect?.error?.output?.statusCode;
         const loggedOut = code === DisconnectReason?.loggedOut;
-        sock = null;
+        entry.sock = null;
         if (loggedOut) {
-          connState = "logged-out"; lastError = "logged-out"; meInfo = null;
-          try { await PcWhatsappSession.updateOne({ _id: sessionDoc?._id }, { $set: { data: {}, status: "logged-out", me: null, lastError: "logged-out" } }); } catch {}
+          entry.connState = "logged-out"; entry.lastError = "logged-out"; entry.meInfo = null;
+          try { await PcWhatsappSession.updateOne({ _id: entry.sessionDoc._id }, { $set: { data: {}, status: "logged-out", me: null, lastError: "logged-out" } }); } catch {}
         } else {
-          connState = "connecting";
-          setTimeout(() => { start().catch(() => {}); }, 3000); // reconectare
+          entry.connState = "connecting";
+          setTimeout(() => { startEntry(baileys, entry).catch(() => {}); }, 3000); // reconectare
         }
       }
     });
   } catch (e) {
-    lastError = String(e?.message || e); connState = "disconnected"; sock = null;
+    entry.lastError = String(e?.message || e); entry.connState = "disconnected"; entry.sock = null;
   } finally {
-    starting = false;
+    entry.starting = false;
   }
 }
 
-function status() {
-  return { connected: connState === "connected", state: connState, me: meInfo, qr: currentQr, error: lastError };
+async function newEntry() {
+  const oid = await getOrgId();
+  const doc = await PcWhatsappSession.create({ orgId: oid, data: {} });
+  const entry = { sessionId: String(doc._id), sock: null, connState: "disconnected", currentQr: null, meInfo: null, lastError: "", sessionDoc: doc.toObject ? doc.toObject() : doc, saveTimer: null, starting: false, number: null };
+  hub[entry.sessionId] = entry;
+  return entry;
 }
 
-async function ensureStarted() { if (!sock && connState !== "qr" && connState !== "connecting") await start(); }
+/** Pairing număr NOU (QR). Reutilizează un pairing în curs (fără număr) dacă există. */
+async function connectNew() {
+  const baileys = require("@whiskeysockets/baileys");
+  let entry = Object.values(hub).find((e) => !e.number && (e.connState === "qr" || e.connState === "connecting"));
+  if (!entry) entry = await newEntry();
+  await startEntry(baileys, entry);
+  return { sessionId: entry.sessionId };
+}
 
-/** Grupurile în care e numărul-robot: [{ jid, name, size, isAdmin, community, isCommunity }]. */
-async function listGroups() {
-  if (!sock) return [];
+/** Reconectează un număr existent (din Mongo dacă nu e în hub). */
+async function reconnect(number) {
+  const baileys = require("@whiskeysockets/baileys");
+  const existing = entryByNumber(number);
+  if (existing) { await startEntry(baileys, existing); return { sessionId: existing.sessionId }; }
+  const oid = await getOrgId();
+  const d = await PcWhatsappSession.findOne({ orgId: oid, botNumber: normalizeNumber(number) || number, deletedAt: null }).lean();
+  if (!d) throw new Error("Număr necunoscut.");
+  const entry = { sessionId: String(d._id), sock: null, connState: "disconnected", currentQr: null, meInfo: null, lastError: "", sessionDoc: d, saveTimer: null, starting: false, number: d.botNumber || null };
+  hub[entry.sessionId] = entry;
+  await startEntry(baileys, entry);
+  return { sessionId: entry.sessionId };
+}
+
+/** La boot: reconectează toate sesiunile deja pair-uite (au creds). */
+async function startAll() {
+  const baileys = require("@whiskeysockets/baileys");
+  const oid = await getOrgId();
+  const docs = await PcWhatsappSession.find({ orgId: oid, deletedAt: null }).lean();
+  for (const d of docs) {
+    if (!d.data?.creds || hub[String(d._id)]) continue;
+    const entry = { sessionId: String(d._id), sock: null, connState: "disconnected", currentQr: null, meInfo: null, lastError: "", sessionDoc: d, saveTimer: null, starting: false, number: d.botNumber || null };
+    hub[entry.sessionId] = entry;
+    startEntry(baileys, entry).catch(() => {});
+  }
+  return { count: Object.keys(hub).length };
+}
+
+function statusOf(e) {
+  return { sessionId: e.sessionId, number: e.number, connected: e.connState === "connected", state: e.connState, me: e.meInfo, qr: e.currentQr, error: e.lastError };
+}
+function statuses() { return Object.values(hub).map(statusOf); }
+function status(number) { const e = entryByNumber(number); return e ? statusOf(e) : { number: normalizeNumber(number) || number, connected: false, state: "disconnected" }; }
+
+/** Delogare + reset sesiune pentru un număr. */
+async function logout(number) {
+  const e = entryByNumber(number);
+  if (!e) return;
+  try { if (e.sock) await e.sock.logout(); } catch {}
+  e.sock = null; e.connState = "disconnected"; e.currentQr = null; e.meInfo = null; e.lastError = "";
+  try { await PcWhatsappSession.updateOne({ _id: e.sessionDoc._id }, { $set: { data: {}, status: "disconnected", me: null, lastError: "", deletedAt: new Date() } }); } catch {}
+  delete hub[e.sessionId];
+}
+
+/** Grupurile în care e numărul-robot: [{ jid, name, size, isAdmin, community, communityJid, isCommunity }]. */
+async function listGroups(number) {
+  const sock = sockOf(number);
   const all = await sock.groupFetchAllParticipating();
   const list = Object.values(all || {});
   const commName = {};
-  list.forEach((g) => { if (g.isCommunity) commName[g.id] = g.subject || ""; }); // comunitățile-părinte
-  // Baileys 7.x poate lista participanții după LID (@lid), nu după număr → potrivim numărul ȘI LID-ul meu,
-  // și acceptăm și creatorul grupului (owner) ca admin.
-  const idNum = (x) => (x || "").split("@")[0].split(":")[0];
-  const mine = new Set([idNum(sock.user?.id), idNum(sock.user?.lid)].filter(Boolean));
-  const isMe = (p) => mine.has(idNum(p?.id)) || mine.has(idNum(p?.jid)) || mine.has(idNum(p?.lid));
+  list.forEach((g) => { if (g.isCommunity) commName[g.id] = g.subject || ""; });
+  // Baileys 7.x poate lista participanții după LID → potrivim numărul ȘI LID-ul meu, + owner.
+  const mine = new Set([locPart(sock.user?.id), locPart(sock.user?.lid)].filter(Boolean));
+  const isMe = (p) => mine.has(locPart(p?.id)) || mine.has(locPart(p?.jid)) || mine.has(locPart(p?.lid));
   return list
-    .filter((g) => !g.isCommunityAnnounce) // grupul-anunț al comunității nu e țintă de sync
+    .filter((g) => !g.isCommunityAnnounce)
     .map((g) => {
       const me = (g.participants || []).find(isMe);
-      const owner = mine.has(idNum(g.owner)) || mine.has(idNum(g.subjectOwner)); // creatorul grupului/comunității
+      const owner = mine.has(locPart(g.owner)) || mine.has(locPart(g.subjectOwner));
       return {
         jid: g.id, name: g.subject || "", size: (g.participants || []).length,
         isAdmin: (me ? (me.admin === "admin" || me.admin === "superadmin") : false) || owner,
@@ -184,50 +241,47 @@ async function listGroups() {
     });
 }
 
-/** Identificatorii robotului (număr + LID, partea locală) — ca să nu se scoată/numere pe el însuși. */
-function selfIds() {
-  if (!sock?.user) return [];
-  const loc = (x) => (x || "").split("@")[0].split(":")[0];
-  return [loc(sock.user.id), loc(sock.user.lid)].filter(Boolean);
+/** Identificatorii robotului (număr + LID, partea locală) pt. numărul dat. */
+function selfIds(number) {
+  const e = entryByNumber(number);
+  const u = e?.sock?.user;
+  if (!u) return [];
+  return [locPart(u.id), locPart(u.lid)].filter(Boolean);
 }
 
-/** Membrii unui grup ca numere (preferă numărul de telefon `jid` în fața LID-ului, fără sufix). */
-async function groupMembers(jid) {
-  if (!sock) return [];
+/** Membrii unui grup ca numere (preferă numărul de telefon `jid` în fața LID-ului). */
+async function groupMembers(number, jid) {
+  const sock = sockOf(number);
   const meta = await sock.groupMetadata(jid);
-  return (meta.participants || []).map((p) => ((p.jid || p.id) || "").split("@")[0].split(":")[0]);
+  return (meta.participants || []).map((p) => locPart(p.jid || p.id));
 }
 
-/**
- * Sincronizează grupul cu lista-țintă de numere: scoate cine nu mai e, adaugă cine lipsește.
- * Returnează { added, removed, failed, needInvite } — needInvite = cei care nu pot fi adăugați direct (privacy).
- */
-async function syncGroup(jid, targetNumbersRaw) {
-  if (!sock) throw new Error("Puntea nu e conectată.");
+/** Sincronizează grupul cu lista-țintă de numere: scoate cine nu mai e, adaugă cine lipsește. */
+async function syncGroup(number, jid, targetNumbersRaw) {
+  const sock = sockOf(number);
   const target = [...new Set((targetNumbersRaw || []).map(normalizeNumber).filter(Boolean))];
-  const current = await groupMembers(jid);
-  const self = new Set(selfIds());
+  const current = await groupMembers(number, jid);
+  const self = new Set(selfIds(number));
   const currentSet = new Set(current);
   const targetSet = new Set(target);
 
   const toAdd = target.filter((n) => !currentSet.has(n) && !self.has(n));
-  const toRemove = current.filter((n) => !targetSet.has(n) && !self.has(n)); // nu te scoți pe tine (robotul: număr sau LID)
+  const toRemove = current.filter((n) => !targetSet.has(n) && !self.has(n)); // nu te scoți pe tine (num sau LID)
 
   const added = [], removed = [], failed = [], needInvite = [];
-
   if (toRemove.length) {
     try {
       const res = await sock.groupParticipantsUpdate(jid, toRemove.map(jidOf), "remove");
-      (res || []).forEach((r) => { const n = (r.jid || "").split("@")[0]; (String(r.status) === "200" ? removed : failed).push(n); });
+      (res || []).forEach((r) => { const n = locPart(r.jid); (String(r.status) === "200" ? removed : failed).push(n); });
     } catch (e) { toRemove.forEach((n) => failed.push(n)); }
   }
   if (toAdd.length) {
     try {
       const res = await sock.groupParticipantsUpdate(jid, toAdd.map(jidOf), "add");
       (res || []).forEach((r) => {
-        const n = (r.jid || "").split("@")[0]; const st = String(r.status);
+        const n = locPart(r.jid); const st = String(r.status);
         if (st === "200") added.push(n);
-        else if (st === "403" || st === "409") needInvite.push(n); // privacy / nu poate fi adăugat direct
+        else if (st === "403" || st === "409") needInvite.push(n);
         else failed.push(n);
       });
     } catch (e) { toAdd.forEach((n) => needInvite.push(n)); }
@@ -235,32 +289,25 @@ async function syncGroup(jid, targetNumbersRaw) {
   return { added, removed, failed, needInvite, targetCount: target.length, currentCount: current.length };
 }
 
-async function inviteLink(jid) {
-  if (!sock) throw new Error("Puntea nu e conectată.");
+async function inviteLink(number, jid) {
+  const sock = sockOf(number);
   const code = await sock.groupInviteCode(jid);
   return `https://chat.whatsapp.com/${code}`;
 }
 
-/** Numele (subject) curent al grupului. */
-async function groupName(jid) {
-  if (!sock) return "";
-  try { const m = await sock.groupMetadata(jid); return m.subject || ""; } catch { return ""; }
+async function groupName(number, jid) {
+  try { const sock = sockOf(number); const m = await sock.groupMetadata(jid); return m.subject || ""; } catch { return ""; }
 }
 
-/** Redenumește grupul (ex. „SIM1 - 1 noi - Alex Lascae"). */
-async function renameGroup(jid, subject) {
-  if (!sock) throw new Error("Puntea nu e conectată.");
+async function renameGroup(number, jid, subject) {
+  const sock = sockOf(number);
   const s = String(subject || "").slice(0, 100).trim();
   if (!s) return "";
   await sock.groupUpdateSubject(jid, s);
   return s;
 }
 
-/** Delogare + reset sesiune (pt. re-pair cu alt număr). */
-async function logoutAndReset() {
-  try { if (sock) await sock.logout(); } catch {}
-  sock = null; connState = "disconnected"; currentQr = null; meInfo = null; lastError = "";
-  try { const oid = await getOrgId(); await PcWhatsappSession.updateOne({ orgId: oid }, { $set: { data: {}, status: "disconnected", me: null, lastError: "" } }); } catch {}
-}
-
-module.exports = { start, ensureStarted, status, listGroups, groupMembers, syncGroup, inviteLink, groupName, renameGroup, logoutAndReset, normalizeNumber, selfIds };
+module.exports = {
+  startAll, connectNew, reconnect, logout, statuses, status,
+  listGroups, groupMembers, syncGroup, inviteLink, groupName, renameGroup, selfIds, normalizeNumber,
+};

@@ -257,10 +257,11 @@ export const matrixApi = {
 
 /* ─── WhatsApp (sync grupuri) — server/planning-center/routes/whatsapp.js ─── */
 export const whatsappApi = {
-  status: () => api.get(`/whatsapp/status`),
-  connect: () => api.post(`/whatsapp/connect`, {}),
-  logout: () => api.post(`/whatsapp/logout`, {}),
-  groups: () => api.get(`/whatsapp/groups`),
+  status: () => api.get(`/whatsapp/status`),                 // { accounts: [...], bridgeEnabled }
+  connect: () => api.post(`/whatsapp/connect`, {}),          // pairing NUMĂR NOU (QR)
+  reconnect: (number) => api.post(`/whatsapp/connect/${number}`, {}),
+  logout: (number) => api.post(`/whatsapp/logout/${number}`, {}),
+  groups: (number) => api.get(`/whatsapp/groups?number=${number || ""}`),
   teams: () => api.get(`/whatsapp/teams`),
   teamWeeks: (teamId) => api.get(`/whatsapp/team/${teamId}/weeks`),
   teamPositions: (teamId) => api.get(`/whatsapp/team/${teamId}/positions`),
@@ -273,6 +274,6 @@ export const whatsappApi = {
   preview: (id) => api.get(`/whatsapp/preview/${id}`),
   // ATENȚIE: adaugă/scoate oameni REALI din grup. DOAR pe acțiune explicită a utilizatorului.
   sync: (id) => api.post(`/whatsapp/sync/${id}`, {}),
-  seedAll: () => api.post(`/whatsapp/seed/all`, {}),
-  seedWeek: (weekOfMonth) => api.post(`/whatsapp/seed/week`, { weekOfMonth }),
+  seedAll: (ids) => api.post(`/whatsapp/seed/all`, ids?.length ? { ids } : {}),
+  seedWeek: (weekOfMonth, ids) => api.post(`/whatsapp/seed/week`, ids?.length ? { weekOfMonth, ids } : { weekOfMonth }),
 };

@@ -111,34 +111,40 @@ async function buildMapSet(req, b) {
 
 /** Sincronizează O mapare: aplică Matrix→grup + redenumește. `forceWeekOfMonth` suprascrie săptămâna (pt. „seed pe săptămână"). */
 async function syncOne(req, m, forceWeekOfMonth) {
+  if (!bridge.status(m.botNumber).connected) return { jid: m.jid, name: m.nameCached, skipped: "not-connected" };
   const mm = (forceWeekOfMonth != null) ? { ...m, weekOfMonth: forceWeekOfMonth } : m;
   const t = await weekTarget(req, mm);
-  const result = await bridge.syncGroup(m.jid, t.numbers);
+  const result = await bridge.syncGroup(m.botNumber, m.jid, t.numbers);
   let renamed = "";
   if (t.people.length) { // nu rebotezăm pe Matrix gol (am pierde liderul/data din nume)
-    try { renamed = await bridge.renameGroup(m.jid, buildGroupName(m.namePrefix, t.weekShort, t.leaderName, t.teamName)); } catch {}
+    try { renamed = await bridge.renameGroup(m.botNumber, m.jid, buildGroupName(m.namePrefix, t.weekShort, t.leaderName, t.teamName)); } catch {}
   }
   await PcWhatsappGroup.updateOne(scoped(req, { _id: m._id }), { $set: { lastSyncAt: new Date(), nameCached: renamed || m.nameCached } });
   return { jid: m.jid, name: renamed || m.nameCached, weekLabel: t.weekLabel, leaderName: t.leaderName, renamed, emptyMatrix: t.emptyMatrix, missingPhone: t.missingPhone, ...result };
 }
 
-/* ───────── STATUS / PAIRING ───────── */
+/* ───────── STATUS / PAIRING (multi-număr) ───────── */
 router.get("/status", CAN, async (req, res) => {
-  res.json({ ...bridge.status(), bridgeEnabled: bridgeEnabled() });
+  res.json({ accounts: bridge.statuses(), bridgeEnabled: bridgeEnabled() });
 });
 router.post("/connect", CAN, async (req, res) => {
   if (!bridgeEnabled()) return res.status(409).json({ error: "Puntea rulează doar local (WHATSAPP_BRIDGE=1)." });
-  try { await bridge.start(); res.json({ ...bridge.status(), bridgeEnabled: true }); }
+  try { const r = await bridge.connectNew(); res.json({ ...r, accounts: bridge.statuses(), bridgeEnabled: true }); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
-router.post("/logout", CAN, async (req, res) => {
-  try { await bridge.logoutAndReset(); res.json({ ...bridge.status(), bridgeEnabled: bridgeEnabled() }); }
+router.post("/connect/:number", CAN, async (req, res) => {
+  if (!bridgeEnabled()) return res.status(409).json({ error: "Puntea rulează doar local (WHATSAPP_BRIDGE=1)." });
+  try { await bridge.reconnect(req.params.number); res.json({ accounts: bridge.statuses(), bridgeEnabled: true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+router.post("/logout/:number", CAN, async (req, res) => {
+  try { await bridge.logout(req.params.number); res.json({ accounts: bridge.statuses(), bridgeEnabled: bridgeEnabled() }); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-/* ───────── GRUPURI REALE (de pe numărul-robot) ───────── */
+/* ───────── GRUPURI REALE (de pe un număr-robot) ───────── */
 router.get("/groups", CAN, async (req, res) => {
-  try { res.json({ groups: await bridge.listGroups() }); }
+  try { res.json({ groups: await bridge.listGroups(req.query.number) }); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -218,16 +224,15 @@ router.get("/preview/:id", CAN, async (req, res) => {
     const m = await PcWhatsappGroup.findOne(scoped(req, { _id: OID(req.params.id) })).lean();
     if (!m) return res.status(404).json({ error: "Mapare inexistentă." });
     const t = await weekTarget(req, m);
-    let currentNumbers = [], toAdd = t.numbers, toRemove = [], liveError = "", currentName = m.nameCached;
-    if (bridge.status().connected) {
+    let currentNumbers = [], toAdd = t.numbers, toRemove = [], liveError = "";
+    if (bridge.status(m.botNumber).connected) {
       try {
-        currentName = (await bridge.groupName(m.jid)) || m.nameCached;
-        currentNumbers = await bridge.groupMembers(m.jid);
-        const cur = new Set(currentNumbers), tgt = new Set(t.numbers), self = new Set(bridge.selfIds());
+        currentNumbers = await bridge.groupMembers(m.botNumber, m.jid);
+        const cur = new Set(currentNumbers), tgt = new Set(t.numbers), self = new Set(bridge.selfIds(m.botNumber));
         toAdd = t.numbers.filter((n) => !cur.has(n) && !self.has(n));
         toRemove = currentNumbers.filter((n) => !tgt.has(n) && !self.has(n)); // nu număra robotul (num/LID) la scoși
       } catch (e) { liveError = e.message; }
-    } else liveError = "Puntea nu e conectată.";
+    } else liveError = "Numărul-robot al acestei lucrări nu e conectat.";
     const plannedName = buildGroupName(m.namePrefix, t.weekShort, t.leaderName, t.teamName);
     res.json({ weekLabel: t.weekLabel, leaderName: t.leaderName, plannedName, people: t.people, missingPhone: t.missingPhone, currentCount: currentNumbers.length, toAdd, toRemove, emptyMatrix: t.emptyMatrix, liveError });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -236,9 +241,9 @@ router.get("/preview/:id", CAN, async (req, res) => {
 /* ───────── SYNC (aplică — trigger uman) ───────── */
 router.post("/sync/:id", CAN, async (req, res) => {
   try {
-    if (!bridge.status().connected) return res.status(409).json({ error: "Puntea nu e conectată. Pornește-o local și scanează QR." });
     const m = await PcWhatsappGroup.findOne(scoped(req, { _id: OID(req.params.id) })).lean();
     if (!m) return res.status(404).json({ error: "Mapare inexistentă." });
+    if (!bridge.status(m.botNumber).connected) return res.status(409).json({ error: "Numărul-robot al acestei lucrări nu e conectat. Conectează-l și reîncearcă." });
     res.json({ ok: true, ...(await syncOne(req, m)) });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -247,19 +252,25 @@ router.post("/sync/:id", CAN, async (req, res) => {
 // Seed toate: sincronizează fiecare mapare la weekOffset-ul ei. Matrix gol → scoate, nu adaugă, fără eroare.
 router.post("/seed/all", CAN, async (req, res) => {
   try {
-    if (!bridge.status().connected) return res.status(409).json({ error: "Puntea nu e conectată." });
-    const maps = await PcWhatsappGroup.find(scoped(req, { enabled: true })).lean();
+    if (!bridge.statuses().some((a) => a.connected)) return res.status(409).json({ error: "Niciun număr-robot conectat." });
+    const filter = { enabled: true };
+    if (Array.isArray(req.body?.ids) && req.body.ids.length) filter._id = { $in: req.body.ids.map(OID).filter(Boolean) }; // scoped precis (o lucrare)
+    else if (req.body?.ministryGroup) filter.ministryGroup = String(req.body.ministryGroup);
+    const maps = await PcWhatsappGroup.find(scoped(req, filter)).lean();
     const results = [];
     for (const m of maps) { try { results.push(await syncOne(req, m)); } catch (e) { results.push({ jid: m.jid, name: m.nameCached, error: e.message }); } }
     res.json({ ok: true, count: results.length, results });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-// Seed pe săptămână: forțează același offset pentru toate mapările (populează „toți pe săptămâna N").
+// Seed pe săptămână: forțează aceeași săptămână-din-lună pentru mapări (opțional doar o lucrare).
 router.post("/seed/week", CAN, async (req, res) => {
   try {
-    if (!bridge.status().connected) return res.status(409).json({ error: "Puntea nu e conectată." });
+    if (!bridge.statuses().some((a) => a.connected)) return res.status(409).json({ error: "Niciun număr-robot conectat." });
     const n = Math.min(5, Math.max(1, parseInt(req.body?.weekOfMonth, 10) || 1));
-    const maps = await PcWhatsappGroup.find(scoped(req, { enabled: true })).lean();
+    const filter = { enabled: true };
+    if (Array.isArray(req.body?.ids) && req.body.ids.length) filter._id = { $in: req.body.ids.map(OID).filter(Boolean) };
+    else if (req.body?.ministryGroup) filter.ministryGroup = String(req.body.ministryGroup);
+    const maps = await PcWhatsappGroup.find(scoped(req, filter)).lean();
     const results = [];
     for (const m of maps) { try { results.push(await syncOne(req, m, n)); } catch (e) { results.push({ jid: m.jid, name: m.nameCached, error: e.message }); } }
     res.json({ ok: true, weekOfMonth: n, count: results.length, results });
@@ -271,7 +282,7 @@ router.post("/seed/week", CAN, async (req, res) => {
  * Aplică singur din Matrix când e nevoie. Matrix gol pe săptămâna-țintă → scoate-only, fără add (decizie David).
  */
 async function runScheduledSync() {
-  if (!bridge.status().connected) return { skipped: "not-connected" };
+  if (!bridge.statuses().some((a) => a.connected)) return { skipped: "not-connected" };
   const orgId = await resolveOrgId();
   if (!orgId) return { skipped: "no-org" };
   const req = { pcOrgId: orgId };

@@ -1,8 +1,8 @@
 "use client";
 /**
- * WhatsApp — sincronizarea grupurilor cu Matrix-ul.
- * O mapare = o ECHIPĂ (headerul din Matrix) + a câta săptămână; rotim membrii = oamenii echipei pe acea dată.
- * Numele grupului se GENEREAZĂ: {prefix ales de user} - {dată} - {lider din poziția aleasă}.
+ * WhatsApp — sincronizarea grupurilor cu Matrix-ul. MULTI-NUMĂR + organizare pe LUCRĂRI.
+ * Landing: numere conectate + carduri de lucrări. Click pe o lucrare → ecran scoped (conexiunea ei,
+ * grupurile ei, seed + adaugă grup doar ale ei). O mapare = echipă + săptămâna-din-lună + nume + lider + număr.
  * Puntea (Baileys) rulează LOCAL. NIMIC pe oameni reali fără click (Preview → Sincronizează/Seed).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -64,12 +64,52 @@ function Combo({ value, onChange, options, placeholder, disabled }) {
   );
 }
 
+const waIcon = (s = 16) => (
+  <svg viewBox="0 0 24 24" width={s} height={s} fill="#25d366"><path d="M19.05 4.91A9.82 9.82 0 0 0 12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22c5.46 0 9.9-4.45 9.9-9.91 0-2.65-1.03-5.14-2.9-7.02ZM12.04 20.2a8.2 8.2 0 0 1-4.18-1.14l-.3-.18-3.11.82.83-3.04-.2-.31a8.2 8.2 0 0 1-1.26-4.37c0-4.54 3.7-8.23 8.24-8.23a8.2 8.2 0 0 1 8.23 8.24c0 4.54-3.7 8.23-8.24 8.23Z"/></svg>
+);
+
+/* ── Cardul unui NUMĂR-robot (conexiune/QR/logout) ── */
+function AccountCard({ a, busy, onLogout, onReconnect }) {
+  return (
+    <div className={`ac ${a.connected ? "on" : ""}`}>
+      {a.connected ? (
+        <>
+          <div className="ac-row"><span className="wa-dot ok" /><div className="ac-main"><div className="ac-name">{a.me?.name || a.number}</div><div className="ac-sub">{a.number}</div></div></div>
+          <button className="ac-x" disabled={busy === "logout" + a.number} onClick={onLogout} title="Deloghează numărul">Deloghează</button>
+        </>
+      ) : a.state === "qr" && a.qr ? (
+        <div className="ac-qr"><img src={a.qr} alt="QR" width="150" height="150" /><div className="ac-qrt">Scanează: WhatsApp → Dispozitive conectate → Conectează un dispozitiv.</div></div>
+      ) : (
+        <>
+          <div className="ac-row"><span className="wa-dot" /><div className="ac-main"><div className="ac-name">{a.number || "Număr nou"}</div><div className="ac-sub">{a.state === "logged-out" ? "Deconectat (logout/ban)" : a.state === "connecting" ? "Se conectează…" : "Neconectat"}</div></div></div>
+          {a.number && <button className="ac-x" disabled={busy === "conn" + a.number} onClick={onReconnect}>Reconectează</button>}
+        </>
+      )}
+      <style jsx>{`
+        .ac { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 11px; padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; min-width: 240px; }
+        .ac.on { border-color: rgba(37,211,102,.35); }
+        .ac-row { display: flex; align-items: center; gap: 10px; }
+        .ac-main { min-width: 0; }
+        .ac-name { color: var(--text); font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ac-sub { color: var(--text-faint); font-size: 12px; margin-top: 1px; }
+        .wa-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-faint); flex: none; }
+        .wa-dot.ok { background: #25d366; box-shadow: 0 0 0 3px rgba(37,211,102,.2); }
+        .ac-x { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 7px; height: 30px; padding: 0 12px; font-size: 12.5px; cursor: pointer; }
+        .ac-x:hover { color: var(--text); } .ac-x:disabled { opacity: .5; cursor: default; }
+        .ac-qr { display: flex; align-items: center; gap: 13px; }
+        .ac-qr img { border-radius: 9px; border: 4px solid #fff; background: #fff; flex: none; }
+        .ac-qrt { color: var(--text-dim); font-size: 12px; line-height: 1.5; max-width: 190px; }
+      `}</style>
+    </div>
+  );
+}
+
 export default function WhatsappPage() {
   const router = useRouter();
   const [st, setSt] = useState(null);
-  const [groups, setGroups] = useState([]);
-  const [teams, setTeams] = useState([]);
   const [maps, setMaps] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [sel, setSel] = useState(null);       // lucrarea selectată (cheie = ministryGroup) sau null (landing)
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
   const [preview, setPreview] = useState({});
@@ -78,11 +118,14 @@ export default function WhatsappPage() {
   const [seedWeekOpen, setSeedWeekOpen] = useState(false);
   const pollRef = useRef(null);
 
+  const accounts = st?.accounts || [];
+  const bridgeEnabled = st?.bridgeEnabled;
+  const connectedAccounts = accounts.filter((a) => a.connected);
+  const accountOf = (num) => accounts.find((a) => a.number === num);
+
   const loadStatus = useCallback(async () => { try { setSt(await whatsappApi.status()); } catch {} }, []);
-  const loadGroups = useCallback(async () => { try { const r = await whatsappApi.groups(); setGroups(r.groups || []); } catch { setGroups([]); } }, []);
   const loadMaps = useCallback(async () => { try { const r = await whatsappApi.mappings(); setMaps(r.mappings || []); } catch {} }, []);
   const teamName = (id) => teams.find((t) => String(t.id) === String(id))?.name || "echipă";
-  const groupName = (jid, fallback) => groups.find((g) => g.jid === jid)?.name || fallback || jid;
 
   useEffect(() => {
     loadStatus(); loadMaps();
@@ -90,31 +133,44 @@ export default function WhatsappPage() {
   }, [loadStatus, loadMaps]);
   useEffect(() => {
     clearInterval(pollRef.current);
-    if (st && !st.connected && st.bridgeEnabled) pollRef.current = setInterval(loadStatus, 2500);
+    const pending = accounts.some((a) => a.state === "qr" || a.state === "connecting");
+    if (bridgeEnabled && pending) pollRef.current = setInterval(loadStatus, 2500);
     return () => clearInterval(pollRef.current);
-  }, [st?.connected, st?.bridgeEnabled, loadStatus]);
-  useEffect(() => { if (st?.connected) loadGroups(); }, [st?.connected, loadGroups]);
+  }, [accounts, bridgeEnabled, loadStatus]);
+
+  // lucrări = mapări grupate pe ministryGroup
+  const lucrari = useMemo(() => {
+    const m = {};
+    maps.forEach((x) => {
+      const key = x.ministryGroup || "(fără lucrare)";
+      if (!m[key]) m[key] = { key, ministryGroup: x.ministryGroup || "", maps: [], numbers: new Set() };
+      m[key].maps.push(x);
+      if (x.botNumber) m[key].numbers.add(x.botNumber);
+    });
+    return Object.values(m).sort((a, b) => a.key.localeCompare(b.key));
+  }, [maps]);
+
+  const luObj = sel ? lucrari.find((l) => l.key === sel) : null;
+  const luMaps = useMemo(() => {
+    if (!luObj) return [];
+    return [...luObj.maps].sort((a, b) => (a.weekOfMonth || 1) - (b.weekOfMonth || 1) || (a.nameCached || "").localeCompare(b.nameCached || ""));
+  }, [luObj]);
+  const luNumber = luObj ? [...luObj.numbers][0] || "" : "";
+  const luConnected = !!accountOf(luNumber)?.connected;
+
+  // auto-preview pentru mapările lucrării deschise (dacă numărul ei e conectat)
   useEffect(() => {
-    if (!st?.connected || !maps.length) return;
-    maps.forEach((m) => { if (!preview[m._id]) doPreview(m._id); });
+    if (!luObj) return;
+    luMaps.forEach((m) => { if (accountOf(m.botNumber)?.connected && !preview[m._id]) doPreview(m._id); });
     // eslint-disable-next-line
-  }, [st?.connected, maps]);
+  }, [sel, accounts.length]);
 
   const flash = (m) => { setMsg(m); setTimeout(() => setMsg(""), 5000); };
-  const botNumber = st?.me?.id?.split("@")[0]?.split(":")[0] || "";
-  const connected = st?.connected;
-  // ordine: pe comunitate/echipă, apoi SĂPTĂMÂNA DIN LUNĂ crescător (1 → 5)
-  const sortedMaps = [...maps].sort((a, b) =>
-    (a.ministryGroup || "").localeCompare(b.ministryGroup || "") ||
-    String(a.communityJid || "").localeCompare(String(b.communityJid || "")) ||
-    String(a.teamId || "").localeCompare(String(b.teamId || "")) ||
-    (a.weekOfMonth || 1) - (b.weekOfMonth || 1) ||
-    (a.nameCached || "").localeCompare(b.nameCached || "")
-  );
 
   async function connect() { setBusy("connect"); try { setSt(await whatsappApi.connect()); } catch (e) { flash(e.message); } finally { setBusy(""); } }
-  async function logout() { if (!confirm("Deloghezi puntea? Va trebui să re-scanezi QR.")) return; setBusy("logout"); try { setSt(await whatsappApi.logout()); setGroups([]); } catch (e) { flash(e.message); } finally { setBusy(""); } }
-  async function unmap(id) { if (!confirm("Scoți grupul din sincronizare? (grupul WhatsApp rămâne, doar maparea dispare)")) return; try { await whatsappApi.unmap(id); setPreview((p) => { const n = { ...p }; delete n[id]; return n; }); await loadMaps(); } catch (e) { flash(e.message); } }
+  async function reconnect(num) { setBusy("conn" + num); try { setSt(await whatsappApi.reconnect(num)); } catch (e) { flash(e.message); } finally { setBusy(""); } }
+  async function logout(num) { if (!confirm("Deloghezi acest număr? Va trebui re-scanat QR.")) return; setBusy("logout" + num); try { setSt(await whatsappApi.logout(num)); } catch (e) { flash(e.message); } finally { setBusy(""); } }
+  async function unmap(id) { if (!confirm("Scoți grupul din sincronizare? (grupul WhatsApp rămâne)")) return; try { await whatsappApi.unmap(id); setPreview((p) => { const n = { ...p }; delete n[id]; return n; }); await loadMaps(); } catch (e) { flash(e.message); } }
   async function setMode(id, mode) { try { await whatsappApi.setMode(id, mode); setMaps((m) => m.map((x) => String(x._id) === String(id) ? { ...x, mode } : x)); } catch (e) { flash(e.message); } }
   async function doPreview(id) { setBusy("prev" + id); try { const r = await whatsappApi.preview(id); setPreview((p) => ({ ...p, [id]: r })); } catch (e) { flash(e.message); } finally { setBusy(""); } }
   async function doSync(id, name) {
@@ -126,21 +182,21 @@ export default function WhatsappPage() {
   function seedSummary(results) {
     const a = results.reduce((s, r) => s + (r.added?.length || 0), 0);
     const d = results.reduce((s, r) => s + (r.removed?.length || 0), 0);
-    const empties = results.filter((r) => r.emptyMatrix).length;
-    return `Seed: ${results.length} grupuri · +${a} adăugați · −${d} scoși${empties ? ` · ${empties} cu Matrix gol` : ""}.`;
+    const skipped = results.filter((r) => r.skipped).length;
+    return `Seed: ${results.length} grupuri · +${a} · −${d}${skipped ? ` · ${skipped} sărite (număr neconectat)` : ""}.`;
   }
   async function doSeedAll() {
-    if (!confirm("Seed TOATE grupurile din Matrix? (adaugă/scoate membri reali în fiecare grup mapat)")) return;
+    if (!confirm("Seed grupurile acestei lucrări din Matrix? (adaugă/scoate membri reali)")) return;
     setBusy("seedall");
-    try { const r = await whatsappApi.seedAll(); flash(seedSummary(r.results || [])); await loadMaps(); maps.forEach((m) => doPreview(m._id)); }
+    try { const r = await whatsappApi.seedAll(luMaps.map((m) => m._id)); flash(seedSummary(r.results || [])); await loadMaps(); luMaps.forEach((m) => doPreview(m._id)); }
     catch (e) { flash(e.message); } finally { setBusy(""); }
   }
-  async function doSeedWeek(offset) {
+  async function doSeedWeek(wom) {
     setSeedWeekOpen(false); setBusy("seedweek");
-    try { const r = await whatsappApi.seedWeek(offset); flash(seedSummary(r.results || [])); await loadMaps(); maps.forEach((m) => doPreview(m._id)); }
+    try { const r = await whatsappApi.seedWeek(wom, luMaps.map((m) => m._id)); flash(seedSummary(r.results || [])); await loadMaps(); luMaps.forEach((m) => doPreview(m._id)); }
     catch (e) { flash(e.message); } finally { setBusy(""); }
   }
-  async function onAdded(n) { setAddOpen(false); await loadMaps(); flash(`${n || 1} grup(uri) adăugate în sincronizare.`); }
+  async function onAdded(n) { setAddOpen(false); await loadMaps(); flash(`${n || 1} grup(uri) adăugate.`); }
 
   return (
     <div className="wa">
@@ -151,99 +207,43 @@ export default function WhatsappPage() {
       </div>
       {msg && <div className="wa-flash">{msg}</div>}
 
-      {/* CONEXIUNE */}
-      <section className="wa-card conn">
-        <div className="conn-left">
-          <div className="wa-ct">Conexiune punte</div>
-          {!st ? <div className="wa-muted">Se încarcă…</div> : !st.bridgeEnabled ? (
-            <div className="wa-offline">Puntea rulează doar LOCAL. Pornește backend-ul cu <code>WHATSAPP_BRIDGE=1</code> și web-ul cu proxy local, apoi revino.</div>
-          ) : connected ? (
-            <div className="conn-on">
-              <span className="wa-dot ok" />
-              <div><div className="conn-name">Conectat ca <b>{st.me?.name || botNumber}</b></div><div className="conn-sub">Numărul-robot: {botNumber || "—"} · vezi toate grupurile; mapează-le mai jos.</div></div>
-            </div>
-          ) : st.state === "qr" && st.qr ? (
-            <div className="wa-qr"><img src={st.qr} alt="QR" width="200" height="200" /><div className="wa-qrtext">Scanează: WhatsApp → Dispozitive conectate → Conectează un dispozitiv.</div></div>
-          ) : (
-            <div className="conn-on"><span className="wa-dot" /><div><div className="conn-name">{st.state === "logged-out" ? "Deconectat (logout/ban)" : "Neconectat"}</div><div className="conn-sub">Apasă „Conectează" ca să scanezi QR-ul.</div></div></div>
-          )}
-        </div>
-        <div className="conn-right">
-          {connected ? <button className="wa-btn ghost" disabled={busy === "logout"} onClick={logout}>Deloghează / schimbă numărul</button>
-            : st?.bridgeEnabled && st?.state !== "qr" ? <button className="wa-btn" disabled={busy === "connect"} onClick={connect}>{busy === "connect" ? "Se conectează…" : "Conectează"}</button> : null}
-        </div>
+      {/* ===== NUMERE CONECTATE ===== */}
+      <section className="wa-card">
+        <div className="wa-ct">Numere conectate</div>
+        {!st ? <div className="wa-muted">Se încarcă…</div> : !bridgeEnabled ? (
+          <div className="wa-offline">Puntea rulează doar LOCAL. Pornește backend-ul cu <code>WHATSAPP_BRIDGE=1</code> și web-ul cu proxy local, apoi revino.</div>
+        ) : (
+          <div className="acc-grid">
+            {accounts.map((a) => <AccountCard key={a.sessionId} a={a} busy={busy} onLogout={() => logout(a.number)} onReconnect={() => reconnect(a.number)} />)}
+            <button className="acc-add" disabled={busy === "connect"} onClick={connect}>{busy === "connect" ? "Se pregătește QR…" : "＋ Conectează un număr"}</button>
+          </div>
+        )}
       </section>
 
-      {/* GRUPURI */}
-      {connected && (
+      {/* ===== LANDING: carduri lucrări ===== */}
+      {!sel && bridgeEnabled && (
         <>
           <div className="wa-toolbar">
-            <div className="wa-ct2">Grupuri configurate <span className="wa-count">{maps.length}</span></div>
-            <div className="wa-tacts">
-              {maps.length > 0 && <>
-                <button className="wa-btn ghost" disabled={busy === "seedall" || busy === "seedweek"} onClick={doSeedAll} title="Populează toate grupurile din Matrix">{busy === "seedall" ? "Seed…" : "⟳ Seed toate"}</button>
-                <button className="wa-btn ghost" disabled={busy === "seedall" || busy === "seedweek"} onClick={() => setSeedWeekOpen(true)} title="Populează toate grupurile pe o anumită săptămână">Seed pe săptămână</button>
-              </>}
-              <button className="wa-btn add" onClick={() => setAddOpen(true)}>＋ Adaugă grup</button>
-            </div>
+            <div className="wa-ct2">Lucrări <span className="wa-count">{lucrari.length}</span></div>
+            <button className="wa-btn add" disabled={!connectedAccounts.length} title={connectedAccounts.length ? "" : "Conectează un număr întâi"} onClick={() => setAddOpen(true)}>＋ Lucrare nouă / grup</button>
           </div>
-
-          {maps.length === 0 ? (
+          {lucrari.length === 0 ? (
             <div className="wa-empty">
-              <div className="wa-emptyt">Niciun grup configurat încă</div>
-              <div className="wa-emptys">Alege o comunitate (sau un grup), mapează echipa din Matrix + a câta săptămână, și cum se generează numele. Apoi „Seed" îi populează din Matrix.</div>
-              <button className="wa-btn add big" onClick={() => setAddOpen(true)}>＋ Adaugă primul grup</button>
+              <div className="wa-emptyt">Nicio lucrare configurată încă</div>
+              <div className="wa-emptys">Conectează un număr, apoi „Lucrare nouă": alegi numărul + comunitatea, mapezi grupurile pe echipe și săptămâni din lună.</div>
+              <button className="wa-btn add big" disabled={!connectedAccounts.length} onClick={() => setAddOpen(true)}>＋ Adaugă prima lucrare</button>
             </div>
           ) : (
-            <div className="wa-grid">
-              {sortedMaps.map((m) => {
-                const pv = preview[m._id]; const rs = result[m._id]; const g = groups.find((x) => x.jid === m.jid);
+            <div className="lu-grid">
+              {lucrari.map((l) => {
+                const nums = [...l.numbers];
+                const anyOff = nums.some((n) => !accountOf(n)?.connected);
                 return (
-                  <div key={m._id} className="gcard">
-                    <div className="gc-head">
-                      <div className="gc-title">
-                        <span className="gc-wa"><svg viewBox="0 0 24 24" width="16" height="16" fill="#25d366"><path d="M19.05 4.91A9.82 9.82 0 0 0 12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22c5.46 0 9.9-4.45 9.9-9.91 0-2.65-1.03-5.14-2.9-7.02ZM12.04 20.2a8.2 8.2 0 0 1-4.18-1.14l-.3-.18-3.11.82.83-3.04-.2-.31a8.2 8.2 0 0 1-1.26-4.37c0-4.54 3.7-8.23 8.24-8.23a8.2 8.2 0 0 1 8.23 8.24c0 4.54-3.7 8.23-8.24 8.23Z"/></svg></span>
-                        <div><div className="gc-name">{m.nameCached || groupName(m.jid)}</div>{g?.community && <div className="gc-comm">în comunitatea „{g.community}"</div>}</div>
-                      </div>
-                      <button className="gc-del" title="Scoate din sincronizare" onClick={() => unmap(m._id)}>×</button>
-                    </div>
-
-                    <div className="gc-bind">
-                      <div className="gc-b"><span className="gc-bl">Echipă</span><b>{teamName(m.teamId)}</b></div>
-                      <div className="gc-b"><span className="gc-bl">Săptămâna</span><b>a {m.weekOfMonth || 1}-a din lună</b> {pv?.weekLabel && <span className="gc-dim">· {pv.weekLabel}</span>}</div>
-                      {m.namePrefix && <div className="gc-b"><span className="gc-bl">Prefix nume</span><b>{m.namePrefix}</b></div>}
-                      {!g?.isAdmin && g && <div className="gc-warn">⚠ Nu ești admin în acest grup — nu poți adăuga/scoate.</div>}
-                    </div>
-
-                    <div className="gc-mode">
-                      <span className="gc-ml">Mod</span>
-                      <div className="gc-modes">
-                        <button className={`gc-m ${m.mode === "auto" ? "on" : ""}`} title="Aplică singur din Matrix, fără click. Matrix gol → doar scoate. (Necesită scheduler-ul — Faza 3)" onClick={() => setMode(m._id, "auto")}>Automat</button>
-                        <button className={`gc-m ${m.mode === "semi" ? "on" : ""}`} title="Sistemul pregătește + te anunță; confirmi cu un click. (Necesită scheduler-ul — Faza 3)" onClick={() => setMode(m._id, "semi")}>Semi-auto</button>
-                        <button className={`gc-m ${m.mode === "manual" ? "on" : ""}`} title="Apeși tu Seed/Sincronizează când vrei." onClick={() => setMode(m._id, "manual")}>Manual</button>
-                      </div>
-                    </div>
-
-                    <div className="gc-status">
-                      {!pv ? <div className="wa-muted">{busy === "prev" + m._id ? "Se calculează…" : "—"}</div> : pv.liveError ? (
-                        <div className="gc-srow err">{pv.liveError}</div>
-                      ) : (
-                        <>
-                          <div className="gc-srow"><span className="gc-sl">Nume nou</span> <b className="gc-newname">{pv.plannedName || "—"}</b>{!pv.leaderName && <span className="gc-dim"> (fără lider)</span>}</div>
-                          <div className="gc-srow"><span className="gc-sl">Trebuie</span> {pv.people?.length || 0} oameni · în grup acum {pv.currentCount}</div>
-                          <div className="gc-srow"><span className="gc-sl">Schimbări</span> <span className="gc-add">+{pv.toAdd?.length || 0}</span> <span className="gc-rem">−{pv.toRemove?.length || 0}</span></div>
-                          {pv.emptyMatrix && <div className="gc-srow warn">⚠ Matrix gol pe săptămâna asta — sync-ul doar scoate (fă planificarea + Seed).</div>}
-                          {pv.missingPhone?.length > 0 && <div className="gc-srow warn">Fără număr: {pv.missingPhone.join(", ")}</div>}
-                        </>
-                      )}
-                    </div>
-
-                    <div className="gc-actions">
-                      <button className="wa-btn ghost sm" disabled={busy === "prev" + m._id} onClick={() => doPreview(m._id)}>↻ Reîmprospătează</button>
-                      <button className="wa-btn sm" disabled={busy === "sync" + m._id || !g?.isAdmin} onClick={() => doSync(m._id, m.nameCached || teamName(m.teamId))}>{busy === "sync" + m._id ? "Se sincronizează…" : "Sincronizează acum"}</button>
-                    </div>
-                    {rs && <div className="gc-res">Ultima sincronizare: +{rs.added?.length || 0} adăugați · −{rs.removed?.length || 0} scoși{rs.needInvite?.length > 0 ? ` · ${rs.needInvite.length} necesită link invitație` : ""}{rs.renamed ? ` · „${rs.renamed}"` : ""}</div>}
-                  </div>
+                  <button key={l.key} className="lu-card" onClick={() => setSel(l.key)}>
+                    <div className="lu-top"><span className="lu-ic">{waIcon(18)}</span><div className="lu-name">{l.ministryGroup || "(fără lucrare)"}</div><span className="lu-arrow">›</span></div>
+                    <div className="lu-meta">{l.maps.length} grupuri · {nums.length ? nums.map((n) => accountOf(n)?.me?.name || n).join(", ") : "fără număr"}</div>
+                    {anyOff && <div className="lu-off">⚠ numărul lucrării nu e conectat</div>}
+                  </button>
                 );
               })}
             </div>
@@ -251,32 +251,99 @@ export default function WhatsappPage() {
         </>
       )}
 
-      {addOpen && <SetupModal groups={groups} teams={teams} mappedJids={maps.map((m) => m.jid)} botNumber={botNumber} onClose={() => setAddOpen(false)} onAdded={onAdded} />}
+      {/* ===== ECRAN LUCRARE ===== */}
+      {sel && luObj && (
+        <>
+          <div className="lu-head">
+            <button className="wa-back" onClick={() => setSel(null)}>‹ Lucrări</button>
+            <h2>{luObj.ministryGroup || "(fără lucrare)"}</h2>
+            {luNumber && <span className="lu-hnum">{waIcon(13)} {accountOf(luNumber)?.me?.name || luNumber}{!luConnected && <span className="lu-hoff"> · neconectat</span>}</span>}
+          </div>
+
+          <div className="wa-toolbar">
+            <div className="wa-ct2">Grupuri <span className="wa-count">{luMaps.length}</span></div>
+            <div className="wa-tacts">
+              {luMaps.length > 0 && <>
+                <button className="wa-btn ghost" disabled={busy === "seedall" || busy === "seedweek" || !luConnected} onClick={doSeedAll} title="Populează grupurile lucrării din Matrix">{busy === "seedall" ? "Seed…" : "⟳ Seed toate"}</button>
+                <button className="wa-btn ghost" disabled={busy === "seedall" || busy === "seedweek" || !luConnected} onClick={() => setSeedWeekOpen(true)}>Seed pe săptămână</button>
+              </>}
+              <button className="wa-btn add" onClick={() => setAddOpen(true)}>＋ Adaugă grup</button>
+            </div>
+          </div>
+
+          <div className="wa-grid">
+            {luMaps.map((m) => {
+              const pv = preview[m._id]; const rs = result[m._id]; const connected = accountOf(m.botNumber)?.connected;
+              return (
+                <div key={m._id} className="gcard">
+                  <div className="gc-head">
+                    <div className="gc-title">
+                      <span className="gc-wa">{waIcon(16)}</span>
+                      <div><div className="gc-name">{m.nameCached || m.jid}</div>{m.namePrefix && <div className="gc-comm">prefix „{m.namePrefix}"</div>}</div>
+                    </div>
+                    <button className="gc-del" title="Scoate din sincronizare" onClick={() => unmap(m._id)}>×</button>
+                  </div>
+
+                  <div className="gc-bind">
+                    <div className="gc-b"><span className="gc-bl">Echipă</span><b>{teamName(m.teamId)}</b></div>
+                    <div className="gc-b"><span className="gc-bl">Săptămâna</span><b>a {m.weekOfMonth || 1}-a din lună</b> {pv?.weekLabel && <span className="gc-dim">· {pv.weekLabel}</span>}</div>
+                    <div className="gc-b"><span className="gc-bl">Număr</span><b>{accountOf(m.botNumber)?.me?.name || m.botNumber || "—"}</b> {!connected && <span className="gc-warn">(neconectat)</span>}</div>
+                  </div>
+
+                  <div className="gc-mode">
+                    <span className="gc-ml">Mod</span>
+                    <div className="gc-modes">
+                      <button className={`gc-m ${m.mode === "auto" ? "on" : ""}`} title="Aplică singur din Matrix, fără click. Matrix gol → doar scoate. (scheduler)" onClick={() => setMode(m._id, "auto")}>Automat</button>
+                      <button className={`gc-m ${m.mode === "semi" ? "on" : ""}`} title="Sistemul pregătește + te anunță; confirmi cu un click. (scheduler)" onClick={() => setMode(m._id, "semi")}>Semi-auto</button>
+                      <button className={`gc-m ${m.mode === "manual" ? "on" : ""}`} title="Apeși tu Seed/Sincronizează când vrei." onClick={() => setMode(m._id, "manual")}>Manual</button>
+                    </div>
+                  </div>
+
+                  <div className="gc-status">
+                    {!pv ? <div className="wa-muted">{busy === "prev" + m._id ? "Se calculează…" : connected ? "—" : "numărul lucrării nu e conectat"}</div> : pv.liveError ? (
+                      <div className="gc-srow err">{pv.liveError}</div>
+                    ) : (
+                      <>
+                        <div className="gc-srow"><span className="gc-sl">Nume nou</span> <b className="gc-newname">{pv.plannedName || "—"}</b>{!pv.leaderName && <span className="gc-dim"> (fără lider)</span>}</div>
+                        <div className="gc-srow"><span className="gc-sl">Trebuie</span> {pv.people?.length || 0} oameni · în grup acum {pv.currentCount}</div>
+                        <div className="gc-srow"><span className="gc-sl">Schimbări</span> <span className="gc-add">+{pv.toAdd?.length || 0}</span> <span className="gc-rem">−{pv.toRemove?.length || 0}</span></div>
+                        {pv.emptyMatrix && <div className="gc-srow warn">⚠ Matrix gol pe săptămâna asta — sync-ul doar scoate.</div>}
+                        {pv.missingPhone?.length > 0 && <div className="gc-srow warn">Fără număr: {pv.missingPhone.join(", ")}</div>}
+                      </>
+                    )}
+                  </div>
+
+                  <div className="gc-actions">
+                    <button className="wa-btn ghost sm" disabled={busy === "prev" + m._id || !connected} onClick={() => doPreview(m._id)}>↻ Reîmprospătează</button>
+                    <button className="wa-btn sm" disabled={busy === "sync" + m._id || !connected} onClick={() => doSync(m._id, m.nameCached || teamName(m.teamId))}>{busy === "sync" + m._id ? "Se sincronizează…" : "Sincronizează acum"}</button>
+                  </div>
+                  {rs && <div className="gc-res">Ultima sincronizare: +{rs.added?.length || 0} · −{rs.removed?.length || 0}{rs.needInvite?.length > 0 ? ` · ${rs.needInvite.length} necesită link` : ""}{rs.renamed ? ` · „${rs.renamed}"` : ""}</div>}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {addOpen && <SetupModal accounts={connectedAccounts} teams={teams} mappedJids={maps.map((m) => m.jid)} prefillNumber={luNumber} onClose={() => setAddOpen(false)} onAdded={onAdded} />}
       {seedWeekOpen && <SeedWeekModal onClose={() => setSeedWeekOpen(false)} onSeed={doSeedWeek} />}
 
       <style jsx>{`
         .wa { max-width: 1120px; margin: 0 auto; padding: 16px 20px 70px; }
         .wa-head { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
-        .wa-back { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; height: 30px; padding: 0 12px; cursor: pointer; font-size: 13px; }
+        .wa-back { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 6px; height: 30px; padding: 0 12px; cursor: pointer; font-size: 13px; flex: none; }
         .wa-back:hover { color: var(--text); }
         .wa-head h1 { font-size: 22px; font-weight: 600; margin: 0; }
         .wa-note { color: var(--text-faint); font-size: 12px; margin-left: auto; }
         .wa-flash { background: rgba(37,211,102,.14); border: 1px solid rgba(37,211,102,.4); color: #8fe0b4; border-radius: 8px; padding: 9px 13px; margin-bottom: 14px; font-size: 13px; }
-        .wa-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
-        .wa-card.conn { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-        .conn-left { flex: 1; min-width: 260px; }
-        .wa-ct { color: var(--text-faint); font-size: 11px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; margin-bottom: 11px; }
+        .wa-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 18px; }
+        .wa-ct { color: var(--text-faint); font-size: 11px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; margin-bottom: 12px; }
         .wa-muted { color: var(--text-faint); font-size: 13px; }
         .wa-offline { color: #e6cb74; font-size: 13px; line-height: 1.6; }
         .wa-offline code { background: var(--surface-2); padding: 1px 6px; border-radius: 4px; color: var(--text); }
-        .conn-on { display: flex; align-items: center; gap: 12px; }
-        .wa-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-faint); flex: none; }
-        .wa-dot.ok { background: #25d366; box-shadow: 0 0 0 3px rgba(37,211,102,.2); }
-        .conn-name { color: var(--text); font-size: 15px; }
-        .conn-sub { color: var(--text-faint); font-size: 12px; margin-top: 2px; }
-        .wa-qr { display: flex; align-items: center; gap: 16px; }
-        .wa-qr img { border-radius: 10px; border: 4px solid #fff; background: #fff; flex: none; }
-        .wa-qrtext { color: var(--text-dim); font-size: 12.5px; max-width: 240px; line-height: 1.5; }
+        .acc-grid { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; }
+        .acc-add { background: var(--surface-2); border: 1px dashed var(--border-strong); color: var(--text-dim); border-radius: 11px; padding: 12px 18px; font-size: 13px; font-weight: 600; cursor: pointer; min-width: 220px; }
+        .acc-add:hover { color: var(--text); border-color: var(--text-faint); } .acc-add:disabled { opacity: .5; cursor: default; }
         .wa-btn { background: #25d366; border: 1px solid #1fb457; color: #0a2e18; border-radius: 8px; height: 36px; padding: 0 16px; font-size: 13px; font-weight: 700; cursor: pointer; }
         .wa-btn:hover { filter: brightness(1.05); } .wa-btn:disabled { opacity: .5; cursor: default; filter: none; }
         .wa-btn.ghost { background: var(--surface-2); border-color: var(--border-strong); color: var(--text-dim); }
@@ -288,9 +355,22 @@ export default function WhatsappPage() {
         .wa-tacts { display: flex; gap: 9px; align-items: center; }
         .wa-ct2 { color: var(--text); font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 9px; }
         .wa-count { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 20px; font-size: 12px; padding: 1px 10px; }
-        .wa-empty { text-align: center; padding: 50px 20px; background: var(--surface); border: 1px dashed var(--border-strong); border-radius: 12px; }
+        .wa-empty { text-align: center; padding: 48px 20px; background: var(--surface); border: 1px dashed var(--border-strong); border-radius: 12px; }
         .wa-emptyt { color: var(--text); font-size: 16px; font-weight: 600; }
-        .wa-emptys { color: var(--text-faint); font-size: 13px; margin-top: 6px; max-width: 460px; margin-left: auto; margin-right: auto; line-height: 1.5; }
+        .wa-emptys { color: var(--text-faint); font-size: 13px; margin-top: 6px; max-width: 480px; margin-left: auto; margin-right: auto; line-height: 1.5; }
+        .lu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+        .lu-card { text-align: left; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 13px; padding: 15px 16px; cursor: pointer; display: flex; flex-direction: column; gap: 7px; }
+        .lu-card:hover { border-color: var(--text-faint); background: var(--surface-2); }
+        .lu-top { display: flex; align-items: center; gap: 10px; }
+        .lu-ic { width: 32px; height: 32px; flex: none; border-radius: 9px; background: rgba(37,211,102,.14); display: inline-flex; align-items: center; justify-content: center; }
+        .lu-name { color: var(--text); font-size: 15.5px; font-weight: 700; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .lu-arrow { color: var(--text-faint); font-size: 20px; flex: none; }
+        .lu-meta { color: var(--text-faint); font-size: 12.5px; }
+        .lu-off { color: #e6cb74; font-size: 12px; }
+        .lu-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+        .lu-head h2 { font-size: 18px; font-weight: 700; margin: 0; color: var(--text); }
+        .lu-hnum { display: inline-flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 12.5px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 20px; padding: 3px 11px; }
+        .lu-hoff { color: #e6cb74; }
         .wa-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
         .gcard { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 13px; padding: 15px 16px; display: flex; flex-direction: column; gap: 12px; }
         .gc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
@@ -307,7 +387,7 @@ export default function WhatsappPage() {
         .gc-mode { display: flex; align-items: center; gap: 11px; }
         .gc-ml { color: var(--text-faint); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
         .gc-modes { display: inline-flex; background: var(--bg); border: 1px solid var(--border-strong); border-radius: 8px; padding: 2px; gap: 2px; }
-        .gc-m { background: transparent; border: none; color: var(--text-faint); font-size: 12.5px; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
+        .gc-m { background: transparent; border: none; color: var(--text-faint); font-size: 12px; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
         .gc-m.on { background: #25d366; color: #0a2e18; font-weight: 700; }
         .gc-status { display: flex; flex-direction: column; gap: 5px; border-top: 1px dashed var(--border); padding-top: 11px; }
         .gc-srow { color: var(--text-dim); font-size: 12.5px; }
@@ -322,17 +402,25 @@ export default function WhatsappPage() {
   );
 }
 
-/* ── Setup: alegi comunitate/grup → configurezi fiecare grup (echipă + săptămână + nume + lider) → salvezi în bloc ── */
-function SetupModal({ groups, teams, mappedJids, botNumber, onClose, onAdded }) {
+/* ── Setup: alegi NUMĂR → comunitate/grup → configurezi grupurile → salvezi în bloc ── */
+function SetupModal({ accounts, teams, mappedJids, prefillNumber, onClose, onAdded }) {
   const [mounted, setMounted] = useState(false);
-  const [targetJid, setTargetJid] = useState(""); // jid de comunitate SAU de grup
-  const [rows, setRows] = useState({});            // { [jid]: { enabled, teamId, weekOfMonth, namePrefix, leaderPositionId, mode } }
-  const [collapsed, setCollapsed] = useState({});  // { [jid]: bool } — rând restrâns
+  const [number, setNumber] = useState(prefillNumber || accounts[0]?.number || "");
+  const [groups, setGroups] = useState([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+  const [targetJid, setTargetJid] = useState("");
+  const [rows, setRows] = useState({});
+  const [collapsed, setCollapsed] = useState({});
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   useEffect(() => { setMounted(true); }, []);
 
-  // comunitățile (din intrările isCommunity SAU derivate din communityJid-ul copiilor) + grupurile de sine stătătoare
+  useEffect(() => {
+    if (!number) { setGroups([]); return; }
+    setGroupsLoading(true); setTargetJid("");
+    whatsappApi.groups(number).then((r) => setGroups(r.groups || [])).catch(() => setGroups([])).finally(() => setGroupsLoading(false));
+  }, [number]);
+
   const communities = useMemo(() => {
     const m = {};
     groups.forEach((g) => {
@@ -344,6 +432,7 @@ function SetupModal({ groups, teams, mappedJids, botNumber, onClose, onAdded }) 
   const plainGroups = useMemo(() => groups.filter((g) => !g.isCommunity), [groups]);
   const childrenOf = (commJid) => plainGroups.filter((g) => g.communityJid === commJid);
 
+  const numberOpts = accounts.map((a) => ({ value: a.number, label: a.me?.name || a.number, sub: a.number }));
   const targetOpts = [
     ...communities.map((c) => ({ value: c.jid, label: c.name, badge: "Comunitate", sub: `${childrenOf(c.jid).length} grupuri` })),
     ...plainGroups.map((g) => ({ value: g.jid, label: g.name || g.jid, badge: "Grup", sub: [g.community && `în ${g.community}`, `${g.size} membri`, g.isAdmin ? "ești admin" : "NU ești admin", mappedJids.includes(g.jid) ? "deja mapat" : ""].filter(Boolean).join(" · ") })),
@@ -351,7 +440,6 @@ function SetupModal({ groups, teams, mappedJids, botNumber, onClose, onAdded }) 
 
   const isCommunity = communities.some((c) => c.jid === targetJid);
   const targetGroups = isCommunity ? childrenOf(targetJid) : plainGroups.filter((g) => g.jid === targetJid);
-
   const setRow = (jid, patch) => setRows((r) => ({ ...r, [jid]: { ...(r[jid] || defaultRow()), ...patch } }));
   const enabledRows = targetGroups.filter((g) => (rows[g.jid]?.enabled ?? true) && rows[g.jid]?.teamId);
 
@@ -362,10 +450,7 @@ function SetupModal({ groups, teams, mappedJids, botNumber, onClose, onAdded }) 
     try {
       const items = targetGroups
         .filter((g) => (rows[g.jid]?.enabled ?? true) && rows[g.jid]?.teamId)
-        .map((g) => {
-          const r = rows[g.jid] || {};
-          return { jid: g.jid, nameCached: g.name || "", communityJid: g.communityJid || "", teamId: r.teamId, weekOfMonth: r.weekOfMonth || 1, namePrefix: r.namePrefix || "", leaderPositionId: r.leaderPositionId || null, mode: r.mode || "semi", botNumber };
-        });
+        .map((g) => { const r = rows[g.jid] || {}; return { jid: g.jid, nameCached: g.name || "", communityJid: g.communityJid || "", teamId: r.teamId, weekOfMonth: r.weekOfMonth || 1, namePrefix: r.namePrefix || "", leaderPositionId: r.leaderPositionId || null, mode: r.mode || "semi", botNumber: number }; });
       if (!items.length) { setErr("Configurează cel puțin un grup (alege echipa)."); setSaving(false); return; }
       await whatsappApi.mapBulk(items);
       onAdded(items.length);
@@ -375,20 +460,19 @@ function SetupModal({ groups, teams, mappedJids, botNumber, onClose, onAdded }) 
   return createPortal((
     <div className="sm-ov" onClick={() => !saving && onClose()}>
       <div className="sm-dlg" onClick={(e) => e.stopPropagation()}>
-        <div className="sm-top">
-          <div className="sm-title">Adaugă grupuri în sincronizare</div>
-          <button className="sm-x" onClick={onClose}>×</button>
-        </div>
+        <div className="sm-top"><div className="sm-title">Adaugă grupuri în sincronizare</div><button className="sm-x" onClick={onClose}>×</button></div>
 
         <div className="sm-pick">
-          <label>Comunitate sau grup</label>
-          <Combo value={targetJid} onChange={(v) => { setTargetJid(v); }} options={targetOpts} placeholder="alege o comunitate (toate grupurile ei) sau un grup…" />
-          <div className="sm-hint">Alegi o <b>comunitate</b> → configurezi toate grupurile ei odată. Sau un singur <b>grup</b>. Numele de pe WhatsApp nu contează — tu mapezi headerul din Matrix.</div>
+          <label>Număr-robot</label>
+          <Combo value={number} onChange={setNumber} options={numberOpts} placeholder="alege numărul conectat…" />
+          <label style={{ marginTop: 6 }}>Comunitate sau grup</label>
+          <Combo value={targetJid} onChange={setTargetJid} options={targetOpts} placeholder={groupsLoading ? "se încarcă grupurile…" : (number ? "alege o comunitate (toate grupurile ei) sau un grup…" : "alege numărul întâi")} disabled={!number || groupsLoading} />
+          <div className="sm-hint">Alegi o <b>comunitate</b> → configurezi toate grupurile ei odată. Numele de pe WhatsApp nu contează — tu mapezi headerul din Matrix.</div>
         </div>
 
         <div className="sm-body">
           {!targetJid ? (
-            <div className="sm-ph">Alege o comunitate sau un grup ca să începi.</div>
+            <div className="sm-ph">{number ? "Alege o comunitate sau un grup ca să începi." : "Alege un număr conectat ca să-i vezi grupurile."}</div>
           ) : targetGroups.length === 0 ? (
             <div className="sm-ph">Comunitatea asta n-are grupuri vizibile pentru numărul-robot.</div>
           ) : (
@@ -453,11 +537,11 @@ function SetupModal({ groups, teams, mappedJids, botNumber, onClose, onAdded }) 
 
 function defaultRow() { return { enabled: true, teamId: "", weekOfMonth: 1, namePrefix: "", leaderPositionId: "", mode: "semi" }; }
 
-/* ── O linie de configurare pentru UN grup: echipă + săptămână + prefix + poziție-lider + mod + preview nume ── */
+/* ── O linie de configurare pentru UN grup: echipă + săptămână-din-lună + prefix + poziție-lider + mod ── */
 function GroupRow({ group, teams, value, onChange, alreadyMapped, collapsed, onToggleCollapse }) {
   const [weeks, setWeeks] = useState([]);
   const [positions, setPositions] = useState([]);
-  const [tp, setTp] = useState(null);       // preview-țintă: câți din Matrix + liderul real
+  const [tp, setTp] = useState(null);
   const [loading, setLoading] = useState(false);
   const v = value;
 
@@ -483,13 +567,13 @@ function GroupRow({ group, teams, value, onChange, alreadyMapped, collapsed, onT
   }, [v.teamId, v.weekOfMonth, v.leaderPositionId]);
 
   const teamOpts = teams.map((t) => ({ value: t.id, label: t.name, sub: t.ministryGroup || "" }));
-  const weekOpts = weeks; // [{ value: 1-5, label: „Săptămâna N (ex. …)" }]
+  const weekOpts = weeks;
   const posOpts = [{ value: "", label: "— fără lider în nume —" }, ...positions.map((p) => ({ value: p.id, label: p.name }))];
   const t = teams.find((x) => String(x.id) === String(v.teamId));
   const posName = positions.find((p) => String(p.id) === String(v.leaderPositionId))?.name;
-  const wkShort = tp?.weekShort || ""; // data reală la care se rezolvă (ex. „15 noi")
+  const wkShort = tp?.weekShort || "";
   const prefix = v.namePrefix || t?.name || "";
-  const leaderReal = tp?.leaderName;             // numele real din Matrix pe acea săptămână (dacă există)
+  const leaderReal = tp?.leaderName;
   const nameBits = [prefix, wkShort].filter(Boolean).join(" - ");
   const configured = !!v.teamId;
   const on = v.enabled ?? true;
@@ -535,8 +619,8 @@ function GroupRow({ group, teams, value, onChange, alreadyMapped, collapsed, onT
 
           <div className="gr-foot">
             <div className="gr-mode">
-              <button className={`gr-m ${v.mode === "auto" ? "on" : ""}`} title="Aplică singur din Matrix, fără click. Matrix gol → doar scoate. (Necesită scheduler-ul — Faza 3)" onClick={() => onChange({ mode: "auto" })}>Automat</button>
-              <button className={`gr-m ${v.mode === "semi" ? "on" : ""}`} title="Sistemul pregătește + te anunță; confirmi cu un click. (Necesită scheduler-ul — Faza 3)" onClick={() => onChange({ mode: "semi" })}>Semi-auto</button>
+              <button className={`gr-m ${v.mode === "auto" ? "on" : ""}`} title="Aplică singur din Matrix, fără click. Matrix gol → doar scoate. (scheduler)" onClick={() => onChange({ mode: "auto" })}>Automat</button>
+              <button className={`gr-m ${v.mode === "semi" ? "on" : ""}`} title="Sistemul pregătește + te anunță; confirmi cu un click. (scheduler)" onClick={() => onChange({ mode: "semi" })}>Semi-auto</button>
               <button className={`gr-m ${v.mode === "manual" ? "on" : ""}`} title="Apeși tu Seed/Sincronizează când vrei." onClick={() => onChange({ mode: "manual" })}>Manual</button>
             </div>
             <div className="gr-prev">
@@ -576,7 +660,7 @@ function GroupRow({ group, teams, value, onChange, alreadyMapped, collapsed, onT
         .gr-dim { color: var(--text-faint); }
         .gr-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
         .gr-mode { display: inline-flex; background: var(--bg); border: 1px solid var(--border-strong); border-radius: 8px; padding: 2px; gap: 2px; }
-        .gr-m { background: transparent; border: none; color: var(--text-faint); font-size: 12px; padding: 5px 11px; border-radius: 6px; cursor: pointer; }
+        .gr-m { background: transparent; border: none; color: var(--text-faint); font-size: 12px; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
         .gr-m.on { background: #25d366; color: #0a2e18; font-weight: 700; }
         .gr-prev { color: var(--text-faint); font-size: 12px; } .gr-prev b { color: #8fe0b4; }
         .gr-lph { color: var(--text-dim); border-bottom: 1px dotted var(--text-faint); cursor: help; }
@@ -585,7 +669,7 @@ function GroupRow({ group, teams, value, onChange, alreadyMapped, collapsed, onT
   );
 }
 
-/* ── Mic modal pentru „Seed pe săptămână" (alege a câta săptămână, forțat pentru toate grupurile) ── */
+/* ── Mic modal pentru „Seed pe săptămână" (a câta săptămână din lună, pt. lucrarea curentă) ── */
 function SeedWeekModal({ onClose, onSeed }) {
   const [mounted, setMounted] = useState(false);
   const [wom, setWom] = useState(1);
@@ -596,9 +680,9 @@ function SeedWeekModal({ onClose, onSeed }) {
     <div className="sw-ov" onClick={onClose}>
       <div className="sw-dlg" onClick={(e) => e.stopPropagation()}>
         <div className="sw-title">Seed pe săptămână</div>
-        <div className="sw-sub">Populează TOATE grupurile mapate pe aceeași săptămână din lună (a câta slujire a lunii pentru fiecare echipă).</div>
+        <div className="sw-sub">Populează grupurile acestei lucrări pe aceeași săptămână din lună (a câta slujire a lunii).</div>
         <Combo value={wom} onChange={setWom} options={opts} placeholder="alege săptămâna…" />
-        <div className="sw-warn">⚠ Adaugă/scoate membri reali în toate grupurile. Matrix gol → doar scoate.</div>
+        <div className="sw-warn">⚠ Adaugă/scoate membri reali. Matrix gol → doar scoate.</div>
         <div className="sw-foot">
           <button className="sw-btn ghost" onClick={onClose}>Anulează</button>
           <button className="sw-btn" onClick={() => onSeed(wom)}>Seed săptămâna {wom}</button>

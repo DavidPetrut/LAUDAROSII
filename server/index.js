@@ -125,9 +125,9 @@ startPrayRoomScheduler();
 // Puntea WhatsApp (Baileys) — DOAR local/always-on (flag). Pe Render rămâne oprită (ephemeral + sleep).
 if (process.env.WHATSAPP_BRIDGE === "1") {
   try {
-    require("./planning-center/whatsapp/bridge").start().catch((e) => console.error("[whatsapp] start:", e.message));
+    require("./planning-center/whatsapp/bridge").startAll().catch((e) => console.error("[whatsapp] startAll:", e.message));
     require("./planning-center/whatsapp/scheduler").startWhatsappScheduler();
-    console.log("[whatsapp] punte + scheduler pornite (WHATSAPP_BRIDGE=1)");
+    console.log("[whatsapp] punte (multi-număr) + scheduler pornite (WHATSAPP_BRIDGE=1)");
   } catch (e) { console.error("[whatsapp] bridge indisponibil:", e.message); }
 }
 
