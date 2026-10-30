@@ -113,6 +113,7 @@ export const plansApi = {
   leaderSearch: (id, q) => api.get(`/plans/${id}/leader-search${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   // Voci structurate (Faza 2): pool-ul de oameni programați pe plan (vocaliști prioritizați).
   voicesPool: (id) => api.get(`/plans/${id}/voices-pool`),
+  ministryPool: (id) => api.get(`/plans/${id}/ministry-pool`), // „Alte slujiri": { week, preachers }
   // Item notes (Faza 1/2)
   itemNotes: (id, itemId) => api.get(`/plans/${id}/items/${itemId}/notes`),
   addItemNote: (id, itemId, payload) => api.post(`/plans/${id}/items/${itemId}/notes`, payload),
@@ -172,6 +173,15 @@ export const plansApi = {
   uploadFile: (file) => { const fd = new FormData(); fd.append("file", file); fd.append("name", file.name); return api.post("/uploads", fd); },
   // upload cu resource type explicit (ex. rt="raw" pt. PDF/doc, ca să nu fie blocat de ACL-ul Cloudinary pe „image")
   uploadFileRt: (file, rt) => { const fd = new FormData(); fd.append("file", file); fd.append("name", file.name); return api.post(`/uploads${rt ? `?rt=${rt}` : ""}`, fd); },
+};
+
+/* ─── Șabloane de Order — server/planning-center/routes/orderTemplates.js ─── */
+export const orderTemplatesApi = {
+  list: (serviceTypeId) => api.get(`/order-templates${serviceTypeId ? `?serviceTypeId=${encodeURIComponent(serviceTypeId)}` : ""}`),
+  get: (tid) => api.get(`/order-templates/${tid}`),
+  create: (payload) => api.post(`/order-templates`, payload), // { planId, name, serviceTypeId?, isDefault?, itemIds? }
+  update: (tid, payload) => api.patch(`/order-templates/${tid}`, payload),
+  remove: (tid) => api.del(`/order-templates/${tid}`),
 };
 
 /* ─── Service Types (settings) — server/planning-center/routes/services.js ─── */

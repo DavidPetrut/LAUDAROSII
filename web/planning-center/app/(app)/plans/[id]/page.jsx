@@ -13,6 +13,7 @@ import { plansApi, peopleApi } from "@/lib/api/client";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 import PersonAvatar from "@/components/plans/PersonAvatar";
 import Skeleton from "@/components/ui/Skeleton";
+import SaveTemplateModal from "@/components/plans/SaveTemplateModal";
 import AssignSidebar from "@/components/plans/AssignSidebar";
 import EditPersonModal from "@/components/plans/EditPersonModal";
 import PositionJoinModal from "@/components/plans/PositionJoinModal";
@@ -63,6 +64,7 @@ export default function PlanDetailPage() {
 
   // meniu 3-puncte (rename / print / copy link)
   const [menuOpen, setMenuOpen] = useState(false);
+  const [savingTpl, setSavingTpl] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameVal, setRenameVal] = useState("");
 
@@ -328,6 +330,12 @@ export default function PlanDetailPage() {
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" /><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" /></svg>
                     Copiază link
                   </button>
+                  {!!caps.editOrder && (
+                    <button className="mi" onClick={() => { setMenuOpen(false); setSavingTpl(true); }} role="menuitem">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
+                      Save as Template
+                    </button>
+                  )}
                 </div>
               </>
             )}
@@ -339,17 +347,19 @@ export default function PlanDetailPage() {
         {/* ── sidebar STÂNGA (ca în PCO): rolul meu + Times/Files/Notes ── */}
         <aside className="pd-left">
           {head?.myAssignments?.length > 0 && (
-            <div className="lcard">
-              <div className="lc-h">{head.me && <PersonAvatar person={head.me} size={22} />}Rolul meu</div>
-              {head.myAssignments.map((a) => (
-                <div key={a.assignmentId} className="myitem">
-                  <div className={`myrow ${a.confirmed ? "ok" : a.declined ? "no" : ""}`}>
-                    <span className="myic">{a.confirmed ? "✓" : a.declined ? "✕" : "?"}</span>
-                    <span className="myl">{a.label}{a.team ? ` · ${a.team}` : ""}</span>
+            <div className="myrole">
+              {head.me && <PersonAvatar person={head.me} size={34} />}
+              <div className="myrole-list">
+                {head.myAssignments.map((a) => (
+                  <div key={a.assignmentId} className="myitem">
+                    <div className={`myrow ${a.confirmed ? "ok" : a.declined ? "no" : ""}`}>
+                      <span className="myic">{a.confirmed ? "✓" : a.declined ? "✕" : "?"}</span>
+                      <span className="myl">{a.label}{a.team ? ` · ${a.team}` : ""}</span>
+                    </div>
+                    {a.instructions && <div className="myinstr">{a.instructions}</div>}
                   </div>
-                  {a.instructions && <div className="myinstr">{a.instructions}</div>}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
           <div className="lcard"><div className="lc-h">Times</div><TimesTab data={data.Times} canEdit={!!caps.editOrder} onEditTime={(t) => setTimeEdit({ time: t })} onAddTime={(type) => setTimeEdit({ type })} onApplyTemplate={async () => { try { await plansApi.applyRehearsalTemplate(id); reloadTimes(); flash("Repetiție setată din template."); } catch (e) { flash(e?.message || "Eroare."); } }} /></div>
@@ -396,6 +406,7 @@ export default function PlanDetailPage() {
       <PositionJoinModal data={joinModal} busy={joinBusy} onGuest={confirmJoinGuest} onPermanent={confirmJoinPermanent} onClose={() => !joinBusy && cancelJoin()} />
       {dragActive && dragHint && <div className="drag-hint">⇄ {dragHint}</div>}
       {timeEdit && <TimeEditModal planId={id} time={timeEdit.time} defaultType={timeEdit.type || "rehearsal"} meta={data.Times || {}} onClose={() => setTimeEdit(null)} onSaved={() => { setTimeEdit(null); reloadTimes(); flash("Oră salvată."); }} />}
+      {savingTpl && <SaveTemplateModal planId={id} serviceTypeId={head?.serviceTypeId} serviceTypeName={head?.serviceTypeName} onClose={() => setSavingTpl(false)} flash={flash} />}
       {toast && <div className="toast">{toast}</div>}
 
       <style jsx>{`
@@ -403,13 +414,15 @@ export default function PlanDetailPage() {
         .drag-hint { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); background: var(--primary); color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 12.5px; font-weight: 600; z-index: 70; box-shadow: 0 6px 20px rgba(47,129,247,.4); pointer-events: none; animation: dhIn .14s ease; }
         @keyframes dhIn { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
         .pd.has-side { padding-right: 360px; }
-        .top { display: flex; align-items: flex-start; gap: 10px; }
+        .top { display: flex; align-items: flex-start; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
         .back { background: transparent; border: none; color: var(--text-dim); cursor: pointer; padding: 6px; margin-top: 4px; }
         .back:hover { color: var(--text); }
         .titles { flex: 1; }
         .st { color: var(--text-faint); font-size: 12px; }
         .title { font-size: 22px; font-weight: 600; margin: 2px 0 0; }
-        .pd-layout { display: grid; grid-template-columns: 280px 1fr; gap: 22px; align-items: start; margin-top: 16px; }
+        .pd-layout { display: grid; grid-template-columns: 280px 1fr; gap: 22px; align-items: start; margin-top: 14px; }
+        .myrole { display: flex; align-items: flex-start; gap: 11px; padding: 2px 2px 6px; }
+        .myrole-list { flex: 1; min-width: 0; }
         .pd-left { position: sticky; top: calc(var(--nav-h) + 14px); display: flex; flex-direction: column; gap: 14px; }
         .lcard { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
         .lc-h { color: var(--text); font-weight: 600; font-size: 13px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
@@ -456,8 +469,8 @@ export default function PlanDetailPage() {
         .chip { background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 20px; padding: 4px 12px; font-size: 12.5px; color: var(--text-dim); }
         .chip.ok { border-color: var(--product); color: var(--product); }
         .chip.no { border-color: var(--danger); color: var(--danger); }
-        .tabs { display: flex; gap: 8px; margin: 16px 0; border-bottom: 1px solid var(--border); }
-        .tab { background: transparent; border: none; color: var(--text-dim); padding: 9px 4px; margin-right: 10px; cursor: pointer; font-size: 14px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+        .tabs { display: flex; gap: 8px; margin: 0 0 16px; padding: 0 14px; background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+        .tab { background: transparent; border: none; color: var(--text-dim); padding: 11px 4px; margin-right: 10px; cursor: pointer; font-size: 14px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
         .tab:hover { color: var(--text); }
         .tab.active { color: var(--text); border-bottom-color: var(--primary); font-weight: 600; }
         .tab.alert.active { border-bottom-color: var(--danger); }

@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { plansApi, peopleApi } from "@/lib/api/client";
 import ServiceTypeSettingsModal from "@/components/plans/ServiceTypeSettingsModal";
 import Skeleton from "@/components/ui/Skeleton";
+import { orderTemplatesApi } from "@/lib/api/client";
 import { getStoredUser } from "@/lib/auth/auth";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 
@@ -32,6 +33,8 @@ export default function PlansPage() {
   const [addQty, setAddQty] = useState(1);
   const [addCopyTimes, setAddCopyTimes] = useState(""); // planId sursă pt. ore
   const [addTemplate, setAddTemplate] = useState("");   // planId „template" (structura/Needed)
+  const [addTpls, setAddTpls] = useState([]);           // șabloane de Order pt. service type-ul ales
+  const [addOrderTpl, setAddOrderTpl] = useState("");   // orderTemplateId selectat (default pre-selectat)
   const [addBusy, setAddBusy] = useState(false);
   const PAGE = 10;
 
@@ -43,8 +46,9 @@ export default function PlansPage() {
         quantity: Math.max(1, Math.min(52, addQty)),
         copyTimesFromPlanId: addCopyTimes || undefined,
         templatePlanId: addTemplate || undefined,
+        orderTemplateId: addOrderTpl || undefined,
       });
-      setAddFor(null); setAddDate(""); setAddQty(1); setAddCopyTimes(""); setAddTemplate(""); await load();
+      setAddFor(null); setAddDate(""); setAddQty(1); setAddCopyTimes(""); setAddTemplate(""); setAddOrderTpl(""); await load();
     } catch (e) { setErr(e?.message || "Eroare la adăugare."); }
     finally { setAddBusy(false); }
   }
@@ -219,7 +223,7 @@ export default function PlansPage() {
                       {limit > PAGE && (
                         <button className="view-less" onClick={() => setLimits((m) => ({ ...m, [st.id]: PAGE }))}>Arată mai puține</button>
                       )}
-                      <button className="add-plan" onClick={() => { setAddFor({ id: st.id, name: st.name }); setAddDate(new Date().toISOString().slice(0, 10)); setAddQty(1); }}>+ Add plan</button>
+                      <button className="add-plan" onClick={() => { setAddFor({ id: st.id, name: st.name }); setAddDate(new Date().toISOString().slice(0, 10)); setAddQty(1); setAddTpls([]); setAddOrderTpl(""); orderTemplatesApi.list(st.id).then((r) => { const t = r.templates || []; setAddTpls(t); const d = t.find((x) => x.isDefault); if (d) setAddOrderTpl(d.id); }).catch(() => {}); }}>+ Add plan</button>
                     </div>
                   </div>
                 )}
@@ -259,6 +263,12 @@ export default function PlansPage() {
                     <label>Template (structură · Needed)<select value={addTemplate} onChange={(e) => setAddTemplate(e.target.value)}>
                       <option value="">Fără template</option>
                       {stPlans.map((p) => <option key={p.id} value={p.id}>{p.title ? `${p.title} (${p.dateLabel})` : p.dateLabel}</option>)}
+                    </select></label>
+                  </div>
+                  <div className="frow">
+                    <label>Șablon Order (din „Save as Template")<select value={addOrderTpl} onChange={(e) => setAddOrderTpl(e.target.value)}>
+                      <option value="">Fără șablon de order</option>
+                      {addTpls.map((t) => <option key={t.id} value={t.id}>{t.name}{t.isDefault ? " · default" : ""} ({t.itemCount})</option>)}
                     </select></label>
                   </div>
                 </>

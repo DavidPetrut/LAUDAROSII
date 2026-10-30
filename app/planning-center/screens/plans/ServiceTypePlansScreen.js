@@ -22,6 +22,7 @@ export function ServiceTypePlansScreen({ route, navigation }) {
   const [st, setSt] = useState(null);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
+  const [limit, setLimit] = useState(12); // cele mai recente întâi; restul cu „vezi mai vechi"
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,7 +42,10 @@ export function ServiceTypePlansScreen({ route, navigation }) {
     } catch (e) { showError(e?.message || "Nu s-a putut crea planul."); }
   };
 
-  const plans = st?.plans || [];
+  // Cele mai recente (viitoare + trecute) întâi, max `limit` — ca pe web (nu toate istoricele).
+  const ordered = [...(st?.plans || [])].sort((a, b) => new Date(b.sortDate || 0) - new Date(a.sortDate || 0));
+  const plans = ordered.slice(0, limit);
+  const remaining = ordered.length - plans.length;
   const name = st?.name || serviceTypeName || "Service Type";
 
   return (
@@ -94,6 +98,16 @@ export function ServiceTypePlansScreen({ route, navigation }) {
               onPress={() => navigation.navigate("PcPlan", { planId: p.id })}
             />
           ))}
+          {remaining > 0 && (
+            <Pressable style={styles.moreBtn} onPress={() => setLimit((n) => n + 12)}>
+              <Text style={styles.moreTxt}>Vezi mai vechi ({remaining})</Text>
+            </Pressable>
+          )}
+          {limit > 12 && (
+            <Pressable style={styles.moreBtn} onPress={() => setLimit(12)}>
+              <Text style={[styles.moreTxt, { color: pcColors.textMuted }]}>Arată mai puține</Text>
+            </Pressable>
+          )}
         </ScrollView>
       )}
 
@@ -110,6 +124,8 @@ const styles = StyleSheet.create({
   emptyTxt: { color: pcColors.textSecondary, fontSize: 16, textAlign: "center", lineHeight: 23 },
   emptyBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: pcColors.primary, borderRadius: 999, paddingVertical: 11, paddingHorizontal: 20, marginTop: 6 },
   emptyBtnTxt: { color: "#0A0A0A", fontWeight: "800", fontSize: 15 },
+  moreBtn: { alignItems: "center", paddingVertical: 14 },
+  moreTxt: { color: pcColors.primary, fontSize: 14, fontWeight: "600" },
 });
 
 export default ServiceTypePlansScreen;

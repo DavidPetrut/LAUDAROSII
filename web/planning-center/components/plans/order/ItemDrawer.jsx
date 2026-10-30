@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { plansApi, songsApi } from "@/lib/api/client";
 import PersonAvatar from "@/components/plans/PersonAvatar";
 import VoicesPicker from "./VoicesPicker";
+import MinistriesPicker from "./MinistriesPicker";
 import MedleyEditor from "./MedleyEditor";
 import SongPickerModal from "./SongPickerModal";
 import Skeleton from "@/components/ui/Skeleton";
@@ -31,6 +32,8 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
   const [leadRes, setLeadRes] = useState(null);
   const [notes, setNotes] = useState(null);
   const [voices, setVoices] = useState([]);
+  const [ministries, setMinistries] = useState([]);
+  const [mPool, setMPool] = useState({ week: [], preachers: [], byKind: {} });
   const [pool, setPool] = useState([]);
   const [songPicker, setSongPicker] = useState(false);
   const lt = useRef(null);
@@ -45,9 +48,10 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
   const load = useCallback(async () => {
     try {
       const r = await plansApi.itemDetail(planId, itemId);
-      setD(r); setTitle(r.title || ""); setDesc(r.description || ""); setVoices(r.voices || []);
+      setD(r); setTitle(r.title || ""); setDesc(r.description || ""); setVoices(r.voices || []); setMinistries(r.ministries || []);
       const L = splitLen(r.lengthSec); setMm(L.m); setSs(L.s);
       plansApi.voicesPool(planId).then((pr) => setPool(pr.people || [])).catch(() => {});
+      if (r.type === "item") plansApi.ministryPool(planId).then((pr) => setMPool({ week: pr.week || [], preachers: pr.preachers || [], byKind: pr.byKind || {} })).catch(() => {});
       setTab("Files"); // David: Files mereu primul la deschidere
       if (r.songId) {
         songsApi.get(r.songId).then(setSong).catch(() => {});
@@ -67,6 +71,10 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
   function saveVoices(next) {
     setVoices(next);
     plansApi.updateItem(planId, itemId, { voices: next.map((v) => ({ role: v.role, personId: v.personId || undefined, name: v.personId ? undefined : (v.name || "") })) }).then(() => onChanged?.()).catch((e) => flash?.(e?.message || "Eroare."));
+  }
+  function saveMinistries(next) {
+    setMinistries(next);
+    plansApi.updateItem(planId, itemId, { ministries: next.map((m) => ({ kind: m.kind, personId: m.personId || undefined, name: m.personId ? undefined : (m.name || "") })) }).then(() => onChanged?.()).catch((e) => flash?.(e?.message || "Eroare."));
   }
 
   async function changeArrangement(aid) {
@@ -163,6 +171,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
           {(d.type === "song" || d.type === "medley" || d.type === "item") && (
             <div className="d-sec">
               <VoicesPicker value={voices} pool={pool} description={desc} canEdit={canEdit} onChange={saveVoices} leadOnly={d.type === "item"} />
+              {d.type === "item" && <MinistriesPicker value={ministries} week={mPool.week} preachers={mPool.preachers} byKind={mPool.byKind} canEdit={canEdit} onChange={saveMinistries} />}
             </div>
           )}
 

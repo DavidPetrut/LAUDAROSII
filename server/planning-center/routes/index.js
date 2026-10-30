@@ -18,6 +18,7 @@ router.use(orgScope); // req.pcOrgId (seam multi-tenant §1.13)
 router.use("/v1/people/import", require("./peopleImport")); // ÎNAINTE de /v1/people (altfel „import" = :id)
 router.use("/v1/people", require("./people"));
 router.use("/v1/plans", require("./plans"));
+router.use("/v1/order-templates", require("./orderTemplates"));
 router.use("/v1/service-types", require("./services"));
 router.use("/v1/teams", require("./teams"));
 router.use("/v1/songs", require("./songs"));

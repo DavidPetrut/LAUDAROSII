@@ -8,7 +8,7 @@ const mongoose = require("mongoose");
 const {
   PcPlan, PcPlanTime, PcPlanItem, PcAssignment, PcNeededPosition, PcPlanNote, PcPlanFile, PcItemNote,
   PcAlert, PcAlertAck, PcNoteView, PcPositionGuestLog,
-  PcServiceType, PcTeam, PcPosition, PcTeamMember, PcPerson, PcOrg, PcCampus, PcSong,
+  PcServiceType, PcOrderTemplate, PcTeam, PcPosition, PcTeamMember, PcPerson, PcOrg, PcCampus, PcSong,
   PcArrangement, PcKey, PcSongFile, PcBlockout,
 } = require("../models");
 const { scoped, stamp } = require("../core/orgScope");
@@ -110,6 +110,8 @@ router.post("/", requireCan("services.addPlan"), async (req, res) => {
     }
     // STRUCTURA (Needed per poziție) din planul „template"
     const srcNeeded = templateId ? await PcNeededPosition.find(scoped(req, { planId: templateId })).lean() : null;
+    // Șablon de ORDER (pc_orderTemplates) — recreează itemii ordinii pe fiecare plan nou.
+    const orderTpl = OID(req.body?.orderTemplateId) ? await PcOrderTemplate.findOne(scoped(req, { _id: OID(req.body.orderTemplateId) })).lean() : null;
 
     const created = [];
     for (let i = 0; i < quantity; i++) {
@@ -136,6 +138,7 @@ router.post("/", requireCan("services.addPlan"), async (req, res) => {
       const plan = await PcPlan.create(stamp(req, { serviceTypeId: stId, sortDate }));
       for (const t of times) await PcPlanTime.create(stamp(req, { ...t, planId: plan._id }));
       if (srcNeeded) for (const n of srcNeeded) await PcNeededPosition.create(stamp(req, { ...clean(n), planId: plan._id }));
+      if (orderTpl) { let so = 0; for (const it of (orderTpl.items || [])) { const { _id, ...rest } = it; await PcPlanItem.create(stamp(req, { ...rest, planId: plan._id, sortOrder: so++ })); } }
       created.push(plan._id);
     }
     res.status(201).json({ ok: true, created: created.length, planId: created[0], planIds: created });
@@ -279,6 +282,25 @@ async function resolveVoices(req, items) {
   return map;
 }
 
+// „Alte slujiri" pe un item: slujiri non-vocale din Matrix-ul săptămânii. Mapare kind → pattern poziție (pt. pool/predicatori).
+const MINISTRY_KINDS = ["host", "communion", "prayer", "preach"];
+const MINISTRY_POS_RX = { host: /gazd/i, communion: /cin[ăa]|comuniune|\beuharist/i, prayer: /\b(indemn|îndemn)|rug[ăa]ciune/i, preach: /predic|cuv[âa]nt|mesaj/i };
+
+async function resolveMinistries(req, items) {
+  const personIds = [];
+  for (const it of items) for (const m of it.ministries || []) if (m.personId) personIds.push(m.personId);
+  const persons = personIds.length ? await PcPerson.find(scoped(req, { _id: { $in: personIds } })).select("firstName lastName avatar").lean() : [];
+  const byId = Object.fromEntries(persons.map((p) => [String(p._id), p]));
+  const map = {};
+  for (const it of items) {
+    map[String(it._id)] = (it.ministries || []).map((m) => {
+      if (m.personId && byId[String(m.personId)]) { const mm = personMini(byId[String(m.personId)]); return { kind: m.kind || "", personId: String(m.personId), name: mm.name, initials: mm.initials, avatar: mm.avatar }; }
+      return { kind: m.kind || "", personId: null, name: m.name || "", initials: (m.name || "").slice(0, 2).toUpperCase(), avatar: "" };
+    }).filter((m) => m.kind);
+  }
+  return map;
+}
+
 /* ───────── GET /:id/order — ordinea serviciului (secțiuni + itemi) ───────── */
 router.get("/:id/order", requireCan("people.view"), async (req, res) => {
   try {
@@ -287,6 +309,7 @@ router.get("/:id/order", requireCan("people.view"), async (req, res) => {
     const items = await PcPlanItem.find(scoped(req, { planId: id })).sort({ sortOrder: 1 }).lean();
     const leadersMap = await resolveItemLeaders(req, id, items);
     const voicesMap = await resolveVoices(req, items);
+    const ministriesMap = await resolveMinistries(req, items);
     // reguli de culoare din service type
     const plan = await PcPlan.findOne(scoped(req, { _id: id })).select("serviceTypeId").lean();
     const st = plan ? await PcServiceType.findOne(scoped(req, { _id: plan.serviceTypeId })).select("itemRowColors useCustomRowColors").lean() : null;
@@ -329,6 +352,7 @@ router.get("/:id/order", requireCan("people.view"), async (req, res) => {
         medleyCount: Array.isArray(it.medley) ? it.medley.length : 0,
         fileCount: (planFileCount[String(it._id)] || 0) + songFileCount(it),
         voices: voicesMap[String(it._id)] || [],
+        ministries: ministriesMap[String(it._id)] || [],
         leaders: leadersMap[String(it._id)] || [],
         leader: (leadersMap[String(it._id)] || [])[0] || null,
       })),
@@ -349,6 +373,7 @@ router.get("/:id/items/:itemId", requireCan("people.view"), async (req, res) => 
     const planId = OID(req.params.id);
     const leadersMap = await resolveItemLeaders(req, planId, [it]);
     const voicesMap = await resolveVoices(req, [it]);
+    const ministriesMap = await resolveMinistries(req, [it]);
     const files = await PcPlanFile.find(scoped(req, { itemId })).sort({ sortOrder: 1 }).lean();
     // ore de serviciu (pt. checkbox-urile During/Before/After per oră)
     const serviceTimes = await PcPlanTime.find(scoped(req, { planId, type: "service" })).sort({ startsAt: 1 }).lean();
@@ -374,6 +399,7 @@ router.get("/:id/items/:itemId", requireCan("people.view"), async (req, res) => 
       duringLabel: (it.placement && it.placement !== "during") ? `${it.placement[0].toUpperCase()}${it.placement.slice(1)} All` : (it.duringAll !== false ? "During All" : `${(it.timeIds || []).length} time(s)`),
       leaders: leadersMap[String(it._id)] || [],
       voices: voicesMap[String(it._id)] || [],
+      ministries: ministriesMap[String(it._id)] || [],
       medley: (it.medley || []).slice().sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)).map((c) => ({
         songId: c.songId ? String(c.songId) : null, arrangementId: c.arrangementId ? String(c.arrangementId) : null,
         keyId: c.keyId ? String(c.keyId) : null, keyName: c.keyName || "", title: c.title || "",
@@ -468,6 +494,13 @@ router.patch("/:id/items/:itemId", requireCan("services.editOrder"), async (req,
         personId: v.personId ? OID(v.personId) : null,
         name: v.personId ? "" : String(v.name || ""),
       })).filter((v) => v.personId || v.name);
+    }
+    if (Array.isArray(b.ministries)) {
+      set.ministries = b.ministries.map((m) => ({
+        kind: MINISTRY_KINDS.includes(m.kind) ? m.kind : "",
+        personId: m.personId ? OID(m.personId) : null,
+        name: m.personId ? "" : String(m.name || ""),
+      })).filter((m) => m.kind);
     }
     // Secvență one-time pt. acest plan (Edit Sequence from a plan).
     if (Array.isArray(b.sequence)) set.sequence = b.sequence.map((s) => String(s)).filter(Boolean);
@@ -694,6 +727,45 @@ router.get("/:id/voices-pool", requireCan("people.view"), async (req, res) => {
     console.error("[pc] GET /plans/:id/voices-pool:", err.message);
     res.status(500).json({ error: "Eroare la pool-ul de voci." });
   }
+});
+
+/* ───────── GET /:id/ministry-pool — pt. „Alte slujiri": week (toți programații) + preachers (roster Predică) ───────── */
+router.get("/:id/ministry-pool", requireCan("people.view"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id);
+    if (!planId) return res.status(400).json({ error: "ID invalid" });
+    const assigns = await PcAssignment.find(scoped(req, { planId, status: { $ne: "declined" } })).lean();
+    const personIds = [...new Set(assigns.map((a) => String(a.personId)).filter(Boolean))];
+    const positionIds = [...new Set(assigns.map((a) => a.positionId).filter(Boolean).map(String))];
+    const [persons, positions] = await Promise.all([
+      PcPerson.find(scoped(req, { _id: { $in: personIds.map(OID) } })).select("firstName lastName avatar").lean(),
+      PcPosition.find(scoped(req, { _id: { $in: positionIds.map(OID) } })).select("name").lean(),
+    ]);
+    const personById = Object.fromEntries(persons.map((p) => [String(p._id), p]));
+    const posById = Object.fromEntries(positions.map((p) => [String(p._id), p]));
+    const byPerson = {};
+    const byKind = { host: {}, communion: {}, prayer: {}, preach: {} }; // cine e programat pe slujirea respectivă săpt. asta
+    for (const a of assigns) {
+      const pid = String(a.personId); if (!pid || !personById[pid]) continue;
+      const m = personMini(personById[pid]);
+      const posName = (posById[String(a.positionId)] || {}).name || "";
+      if (!byPerson[pid]) byPerson[pid] = { personId: pid, name: m.name, avatar: m.avatar, initials: m.initials, positionName: posName };
+      for (const k of MINISTRY_KINDS) if (MINISTRY_POS_RX[k].test(posName)) byKind[k][pid] = { personId: pid, name: m.name, avatar: m.avatar, initials: m.initials, positionName: posName };
+    }
+    const week = Object.values(byPerson).sort((a, b) => a.name.localeCompare(b.name, "ro"));
+    const byKindOut = {}; for (const k of MINISTRY_KINDS) byKindOut[k] = Object.values(byKind[k]).sort((a, b) => a.name.localeCompare(b.name, "ro"));
+    // preachers = rosterul pozițiilor de tip „Predică" (pt. căutarea extra, dacă nu e programat în Matrix)
+    const allPos = await PcPosition.find(scoped(req, {})).select("name").lean();
+    const preachPosIds = allPos.filter((p) => MINISTRY_POS_RX.preach.test(p.name || "")).map((p) => p._id);
+    let preachers = [];
+    if (preachPosIds.length) {
+      const members = await PcTeamMember.find(scoped(req, { positionIds: { $in: preachPosIds } })).select("personId").lean();
+      const prIds = [...new Set(members.map((m) => String(m.personId)).filter(Boolean))].map(OID);
+      const prPersons = prIds.length ? await PcPerson.find(scoped(req, { _id: { $in: prIds } })).select("firstName lastName avatar").lean() : [];
+      preachers = prPersons.map((p) => { const m = personMini(p); return { personId: String(p._id), name: m.name, avatar: m.avatar, initials: m.initials }; }).sort((a, b) => a.name.localeCompare(b.name, "ro"));
+    }
+    res.json({ week, preachers, byKind: byKindOut });
+  } catch (err) { console.error("[pc] GET ministry-pool:", err.message); res.status(500).json({ error: "Eroare la pool." }); }
 });
 
 /* ───────── Fișiere per ITEM (tab Files din drawer „View item") — scope:"item" ───────── */

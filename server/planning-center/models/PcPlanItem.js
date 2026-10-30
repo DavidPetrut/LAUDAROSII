@@ -46,6 +46,16 @@ const schema = pcSchema({
     }],
     default: [],
   },
+  // ── Alte slujiri (aditiv) — pe un item (element): persoane pe slujiri non-vocale din Matrix-ul săptămânii:
+  // host(Gazdă serviciu) / communion(Vorbitor cină) / prayer(Îndemn rugăciune) / preach(Predică). Avatar + nume, ca Lead.
+  ministries: {
+    type: [{
+      kind: { type: String, default: "" }, // host|communion|prayer|preach
+      personId: { type: mongoose.Schema.Types.ObjectId, ref: "PcPerson", default: null },
+      name: { type: String, default: "" }, // fallback dacă nu e persoană din DB
+    }],
+    default: [],
+  },
   // ── Tranziție (aditiv) — cântec/parte folosit(ă) doar ca punte: indent + „!" + timp EXCLUS din total.
   isTransition: { type: Boolean, default: false },
   // ── Medley (aditiv) — pt. type:"medley": listă de snippet-uri de cântec, în ordine (săgeți jos).

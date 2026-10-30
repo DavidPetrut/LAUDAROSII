@@ -97,6 +97,7 @@ export function TeamsTab({ planId }) {
   const [loading, setLoading] = useState(true);
   const [menu, setMenu] = useState(null); // { team }
   const [sending, setSending] = useState(false);
+  const [showAll, setShowAll] = useState(false); // implicit: doar echipele mele (ca pe PCO) — nu randa toate
 
   const [schedulable, setSchedulable] = useState(null);
   const [addSheet, setAddSheet] = useState(null); // { scopeTeamId, scopePositionId }
@@ -145,7 +146,9 @@ export function TeamsTab({ planId }) {
 
   // Echipele pre-concepute ale service type-ului, afișate ca un CARUSEL orizontal (swipe stânga/dreapta),
   // fiecare card scrollează vertical în interior. Cardul lasă un „peek" la următorul (ca în PCO).
-  const allTeams = [...(data.myTeams || []), ...(data.otherTeams || [])];
+  const myT = data.myTeams || [];
+  const otherT = data.otherTeams || [];
+  const shown = showAll ? [...myT, ...otherT] : myT; // implicit doar ale mele → randăm puține carduri
   const CARD_W = Math.min(Math.max(width - 54, 240), 380);
 
   return (
@@ -154,7 +157,7 @@ export function TeamsTab({ planId }) {
         <PcButton title="Chat" variant="outline" icon="chatbubble-outline" onPress={() => showInfo("Chat — în curând")} style={styles.topBtn} textStyle={{ fontSize: 14 }} />
         <PcButton title="Email or Text" variant="outline" icon="mail-outline" onPress={() => canSchedule ? sendEmails(null) : showInfo("Doar schedulerii")} style={styles.topBtn} textStyle={{ fontSize: 14 }} />
       </View>
-      {allTeams.length === 0 ? (
+      {myT.length === 0 && otherT.length === 0 ? (
         <Text style={styles.empty}>Nicio echipă pe acest plan.</Text>
       ) : (
         <ScrollView
@@ -165,8 +168,9 @@ export function TeamsTab({ planId }) {
           snapToInterval={CARD_W + 12}
           snapToAlignment="start"
           decelerationRate="fast"
+          removeClippedSubviews
         >
-          {allTeams.map((t) => (
+          {shown.map((t) => (
             <TeamCard
               key={String(t.teamId)}
               team={t}
@@ -177,6 +181,20 @@ export function TeamsTab({ planId }) {
               sending={sending}
             />
           ))}
+          {!showAll && otherT.length > 0 && (
+            <Pressable style={[styles.card, styles.otherCard, { width: CARD_W }]} onPress={() => setShowAll(true)}>
+              <Text style={styles.otherTitle}>Alte echipe</Text>
+              <Text style={styles.otherSub}>Se afișează doar echipele tale. Apasă ca să vezi toate echipele ({otherT.length}).</Text>
+              <View style={styles.otherBtn}><Text style={styles.otherBtnTxt}>Arată toate</Text></View>
+            </Pressable>
+          )}
+          {showAll && (
+            <Pressable style={[styles.card, styles.otherCard, { width: CARD_W }]} onPress={() => setShowAll(false)}>
+              <Text style={styles.otherTitle}>Doar echipele mele</Text>
+              <Text style={styles.otherSub}>Ascunde celelalte echipe.</Text>
+              <View style={styles.otherBtn}><Text style={styles.otherBtnTxt}>Ascunde</Text></View>
+            </Pressable>
+          )}
         </ScrollView>
       )}
 
@@ -241,6 +259,11 @@ const styles = StyleSheet.create({
   neededBadge: { width: 36, height: 36, borderRadius: 18, backgroundColor: pcColors.orange, alignItems: "center", justifyContent: "center" },
   neededTxt: { color: pcColors.orange, fontSize: 15, fontWeight: "700", flex: 1 },
   cardEmpty: { color: pcColors.textMuted, fontSize: 14, paddingHorizontal: 14, paddingVertical: 16, lineHeight: 20 },
+  otherCard: { justifyContent: "center", padding: 18, gap: 10 },
+  otherTitle: { color: pcColors.textPrimary, fontSize: 18, fontWeight: "800" },
+  otherSub: { color: pcColors.textSecondary, fontSize: 14, lineHeight: 20 },
+  otherBtn: { alignSelf: "flex-start", backgroundColor: pcColors.primary, borderRadius: 999, paddingVertical: 9, paddingHorizontal: 18, marginTop: 4 },
+  otherBtnTxt: { color: "#0A0A0A", fontWeight: "800", fontSize: 14 },
   empty: { color: pcColors.textMuted, textAlign: "center", marginTop: 30 },
   fab: { position: "absolute", right: 20, bottom: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: pcColors.primary, alignItems: "center", justifyContent: "center", elevation: 6 },
   menuRow: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 15, paddingHorizontal: 12 },

@@ -16,6 +16,10 @@ import ItemDrawer from "./ItemDrawer";
 import { formatVoices } from "./VoicesPicker";
 import Skeleton from "@/components/ui/Skeleton";
 
+// „Alte slujiri" pe rând: etichete scurte + prenume cu majuscule.
+const MIN_LABEL = { host: "Gazdă", communion: "Cină", prayer: "Îndemn", preach: "Predică" };
+const minFirst = (s) => String(s || "").trim().split(/[\s\-–—]+/)[0].toUpperCase();
+
 function Clip({ n }) {
   if (!n) return null;
   return (
@@ -110,6 +114,10 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
             const over = String(overId) === String(it.id);
             const voiceLine = it.voices?.length ? formatVoices(it.voices) : "";
             const leadVoice = (it.voices || []).find((v) => v.role === "lead") || null;
+            // Pe rând: DOAR numele (ca la lead), fără prefix „Îndemn:" etc.
+            const ministryLine = (it.ministries || []).map((m) => minFirst(m.name)).filter(Boolean).join("  ||  ");
+            // Avatarul = lead vocal SAU, dacă nu există, prima persoană de la o slujire.
+            const avatarPerson = leadVoice || (it.ministries || []).find((m) => m.personId || m.name) || null;
             return (
               <div
                 key={it.id}
@@ -133,9 +141,10 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                         {isMedley && <span className="mtag" title="Medley">medley · {it.medleyCount}</span>}
                         <span className="r-title">{it.title || "—"}</span>
                         {it.keyName && <span className={`r-key ${it.type === "media" ? "media" : ""}`}>{it.keyName}</span>}
-                        {leadVoice && <span className="r-leadav" title={`Lead: ${leadVoice.name}`}><PersonAvatar person={leadVoice} size={33} /></span>}
+                        {avatarPerson && <span className="r-leadav" title={avatarPerson.name}><PersonAvatar person={avatarPerson} size={33} /></span>}
                       </div>
                       {voiceLine && <div className="r-voices">{voiceLine}</div>}
+                      {ministryLine && <div className="r-min">{ministryLine}</div>}
                       {it.description && <div className="r-sub">{it.description}</div>}
                     </div>
                     <div className="r-right">
@@ -197,6 +206,7 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
         .mexp { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 11.5px; padding: 0 2px; }
         .mexp:hover { color: var(--text); }
         .r-voices { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 2px; white-space: pre-line; }
+        .r-min { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 2px; }
         .r-sub { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 2px; white-space: pre-wrap; max-width: 640px; }
         .r-right { display: flex; align-items: center; gap: 4px; margin-left: auto; flex: none; }
         .lead-av { display: inline-flex; }
