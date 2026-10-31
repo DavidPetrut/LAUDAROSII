@@ -18,7 +18,7 @@ Ghid unic pentru livrare: iOS (App Store / TestFlight), Android, OTA și backend
 | EAS owner | `davidpetruttt` |
 | Backend (producție) | `https://laudarosii-api.onrender.com` (Render) |
 | Canal OTA testeri | `preview` |
-| Versiune / runtime curent | `1.0.2` |
+| Versiune / runtime curent | `1.0.7` |
 
 **Cheie App Store Connect API:**
 - **Conectată la EAS** (Project Settings → Connections → App Store Connect app / ASC API key) → EAS o folosește automat la build/submit. NU mai depinde de fișierul local, nici nu mai e în `eas.json`.
