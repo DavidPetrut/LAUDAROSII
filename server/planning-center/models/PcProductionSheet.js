@@ -25,7 +25,9 @@ const ItemOverlay = new mongoose.Schema({
   // Fiecare secțiune poate avea: notă, culori de lumini, proiecție, remindere. `section` = numele (pt. afișare/print).
   sectionCues: { type: [{
     idx: { type: Number, default: 0 }, section: String,
-    lights: { type: [Light], default: [] }, projection: String, note: String,
+    lights: { type: [Light], default: [] },
+    lightsTiming: { type: String, enum: ["before", "after"], default: "after" }, // momentul luminilor la secțiune (ca în Order): înainte / după
+    projection: String, note: String,
     reminders: { type: [{ text: String, icon: { type: String, default: "info" }, severity: { type: String, default: "normal" } }], default: [] },
   }], default: [] },
   // Împărțirea sequence-ului pe RÂNDURI (multi-row): indicii din sequence la care începe un rând nou (drag-to-split).

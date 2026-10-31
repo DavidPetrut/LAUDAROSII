@@ -683,11 +683,13 @@ function buildProductionHtml(data) {
       const rws = []; let run = [];
       for (let i = 0; i < seq.length; i++) { if (isolated.has(i)) { if (run.length) { rws.push(run); run = []; } rws.push([i]); } else run.push(i); }
       if (run.length) rws.push(run);
+      const chipOf = (i) => { const c = cueAt(i); const hasC = c && c.lights && c.lights[0] && c.lights[0].color; const col = hasC ? dot(c.lights[0].color) : ""; const before = c && c.lightsTiming === "before"; return hasC ? (before ? `${col}${esc(seq[i])}` : `${esc(seq[i])}${col}`) : esc(seq[i]); };
       seqHtml = `<div class="seq">` + rws.map((row) => {
-        const chips = row.map((i) => { const c = cueAt(i); const col = c && c.lights && c.lights[0] && c.lights[0].color ? dot(c.lights[0].color) : ""; return `${col}${esc(seq[i])}`; }).join(" &middot; ");
+        const chips = row.map(chipOf).join(" &middot; ");
         if (row.length === 1 && isolated.has(row[0])) {
           const c = cueAt(row[0]);
-          const extra = c ? `${c.note ? ` &mdash; ${esc(c.note)}` : ""}${c.projection ? ` &#9635; ${esc(c.projection)}` : ""}${(c.reminders || []).map((rm) => ` <span class="rem">${REM_ICON[rm.icon] || "•"} ${esc(rm.text)}</span>`).join("")}` : "";
+          const lt = c && c.lights && c.lights[0] && c.lights[0].color ? ` <span class="lt-tag">${c.lightsTiming === "before" ? "&#11014; lumini înainte" : "lumini după &#11015;"}</span>` : "";
+          const extra = c ? `${lt}${c.note ? ` &mdash; ${esc(c.note)}` : ""}${c.projection ? ` &#9635; ${esc(c.projection)}` : ""}${(c.reminders || []).map((rm) => ` <span class="rem">${REM_ICON[rm.icon] || "•"} ${esc(rm.text)}</span>`).join("")}` : "";
           return `<div class="seqrow solo">&#8627; <b>${chips}</b>${extra}</div>`;
         }
         return `<div class="seqrow">${chips}</div>`;
@@ -721,6 +723,7 @@ function buildProductionHtml(data) {
     .seqrow{font-size:13px;color:#2b2b2b;line-height:1.5}
     .seqrow.solo{background:#f7f8fa;border:1px solid #e6e9ee;border-radius:8px;padding:5px 11px}
     .seqrow .rem{margin-left:4px}
+    .lt-tag{color:#6b7280;font-weight:600;font-size:11.5px;margin-left:4px}
     .tr{color:#999;font-style:italic;padding:1px 0 1px 15px;font-size:12px}
     .rem{color:#b3261e;font-weight:600}
     .sim{margin-top:20px;border-top:2px solid #b3261e;padding-top:9px;page-break-inside:avoid}.sim-h{color:#b3261e;font-weight:700;margin-bottom:5px}
@@ -878,7 +881,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
                     {voiceLine && <div className="pr-voices">{voiceLine}</div>}
                     {seq.length > 0 && (
                       <div className="pr-seq">
-                        {seq.map((s, i) => { const col = (r.sectionCues || []).find((x) => x.idx === i)?.lights?.[0]?.color || ""; return <span key={i} className="pr-sqtok">{col && <span className="pr-sqdot" style={{ background: col }} />}{s}</span>; })}
+                        {seq.map((s, i) => { const cc = (r.sectionCues || []).find((x) => x.idx === i); const col = cc?.lights?.[0]?.color || ""; const before = cc?.lightsTiming === "before"; return <span key={i} className="pr-sqtok">{col && before && <span className="pr-sqdot" style={{ background: col }} title="lumini înainte" />}{s}{col && !before && <span className="pr-sqdot" style={{ background: col }} title="lumini după" />}</span>; })}
                       </div>
                     )}
                   </div>
@@ -1024,6 +1027,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
 function SectionEditor({ section, cue, canEdit, onSave, onClose }) {
   const [remText, setRemText] = useState("");
   const color = cue?.lights?.[0]?.color || "";
+  const timing = cue?.lightsTiming === "before" ? "before" : "after";
   return (
     <div className="se">
       <div className="se-h"><span className="se-t">{section}</span>{canEdit && <button className="se-x" onClick={onClose} title="Închide">✕</button>}</div>
@@ -1032,9 +1036,15 @@ function SectionEditor({ section, cue, canEdit, onSave, onClose }) {
           <input type="color" value={color || "#e5534b"} disabled={!canEdit} onChange={(e) => onSave({ lights: [{ color: e.target.value, label: "" }] })} />
         </label>
         {color && canEdit && <button className="se-clr" onClick={() => onSave({ lights: [] })} title="Scoate culoarea">✕</button>}
-        <input className="se-note" placeholder="notă la secțiune…" defaultValue={cue?.note || ""} disabled={!canEdit}
-          onBlur={(e) => { const v = e.target.value.trim(); if (v !== (cue?.note || "")) onSave({ note: v }); }} />
+        {color && (
+          <span className="se-tim" title="Momentul luminilor față de secțiune (ca în Order)">
+            <button type="button" className={`se-tbtn ${timing === "before" ? "on" : ""}`} disabled={!canEdit} onClick={() => onSave({ lightsTiming: "before" })}>⬆ înainte</button>
+            <button type="button" className={`se-tbtn ${timing === "after" ? "on" : ""}`} disabled={!canEdit} onClick={() => onSave({ lightsTiming: "after" })}>după ⬇</button>
+          </span>
+        )}
       </div>
+      <input className="se-note" placeholder="notă la secțiune…" defaultValue={cue?.note || ""} disabled={!canEdit}
+        onBlur={(e) => { const v = e.target.value.trim(); if (v !== (cue?.note || "")) onSave({ note: v }); }} />
       <input className="se-proj" placeholder="proiecție / fundal la secțiune…" defaultValue={cue?.projection || ""} disabled={!canEdit}
         onBlur={(e) => { const v = e.target.value.trim(); if (v !== (cue?.projection || "")) onSave({ projection: v }); }} />
       <div className="se-rem">
@@ -1059,6 +1069,11 @@ function SectionEditor({ section, cue, canEdit, onSave, onClose }) {
         .se-sw { position: relative; width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border-strong); overflow: hidden; flex: none; cursor: pointer; }
         .se-sw input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
         .se-clr { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 11px; }
+        .se-tim { display: inline-flex; gap: 0; border: 1px solid var(--border-strong); border-radius: 7px; overflow: hidden; margin-left: auto; }
+        .se-tbtn { background: var(--surface-3); border: none; color: var(--text-dim); font-size: 11.5px; font-weight: 600; padding: 5px 9px; cursor: pointer; }
+        .se-tbtn + .se-tbtn { border-left: 1px solid var(--border-strong); }
+        .se-tbtn.on { background: rgba(47,129,247,.18); color: var(--text); }
+        .se-tbtn:disabled { cursor: default; }
         .se-note, .se-proj, .se-rin { flex: 1; min-width: 0; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text); font-size: 12.5px; padding: 6px 9px; outline: none; }
         .se-note:focus, .se-proj:focus, .se-rin:focus { border-color: var(--primary); }
         .se-rem { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -1106,19 +1121,21 @@ function StructureEditor({ sequence, sectionCues, rowBreaks, canEdit, onSave }) 
             <div key={ri} className={`st-row ${solo ? "solo" : ""}`}>
               {solo && <span className="st-arrow">↳</span>}
               {row.map((i) => {
-                const c = cueAt(i); const color = c?.lights?.[0]?.color || "";
+                const c = cueAt(i); const color = c?.lights?.[0]?.color || ""; const before = c?.lightsTiming === "before";
                 return (
                   <button key={i} className={`st-sec ${selIdx === i ? "on" : ""} ${hasData(c) ? "has" : ""}`} draggable={canEdit}
                     onClick={() => setSelIdx(selIdx === i ? null : i)}
                     onDragStart={() => setDragIdx(i)} onDragEnd={() => setDragIdx(null)}>
-                    {color && <span className="st-dot" style={{ background: color }} />}
+                    {color && before && <span className="st-dot" style={{ background: color }} title="lumini înainte" />}
                     <span className="st-nm">{sequence[i]}</span>
+                    {color && !before && <span className="st-dot" style={{ background: color }} title="lumini după" />}
                     {hasData(c) && !color && <span className="st-mark">•</span>}
                     {canEdit && <span className="st-split" title={isolated.has(i) ? "Readu în rând" : "Pune pe rândul lui"} onClick={(e) => { e.stopPropagation(); toggleIsolate(i); }}>{isolated.has(i) ? "⤴" : "↵"}</span>}
                   </button>
                 );
               })}
               {solo && c0 && (<>
+                {(c0.lights || []).length > 0 && <span className="st-clt">{c0.lightsTiming === "before" ? "⬆ lumini înainte" : "⬇ lumini după"}<span className="st-dot" style={{ background: c0.lights[0].color }} /></span>}
                 {c0.note && <span className="st-cnote">{c0.note}</span>}
                 {c0.projection && <span className="st-cnote">▣ {c0.projection}</span>}
                 {(c0.reminders || []).map((rm, k) => <span key={k} className="st-crem">{REM_ICON[rm.icon] || "•"} {rm.text}</span>)}
@@ -1148,6 +1165,7 @@ function StructureEditor({ sequence, sectionCues, rowBreaks, canEdit, onSave }) 
         .st-mark { color: #e5534b; font-size: 14px; line-height: 1; }
         .st-split { color: var(--text-faint); font-size: 12px; margin-left: 2px; }
         .st-split:hover { color: var(--primary); }
+        .st-clt { display: inline-flex; align-items: center; gap: 5px; color: var(--text-dim); font-size: 11.5px; font-weight: 600; background: var(--surface-2); border-radius: 5px; padding: 2px 8px; }
         .st-cnote { color: var(--text-dim); font-size: 12px; background: var(--surface-2); border-radius: 5px; padding: 2px 8px; }
         .st-crem { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: #f0b5b0; background: rgba(229,83,75,.12); border: 1px solid rgba(229,83,75,.4); border-radius: 5px; padding: 2px 8px; font-weight: 600; }
         .st-drop { border: 1px dashed var(--primary); border-radius: 8px; padding: 10px; text-align: center; color: var(--primary); font-size: 12px; background: rgba(47,129,247,.07); }
