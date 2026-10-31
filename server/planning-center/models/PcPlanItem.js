@@ -58,6 +58,9 @@ const schema = pcSchema({
   },
   // ── Tranziție (aditiv) — cântec/parte folosit(ă) doar ca punte: indent + „!" + timp EXCLUS din total.
   isTransition: { type: Boolean, default: false },
+  // ── Tranziție DIRECTĂ (aditiv) — acest element curge DIRECT în următorul: săgeată în jos + spațiu DEDESUBT
+  // (NU creează rând nou). Informativ, afișat în Order + Rehearse.
+  directNext: { type: Boolean, default: false },
   // ── Lumini / „Lumini propuse" (aditiv) — scenă + fixtures pe ORICE item (nu doar tranziție).
   // lightsTiming: „before"(default — la producție luminile se fac mereu înainte) / „after". Informativ (nu auto).
   // `sceneId` = aranjamentul propus (din pc_lightScenes); `fixtures` = Par/LED/Tobe/Laterale/Coroană (din scenă sau manual).

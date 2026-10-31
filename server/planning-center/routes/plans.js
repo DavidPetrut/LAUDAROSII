@@ -435,6 +435,7 @@ router.get("/:id/order", requireCan("people.view"), async (req, res) => {
         keyName: it.keyName || "",
         rowColor: rowColorFor(it, rules),
         isTransition: !!it.isTransition,
+        directNext: !!it.directNext,
         medleyCount: Array.isArray(it.medley) ? it.medley.length : 0,
         fileCount: (planFileCount[String(it._id)] || 0) + songFileCount(it),
         voices: voicesMap[String(it._id)] || [],
@@ -642,6 +643,7 @@ router.patch("/:id/items/:itemId", requireCan("services.editOrder"), async (req,
     if (b.sceneId !== undefined) set.sceneId = b.sceneId ? OID(b.sceneId) : null;
     if (Array.isArray(b.fixtures)) set.fixtures = b.fixtures.map((f) => ({ fixture: String(f.fixture || "").trim(), color: String(f.color || "").trim() })).filter((f) => f.fixture && f.color);
     if (b.lightsTiming !== undefined) set.lightsTiming = b.lightsTiming === "before" ? "before" : "after";
+    if (b.directNext !== undefined) set.directNext = !!b.directNext;
     // Secvență one-time pt. acest plan (Edit Sequence from a plan).
     if (Array.isArray(b.sequence)) set.sequence = b.sequence.map((s) => String(s)).filter(Boolean);
     // Edit a song from a plan: schimbă aranjamentul / cheia linkate (keyName se auto-rezolvă).
@@ -2283,6 +2285,7 @@ router.get("/:id/production", requireCan("people.view"), async (req, res) => {
         keyName: it.keyName || "",
         isTransition: !!it.isTransition,
         sequence: (it.type === "song" || it.type === "medley") ? seqOf(it) : [],
+        directNext: !!it.directNext,
         voices: voicesMap[String(it._id)] || [],
         leader: (leadersMap[String(it._id)] || [])[0] || null,
         transition: it.type === "transition" ? transMap[String(it._id)] : undefined,

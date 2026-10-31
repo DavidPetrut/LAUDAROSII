@@ -222,7 +222,7 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                   <>
                     <div className="r-len">{it.lengthLabel || ""}</div>
                     <div className="r-main">
-                      {itemScene && <div className="lp-tag">💡 Lumini propuse: <b>{itemScene.name}</b> <span className="lp-tag-tim">{it.lightsTiming === "after" ? "după" : "înainte"}</span></div>}
+                      {itemScene && it.lightsTiming !== "after" && <div className="r-lights">Lumini propuse: <b>{itemScene.name}</b></div>}
                       <div className="r-titleline">
                         {it.isTransition && <span className="bang" title="Tranziție (timp neinclus)">!</span>}
                         {isMedley && <span className="mtag" title="Medley">medley · {it.medleyCount}</span>}
@@ -248,6 +248,13 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                           {ministryLine && <div className="r-min">{ministryLine}</div>}
                           {it.description && <div className="r-sub">{it.description}</div>}
                         </>
+                      )}
+                      {itemScene && it.lightsTiming === "after" && <div className="r-lights r-lights-end">Lumini propuse: <b>{itemScene.name}</b></div>}
+                      {it.directNext && (
+                        <div className="r-direct" title="Tranziție directă — curge direct în următorul">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14" /><path d="m6 13 6 6 6-6" /></svg>
+                          <span>direct</span>
+                        </div>
                       )}
                     </div>
                     <div className="r-right">
@@ -334,6 +341,11 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
         .rt-lights { gap: 5px; }
         .rt-dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--border-strong); display: inline-block; }
         .r-sub { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 2px; white-space: pre-wrap; max-width: 640px; }
+        .r-lights { color: var(--text-dim); font-size: 12px; margin-bottom: 3px; }
+        .r-lights.r-lights-end { margin-top: 6px; margin-bottom: 0; }
+        .r-lights b { color: var(--product); font-weight: 600; }
+        .r-direct { display: flex; flex-direction: column; align-items: center; gap: 1px; color: var(--primary); margin-top: 10px; padding-top: 4px; }
+        .r-direct span { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; opacity: .85; }
         .r-right { display: flex; align-items: center; gap: 4px; margin-left: auto; flex: none; }
         .lead-av { display: inline-flex; }
         .need-dot { width: 20px; height: 20px; border-radius: 50%; background: var(--st-unconfirmed); color: #1d1600; font-weight: 800; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; margin-left: 2px; }

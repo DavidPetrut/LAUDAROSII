@@ -7,7 +7,7 @@
  * aceeași bară GLOBALĂ de asignare (AssignSidebar) ca în Matrix; click pe persoană → EditPersonModal.
  * UX seamless: update OPTIMIST + reconciliere silențioasă. ZERO emailuri trimise de aici.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { plansApi, peopleApi, productionScenesApi, productionSnippetsApi } from "@/lib/api/client";
 import { formatVoices } from "@/components/plans/order/VoicesPicker";
@@ -703,14 +703,18 @@ function buildProductionHtml(data, scenes) {
     }
     const projNote = (r.projection || [])[0] ? r.projection[0].note : "";
     const reminders = (r.reminders || []).map((rem) => `<span class="itrem"><img class="pv-rm" src="/reminder-verde.png" alt=""> &#8594; ${esc(rem.text)}</span>`).join(" &nbsp; ");
+    const sceneTag = r.scene ? `<div class="lp-tag">Lumini propuse: <b>${esc(r.scene.name)}</b></div>` : "";
+    const afterLights = r.scene && r.lightsTiming === "after"; // „după" = ultimul lucru
     return `<div class="row">`
+      + `${!afterLights ? sceneTag : ""}`
       + `<div class="rh"><span class="t">${esc(r.title)}</span>${r.keyName ? `<span class="k">${esc(r.keyName)}</span>` : ""}</div>`
       + `${lead || parts.length ? `<div class="v">${esc(lead ? lead.name : "")}${parts.length ? " &middot; " + parts.join(" &middot; ") : ""}</div>` : ""}`
-      + `${r.scene ? `<div class="lp-tag">&#128161; Lumini propuse: <b>${esc(r.scene.name)}</b> <span class="lptim">${r.lightsTiming === "after" ? "după" : "înainte"}</span></div>` : ""}`
       + `${seqHtml}`
       + `${projNote ? `<div class="lt">&#9635; ${esc(projNote)}</div>` : ""}`
       + `${r.note ? `<div class="lt">&#9998; ${esc(r.note)}</div>` : ""}`
-      + `${reminders ? `<div class="lt">${reminders}</div>` : ""}</div>`;
+      + `${reminders ? `<div class="lt">${reminders}</div>` : ""}`
+      + `${afterLights ? sceneTag : ""}`
+      + `${r.directNext ? `<div class="pv-direct">&#8595; direct</div>` : ""}</div>`;
   }).join("");
   const spotify = data.spotify ? `<div class="sp">&#9834; Spotify pre-serviciu: <b>${esc(data.spotify.key)}</b>${data.spotify.relative ? ` (relativă ${esc(data.spotify.relative)})` : ""}</div>` : "";
   const sim = (data.simFeedback || []).length ? `<div class="sim"><div class="sim-h"><img class="pv-rm" src="/reminder-rosu.png" alt=""> Remindere importante — între programe</div>${["1", "2"].map((s) => { const list = (data.simFeedback || []).filter((f) => (f.sim || "1") === s); if (!list.length) return ""; return `<div class="sim-g"><div class="sim-gh">SIM ${s}</div>${list.map((f) => `<div class="sim-it ${f.done ? "done" : ""}">${f.done ? "&#9745;" : "&#9744;"} <img class="pv-rm" src="/reminder-rosu.png" alt=""> &#8594; ${esc(f.text)}</div>`).join("")}</div>`; }).join("")}</div>` : "";
@@ -725,8 +729,9 @@ function buildProductionHtml(data, scenes) {
     .t{font-weight:700;font-size:15px;color:#141414}
     .k{background:#6fa02e;color:#fff;border-radius:999px;padding:1px 10px;font-weight:700;font-size:12px}
     .v{color:#666;font-size:12.5px;margin-top:2px}.lt{margin-top:4px;font-size:12.5px;color:#444}
-    .lp-tag{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#555;background:#f3f4f6;border:1px solid #e6e8ec;border-radius:6px;padding:2px 9px;margin:3px 0 2px}
-    .lp-tag b{color:#2d6a4f;font-weight:700}.lptim{color:#8a8f98;font-size:11px}
+    .lp-tag{display:inline-block;font-size:12px;color:#555;background:#f3f4f6;border:1px solid #e6e8ec;border-radius:6px;padding:2px 9px;margin:3px 0 4px}
+    .lp-tag b{color:#2d6a4f;font-weight:700}
+    .pv-direct{color:#2f6fd6;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;text-align:center;margin-top:8px}
     .seq{margin-top:7px;display:flex;flex-direction:column;gap:4px}
     .seqrow{font-size:13px;color:#2b2b2b;line-height:1.5}
     .seqrow.solo{background:#f7f8fa;border:1px solid #e6e9ee;border-radius:8px;padding:6px 11px}
@@ -828,7 +833,10 @@ function RehearseTab({ planId, canEdit = false, flash }) {
   const patchRow = (id, patch) => setData((d) => ({ ...d, items: d.items.map((r) => (String(r.id) === String(id) ? { ...r, ...patch } : r)) }));
 
   async function saveItem(it, patch) {
-    patchRow(it.id, patch); // optimist
+    const extra = {};
+    // rezolvă scena optimist (ca eticheta „Lumini propuse" să apară imediat, pe ORICE tip de element)
+    if ("sceneId" in patch) { const s = patch.sceneId ? scenes.find((x) => String(x.id) === String(patch.sceneId)) : null; extra.scene = s ? { id: s.id, name: s.name, fixtures: s.fixtures || [] } : null; }
+    patchRow(it.id, { ...patch, ...extra }); // optimist
     try { await plansApi.saveProduction(planId, { item: { itemId: it.id, ...patch } }); }
     catch (e) { flash?.(e?.message || "Eroare la salvare."); load(); }
   }
@@ -955,11 +963,14 @@ function RehearseTab({ planId, canEdit = false, flash }) {
             const seq = r.sequence || [];
             const hasExtra = !!(reminders.length || projNote || note);
             const selIdx = (selSection && String(selSection.itemId) === String(r.id)) ? selSection.idx : null;
+            const afterLights = r.scene && r.lightsTiming === "after"; // „după" = la sfârșit de tot
+            const sceneTag = r.scene ? <div className="lp-tag">Lumini propuse: <b>{r.scene.name}</b></div> : null;
             return (
-              <div key={r.id} id={`prow-${r.id}`} className={`prod-item ${lv}`}>
+              <Fragment key={r.id}>
+              <div id={`prow-${r.id}`} className={`prod-item ${lv}`}>
                 <div className={`prod-row ${itemSel ? "sel" : ""}`} onClick={() => (live ? setCurId(r.id) : selectItem(r.id))}>
                   <div className="pr-main">
-                    {r.scene && <div className="lp-tag">💡 Lumini propuse: <b>{r.scene.name}</b> <span className="lp-tag-tim">{r.lightsTiming === "after" ? "după" : "înainte"}</span></div>}
+                    {r.scene && !afterLights && sceneTag}
                     <div className="pr-top">
                       <span className="pr-title"><span className="pr-t">{r.title}</span>{r.label && <span className="pr-orig" title={`Original: ${r.origTitle}`}>↩</span>}</span>
                       {r.keyName && <span className={`pr-key ${r.type === "media" ? "media" : ""}`}>{r.keyName}</span>}
@@ -978,7 +989,15 @@ function RehearseTab({ planId, canEdit = false, flash }) {
                     {reminders.map((rem, i) => <span key={i} className={`rem ${rem.severity === "high" ? "hi" : ""}`}><RmIcon /> <span className="rem-ar">→</span> {rem.text}</span>)}
                   </div>
                 )}
+                {afterLights && <div className="pr-afterlights">{sceneTag}</div>}
               </div>
+              {r.directNext && (
+                <div className="prod-direct" title="Tranziție directă — curge direct în următorul">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14" /><path d="m6 13 6 6 6-6" /></svg>
+                  <span>direct</span>
+                </div>
+              )}
+              </Fragment>
             );
           })}
         </div>
@@ -1007,7 +1026,6 @@ function RehearseTab({ planId, canEdit = false, flash }) {
                 {effSel.keyName && <span className="ed2-k">{effSel.keyName}</span>}
               </div>
               {selVoiceLine && <div className="ed2-voices">{selVoiceLine}</div>}
-              {(effSel.sequence || []).length > 0 && <div className="ed2-tip">Apasă o secțiune din stânga: se pune pe rândul ei și o poți aranja aici. ⤴ o readuce în rând.</div>}
               <LightsPanel r={effSel} scenes={scenes} snippets={snippets} canEdit={canEdit} onSave={(patch) => saveItem(effSel, patch)} onSaveSnippet={saveSnippet} onDelSnippet={delSnippet} onCreateScene={createScene} />
             </div>
           )}
@@ -1103,6 +1121,9 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .prod-item.cur .prod-row { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
         .prod-item.past, .prod-trans.past, .prod-sec.past { opacity: .38; }
         .prod-item.past .pr-extra { display: none; }
+        .pr-afterlights { padding: 6px 4px 2px 13px; }
+        .prod-direct { display: flex; flex-direction: column; align-items: center; gap: 0; color: var(--primary); padding: 7px 0 9px; margin: 2px 0; }
+        .prod-direct span { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; opacity: .85; margin-top: -2px; }
         .prod-item.cur .prod-row, .prod-trans.cur, .prod-item.future .prod-row { cursor: pointer; }
         .prod-trans { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 7px; padding: 4px 13px 4px 20px; cursor: pointer; }
         .prod-trans:hover { background: var(--surface-2); }
@@ -1156,7 +1177,7 @@ function SeqStructure({ item, canEdit, scenes, selIdx, onSelect, onSave }) {
                   </button>
                 );
               })}
-              {solo && canEdit && <button type="button" className="sq2-un" title="Pune la loc în rând" onClick={(e) => { e.stopPropagation(); putBack(row[0]); }}>⤴</button>}
+              {solo && canEdit && <button type="button" className="sq2-x" title="Scoate aranjamentul (readu în rând)" onClick={(e) => { e.stopPropagation(); putBack(row[0]); }}>✕</button>}
             </div>
             {detailed && (
               <div className="sq2-det">
@@ -1189,8 +1210,8 @@ function SeqStructure({ item, canEdit, scenes, selIdx, onSelect, onSave }) {
         .sq2-sec:hover { border-color: var(--text-faint); }
         .sq2-sec.on { background: rgba(47,129,247,.16); border-color: var(--primary); }
         .sq2-sec.has { box-shadow: inset 0 -2px 0 rgba(47,129,247,.5); }
-        .sq2-un { background: transparent; border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text-faint); font-size: 13px; padding: 4px 9px; cursor: pointer; flex: none; }
-        .sq2-un:hover { color: var(--primary); border-color: var(--primary); }
+        .sq2-x { margin-left: auto; background: transparent; border: none; color: var(--text-faint); font-size: 12px; line-height: 1; padding: 3px 4px; cursor: pointer; flex: none; opacity: .6; }
+        .sq2-x:hover { color: var(--danger); opacity: 1; }
         .sq2-dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--border-strong); flex: none; }
         .sq2-det { display: flex; flex-direction: column; gap: 5px; margin: 2px 0 1px 25px; padding-left: 13px; border-left: 2px solid var(--border-strong); }
         .kv { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; line-height: 1.45; }

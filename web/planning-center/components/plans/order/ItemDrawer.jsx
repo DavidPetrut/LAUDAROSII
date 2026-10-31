@@ -128,6 +128,14 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
     try { await plansApi.addItem(planId, { type: "item", title, afterItemId: itemId }); onChanged?.(); flash?.(`Adăugat dedesubt: „${title}".`); }
     catch (e) { flash?.(e?.message || "Eroare la adăugare."); }
   }
+  // Tranziție DIRECTĂ: NU creează element nou — pune un flag pe ACEST item (săgeată în jos + spațiu dedesubt).
+  async function toggleDirect() {
+    setQtOpen(false);
+    const next = !d?.directNext;
+    setD((x) => ({ ...x, directNext: next }));
+    try { await plansApi.updateItem(planId, itemId, { directNext: next }); onChanged?.(); }
+    catch (e) { flash?.(e?.message || "Eroare."); }
+  }
 
   async function changeArrangement(aid) {
     setArr(null);
@@ -298,6 +306,10 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
                           <span className="qt-d">creează „{t.title}" dedesubt</span>
                         </button>
                       ))}
+                      <button className="qt-it" onClick={toggleDirect}>
+                        <span className="qt-l">{d?.directNext ? "✓ Tranziție directă" : "Tranziție directă"}</span>
+                        <span className="qt-d">săgeată în jos — curge direct în următorul</span>
+                      </button>
                     </div>
                   </>)}
                 </div>

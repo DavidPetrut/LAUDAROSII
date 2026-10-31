@@ -184,6 +184,5 @@ button { font-family: inherit; }
 
 /* „Lumini propuse: <scenă>" — etichetă discretă deasupra titlului (Order + Rehearse). Doar numele,
    fără culori/dots; subtil dar vizibil, nu agresiv. */
-.lp-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 9px; margin-bottom: 5px; max-width: fit-content; }
+.lp-tag { display: inline-block; font-size: 12px; color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px 12px; margin-bottom: 6px; max-width: fit-content; }
 .lp-tag b { color: var(--product); font-weight: 700; }
-.lp-tag-tim { color: var(--text-faint); font-size: 11px; }
