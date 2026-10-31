@@ -687,16 +687,21 @@ function buildProductionHtml(data, scenes) {
         if (row.length === 1) {
           const c = cueAt(row[0]);
           const scn = sceneNameOf(c);
-          const scTag = scn ? ` <span class="sc-tag">&#9673; ${esc(scn)}</span>` : "";
-          const lt = cueHasLight(c) ? ` <span class="lt-tag">${c.lightsTiming === "before" ? "&#11014; lumini înainte" : "lumini după &#11015;"}</span>` : "";
-          const extra = c ? `${scTag}${lt}${c.note ? ` &mdash; ${esc(c.note)}` : ""}${c.projection ? ` &#9635; ${esc(c.projection)}` : ""}${(c.reminders || []).map((rm) => ` <span class="rem">${REM_ICON[rm.icon] || "•"} ${esc(rm.text)}</span>`).join("")}` : "";
-          return `<div class="seqrow solo">&#8627; <b>${chips}</b>${extra}</div>`;
+          const fxcols = c ? ((c.fixtures && c.fixtures.length ? c.fixtures : c.lights || []).map((x) => x.color).filter(Boolean)) : [];
+          const kv = [];
+          if (scn) kv.push(`<div class="kv"><span class="kk">Scenă</span><span class="ka">&#8594;</span><span class="kvv"><b style="color:#2d6a4f">&#9673; ${esc(scn)}</b>${(c.fixtures || []).map((f) => dot(f.color)).join("")}</span></div>`);
+          if (cueHasLight(c)) kv.push(`<div class="kv"><span class="kk">Lumini</span><span class="ka">&#8594;</span><span class="kvv">${fxcols.map((col) => dot(col)).join("")}<span class="tim">${c.lightsTiming === "before" ? "înainte &#11014;" : "după &#11015;"}</span></span></div>`);
+          if (c && c.projection) kv.push(`<div class="kv"><span class="kk">Proiecție</span><span class="ka">&#8594;</span><span class="kvv">${esc(c.projection)}</span></div>`);
+          if (c && c.note) kv.push(`<div class="kv"><span class="kk">Notă</span><span class="ka">&#8594;</span><span class="kvv">${esc(c.note)}</span></div>`);
+          ((c && c.reminders) || []).forEach((rm) => kv.push(`<div class="kv rem"><span class="kk"><img class="pv-rm" src="/reminder-verde.png" alt=""></span><span class="ka">&#8594;</span><span class="kvv">${esc(rm.text)}</span></div>`));
+          const det = kv.length ? `<div class="det">${kv.join("")}</div>` : "";
+          return `<div class="seqrow solo"><div class="sh">&#8627; <b>${chips}</b></div>${det}</div>`;
         }
         return `<div class="seqrow">${chips}</div>`;
       }).join("") + `</div>`;
     }
     const projNote = (r.projection || [])[0] ? r.projection[0].note : "";
-    const reminders = (r.reminders || []).map((rem) => `<span class="rem">${REM_ICON[rem.icon] || "•"} ${esc(rem.text)}</span>`).join(" ");
+    const reminders = (r.reminders || []).map((rem) => `<span class="itrem"><img class="pv-rm" src="/reminder-verde.png" alt=""> &#8594; ${esc(rem.text)}</span>`).join(" &nbsp; ");
     return `<div class="row">`
       + `<div class="rh"><span class="t">${esc(r.title)}</span>${r.keyName ? `<span class="k">${esc(r.keyName)}</span>` : ""}</div>`
       + `${lead || parts.length ? `<div class="v">${esc(lead ? lead.name : "")}${parts.length ? " &middot; " + parts.join(" &middot; ") : ""}</div>` : ""}`
@@ -707,7 +712,7 @@ function buildProductionHtml(data, scenes) {
       + `${reminders ? `<div class="lt">${reminders}</div>` : ""}</div>`;
   }).join("");
   const spotify = data.spotify ? `<div class="sp">&#9834; Spotify pre-serviciu: <b>${esc(data.spotify.key)}</b>${data.spotify.relative ? ` (relativă ${esc(data.spotify.relative)})` : ""}</div>` : "";
-  const sim = (data.simFeedback || []).length ? `<div class="sim"><div class="sim-h">Feedback între programe (SIM)</div>${data.simFeedback.map((f) => `<div>${f.done ? "&#9745;" : "&#9744;"} ${f.sim ? `[SIM${esc(f.sim)}] ` : ""}${esc(f.text)}</div>`).join("")}</div>` : "";
+  const sim = (data.simFeedback || []).length ? `<div class="sim"><div class="sim-h"><img class="pv-rm" src="/reminder-rosu.png" alt=""> Remindere importante — între programe</div>${["1", "2"].map((s) => { const list = (data.simFeedback || []).filter((f) => (f.sim || "1") === s); if (!list.length) return ""; return `<div class="sim-g"><div class="sim-gh">SIM ${s}</div>${list.map((f) => `<div class="sim-it ${f.done ? "done" : ""}">${f.done ? "&#9745;" : "&#9744;"} <img class="pv-rm" src="/reminder-rosu.png" alt=""> &#8594; ${esc(f.text)}</div>`).join("")}</div>`; }).join("")}</div>` : "";
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Order Producție</title><style>
     *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}
     body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111;margin:22px;font-size:13px}
@@ -721,13 +726,23 @@ function buildProductionHtml(data, scenes) {
     .v{color:#666;font-size:12.5px;margin-top:2px}.lt{margin-top:4px;font-size:12.5px;color:#444}
     .seq{margin-top:7px;display:flex;flex-direction:column;gap:4px}
     .seqrow{font-size:13px;color:#2b2b2b;line-height:1.5}
-    .seqrow.solo{background:#f7f8fa;border:1px solid #e6e9ee;border-radius:8px;padding:5px 11px}
-    .seqrow .rem{margin-left:4px}
-    .lt-tag{color:#6b7280;font-weight:600;font-size:11.5px;margin-left:4px}
-    .sc-tag{color:#2d6a4f;font-weight:700;font-size:11.5px;margin-left:4px}
+    .seqrow.solo{background:#f7f8fa;border:1px solid #e6e9ee;border-radius:8px;padding:6px 11px}
+    .sh{font-size:13px;color:#2b2b2b}
+    .det{margin:5px 0 1px 20px;padding-left:11px;border-left:2px solid #d9dee5;display:flex;flex-direction:column;gap:4px}
+    .kv{display:flex;align-items:flex-start;gap:8px;font-size:12.5px}
+    .kk{flex:none;min-width:70px;color:#8a8f98;font-size:10.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;padding-top:1px;display:inline-flex;align-items:center;gap:4px}
+    .ka{flex:none;color:#aab}
+    .kvv{color:#222;display:inline-flex;flex-wrap:wrap;align-items:center;gap:5px}
+    .kv.rem .kvv{color:#b3261e;font-weight:600}
+    .tim{color:#555;font-weight:600;font-size:12px}
+    .pv-rm{width:13px;height:13px;object-fit:contain;vertical-align:middle}
+    .itrem{color:#2d6a4f;font-weight:600}
     .tr{color:#999;font-style:italic;padding:1px 0 1px 15px;font-size:12px}
     .rem{color:#b3261e;font-weight:600}
-    .sim{margin-top:20px;border-top:2px solid #b3261e;padding-top:9px;page-break-inside:avoid}.sim-h{color:#b3261e;font-weight:700;margin-bottom:5px}
+    .sim{margin-top:20px;border-top:1px solid #e3b9b5;padding-top:10px;page-break-inside:avoid}
+    .sim-h{display:flex;align-items:center;gap:6px;color:#b3261e;font-weight:700;margin-bottom:8px}
+    .sim-g{margin-bottom:8px}.sim-gh{color:#8a8f98;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
+    .sim-it{display:flex;align-items:center;gap:6px;color:#222;font-size:12.5px;padding:2px 0}.sim-it.done{opacity:.55;text-decoration:line-through}
   </style></head><body><h1>Order Producție</h1>${spotify}${rowsHtml}${sim}</body></html>`;
   return html;
 }
@@ -756,6 +771,13 @@ function rowsMoveBefore(rows, i, target) {
 }
 // Mută `i` pe un rând nou, singur, la final.
 function rowsMoveToNewRow(rows, i) { const rr = rowsRemove(cloneRows(rows), i); rr.push([i]); return rr; }
+// Izolează `i` pe rândul lui ÎN LOC (sparge run-ul în: înainte | [i] | după). Astfel scoaterea unei secțiuni din mijloc separă și restul.
+function rowsIsolateInPlace(rows, i) {
+  const rr = [];
+  for (const row of cloneRows(rows)) { const p = row.indexOf(i); if (p < 0) { rr.push(row); continue; } const b = row.slice(0, p), a = row.slice(p + 1); if (b.length) rr.push(b); rr.push([i]); if (a.length) rr.push(a); }
+  return rr;
+}
+const isSolo = (rows, i) => rows.some((r) => r.length === 1 && r[0] === i);
 // Izolează `i` pe rândul lui acolo unde e; dacă e deja singur, îl lipește la rândul anterior (toggle).
 function rowsToggleIsolate(rows, i) {
   const soloAt = rows.findIndex((r) => r.length === 1 && r[0] === i);
@@ -767,6 +789,8 @@ function rowsToggleIsolate(rows, i) {
 // Culoarea „accent" a unei secțiuni (pt. puncte în stânga/preview): prima fixtură, altfel lights, altfel gol.
 const cueColor = (c) => (c && c.fixtures && c.fixtures[0] && c.fixtures[0].color) || (c && c.lights && c.lights[0] && c.lights[0].color) || "";
 const cueHasLight = (c) => !!(c && ((c.fixtures && c.fixtures.length) || (c.lights && c.lights.length)));
+// Iconiță reminder (PNG din /public) cu glow+pulse: verde = normal (în sequence), roșu = important (jos).
+const RmIcon = ({ red = false, lg = false }) => <img className={`${red ? "rmic-red" : "rmic"}${lg ? " rmic-lg" : ""}`} src={red ? "/reminder-rosu.png" : "/reminder-verde.png"} alt={red ? "reminder important" : "reminder"} />;
 
 function RehearseTab({ planId, canEdit = false, flash }) {
   const [data, setData] = useState(null);
@@ -819,10 +843,13 @@ function RehearseTab({ planId, canEdit = false, flash }) {
     const cues = it.sectionCues || [];
     const base = cues.find((c) => c.idx === idx) || { idx, section: (it.sequence || [])[idx] || "" };
     const merged = { ...base, idx, section: (it.sequence || [])[idx] || base.section, ...patch };
-    const active = cueHasLight(merged) || merged.sceneId || (merged.note && merged.note.trim()) || (merged.projection && String(merged.projection).trim()) || (merged.reminders || []).length;
+    const active = cueHasLight(merged) || merged.sceneId || (merged.note && String(merged.note).trim()) || (merged.projection && String(merged.projection).trim()) || (merged.reminders || []).length;
     const next = cues.filter((c) => c.idx !== idx);
     if (active) next.push(merged);
-    saveItem(it, { sectionCues: next });
+    const payload = { sectionCues: next };
+    // Secțiunea cu detalii devine un BLOC propriu (pe rândul ei), ca detaliile să apară indentate dedesubt și să spargă run-ul.
+    if (active) { const rows = resolveRows(it.sequence || [], it.sectionRows); if (!isSolo(rows, idx)) payload.sectionRows = rowsIsolateInPlace(rows, idx); }
+    saveItem(it, payload);
   }
   // Selecție exclusivă: element (titlu) SAU secțiune (token din sequence).
   const selectItem = (id) => { setEditorItem(id); setSelSection(null); };
@@ -865,6 +892,13 @@ function RehearseTab({ planId, canEdit = false, flash }) {
       <div className="prod-head">
         <span className="prod-cnt">{songCount} cântece · {rows.length} momente</span>
         <span className="prod-actions">
+          {(data.simFeedback || []).filter((f) => !f.done).length > 0 && (
+            <span className="prod-rembar" title="Remindere importante (din secțiunea de jos)">
+              {(data.simFeedback || []).filter((f) => !f.done).map((f, i) => (
+                <span key={i} className="prod-rem"><RmIcon red />{f.sim && <span className="prod-rem-sim">SIM{f.sim}</span>}<span className="prod-rem-ar">→</span>{f.text}</span>
+              ))}
+            </span>
+          )}
           <button className="prod-share" onClick={() => setPreview(true)} title="Preview foaia finală + descarcă PDF">⧉ Preview</button>
           <button className={`prod-share ${live ? "live-on" : ""}`} onClick={() => (live ? setLive(false) : goLive())} title="Mod Live: urmărește momentul curent">● Live</button>
           {canEdit && <button className="prod-share" onClick={() => setShare(true)} title="Trimite copia foii tale altui producător">⤴ Partajează</button>}
@@ -948,7 +982,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
                     {r.scene && <span className="pr-scene">◉ {r.scene.name}{sceneFx.map((f, i) => <span key={i} className="pr-sqdot" style={{ background: f.color }} />)}</span>}
                     {note && <span className="pr-note">✎ {note}</span>}
                     {projNote && <span className="pr-proj">▣ {projNote}</span>}
-                    {reminders.map((rem, i) => <span key={i} className={`rem ${rem.severity === "high" ? "hi" : ""}`}>{REM_ICON[rem.icon] || "•"} {rem.text}</span>)}
+                    {reminders.map((rem, i) => <span key={i} className={`rem ${rem.severity === "high" ? "hi" : ""}`}><RmIcon /> <span className="rem-ar">→</span> {rem.text}</span>)}
                   </div>
                 )}
               </div>
@@ -1046,7 +1080,12 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .ps-lbl { color: var(--text-dim); font-size: 11.5px; font-weight: 600; }
         .ps-key { color: var(--text); font-size: 13px; font-weight: 700; }
         .ps-rel { color: var(--text-faint); font-size: 11.5px; }
-        .prod-actions { margin-left: auto; display: inline-flex; gap: 8px; }
+        .prod-actions { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+        .prod-rembar { display: inline-flex; align-items: center; gap: 6px; max-width: 44vw; overflow-x: auto; padding: 2px 0; }
+        .prod-rem { display: inline-flex; align-items: center; gap: 5px; flex: none; color: #f3c9c4; font-size: 12px; font-weight: 600; background: rgba(229,83,75,.1); border: 1px solid rgba(229,83,75,.4); border-radius: 999px; padding: 3px 11px; }
+        .prod-rem-sim { color: #e5534b; font-size: 10px; font-weight: 700; border: 1px solid rgba(229,83,75,.5); border-radius: 4px; padding: 0 4px; }
+        .prod-rem-ar { color: var(--text-faint); }
+        .rem-ar { color: var(--text-faint); }
         .prod-share { background: transparent; border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 7px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
         .prod-share:hover { color: var(--primary); border-color: var(--primary); }
         .pr-extra { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 4px 2px 13px; }
@@ -1097,41 +1136,53 @@ function SeqStructure({ item, canEdit, scenes, selIdx, onSelect, onSave }) {
   const active = (c) => cueHasLight(c) || !!(c && (c.sceneId || (c.note && c.note.trim()) || (c.projection && String(c.projection).trim()) || (c.reminders || []).length));
   const save = (rr) => onSave({ sectionRows: rr });
   const dropBefore = (target) => { if (dragIdx == null) return; save(rowsMoveBefore(rows, dragIdx, target)); setDragIdx(null); setOverIdx(null); };
-  const dropNew = () => { if (dragIdx == null) return; save(rowsMoveToNewRow(rows, dragIdx)); setDragIdx(null); setOverNew(false); };
+  const dropNew = () => { if (dragIdx == null) return; save(rowsIsolateInPlace(rows, dragIdx)); setDragIdx(null); setOverNew(false); };
+  const fxDots = (c) => ((c && c.fixtures && c.fixtures.length ? c.fixtures : (c && c.lights) || []).map((x) => x.color).filter(Boolean));
 
   return (
     <div className="sq2" onClick={(e) => e.stopPropagation()}>
       {rows.map((row, ri) => {
         const solo = row.length === 1;
         const c0 = solo ? cueAt(row[0]) : null;
+        const detailed = solo && c0 && active(c0);
         return (
-          <div key={ri} className={`sq2-row ${solo ? "solo" : ""}`}>
-            {solo && <span className="sq2-arrow">↳</span>}
-            {row.map((i) => {
-              const c = cueAt(i); const col = cueColor(c); const before = c?.lightsTiming === "before";
-              return (
-                <button key={i} type="button"
-                  className={`sq2-sec ${selIdx === i ? "on" : ""} ${active(c) ? "has" : ""} ${overIdx === i && dragIdx != null && dragIdx !== i ? "over" : ""}`}
-                  draggable={canEdit}
-                  onClick={(e) => { e.stopPropagation(); onSelect(i); }}
-                  onDragStart={() => setDragIdx(i)}
-                  onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
-                  onDragOver={(e) => { if (dragIdx != null && dragIdx !== i) { e.preventDefault(); if (overIdx !== i) setOverIdx(i); } }}
-                  onDrop={(e) => { e.preventDefault(); dropBefore(i); }}>
-                  {col && before && <span className="sq2-dot" style={{ background: col }} title="lumini înainte" />}
-                  <span className="sq2-nm">{seq[i]}</span>
-                  {col && !before && <span className="sq2-dot" style={{ background: col }} title="lumini după" />}
-                </button>
-              );
-            })}
-            {solo && c0 && active(c0) && (
-              <span className="sq2-ann">
-                {sceneNameOf(c0) && <span className="sq2-scene">◉ {sceneNameOf(c0)}</span>}
-                {cueHasLight(c0) && <span className="sq2-lt">{c0.lightsTiming === "before" ? "⬆ lumini înainte" : "lumini după ⬇"}</span>}
-                {c0.note && <span className="sq2-note">{c0.note}</span>}
-                {c0.projection && <span className="sq2-note">▣ {c0.projection}</span>}
-                {(c0.reminders || []).map((rm, k) => <span key={k} className="sq2-rem">{REM_ICON[rm.icon] || "•"} {rm.text}</span>)}
-              </span>
+          <div key={ri} className={`sq2-row ${solo ? "solo" : ""} ${detailed ? "det" : ""}`}>
+            <div className="sq2-head">
+              {solo && <span className="sq2-arrow">↳</span>}
+              {row.map((i) => {
+                const c = cueAt(i); const col = cueColor(c); const before = c?.lightsTiming === "before";
+                return (
+                  <button key={i} type="button"
+                    className={`sq2-sec ${selIdx === i ? "on" : ""} ${active(c) ? "has" : ""} ${overIdx === i && dragIdx != null && dragIdx !== i ? "over" : ""}`}
+                    draggable={canEdit}
+                    onClick={(e) => { e.stopPropagation(); onSelect(i); }}
+                    onDragStart={() => setDragIdx(i)}
+                    onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
+                    onDragOver={(e) => { if (dragIdx != null && dragIdx !== i) { e.preventDefault(); if (overIdx !== i) setOverIdx(i); } }}
+                    onDrop={(e) => { e.preventDefault(); dropBefore(i); }}>
+                    {col && before && <span className="sq2-dot" style={{ background: col }} title="lumini înainte" />}
+                    <span className="sq2-nm">{seq[i]}</span>
+                    {col && !before && <span className="sq2-dot" style={{ background: col }} title="lumini după" />}
+                  </button>
+                );
+              })}
+            </div>
+            {detailed && (
+              <div className="sq2-det">
+                {sceneNameOf(c0) && (
+                  <div className="kv"><span className="kv-k">Scenă</span><span className="kv-ar">→</span>
+                    <span className="kv-v"><span className="kv-sc">◉</span> {sceneNameOf(c0)}{(c0.fixtures || []).map((f, k) => <span key={k} className="kv-dot" style={{ background: f.color }} />)}</span></div>
+                )}
+                {cueHasLight(c0) && (
+                  <div className="kv"><span className="kv-k">Lumini</span><span className="kv-ar">→</span>
+                    <span className="kv-v">{fxDots(c0).map((col, k) => <span key={k} className="kv-dot" style={{ background: col }} />)}<span className="kv-tim">{c0.lightsTiming === "before" ? "înainte ⬆" : "după ⬇"}</span></span></div>
+                )}
+                {c0.projection && <div className="kv"><span className="kv-k">Proiecție</span><span className="kv-ar">→</span><span className="kv-v">{c0.projection}</span></div>}
+                {c0.note && <div className="kv"><span className="kv-k">Notă</span><span className="kv-ar">→</span><span className="kv-v">{c0.note}</span></div>}
+                {(c0.reminders || []).map((rm, k) => (
+                  <div key={k} className="kv rem"><span className="kv-k rem"><RmIcon /></span><span className="kv-ar">→</span><span className="kv-v">{rm.text}</span></div>
+                ))}
+              </div>
             )}
           </div>
         );
@@ -1144,8 +1195,9 @@ function SeqStructure({ item, canEdit, scenes, selIdx, onSelect, onSave }) {
       )}
       <style jsx>{`
         .sq2 { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; cursor: default; }
-        .sq2-row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
-        .sq2-row.solo { background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 6px 9px; }
+        .sq2-row { display: flex; flex-direction: column; gap: 6px; }
+        .sq2-row.solo { background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 7px 10px; }
+        .sq2-head { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
         .sq2-arrow { color: var(--text-faint); font-size: 15px; flex: none; }
         .sq2-sec { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 8px; padding: 6px 12px; color: var(--text); font-size: 14px; font-weight: 600; cursor: ${canEdit ? "grab" : "pointer"}; }
         .sq2-row.solo .sq2-sec { background: var(--surface-3); }
@@ -1154,11 +1206,15 @@ function SeqStructure({ item, canEdit, scenes, selIdx, onSelect, onSave }) {
         .sq2-sec.has { box-shadow: inset 0 -2px 0 rgba(47,129,247,.5); }
         .sq2-sec.over { border-color: var(--primary); box-shadow: -3px 0 0 var(--primary); }
         .sq2-dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--border-strong); flex: none; }
-        .sq2-ann { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-        .sq2-scene { color: var(--product); font-size: 12px; font-weight: 700; background: rgba(87,185,138,.12); border-radius: 5px; padding: 2px 8px; }
-        .sq2-lt { color: var(--text-dim); font-size: 12px; font-weight: 600; background: var(--surface-3); border-radius: 5px; padding: 2px 8px; }
-        .sq2-note { color: var(--text-dim); font-size: 12px; background: var(--surface-3); border-radius: 5px; padding: 2px 8px; }
-        .sq2-rem { display: inline-flex; align-items: center; gap: 4px; color: #f0b5b0; font-size: 12px; font-weight: 600; background: rgba(229,83,75,.12); border: 1px solid rgba(229,83,75,.4); border-radius: 5px; padding: 2px 8px; }
+        .sq2-det { display: flex; flex-direction: column; gap: 5px; margin: 2px 0 1px 25px; padding-left: 13px; border-left: 2px solid var(--border-strong); }
+        .kv { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; line-height: 1.45; }
+        .kv-k { flex: none; min-width: 74px; color: var(--text-faint); font-size: 11px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; padding-top: 2px; display: inline-flex; align-items: center; gap: 5px; }
+        .kv-ar { flex: none; color: var(--text-faint); padding-top: 1px; }
+        .kv-v { color: var(--text); display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+        .kv.rem .kv-v { color: #f3c9c4; font-weight: 600; }
+        .kv-dot { width: 13px; height: 13px; border-radius: 50%; border: 1px solid var(--border-strong); flex: none; }
+        .kv-sc { color: var(--product); }
+        .kv-tim { color: var(--text-dim); font-size: 12.5px; font-weight: 600; }
         .sq2-newrow { border: 1px dashed var(--primary); border-radius: 8px; padding: 9px; text-align: center; color: var(--primary); font-size: 12px; background: rgba(47,129,247,.07); }
         .sq2-newrow.over { background: rgba(47,129,247,.16); }
       `}</style>
@@ -1374,7 +1430,7 @@ function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet,
         <div className="lp-rem">
           {reminders.map((rem, i) => (
             <span key={i} className={`rchip ${rem.severity === "high" ? "hi" : ""}`}>
-              {REM_ICON[rem.icon] || "•"} {rem.text}
+              <RmIcon /> <span className="rchip-ar">→</span> {rem.text}
               {canEdit && <button className="rchip-x" onClick={() => delReminder(i)} title="Scoate">✕</button>}
             </span>
           ))}
@@ -1415,6 +1471,7 @@ function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet,
         .lp-rem { display: flex; flex-direction: column; gap: 8px; }
         .rchip { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; font-size: 12px; color: var(--text-dim); background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 6px; padding: 3px 8px; }
         .rchip.hi { color: #f0b5b0; background: rgba(229,83,75,.12); border-color: rgba(229,83,75,.4); font-weight: 600; }
+        .rchip-ar { color: var(--text-faint); }
         .rchip-x { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 10px; margin-left: 2px; }
         .rchip-x:hover { color: var(--danger); }
         .rem-add { display: flex; align-items: center; gap: 6px; }
@@ -1554,55 +1611,71 @@ function ShareDialog({ planId, onClose, flash }) {
 /* Feedback între programe (SIM1/SIM2) — checklist roșu, jos. Bifabil. */
 function SimFeedback({ items, canEdit, onSave }) {
   const [text, setText] = useState("");
-  const [sim, setSim] = useState("2");
+  const [tab, setTab] = useState("1");
   if (!canEdit && items.length === 0) return null;
-  const add = () => { const t = text.trim(); if (!t) return; onSave([...items, { text: t, sim, severity: "high", done: false, createdAt: Date.now() }]); setText(""); };
-  const toggle = (i) => canEdit && onSave(items.map((it, x) => (x === i ? { ...it, done: !it.done } : it)));
-  const del = (i) => onSave(items.filter((_, x) => x !== i));
+  const add = () => { const t = text.trim(); if (!t) return; onSave([...items, { text: t, sim: tab, severity: "high", done: false, createdAt: Date.now() }]); setText(""); };
+  const toggle = (idx) => canEdit && onSave(items.map((it, x) => (x === idx ? { ...it, done: !it.done } : it)));
+  const del = (idx) => onSave(items.filter((_, x) => x !== idx));
+  const indexed = items.map((it, idx) => ({ it, idx }));
+  const shown = indexed.filter(({ it }) => (it.sim || "1") === tab);
+  const openCount = (s) => indexed.filter(({ it }) => (it.sim || "1") === s && !it.done).length;
   return (
     <div className="sf">
-      <div className="sf-h">Feedback între programe (SIM)</div>
-      <div className="sf-list">
-        {items.map((it, i) => (
-          <div key={i} className={`sf-it ${it.done ? "done" : ""}`}>
-            <button className="sf-ck" onClick={() => toggle(i)} title="Bifează">{it.done ? "☑" : "☐"}</button>
-            {it.sim && <span className="sf-sim">SIM{it.sim}</span>}
+      <div className="sf-top">
+        <span className="sf-title"><img className="rmic-red rmic-lg" src="/reminder-rosu.png" alt="" /> Remindere importante — între programe</span>
+        <span className="sf-tabs">
+          {["1", "2"].map((s) => (
+            <button key={s} type="button" className={`sf-tab ${tab === s ? "on" : ""}`} onClick={() => setTab(s)}>
+              SIM {s}{openCount(s) > 0 && <span className="sf-badge">{openCount(s)}</span>}
+            </button>
+          ))}
+        </span>
+      </div>
+      <div className="sf-cards">
+        {shown.length === 0 && <div className="sf-none">Niciun reminder pe SIM {tab}.</div>}
+        {shown.map(({ it, idx }) => (
+          <div key={idx} className={`sf-card ${it.done ? "done" : ""}`}>
+            <img className="rmic-red" src="/reminder-rosu.png" alt="" />
+            <span className="sf-ar">→</span>
             <span className="sf-txt">{it.text}</span>
-            {canEdit && <button className="sf-x" onClick={() => del(i)} title="Șterge">✕</button>}
+            <span className="sf-acts">
+              <button type="button" className="sf-ck" onClick={() => toggle(idx)} title={it.done ? "Redeschide" : "Bifează rezolvat"}>{it.done ? "☑" : "☐"}</button>
+              {canEdit && <button type="button" className="sf-x" onClick={() => del(idx)} title="Șterge">✕</button>}
+            </span>
           </div>
         ))}
-        {items.length === 0 && <div className="sf-none">Nimic de verificat încă.</div>}
       </div>
       {canEdit && (
         <div className="sf-add">
-          <span className="sf-simsel">
-            {["1", "2"].map((s) => <button key={s} className={`sf-sb ${sim === s ? "on" : ""}`} onClick={() => setSim(s)}>SIM{s}</button>)}
-          </span>
-          <input className="sf-in" value={text} placeholder="ex. verifică mic kick la SIM2…" onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
-          <button className="sf-go" onClick={add}>+</button>
+          <input className="sf-in" value={text} placeholder={`reminder important pentru SIM ${tab}…`} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+          <button type="button" className="sf-go" onClick={add} title="Adaugă">+</button>
         </div>
       )}
       <style jsx>{`
-        .sf { margin-top: 22px; border-top: 2px solid rgba(229,83,75,.5); padding-top: 12px; }
-        .sf-h { color: #e5534b; font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; margin-bottom: 8px; }
-        .sf-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
-        .sf-it { display: flex; align-items: center; gap: 8px; background: rgba(229,83,75,.07); border: 1px solid rgba(229,83,75,.25); border-radius: 7px; padding: 6px 10px; }
-        .sf-it.done { opacity: .55; }
-        .sf-it.done .sf-txt { text-decoration: line-through; }
-        .sf-ck { background: transparent; border: none; color: #e5534b; cursor: ${canEdit ? "pointer" : "default"}; font-size: 15px; line-height: 1; padding: 0; }
-        .sf-sim { flex: none; color: #e5534b; border: 1px solid rgba(229,83,75,.5); border-radius: 4px; font-size: 10px; font-weight: 700; padding: 1px 5px; }
-        .sf-txt { flex: 1; color: var(--text); font-size: 13px; }
+        .sf { margin-top: 24px; border-top: 1px solid var(--border); padding-top: 16px; max-width: 760px; }
+        .sf-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+        .sf-title { display: inline-flex; align-items: center; gap: 8px; color: #e5534b; font-size: 13px; font-weight: 700; }
+        .sf-tabs { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 9px; overflow: hidden; }
+        .sf-tab { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: none; color: var(--text-dim); font-size: 12.5px; font-weight: 700; padding: 7px 14px; cursor: pointer; }
+        .sf-tab + .sf-tab { border-left: 1px solid var(--border-strong); }
+        .sf-tab.on { background: rgba(229,83,75,.15); color: #f3c9c4; }
+        .sf-badge { background: #e5534b; color: #fff; font-size: 10px; font-weight: 700; min-width: 16px; height: 16px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; }
+        .sf-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin-bottom: 12px; }
+        .sf-card { display: flex; align-items: center; gap: 8px; background: rgba(229,83,75,.08); border: 1px solid rgba(229,83,75,.35); border-radius: 10px; padding: 10px 12px; }
+        .sf-card.done { opacity: .5; }
+        .sf-card.done .sf-txt { text-decoration: line-through; }
+        .sf-ar { color: var(--text-faint); flex: none; }
+        .sf-txt { flex: 1; min-width: 0; color: var(--text); font-size: 13px; font-weight: 500; }
+        .sf-acts { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+        .sf-ck { background: transparent; border: none; color: #e5534b; cursor: ${canEdit ? "pointer" : "default"}; font-size: 16px; line-height: 1; padding: 0; }
         .sf-x { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 11px; }
         .sf-x:hover { color: var(--danger); }
-        .sf-none { color: var(--text-faint); font-size: 12.5px; }
-        .sf-add { display: flex; align-items: center; gap: 7px; }
-        .sf-simsel { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 7px; overflow: hidden; flex: none; }
-        .sf-sb { background: transparent; border: none; color: var(--text-faint); font-size: 10.5px; font-weight: 700; padding: 6px 9px; cursor: pointer; }
-        .sf-sb.on { background: #e5534b; color: #fff; }
-        .sf-in { flex: 1; min-width: 0; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text); font-size: 12.5px; padding: 7px 10px; outline: none; }
-        .sf-in:focus { border-color: var(--primary); }
-        .sf-go { background: transparent; border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text-dim); width: 32px; height: 32px; cursor: pointer; font-size: 15px; }
-        .sf-go:hover { color: var(--primary); border-color: var(--primary); }
+        .sf-none { grid-column: 1 / -1; color: var(--text-faint); font-size: 12.5px; padding: 6px 2px; }
+        .sf-add { display: flex; align-items: center; gap: 7px; max-width: 460px; }
+        .sf-in { flex: 1; min-width: 0; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text); font-size: 12.5px; padding: 8px 11px; outline: none; }
+        .sf-in:focus { border-color: #e5534b; }
+        .sf-go { background: transparent; border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text-dim); width: 34px; height: 34px; cursor: pointer; font-size: 16px; }
+        .sf-go:hover { color: #e5534b; border-color: #e5534b; }
       `}</style>
     </div>
   );

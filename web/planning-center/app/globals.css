@@ -163,3 +163,21 @@ button { font-family: inherit; }
   main { max-width: none !important; margin: 0 !important; padding: 0 !important; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* =============================================================================
+   Iconițe reminder (producție) — glow + pulse continuu, FOARTE subtil (să atragă
+   privirea fără să obosească ochii). Global, ca să meargă și în componente cu
+   styled-jsx. „verde" = reminder normal (în sequence-uri); „roșu" = important (jos).
+   ============================================================================= */
+@keyframes rm-pulse-green {
+  0%, 100% { filter: drop-shadow(0 0 0.5px rgba(120, 200, 110, .45)); transform: scale(1); }
+  50%      { filter: drop-shadow(0 0 4px rgba(120, 200, 110, .9));   transform: scale(1.08); }
+}
+@keyframes rm-pulse-red {
+  0%, 100% { filter: drop-shadow(0 0 0.5px rgba(229, 83, 75, .5)); transform: scale(1); }
+  50%      { filter: drop-shadow(0 0 5px rgba(229, 83, 75, .95));  transform: scale(1.1); }
+}
+.rmic { width: 15px; height: 15px; object-fit: contain; vertical-align: middle; flex: none; display: inline-block; animation: rm-pulse-green 2.4s ease-in-out infinite; }
+.rmic-red { width: 15px; height: 15px; object-fit: contain; vertical-align: middle; flex: none; display: inline-block; animation: rm-pulse-red 2s ease-in-out infinite; }
+.rmic-lg { width: 18px; height: 18px; }
+@media (prefers-reduced-motion: reduce) { .rmic, .rmic-red { animation: none; } }
