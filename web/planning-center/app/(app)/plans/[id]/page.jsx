@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { plansApi, peopleApi, productionScenesApi, productionSnippetsApi } from "@/lib/api/client";
+import { formatVoices } from "@/components/plans/order/VoicesPicker";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 import PersonAvatar from "@/components/plans/PersonAvatar";
 import Skeleton from "@/components/ui/Skeleton";
@@ -766,7 +767,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
   if (!data) return <Skeleton lines={4} />;
   const rows = data.items || [];
   const songCount = rows.filter((r) => r.type === "song" || r.type === "medley").length;
-  if (!rows.length) return <div className="muted">Order gol. Structura vine din tab-ul „Order"; aici o îmbraci pentru producție.</div>;
+  if (!rows.length) return <div className="muted">Order gol — structura vine din tab-ul „Order".</div>;
 
   // Mod Live: urmărești momentul curent; ce-a trecut se estompează. „Playable" = tot ce nu-i header.
   const playable = rows.filter((r) => r.type !== "header");
@@ -778,7 +779,6 @@ function RehearseTab({ planId, canEdit = false, flash }) {
     <div className="prod">
       <div className="prod-head">
         <span className="prod-cnt">{songCount} cântece · {rows.length} momente</span>
-        <span className="prod-hint">Order-ul tău de producție — se sincronizează din Order, nu-l modifică.</span>
         <span className="prod-actions">
           <button className={`prod-share ${live ? "live-on" : ""}`} onClick={() => (live ? setLive(false) : goLive())} title="Mod Live: urmărește momentul curent">● Live</button>
           <button className="prod-share" onClick={() => printProduction(data)} title="Print color, o pagină curată">⎙ Print</button>
@@ -824,9 +824,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
               </div>
             );
           }
-          const voices = r.voices || [];
-          const lead = voices.find((v) => v.role === "lead") || voices[0];
-          const parts = voices.filter((v) => v !== lead).map((v) => `${VOICE_LBL[v.role] ? VOICE_LBL[v.role] + ": " : ""}${(v.name || "").split(" ")[0]}`);
+          const voiceLine = (r.voices || []).length ? formatVoices(r.voices) : "";
           const fx = r.fixtures || [];
           const cueCount = (r.sectionCues || []).filter((c) => (c.lights || []).length || c.note).length;
           const reminders = r.reminders || [];
@@ -837,33 +835,28 @@ function RehearseTab({ planId, canEdit = false, flash }) {
             <div key={r.id} id={`prow-${r.id}`} className={`prod-item ${lv}`}>
               <div className="prod-row" onClick={() => live && setCurId(r.id)}>
                 <div className="pr-main">
-                  {editing === r.id ? (
-                    <input className="pr-edit" autoFocus value={draft} placeholder={r.origTitle}
-                      onChange={(e) => setDraft(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") saveLabel(r); if (e.key === "Escape") setEditing(null); }}
-                      onBlur={() => saveLabel(r)} />
-                  ) : (
-                    <button className="pr-title" disabled={!canEdit && !live} onClick={() => { if (live) { setCurId(r.id); return; } setEditing(r.id); setDraft(r.label || ""); }} title={live ? "Click = momentul curent" : canEdit ? "Click = redenumește (doar aici)" : ""}>
-                      <span className="pr-t">{r.title}</span>
-                      {r.label && <span className="pr-orig" title={`Original: ${r.origTitle}`}>↩</span>}
-                    </button>
-                  )}
-                  {(lead || parts.length) && (
-                    <div className="pr-voices">
-                      {lead && <span className="pr-lead">{lead.name}</span>}
-                      {parts.length > 0 && <span className="pr-parts">{parts.join(" · ")}</span>}
-                    </div>
-                  )}
+                  <div className="pr-top">
+                    {editing === r.id ? (
+                      <input className="pr-edit" autoFocus value={draft} placeholder={r.origTitle}
+                        onChange={(e) => setDraft(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") saveLabel(r); if (e.key === "Escape") setEditing(null); }}
+                        onBlur={() => saveLabel(r)} />
+                    ) : (
+                      <button className="pr-title" disabled={!canEdit && !live} onClick={() => { if (live) { setCurId(r.id); return; } setEditing(r.id); setDraft(r.label || ""); }} title={live ? "Click = momentul curent" : canEdit ? "Click = redenumește (doar aici)" : ""}>
+                        <span className="pr-t">{r.title}</span>
+                        {r.label && <span className="pr-orig" title={`Original: ${r.origTitle}`}>↩</span>}
+                      </button>
+                    )}
+                    {r.keyName && <span className={`pr-key ${r.type === "media" ? "media" : ""}`}>{r.keyName}</span>}
+                  </div>
+                  {voiceLine && <div className="pr-voices">{voiceLine}</div>}
                 </div>
-                <div className="pr-side">
-                  <button className={`lights-btn ${open ? "on" : ""}`} onClick={() => setLightsFor(open ? null : r.id)} title="Lumini">
-                    {r.scene && <span className="ls-name">{r.scene.name}</span>}
-                    {fx.map((f, i) => <span key={i} className="dot" style={{ background: f.color }} title={FIXTURE_LBL[f.fixture] || f.fixture} />)}
-                    {cueCount > 0 && <span className="ls-cue">✦{cueCount}</span>}
-                    {!r.scene && fx.length === 0 && cueCount === 0 && <span className="ls-add">＋ lumini</span>}
-                  </button>
-                  {r.keyName && <span className="pr-key">{r.keyName}</span>}
-                </div>
+                <button className={`lights-btn ${open ? "on" : ""}`} onClick={(e) => { e.stopPropagation(); setLightsFor(open ? null : r.id); }} title="Lumini">
+                  {r.scene && <span className="ls-name">{r.scene.name}</span>}
+                  {fx.map((f, i) => <span key={i} className="dot" style={{ background: f.color }} title={FIXTURE_LBL[f.fixture] || f.fixture} />)}
+                  {cueCount > 0 && <span className="ls-cue">✦{cueCount}</span>}
+                  {!r.scene && fx.length === 0 && cueCount === 0 && <span className="ls-add">＋ lumini</span>}
+                </button>
               </div>
               {(reminders.length > 0 || projNote || note) && (
                 <div className="pr-extra">
@@ -891,18 +884,17 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .prod-row { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 10px 13px; }
         .prod-row:hover { border-color: var(--border-strong); }
         .pr-main { flex: 1; min-width: 0; }
-        .pr-title { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; background: transparent; border: none; padding: 0; color: var(--text); font-size: 14px; font-weight: 600; cursor: ${canEdit ? "text" : "default"}; text-align: left; }
+        .pr-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .pr-title { display: inline-flex; align-items: center; gap: 6px; min-width: 0; background: transparent; border: none; padding: 0; color: var(--text); font-size: 14px; font-weight: 600; cursor: ${canEdit ? "text" : "default"}; text-align: left; }
         .pr-title:disabled { cursor: default; }
         .pr-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .pr-orig { color: var(--text-faint); font-size: 11px; flex: none; }
         .pr-edit { width: 100%; background: var(--surface-3); border: 1px solid var(--primary); border-radius: 6px; color: var(--text); font-size: 14px; font-weight: 600; padding: 4px 8px; outline: none; }
-        .pr-voices { display: flex; align-items: baseline; gap: 8px; margin-top: 3px; min-width: 0; }
-        .pr-lead { color: var(--text-dim); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .pr-parts { color: var(--text-faint); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .pr-side { display: flex; align-items: center; gap: 8px; flex: none; }
-        .pr-key { color: var(--product); border: 1px solid var(--product); border-radius: 5px; font-size: 11.5px; font-weight: 700; padding: 1px 7px; font-variant-numeric: tabular-nums; }
+        .pr-voices { color: var(--text-dim); font-size: 12.5px; margin-top: 3px; line-height: 1.45; white-space: pre-line; }
+        .pr-key { flex: none; color: #fff; background: #6fa02e; border: 1px solid #6fa02e; border-radius: 999px; font-size: 13px; font-weight: 700; padding: 1px 8px; line-height: 1.3; font-variant-numeric: tabular-nums; }
+        .pr-key.media { background: var(--primary); border-color: var(--primary); }
         .dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--border-strong); flex: none; }
-        .lights-btn { display: inline-flex; align-items: center; gap: 5px; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 3px 7px; cursor: pointer; }
+        .lights-btn { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; flex: none; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 3px 7px; cursor: pointer; }
         .lights-btn:hover, .lights-btn.on { border-color: var(--border-strong); background: var(--surface-2); }
         .ls-name { color: var(--text-dim); font-size: 11px; font-weight: 600; }
         .ls-cue { color: var(--text-faint); font-size: 10.5px; }
@@ -938,7 +930,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .prod-trans { display: flex; align-items: center; gap: 8px; padding: 3px 13px 3px 20px; }
         .pt-arrow { color: var(--text-faint); font-size: 13px; }
         .pt-lbl { color: var(--text-dim); font-size: 12px; font-style: italic; }
-        .pt-key { color: var(--product); font-size: 11px; font-weight: 700; border: 1px solid var(--product); border-radius: 4px; padding: 0 5px; }
+        .pt-key { color: #fff; background: #6fa02e; font-size: 11.5px; font-weight: 700; border: 1px solid #6fa02e; border-radius: 999px; padding: 0 7px; }
         .pt-who { color: var(--text-faint); font-size: 11.5px; }
       `}</style>
     </div>

@@ -13,9 +13,19 @@ import { pcColors } from "../../theme";
 import { usePcAudio } from "../../navigation/PcAudioContext";
 import { SongbookSheet } from "./SongbookSheet";
 
-const VOICE_LBL = { lead: "", support: "S", alto: "A", tenor: "T", soprano: "Sop", bass: "B", custom: "" };
 const TRANS_LBL = { direct: "Tranziție directă", prayer: "Tranziție rugăciune", word: "Tranziție prin cuvânt" };
 const REM_ICON = { stop: "🛑", warn: "⚠️", info: "ℹ️" };
+// Voci identic cu Order-ul: doar PRENUMELE (primul cuvânt) UPPERCASE; roluri „Suport: X || Alto: Y || Tenor: Z".
+const firstUpper = (full) => String(full || "").trim().split(/[\s\-–—]+/)[0].toUpperCase();
+function fmtVoices(voices = []) {
+  if (!voices.length) return "";
+  const label = { support: "Suport", alto: "Alto", tenor: "Tenor" };
+  const byRole = {};
+  for (const v of voices) (byRole[v.role] = byRole[v.role] || []).push(v.name);
+  const lead = (byRole.lead || []).map(firstUpper).join(", ");
+  const sub = ["support", "alto", "tenor"].filter((r) => byRole[r]).map((r) => `${label[r]}: ${byRole[r].map(firstUpper).join(", ")}`).join(" || ");
+  return [lead, sub].filter(Boolean).join("\n");
+}
 
 export function RehearseTab({ planId, navigation }) {
   const [mode, setMode] = useState("prod"); // „prod" (Order producție) | „songs" (cântece)
@@ -190,9 +200,7 @@ function ProductionOrder({ data, onSaveSim }) {
             </Pressable>
           );
         }
-        const voices = r.voices || [];
-        const lead = voices.find((v) => v.role === "lead") || voices[0];
-        const parts = voices.filter((v) => v !== lead).map((v) => `${VOICE_LBL[v.role] ? VOICE_LBL[v.role] + ": " : ""}${String(v.name || "").split(" ")[0]}`);
+        const voiceLine = fmtVoices(r.voices);
         const fx = r.fixtures || [];
         const cueCount = (r.sectionCues || []).filter((c) => (c.lights || []).length || c.note).length;
         const reminders = r.reminders || [];
@@ -203,11 +211,7 @@ function ProductionOrder({ data, onSaveSim }) {
             <View style={[styles.prodRow, lv === "cur" && styles.prodRowCur]}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.prTitle} numberOfLines={1}>{r.title}</Text>
-                {(lead || parts.length > 0) && (
-                  <Text style={styles.prVoices} numberOfLines={1}>
-                    {lead ? lead.name : ""}{parts.length > 0 ? `  ·  ${parts.join(" · ")}` : ""}
-                  </Text>
-                )}
+                {!!voiceLine && <Text style={styles.prVoices}>{voiceLine}</Text>}
                 {!!(r.scene || fx.length || cueCount) && (
                   <View style={styles.prLights}>
                     {!!r.scene && <Text style={styles.prScene}>{r.scene.name}</Text>}
@@ -334,18 +338,18 @@ const styles = StyleSheet.create({
   simGo: { width: 36, height: 36, borderWidth: 1, borderColor: pcColors.chipBorder, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   simGoTxt: { color: pcColors.textSecondary, fontSize: 18 },
   prTitle: { color: pcColors.textPrimary, fontSize: 15, fontWeight: "700" },
-  prVoices: { color: pcColors.textSecondary, fontSize: 12.5, marginTop: 2 },
+  prVoices: { color: pcColors.textSecondary, fontSize: 12.5, marginTop: 2, lineHeight: 17 },
   prLights: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 5, flexWrap: "wrap" },
   prScene: { color: pcColors.textSecondary, fontSize: 11, fontWeight: "600" },
   prCue: { color: pcColors.textMuted, fontSize: 10.5 },
   prSide: { flexDirection: "row", alignItems: "center", gap: 6 },
-  prKey: { borderWidth: 1, borderColor: pcColors.primary, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 1 },
-  prKeyTxt: { color: pcColors.primary, fontSize: 12, fontWeight: "800" },
+  prKey: { backgroundColor: "#6fa02e", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1 },
+  prKeyTxt: { color: "#fff", fontSize: 13, fontWeight: "800" },
   dot: { width: 11, height: 11, borderRadius: 6 },
   prodTrans: { flexDirection: "row", alignItems: "center", gap: 7, paddingVertical: 4, paddingLeft: 18 },
   ptLbl: { color: pcColors.textSecondary, fontSize: 12, fontStyle: "italic" },
-  ptKey: { borderWidth: 1, borderColor: pcColors.primary, borderRadius: 4, paddingHorizontal: 5 },
-  ptKeyTxt: { color: pcColors.primary, fontSize: 11, fontWeight: "800" },
+  ptKey: { backgroundColor: "#6fa02e", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 1 },
+  ptKeyTxt: { color: "#fff", fontSize: 11, fontWeight: "800" },
   ptWho: { color: pcColors.textMuted, fontSize: 11.5 },
   // Cântece (existent)
   songCard: { backgroundColor: pcColors.card, borderRadius: 12, marginBottom: 10, overflow: "hidden" },
