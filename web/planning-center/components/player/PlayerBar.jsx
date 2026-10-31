@@ -30,7 +30,7 @@ export default function PlayerBar() {
       <button className="pb-x" onClick={close} aria-label="Închide">✕</button>
 
       <style jsx>{`
-        .pbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; height: 64px;
+        .pbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 77; height: 64px;
           background: #0c1016; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 14px; padding: 0 16px; }
         .pb-track { width: 220px; min-width: 160px; }
         .pb-lbl { font-size: 10px; letter-spacing: .8px; color: var(--text-faint); }

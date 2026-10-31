@@ -171,9 +171,9 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
     if (f.url) { setPdfUrl(f.url); return; } // PDF/orice url → preview in-app (NU download)
   }
 
-  // Click Track — preia gama (din chord chart), BPM-ul și măsura aranjamentului (identic cu Songs).
+  // Click Track — preia DINAMIC gama SELECTATĂ a item-ului (nu originalul aranjamentului), + BPM/măsura aranjamentului.
   function openClickTrack() {
-    const ok = String(arr?.chordChart?.originalKey || "").trim();
+    const ok = String(d?.keyName || arr?.chordChart?.originalKey || "").trim();
     const isMinor = /m(in)?$/i.test(ok) && !/maj/i.test(ok);
     let key = ok.replace(/m(in)?$/i, "").replace(/maj$/i, "").trim() || "C";
     const sharp = { "C#": "Db", "D#": "Eb", "F#": "Gb", "G#": "Ab", "A#": "Bb" };
