@@ -762,15 +762,6 @@ function resolveRows(seq, sectionRows) {
 }
 const cloneRows = (rows) => rows.map((r) => r.slice());
 const rowsRemove = (rows, i) => rows.map((r) => r.filter((x) => x !== i)).filter((r) => r.length);
-// Mută `i` înainte de `target` (ambii indici originali), în rândul lui `target`.
-function rowsMoveBefore(rows, i, target) {
-  if (i === target) return rows;
-  const rr = rowsRemove(cloneRows(rows), i);
-  for (const row of rr) { const p = row.indexOf(target); if (p >= 0) { row.splice(p, 0, i); return rr; } }
-  rr.push([i]); return rr;
-}
-// Mută `i` pe un rând nou, singur, la final.
-function rowsMoveToNewRow(rows, i) { const rr = rowsRemove(cloneRows(rows), i); rr.push([i]); return rr; }
 // Izolează `i` pe rândul lui ÎN LOC (sparge run-ul în: înainte | [i] | după). Astfel scoaterea unei secțiuni din mijloc separă și restul.
 function rowsIsolateInPlace(rows, i) {
   const rr = [];
@@ -973,7 +964,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
                     {voiceLine && <div className="pr-voices">{voiceLine}</div>}
                     {seq.length > 0 && (
                       <SeqStructure item={r} canEdit={canEdit && !live} scenes={scenes} selIdx={selIdx}
-                        onSelect={(idx) => selectSection(r.id, idx)} onSave={(patch) => saveItem(r, patch)} />
+                        onSelect={(idx) => (idx == null ? selectItem(r.id) : selectSection(r.id, idx))} onSave={(patch) => saveItem(r, patch)} />
                     )}
                   </div>
                 </div>
@@ -1014,7 +1005,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
                 {effSel.keyName && <span className="ed2-k">{effSel.keyName}</span>}
               </div>
               {selVoiceLine && <div className="ed2-voices">{selVoiceLine}</div>}
-              {(effSel.sequence || []).length > 0 && <div className="ed2-tip">Apasă o secțiune din stânga ca s-o aranjezi. Trage secțiunile ca să le reordonezi sau să faci rânduri noi.</div>}
+              {(effSel.sequence || []).length > 0 && <div className="ed2-tip">Apasă o secțiune din stânga: se pune pe rândul ei și o poți aranja aici. ⤴ o readuce în rând.</div>}
               <LightsPanel r={effSel} scenes={scenes} snippets={snippets} canEdit={canEdit} onSave={(patch) => saveItem(effSel, patch)} onSaveSnippet={saveSnippet} onDelSnippet={delSnippet} onCreateScene={createScene} />
             </div>
           )}
@@ -1123,20 +1114,20 @@ function RehearseTab({ planId, canEdit = false, flash }) {
   );
 }
 
-/* Structura interactivă (STÂNGA): sequence pe rânduri (din sectionRows) — drag = reordonare + rânduri noi, click = selectează secțiunea. */
+/* Structura (STÂNGA): sequence pe rânduri (din sectionRows). CLICK pe o secțiune o izolează pe rândul
+   ei ÎN LOC (sparge run-ul: înainte | secțiunea | după) + o selectează pt. editare. ⤴ o pune la loc.
+   Fără drag — sequence-ul rămâne mereu ca în Order/melodie, deci nu se reordonează. */
 function SeqStructure({ item, canEdit, scenes, selIdx, onSelect, onSave }) {
-  const [dragIdx, setDragIdx] = useState(null);
-  const [overIdx, setOverIdx] = useState(null);
-  const [overNew, setOverNew] = useState(false);
   const seq = item.sequence || [];
   const cues = item.sectionCues || [];
   const cueAt = (i) => cues.find((c) => c.idx === i) || null;
   const rows = resolveRows(seq, item.sectionRows);
   const sceneNameOf = (c) => { if (!c || !c.sceneId) return ""; const s = (scenes || []).find((x) => String(x.id) === String(c.sceneId)); return s ? s.name : ""; };
   const active = (c) => cueHasLight(c) || !!(c && (c.sceneId || (c.note && c.note.trim()) || (c.projection && String(c.projection).trim()) || (c.reminders || []).length));
-  const save = (rr) => onSave({ sectionRows: rr });
-  const dropBefore = (target) => { if (dragIdx == null) return; save(rowsMoveBefore(rows, dragIdx, target)); setDragIdx(null); setOverIdx(null); };
-  const dropNew = () => { if (dragIdx == null) return; save(rowsIsolateInPlace(rows, dragIdx)); setDragIdx(null); setOverNew(false); };
+  // Click: izolează secțiunea pe rândul ei (dacă nu e deja singură) + o selectează.
+  const pick = (i) => { if (canEdit && !isSolo(rows, i)) onSave({ sectionRows: rowsIsolateInPlace(rows, i) }); onSelect(i); };
+  // ⤴: readu secțiunea în run (o lipește la rândul vecin) + deselectează.
+  const putBack = (i) => { onSave({ sectionRows: rowsToggleIsolate(rows, i) }); onSelect(null); };
   const fxDots = (c) => ((c && c.fixtures && c.fixtures.length ? c.fixtures : (c && c.lights) || []).map((x) => x.color).filter(Boolean));
 
   return (
@@ -1153,19 +1144,16 @@ function SeqStructure({ item, canEdit, scenes, selIdx, onSelect, onSave }) {
                 const c = cueAt(i); const col = cueColor(c); const before = c?.lightsTiming === "before";
                 return (
                   <button key={i} type="button"
-                    className={`sq2-sec ${selIdx === i ? "on" : ""} ${active(c) ? "has" : ""} ${overIdx === i && dragIdx != null && dragIdx !== i ? "over" : ""}`}
-                    draggable={canEdit}
-                    onClick={(e) => { e.stopPropagation(); onSelect(i); }}
-                    onDragStart={() => setDragIdx(i)}
-                    onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
-                    onDragOver={(e) => { if (dragIdx != null && dragIdx !== i) { e.preventDefault(); if (overIdx !== i) setOverIdx(i); } }}
-                    onDrop={(e) => { e.preventDefault(); dropBefore(i); }}>
+                    className={`sq2-sec ${selIdx === i ? "on" : ""} ${active(c) ? "has" : ""}`}
+                    onClick={(e) => { e.stopPropagation(); pick(i); }}
+                    title={canEdit ? (isSolo(rows, i) ? "Secțiune pe rândul ei — click = editează" : "Click = pune pe rândul ei + editează") : ""}>
                     {col && before && <span className="sq2-dot" style={{ background: col }} title="lumini înainte" />}
                     <span className="sq2-nm">{seq[i]}</span>
                     {col && !before && <span className="sq2-dot" style={{ background: col }} title="lumini după" />}
                   </button>
                 );
               })}
+              {solo && canEdit && <button type="button" className="sq2-un" title="Pune la loc în rând" onClick={(e) => { e.stopPropagation(); putBack(row[0]); }}>⤴</button>}
             </div>
             {detailed && (
               <div className="sq2-det">
@@ -1187,24 +1175,19 @@ function SeqStructure({ item, canEdit, scenes, selIdx, onSelect, onSave }) {
           </div>
         );
       })}
-      {canEdit && dragIdx != null && (
-        <div className={`sq2-newrow ${overNew ? "over" : ""}`}
-          onDragOver={(e) => { e.preventDefault(); if (!overNew) setOverNew(true); }}
-          onDragLeave={() => setOverNew(false)}
-          onDrop={(e) => { e.preventDefault(); dropNew(); }}>⬇ lasă aici = rând nou (separat)</div>
-      )}
       <style jsx>{`
         .sq2 { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; cursor: default; }
         .sq2-row { display: flex; flex-direction: column; gap: 6px; }
         .sq2-row.solo { background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 7px 10px; }
         .sq2-head { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
         .sq2-arrow { color: var(--text-faint); font-size: 15px; flex: none; }
-        .sq2-sec { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 8px; padding: 6px 12px; color: var(--text); font-size: 14px; font-weight: 600; cursor: ${canEdit ? "grab" : "pointer"}; }
+        .sq2-sec { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 8px; padding: 6px 12px; color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; }
         .sq2-row.solo .sq2-sec { background: var(--surface-3); }
         .sq2-sec:hover { border-color: var(--text-faint); }
         .sq2-sec.on { background: rgba(47,129,247,.16); border-color: var(--primary); }
         .sq2-sec.has { box-shadow: inset 0 -2px 0 rgba(47,129,247,.5); }
-        .sq2-sec.over { border-color: var(--primary); box-shadow: -3px 0 0 var(--primary); }
+        .sq2-un { background: transparent; border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text-faint); font-size: 13px; padding: 4px 9px; cursor: pointer; flex: none; }
+        .sq2-un:hover { color: var(--primary); border-color: var(--primary); }
         .sq2-dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--border-strong); flex: none; }
         .sq2-det { display: flex; flex-direction: column; gap: 5px; margin: 2px 0 1px 25px; padding-left: 13px; border-left: 2px solid var(--border-strong); }
         .kv { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; line-height: 1.45; }
@@ -1215,8 +1198,6 @@ function SeqStructure({ item, canEdit, scenes, selIdx, onSelect, onSave }) {
         .kv-dot { width: 13px; height: 13px; border-radius: 50%; border: 1px solid var(--border-strong); flex: none; }
         .kv-sc { color: var(--product); }
         .kv-tim { color: var(--text-dim); font-size: 12.5px; font-weight: 600; }
-        .sq2-newrow { border: 1px dashed var(--primary); border-radius: 8px; padding: 9px; text-align: center; color: var(--primary); font-size: 12px; background: rgba(47,129,247,.07); }
-        .sq2-newrow.over { background: rgba(47,129,247,.16); }
       `}</style>
     </div>
   );
