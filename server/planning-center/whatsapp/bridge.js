@@ -120,10 +120,13 @@ async function startEntry(baileys, entry) {
     sock.ev.on("connection.update", async (u) => {
       const { connection, lastDisconnect, qr } = u;
       if (qr) {
+        console.log(`[wa-diag] QR emis (sessionId=${entry.sessionId}, număr=${entry.number || "—"}) — scanează acum`);
         entry.connState = "qr";
         try { entry.currentQr = await QRCode.toDataURL(qr); } catch { entry.currentQr = null; }
       }
+      if (connection === "connecting") console.log(`[wa-diag] connecting… (sessionId=${entry.sessionId})`);
       if (connection === "open") {
+        console.log(`[wa-diag] ✅ CONECTAT număr=${numOf(sock)}`);
         entry.connState = "connected"; entry.currentQr = null; entry.lastError = "";
         entry.meInfo = sock.user ? { id: sock.user.id, name: sock.user.name || sock.user.verifiedName || "" } : null;
         entry.number = numOf(sock);
@@ -137,6 +140,8 @@ async function startEntry(baileys, entry) {
       }
       if (connection === "close") {
         const code = lastDisconnect?.error?.output?.statusCode;
+        const reasonName = Object.keys(DisconnectReason || {}).find((k) => DisconnectReason[k] === code) || "necunoscut";
+        console.log(`[wa-diag] ❌ CLOSE code=${code} (${reasonName}) msg="${lastDisconnect?.error?.message || ""}"`);
         const loggedOut = code === DisconnectReason?.loggedOut;
         entry.sock = null;
         if (loggedOut) {
@@ -163,11 +168,19 @@ async function newEntry() {
   return entry;
 }
 
-/** Pairing număr NOU (QR). Reutilizează un pairing în curs (fără număr) dacă există. */
+/** Pairing număr NOU (QR). Curăță pairing-urile agățate (număr-less, neconectate) → rămâne UNUL singur, curat.
+ *  (Click-uri repetate pe „+ Conectează" lăsau mai multe socket-uri care se calcă una pe alta → 401 „Intentional Logout".) */
 async function connectNew() {
   const baileys = require("@whiskeysockets/baileys");
-  let entry = Object.values(hub).find((e) => !e.number && (e.connState === "qr" || e.connState === "connecting"));
-  if (!entry) entry = await newEntry();
+  for (const e of Object.values(hub)) {
+    if (!e.number && e.connState !== "connected") {
+      console.log(`[wa-diag] curăț pairing agățat ${e.sessionId} (stare=${e.connState})`);
+      try { e.sock?.end?.(); } catch {}
+      try { await PcWhatsappSession.updateOne({ _id: e.sessionDoc._id }, { $set: { deletedAt: new Date(), status: "disconnected" } }); } catch {}
+      delete hub[e.sessionId];
+    }
+  }
+  const entry = await newEntry();
   await startEntry(baileys, entry);
   return { sessionId: entry.sessionId };
 }
