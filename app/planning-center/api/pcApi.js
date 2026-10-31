@@ -87,6 +87,9 @@ export const pcApi = {
     unassign: (planId, aid) => api.delete(`${B}/plans/${planId}/assignments/${aid}`),
     sendScheduleEmails: (planId, teamId) => api.post(`${B}/plans/${planId}/send-schedule-emails`, teamId ? { teamId } : {}),
     rehearse: (planId) => api.get(`${B}/plans/${planId}/rehearse`),
+    // Order-ul Producției (Rehearse) — overlay ONE-WAY peste Order (nu scrie în Order):
+    production: (planId) => api.get(`${B}/plans/${planId}/production`),
+    saveProduction: (planId, payload) => api.patch(`${B}/plans/${planId}/production`, payload),
   },
 
   // Șabloane de ORDER (pc_orderTemplates) — listă/preview/save-as/rescrie/rename/default/delete
