@@ -49,6 +49,19 @@ const isoDateTz = (d, tz) => (d ? new Intl.DateTimeFormat("en-CA", { timeZone: t
 const fmtLen = (sec) => { const s = Math.max(0, Math.floor(sec || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 const personMini = (p) => (p ? { id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "), avatar: p.avatar || "", initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase() } : null);
 
+// Gama relativă (pt. playlist Spotify de pre-serviciu): major→minor relativă (-3 semitonuri), minor→major (+3).
+const SHARP12 = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const FLAT2SHARP = { Db: "C#", Eb: "D#", Gb: "F#", Ab: "G#", Bb: "A#", Cb: "B", Fb: "E" };
+function relativeKey(k) {
+  k = String(k || "").trim(); if (!k) return "";
+  const isMinor = /m$/i.test(k) && !/maj/i.test(k);
+  let root = k.replace(/maj/i, "").replace(/m$/i, "").trim();
+  root = FLAT2SHARP[root] || root;
+  const idx = SHARP12.indexOf(root);
+  if (idx < 0) return "";
+  return isMinor ? SHARP12[(idx + 3) % 12] : SHARP12[(idx + 9) % 12] + "m";
+}
+
 async function viewerPersonId(req) {
   if (req._pcViewerId !== undefined) return req._pcViewerId;
   const p = await PcPerson.findOne(scoped(req, { userId: req.user.id })).select("_id").lean();
@@ -2269,10 +2282,13 @@ router.get("/:id/production", requireCan("people.view"), async (req, res) => {
         projection: o.projection || [],
       };
     });
+    // Gamă Spotify (pre-serviciu): prima gamă din order + relativa (ajută sunetiștii + playlistul de fundal).
+    const firstKey = (items.find((it) => (it.type === "song" || it.type === "medley") && it.keyName) || {}).keyName || "";
     res.json({
       planId: id,
       ownerId: viewer,
       scope: sheet?.scope || "owner",
+      spotify: firstKey ? { key: firstKey, relative: relativeKey(firstKey) } : null,
       items: rows,
       reminders: sheet?.reminders || [],
       simFeedback: sheet?.simFeedback || [],

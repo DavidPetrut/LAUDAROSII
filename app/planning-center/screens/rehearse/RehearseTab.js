@@ -15,6 +15,7 @@ import { SongbookSheet } from "./SongbookSheet";
 
 const VOICE_LBL = { lead: "", support: "S", alto: "A", tenor: "T", soprano: "Sop", bass: "B", custom: "" };
 const TRANS_LBL = { direct: "Tranziție directă", prayer: "Tranziție rugăciune", word: "Tranziție prin cuvânt" };
+const REM_ICON = { stop: "🛑", warn: "⚠️", info: "ℹ️" };
 
 export function RehearseTab({ planId, navigation }) {
   const [mode, setMode] = useState("prod"); // „prod" (Order producție) | „songs" (cântece)
@@ -131,9 +132,18 @@ export function RehearseTab({ planId, navigation }) {
 /* Order-ul Producției — curat: structură + gamă + cine cântă + lumini. Vizualizare (editare pe web). */
 function ProductionOrder({ data }) {
   const rows = (data && data.items) || [];
+  const spotify = data && data.spotify;
   if (rows.length === 0) return <Text style={styles.empty}>Order gol. Structura vine din tab-ul „Order".</Text>;
   return (
     <ScrollView style={{ paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 24 }}>
+      {!!spotify && (
+        <View style={styles.spotify}>
+          <Text style={styles.spIco}>♫</Text>
+          <Text style={styles.spLbl}>Spotify pre-serviciu</Text>
+          <Text style={styles.spKey}>{spotify.key}</Text>
+          {!!spotify.relative && <Text style={styles.spRel}>relativă {spotify.relative}</Text>}
+        </View>
+      )}
       {rows.map((r) => {
         if (r.type === "header") return <Text key={String(r.id)} style={styles.prodSec}>{r.title}</Text>;
         if (r.type === "transition") {
@@ -153,26 +163,36 @@ function ProductionOrder({ data }) {
         const parts = voices.filter((v) => v !== lead).map((v) => `${VOICE_LBL[v.role] ? VOICE_LBL[v.role] + ": " : ""}${String(v.name || "").split(" ")[0]}`);
         const fx = r.fixtures || [];
         const cueCount = (r.sectionCues || []).filter((c) => (c.lights || []).length || c.note).length;
+        const reminders = r.reminders || [];
+        const projNote = (r.projection || [])[0]?.note || "";
         return (
-          <View key={String(r.id)} style={styles.prodRow}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.prTitle} numberOfLines={1}>{r.title}</Text>
-              {(lead || parts.length > 0) && (
-                <Text style={styles.prVoices} numberOfLines={1}>
-                  {lead ? lead.name : ""}{parts.length > 0 ? `  ·  ${parts.join(" · ")}` : ""}
-                </Text>
-              )}
-              {!!(r.scene || fx.length || cueCount) && (
-                <View style={styles.prLights}>
-                  {!!r.scene && <Text style={styles.prScene}>{r.scene.name}</Text>}
-                  {fx.map((f, i) => <View key={i} style={[styles.dot, { backgroundColor: f.color || "#888" }]} />)}
-                  {cueCount > 0 && <Text style={styles.prCue}>✦{cueCount}</Text>}
-                </View>
-              )}
+          <View key={String(r.id)} style={{ marginBottom: 6 }}>
+            <View style={styles.prodRow}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.prTitle} numberOfLines={1}>{r.title}</Text>
+                {(lead || parts.length > 0) && (
+                  <Text style={styles.prVoices} numberOfLines={1}>
+                    {lead ? lead.name : ""}{parts.length > 0 ? `  ·  ${parts.join(" · ")}` : ""}
+                  </Text>
+                )}
+                {!!(r.scene || fx.length || cueCount) && (
+                  <View style={styles.prLights}>
+                    {!!r.scene && <Text style={styles.prScene}>{r.scene.name}</Text>}
+                    {fx.map((f, i) => <View key={i} style={[styles.dot, { backgroundColor: f.color || "#888" }]} />)}
+                    {cueCount > 0 && <Text style={styles.prCue}>✦{cueCount}</Text>}
+                  </View>
+                )}
+              </View>
+              <View style={styles.prSide}>
+                {!!r.keyName && <View style={styles.prKey}><Text style={styles.prKeyTxt}>{r.keyName}</Text></View>}
+              </View>
             </View>
-            <View style={styles.prSide}>
-              {!!r.keyName && <View style={styles.prKey}><Text style={styles.prKeyTxt}>{r.keyName}</Text></View>}
-            </View>
+            {(reminders.length > 0 || !!projNote) && (
+              <View style={styles.prExtra}>
+                {!!projNote && <Text style={styles.prProj}>▣ {projNote}</Text>}
+                {reminders.map((rem, i) => <Text key={i} style={[styles.rem, rem.severity === "high" && styles.remHi]}>{REM_ICON[rem.icon] || "•"} {rem.text}</Text>)}
+              </View>
+            )}
           </View>
         );
       })}
@@ -218,7 +238,16 @@ const styles = StyleSheet.create({
   empty: { color: pcColors.textMuted, textAlign: "center", marginTop: 40 },
   // Order producție
   prodSec: { color: pcColors.textMuted, fontSize: 11, fontWeight: "800", letterSpacing: 0.6, textTransform: "uppercase", marginTop: 16, marginBottom: 6 },
-  prodRow: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: pcColors.card, borderRadius: 10, paddingHorizontal: 13, paddingVertical: 11, marginBottom: 6 },
+  prodRow: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: pcColors.card, borderRadius: 10, paddingHorizontal: 13, paddingVertical: 11 },
+  spotify: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(87,185,138,0.1)", borderWidth: 1, borderColor: "rgba(87,185,138,0.35)", borderRadius: 8, paddingHorizontal: 11, paddingVertical: 7, marginTop: 12, marginBottom: 8 },
+  spIco: { color: "#57b98a", fontSize: 13 },
+  spLbl: { color: pcColors.textSecondary, fontSize: 11.5, fontWeight: "600" },
+  spKey: { color: pcColors.textPrimary, fontSize: 13, fontWeight: "800" },
+  spRel: { color: pcColors.textMuted, fontSize: 11.5 },
+  prExtra: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: 4, paddingTop: 6 },
+  prProj: { color: pcColors.textSecondary, fontSize: 11.5, backgroundColor: pcColors.card, borderRadius: 5, paddingHorizontal: 8, paddingVertical: 2, overflow: "hidden" },
+  rem: { color: pcColors.textSecondary, fontSize: 11.5, backgroundColor: pcColors.card, borderRadius: 5, paddingHorizontal: 8, paddingVertical: 2, overflow: "hidden" },
+  remHi: { color: "#f0b5b0", backgroundColor: "rgba(229,83,75,0.12)", fontWeight: "700" },
   prTitle: { color: pcColors.textPrimary, fontSize: 15, fontWeight: "700" },
   prVoices: { color: pcColors.textSecondary, fontSize: 12.5, marginTop: 2 },
   prLights: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 5, flexWrap: "wrap" },

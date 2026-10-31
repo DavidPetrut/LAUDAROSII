@@ -659,6 +659,8 @@ const VOICE_LBL = { lead: "", support: "S", alto: "A", tenor: "T", soprano: "Sop
 const TRANS_LBL = { direct: "Tranziție directă", prayer: "Tranziție rugăciune", word: "Tranziție prin cuvânt" };
 const FIXTURE_ORDER = ["par", "led", "tobe", "laterale", "coroana"];
 const FIXTURE_LBL = { par: "Par", led: "LED", tobe: "Tobe", laterale: "Laterale", coroana: "Coroană" };
+const REM_ICON = { stop: "🛑", warn: "⚠️", info: "ℹ️" };
+const REM_PRESETS = [{ text: "Oprește Spotify", icon: "stop", severity: "high" }, { text: "Recomandări pian / stativ", icon: "info", severity: "normal" }];
 const uniqSections = (seq) => { const seen = new Set(), out = []; for (const s of (seq || [])) if (s && !seen.has(s)) { seen.add(s); out.push(s); } return out; };
 
 function RehearseTab({ planId, canEdit = false, flash }) {
@@ -703,6 +705,15 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         <span className="prod-hint">Order-ul tău de producție — se sincronizează din Order, nu-l modifică.</span>
       </div>
 
+      {data.spotify && (
+        <div className="prod-spotify" title="Gama pentru playlistul Spotify de pre-serviciu (din prima gamă a order-ului)">
+          <span className="ps-ico">♫</span>
+          <span className="ps-lbl">Spotify pre-serviciu</span>
+          <span className="ps-key">{data.spotify.key}</span>
+          {data.spotify.relative && <span className="ps-rel">relativă {data.spotify.relative}</span>}
+        </div>
+      )}
+
       <div className="prod-list">
         {rows.map((r) => {
           if (r.type === "header") return <div key={r.id} className="prod-sec">{r.title}</div>;
@@ -723,6 +734,8 @@ function RehearseTab({ planId, canEdit = false, flash }) {
           const parts = voices.filter((v) => v !== lead).map((v) => `${VOICE_LBL[v.role] ? VOICE_LBL[v.role] + ": " : ""}${(v.name || "").split(" ")[0]}`);
           const fx = r.fixtures || [];
           const cueCount = (r.sectionCues || []).filter((c) => (c.lights || []).length || c.note).length;
+          const reminders = r.reminders || [];
+          const projNote = (r.projection || [])[0]?.note || "";
           const open = String(lightsFor) === String(r.id);
           return (
             <div key={r.id} className="prod-item">
@@ -756,6 +769,12 @@ function RehearseTab({ planId, canEdit = false, flash }) {
                   {r.keyName && <span className="pr-key">{r.keyName}</span>}
                 </div>
               </div>
+              {(reminders.length > 0 || projNote) && (
+                <div className="pr-extra">
+                  {projNote && <span className="pr-proj">▣ {projNote}</span>}
+                  {reminders.map((rem, i) => <span key={i} className={`rem ${rem.severity === "high" ? "hi" : ""}`}>{REM_ICON[rem.icon] || "•"} {rem.text}</span>)}
+                </div>
+              )}
               {open && <LightsPanel r={r} scenes={scenes} canEdit={canEdit} onSave={(patch) => saveItem(r, patch)} />}
             </div>
           );
@@ -789,6 +808,15 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .ls-name { color: var(--text-dim); font-size: 11px; font-weight: 600; }
         .ls-cue { color: var(--text-faint); font-size: 10.5px; }
         .ls-add { color: var(--text-faint); font-size: 11px; }
+        .prod-spotify { display: inline-flex; align-items: center; gap: 8px; background: rgba(87,185,138,.1); border: 1px solid rgba(87,185,138,.35); border-radius: 8px; padding: 6px 11px; margin-bottom: 12px; }
+        .ps-ico { color: #57b98a; font-size: 13px; }
+        .ps-lbl { color: var(--text-dim); font-size: 11.5px; font-weight: 600; }
+        .ps-key { color: var(--text); font-size: 13px; font-weight: 700; }
+        .ps-rel { color: var(--text-faint); font-size: 11.5px; }
+        .pr-extra { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 4px 2px 13px; }
+        .pr-proj { color: var(--text-dim); font-size: 11.5px; background: var(--surface-2); border-radius: 5px; padding: 2px 8px; }
+        .rem { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--border); border-radius: 5px; padding: 2px 8px; }
+        .rem.hi { color: #f0b5b0; background: rgba(229,83,75,.12); border-color: rgba(229,83,75,.4); font-weight: 600; }
         .prod-trans { display: flex; align-items: center; gap: 8px; padding: 3px 13px 3px 20px; }
         .pt-arrow { color: var(--text-faint); font-size: 13px; }
         .pt-lbl { color: var(--text-dim); font-size: 12px; font-style: italic; }
@@ -799,8 +827,10 @@ function RehearseTab({ planId, canEdit = false, flash }) {
   );
 }
 
-/* Panou lumini per item: scenă (preset) + fixtures (Par/LED/Tobe/Laterale/Coroană) + lumini pe secțiune. */
+/* Panou producție per item: scenă + fixtures + lumini pe secțiune + proiecție + remindere. */
 function LightsPanel({ r, scenes, canEdit, onSave }) {
+  const [remText, setRemText] = useState("");
+  const [remIcon, setRemIcon] = useState("info");
   const fx = r.fixtures || [];
   const colorOf = (key) => (fx.find((f) => f.fixture === key) || {}).color || "";
   const setFixture = (key, color) => {
@@ -827,6 +857,12 @@ function LightsPanel({ r, scenes, canEdit, onSave }) {
     if ((merged.lights || []).length || merged.note || merged.projection) next.push(merged);
     onSave({ sectionCues: next });
   };
+
+  const projNote = (r.projection || [])[0]?.note || "";
+  const setProjection = (note) => onSave({ projection: note.trim() ? [{ bgRef: "", note: note.trim() }] : [] });
+  const reminders = r.reminders || [];
+  const addReminder = (rem) => { if (!rem.text || !rem.text.trim()) return; onSave({ reminders: [...reminders, { text: rem.text.trim(), icon: rem.icon || "info", severity: rem.severity || "normal" }] }); };
+  const delReminder = (i) => onSave({ reminders: reminders.filter((_, x) => x !== i) });
 
   return (
     <div className="lp">
@@ -883,9 +919,62 @@ function LightsPanel({ r, scenes, canEdit, onSave }) {
           </div>
         </div>
       )}
+      {/* Proiecție / fundal */}
+      <div className="lp-row">
+        <span className="lp-lbl">Proiecție</span>
+        <input className="lp-proj" defaultValue={projNote} disabled={!canEdit} placeholder="ex. intro negru → fundal pe C1 → coroană pe C2"
+          onBlur={(e) => { const v = e.target.value; if (v.trim() !== projNote) setProjection(v); }} />
+      </div>
+      {/* Remindere (oriunde, cu icon) */}
+      <div className="lp-row">
+        <span className="lp-lbl">Remindere</span>
+        <div className="lp-rem">
+          {reminders.map((rem, i) => (
+            <span key={i} className={`rchip ${rem.severity === "high" ? "hi" : ""}`}>
+              {REM_ICON[rem.icon] || "•"} {rem.text}
+              {canEdit && <button className="rchip-x" onClick={() => delReminder(i)} title="Scoate">✕</button>}
+            </span>
+          ))}
+          {canEdit && (
+            <div className="rem-add">
+              <span className="rem-icons">
+                {["stop", "warn", "info"].map((ic) => (
+                  <button key={ic} className={`rem-ic ${remIcon === ic ? "on" : ""}`} onClick={() => setRemIcon(ic)} title={ic}>{REM_ICON[ic]}</button>
+                ))}
+              </span>
+              <input className="rem-in" value={remText} placeholder="reminder…" onChange={(e) => setRemText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { addReminder({ text: remText, icon: remIcon, severity: remIcon === "stop" ? "high" : "normal" }); setRemText(""); } }} />
+              <button className="rem-go" onClick={() => { addReminder({ text: remText, icon: remIcon, severity: remIcon === "stop" ? "high" : "normal" }); setRemText(""); }}>+</button>
+            </div>
+          )}
+          {canEdit && (
+            <div className="rem-presets">
+              {REM_PRESETS.map((p) => <button key={p.text} className="rem-pre" onClick={() => addReminder(p)}>{REM_ICON[p.icon]} {p.text}</button>)}
+            </div>
+          )}
+        </div>
+      </div>
 
       <style jsx>{`
         .lp { background: var(--surface-2); border: 1px solid var(--border); border-top: none; border-radius: 0 0 9px 9px; margin-top: -5px; padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 12px; }
+        .lp-proj { width: 100%; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text); font-size: 12.5px; padding: 6px 10px; outline: none; }
+        .lp-proj:focus { border-color: var(--primary); }
+        .lp-rem { display: flex; flex-direction: column; gap: 8px; }
+        .rchip { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; font-size: 12px; color: var(--text-dim); background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 6px; padding: 3px 8px; }
+        .rchip.hi { color: #f0b5b0; background: rgba(229,83,75,.12); border-color: rgba(229,83,75,.4); font-weight: 600; }
+        .rchip-x { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 10px; margin-left: 2px; }
+        .rchip-x:hover { color: var(--danger); }
+        .rem-add { display: flex; align-items: center; gap: 6px; }
+        .rem-icons { display: inline-flex; gap: 2px; }
+        .rem-ic { background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 6px; padding: 3px 6px; cursor: pointer; font-size: 12px; filter: grayscale(.6); opacity: .7; }
+        .rem-ic.on { filter: none; opacity: 1; border-color: var(--primary); }
+        .rem-in { flex: 1; min-width: 0; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text); font-size: 12.5px; padding: 6px 10px; outline: none; }
+        .rem-in:focus { border-color: var(--primary); }
+        .rem-go { background: transparent; border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text-dim); width: 30px; height: 30px; cursor: pointer; font-size: 15px; }
+        .rem-go:hover { color: var(--primary); border-color: var(--primary); }
+        .rem-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+        .rem-pre { background: transparent; border: 1px dashed var(--border-strong); color: var(--text-faint); border-radius: 6px; padding: 3px 9px; font-size: 11.5px; cursor: pointer; }
+        .rem-pre:hover { color: var(--primary); border-color: var(--primary); }
         .lp-row { display: grid; grid-template-columns: 78px 1fr; gap: 10px; align-items: start; }
         .lp-lbl { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; padding-top: 6px; }
         .lp-scenes { display: flex; flex-wrap: wrap; gap: 6px; }
