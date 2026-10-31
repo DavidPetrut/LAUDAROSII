@@ -273,6 +273,15 @@ router.get("/:id/arrangements/:aid", requireCan("people.view"), async (req, res)
     const master = files.find((f) => f.scope === "arrangement" && f.kind === "chordChart" && f.source === "chordpro");
     const hasChordChart = !!(master && (master.chordpro || "").trim());
     const derivedChart = (startKey) => ({ id: `cp-${startKey}`, kind: "chordChart", name: `Chord Chart in ${startKey}`, source: "chordpro", derived: true, displayKey: startKey, pending: false });
+    // Coloana „Arrangement": fișierele reale + (derivate din master, ca în PCO) Numbers Chart / Lyrics / Words,
+    // doar dacă nu există deja un fișier REAL de acel tip (dedup → melodiile cu PDF-uri generate rămân neatinse).
+    const realArr = files.filter((f) => f.scope === "arrangement" && !(f.kind === "chordChart" && f.source === "chordpro")).map(fileDto);
+    const hasRealArr = (kind) => realArr.some((f) => f.kind === kind);
+    const genRow = (kind, name) => ({ id: `gen-${kind}`, kind, name, source: "generated", derived: true, pending: false, url: "" });
+    const arrangementFiles = [...realArr];
+    if (hasChordChart && !hasRealArr("numbers")) arrangementFiles.push(genRow("numbers", "Numbers Chart"));
+    if (hasChordChart && !hasRealArr("lyrics")) arrangementFiles.push(genRow("lyrics", "Lyrics"));
+    if ((arr.wordsText || "").trim() && !hasRealArr("words")) arrangementFiles.push(genRow("words", "Words"));
     res.json({
       id: arr._id, songId: arr.songId, name: arr.name,
       lengthLabel: fmtLen(arr.lengthSec), lengthSec: arr.lengthSec, bpm: arr.bpm, meter: arr.meter,
@@ -281,17 +290,21 @@ router.get("/:id/arrangements/:aid", requireCan("people.view"), async (req, res)
       wordsText: arr.wordsText || "", wordsTitle: arr.wordsTitle || "",
       wordsTranslate: arr.wordsTranslate !== false, wordsAiRules: arr.wordsAiRules !== false,
       chordChart: { exists: hasChordChart, originalKey: master?.originalKey || "" },
-      // Coloana „Arrangement" = DOAR fișiere reale (Numbers/Lyrics/PDF-uri generate). Chart-ul în gamă
-      // NU se derivă aici — el apare în coloana cheii respective (care deja spune gama + chord chart).
-      arrangementFiles: files.filter((f) => f.scope === "arrangement" && !(f.kind === "chordChart" && f.source === "chordpro")).map(fileDto),
-      keys: keys.map((k) => ({
-        id: k._id, startKey: k.startKey, endKey: k.endKey, description: k.description,
-        label: keyLabel(k), capos: k.capos || [],
-        files: [
-          ...(hasChordChart ? [derivedChart(k.startKey)] : []),
-          ...files.filter((f) => String(f.keyId) === String(k._id)).map(fileDto),
-        ],
-      })),
+      arrangementFiles,
+      // Fiecare gamă = containerul ei: chart-ul derivat în gama respectivă (din master, dacă nu există deja
+      // un chord chart REAL în acea gamă) + fișierele reale atașate acelei game (ex. track audio transpus).
+      keys: keys.map((k) => {
+        const realKeyFiles = files.filter((f) => String(f.keyId) === String(k._id)).map(fileDto);
+        const hasRealChart = realKeyFiles.some((f) => f.kind === "chordChart");
+        return {
+          id: k._id, startKey: k.startKey, endKey: k.endKey, description: k.description,
+          label: keyLabel(k), capos: k.capos || [],
+          files: [
+            ...(hasChordChart && !hasRealChart ? [derivedChart(k.startKey)] : []),
+            ...realKeyFiles,
+          ],
+        };
+      }),
     });
   } catch (err) { console.error("[pc] GET /songs/:id/arrangements/:aid:", err.message); res.status(500).json({ error: "Eroare la aranjament." }); }
 });

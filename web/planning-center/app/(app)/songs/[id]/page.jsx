@@ -500,7 +500,7 @@ export default function SongDetail() {
                         <span>{k.label || k.startKey}</span>
                         <button className="fcol-del" title="Șterge gama (cu toate fișierele ei)" onClick={() => setDeleteKeyFor(k)}><Ico name="trash" size={13} /></button>
                       </div>
-                      {(k.files || []).filter((f) => !f.derived).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onHover={openFileMenu} onLeave={closeFileMenuSoon} onInfo={openInfo} />)}
+                      {(k.files || []).map((f) => <FileRow key={f.id} f={f} onOpen={() => openFile(f)} onHover={openFileMenu} onLeave={closeFileMenuSoon} onInfo={openInfo} />)}
                     </div>
                   ))}
                 </div>

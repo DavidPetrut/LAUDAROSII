@@ -113,6 +113,35 @@ const has = (f) => process.argv.includes(f);
     return;
   }
 
+  // ───────── Import SONGS (felia muzicală): structură + ChordPro + Words + fișiere (rehost Cloudinary) ─────────
+  //   --songs            → DRY (numără, nu scrie; estimează volumul de fișiere)
+  //   --songs --run      → SCRIE structura + descarcă fișierele reale (dacă NU dai --no-files)
+  //   --songs --run --no-files → doar structura + linkuri (fără descărcarea celor ~GB)
+  //   --limit N          → doar primele N melodii (validare)
+  if (has("--songs")) {
+    const dryRun = !has("--run");
+    const withFiles = !has("--no-files");
+    const limit = Number(arg("--limit")) || 0;
+    if (!process.env.PCO_APP_ID || !process.env.PCO_SECRET) { console.error("Lipsesc PCO_APP_ID/PCO_SECRET în env."); await mongoose.disconnect(); process.exit(1); }
+    const { PcoClient } = require("./client");
+    const { SongsImporter } = require("./songs");
+    const client = new PcoClient({ appId: process.env.PCO_APP_ID, secret: process.env.PCO_SECRET });
+    const songsBefore = await M.PcSong.countDocuments({ orgId });
+    const pcoBefore = await M.PcSong.countDocuments({ orgId, remoteSource: "pco" });
+    console.log(`[cli] songs ÎNAINTE: ${songsBefore} (pco: ${pcoBefore}) | dryRun=${dryRun} withFiles=${withFiles} limit=${limit || "all"}`);
+    const t0 = Date.now();
+    const rep = await new SongsImporter({ client, orgId, dryRun, withFiles, limit }).run();
+    console.log(`[cli] songs gata în ${Math.round((Date.now() - t0) / 1000)}s. raport:`, JSON.stringify(rep, null, 2));
+    const after = {
+      songs: await M.PcSong.countDocuments({ orgId }), pco: await M.PcSong.countDocuments({ orgId, remoteSource: "pco" }),
+      arrangements: await M.PcArrangement.countDocuments({ orgId }), keys: await M.PcKey.countDocuments({ orgId }),
+      files: await M.PcSongFile.countDocuments({ orgId }),
+    };
+    console.log(`[cli] songs DUPĂ:`, JSON.stringify(after));
+    await mongoose.disconnect();
+    return;
+  }
+
   const dryRun = !has("--run");
   console.log(`[cli] ÎNAINTE:`, JSON.stringify(await counts()));
   const { runImport } = require("./index");
