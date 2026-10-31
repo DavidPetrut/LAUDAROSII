@@ -40,7 +40,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
   const [notes, setNotes] = useState(null);
   const [voices, setVoices] = useState([]);
   const [ministries, setMinistries] = useState([]);
-  const [trans, setTrans] = useState({ key: "", lights: [], prayer: null });
+  const [trans, setTrans] = useState({ kind: "", key: "", lights: [], prayer: null });
   const [mPool, setMPool] = useState({ week: [], preachers: [], byKind: {} });
   const [pool, setPool] = useState([]);
   const [songPicker, setSongPicker] = useState(false);
@@ -58,7 +58,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
     try {
       const r = await plansApi.itemDetail(planId, itemId);
       setD(r); setTitle(r.title || ""); setDesc(r.description || ""); setVoices(r.voices || []); setMinistries(r.ministries || []);
-      setTrans(r.transition || { key: "", lights: [], prayer: null });
+      setTrans(r.transition || { kind: "", key: "", lights: [], prayer: null });
       const L = splitLen(r.lengthSec); setMm(L.m); setSs(L.s);
       plansApi.voicesPool(planId).then((pr) => setPool(pr.people || [])).catch(() => {});
       if (r.type === "item" || r.type === "transition") plansApi.ministryPool(planId).then((pr) => setMPool({ week: pr.week || [], preachers: pr.preachers || [], byKind: pr.byKind || {} })).catch(() => {});
@@ -86,13 +86,13 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
     setMinistries(next);
     plansApi.updateItem(planId, itemId, { ministries: next.map((m) => ({ kind: m.kind, personId: m.personId || undefined, name: m.personId ? undefined : (m.name || "") })) }).then(() => onChanged?.()).catch((e) => flash?.(e?.message || "Eroare."));
   }
-  // Tip „transition": salvează gamă/lumini/rugăciune. `next` = { key, lights, prayerPersonId }.
+  // Tip „transition": salvează kind (rugăciune/cuvânt) + gamă/lumini/rugăciune. `next` = { kind, key, autoKey, lights, prayerPersonId }.
   function saveTransition(next) {
     const wp = next.prayerPersonId ? mPool.week.find((p) => String(p.personId) === String(next.prayerPersonId)) : null;
     const prayerMini = wp ? { id: wp.personId, name: wp.name, avatar: wp.avatar, initials: wp.initials } : (next.prayerPersonId && trans.prayer ? trans.prayer : null);
-    const merged = { key: next.key || "", autoKey: !!next.autoKey, keySource: trans.keySource || "", lights: next.lights || [], prayer: prayerMini };
+    const merged = { kind: next.kind || "", key: next.key || "", autoKey: !!next.autoKey, keySource: trans.keySource || "", lights: next.lights || [], prayer: prayerMini };
     setTrans(merged);
-    plansApi.updateItem(planId, itemId, { transition: { key: merged.key, autoKey: merged.autoKey, lights: merged.lights, prayerPersonId: next.prayerPersonId || null } })
+    plansApi.updateItem(planId, itemId, { transition: { kind: merged.kind, key: merged.key, autoKey: merged.autoKey, lights: merged.lights, prayerPersonId: next.prayerPersonId || null } })
       .then(() => { onChanged?.(); return plansApi.itemDetail(planId, itemId); }) // re-rezolvă gama auto (din următorul cântec)
       .then((r) => { if (r?.transition) setTrans(r.transition); })
       .catch((e) => flash?.(e?.message || "Eroare."));
@@ -141,6 +141,15 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
 
   const ro = !canEdit;
   const keyFiles = arr && d?.keyId ? (arr.keys || []).find((k) => String(k.id) === String(d.keyId))?.files || [] : [];
+
+  // Description — reutilizat ca secțiune de sine stătătoare SAU injectat în TransitionEditor (sub „Tranziție").
+  const descBox = (
+    <div className="d-sec">
+      <div className="d-sl">Description</div>
+      <textarea className="d-desc" value={desc} disabled={ro} onChange={(e) => setDesc(e.target.value)} onBlur={saveDesc}
+        placeholder={"Note libere (versete, cue-uri)…"} rows={3} />
+    </div>
+  );
 
   return (
     <aside className="drawer">
@@ -205,13 +214,13 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
 
           {d.type === "transition" && (
             <div className="d-sec">
-              <div className="d-sl">Punte — gamă · lumini · rugăciune</div>
-              <TransitionEditor value={trans} week={mPool.week} canEdit={canEdit} onChange={saveTransition} />
+              <div className="d-sl">Punte — tranziție · gamă · lumini</div>
+              <TransitionEditor value={trans} week={mPool.week} canEdit={canEdit} onChange={saveTransition} descriptionSlot={descBox} />
             </div>
           )}
 
-          {/* „+ Tranziție" — generează un element simplu dedesubt (rugăciune / verbală). Oriunde, nu doar la cântec. */}
-          {d.type !== "header" && canEdit && (
+          {/* „+ Tranziție" — generează un element simplu dedesubt (rugăciune / verbală). Doar la cântec/element, NU la tipul „transition". */}
+          {d.type !== "header" && d.type !== "transition" && canEdit && (
             <div className="d-sec qt">
               <div className="qt-wrap">
                 <button className="qt-btn" onClick={() => setQtOpen((v) => !v)}>
@@ -233,11 +242,8 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
             </div>
           )}
 
-          <div className="d-sec">
-            <div className="d-sl">Description</div>
-            <textarea className="d-desc" value={desc} disabled={ro} onChange={(e) => setDesc(e.target.value)} onBlur={saveDesc}
-              placeholder={"Note libere (versete, cue-uri)…"} rows={3} />
-          </div>
+          {/* Description — pt. tipul „transition" e injectat în editor (sub „Tranziție"), deci nu-l dublăm aici. */}
+          {d.type !== "transition" && descBox}
 
           {d.type !== "header" && d.type !== "transition" && (
           <div className="d-sec">

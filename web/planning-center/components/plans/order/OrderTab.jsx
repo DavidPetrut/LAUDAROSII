@@ -40,6 +40,13 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
   const [pickerMode, setPickerMode] = useState("songs"); // "songs" | "medley"
   const dragId = useRef(null);
   const [overId, setOverId] = useState(null);
+  const [overEnd, setOverEnd] = useState(false);  // indicator „inserează la final"
+  // Add-by-drag: tragi un tip din meniu și-l pui între itemi.
+  const addKindRef = useRef(null);                // tipul nou în curs de tras din meniu
+  const [dragging, setDragging] = useState(false); // vreun drag activ (reorder sau add)
+  const addPickCtxRef = useRef(null);             // { index } pt. song/medley (după picker)
+  // Auto-scroll când tragi aproape de marginea de sus/jos (ține cont de scroll-ul paginii).
+  const autoScroll = useRef({ raf: 0, vy: 0 });
 
   const load = useCallback(async () => {
     try { const r = await plansApi.order(planId); setItems(r.items || []); setTotalLabel(r.totalLabel || ""); setErr(""); }
@@ -47,8 +54,48 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
   }, [planId]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { onSideChange?.(!!openId); }, [openId, onSideChange]);
+  useEffect(() => () => stopAutoScroll(), []); // cleanup la unmount
 
   const lastId = items && items.length ? items[items.length - 1].id : null;
+
+  function stopAutoScroll() { autoScroll.current.vy = 0; if (autoScroll.current.raf) { cancelAnimationFrame(autoScroll.current.raf); autoScroll.current.raf = 0; } }
+  function runAutoScroll() {
+    const step = () => {
+      const vy = autoScroll.current.vy;
+      if (vy) { const el = document.scrollingElement || document.documentElement; el.scrollTop += vy; autoScroll.current.raf = requestAnimationFrame(step); }
+      else { autoScroll.current.raf = 0; }
+    };
+    if (!autoScroll.current.raf) autoScroll.current.raf = requestAnimationFrame(step);
+  }
+  function autoScrollFromY(clientY) {
+    const EDGE = 95, MAX = 24, h = window.innerHeight;
+    let vy = 0;
+    if (clientY < EDGE) vy = -Math.ceil(MAX * (EDGE - clientY) / EDGE);
+    else if (clientY > h - EDGE) vy = Math.ceil(MAX * (clientY - (h - EDGE)) / EDGE);
+    autoScroll.current.vy = vy;
+    if (vy) runAutoScroll(); else stopAutoScroll();
+  }
+  function endDrag() { dragId.current = null; addKindRef.current = null; setDragging(false); setOverId(null); setOverEnd(false); stopAutoScroll(); }
+
+  // Pornit de AddItemMenu când începe tragerea unui tip nou.
+  const onTypeDragStart = (type) => { addKindRef.current = type; dragId.current = null; setDragging(true); };
+
+  // Creează un item și-l plasează la indexul vizual `index` (reorder după creare → merge și la vârf).
+  async function createAndPlace(payload, index, openAfter) {
+    try {
+      const base = items ? items.map((x) => x.id) : [];
+      const r = await plansApi.addItem(planId, payload);
+      if (r?.id) { const ids = [...base]; ids.splice(Math.max(0, Math.min(index, ids.length)), 0, r.id); await plansApi.reorderItems(planId, ids); }
+      await load();
+      if (openAfter && r?.id) setOpenId(r.id);
+    } catch (e) { flash?.(e?.message || "Eroare la adăugare."); }
+  }
+  async function insertTypeAtIndex(type, index) {
+    if (type === "song") { addPickCtxRef.current = { index }; setPickerMode("songs"); setSongPicker(true); return; }
+    if (type === "medley") { addPickCtxRef.current = { index }; setPickerMode("medley"); setSongPicker(true); return; }
+    if (type === "songEmpty") return createAndPlace({ type: "song", title: "Cântec" }, index, true);
+    return createAndPlace({ type }, index, type !== "header");
+  }
 
   async function addSimple(type) {
     try {
@@ -66,27 +113,48 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
   }
   async function addSongs(songs) {
     setSongPicker(false);
+    const ctx = addPickCtxRef.current; addPickCtxRef.current = null;
+    const base = items ? items.map((x) => x.id) : [];
     let after = lastId;
     try {
-      let firstId = null;
+      const createdIds = [];
       for (const s of songs) {
         const r = await plansApi.addItem(planId, { type: "song", songId: s.id, afterItemId: after || undefined });
         after = r?.id || after;
-        if (!firstId) firstId = r?.id;
+        if (r?.id) createdIds.push(r.id);
       }
+      if (ctx && createdIds.length) { const ids = [...base]; ids.splice(Math.max(0, Math.min(ctx.index, ids.length)), 0, ...createdIds); await plansApi.reorderItems(planId, ids); }
       await load();
-      if (songs.length === 1 && firstId) setOpenId(firstId);
+      if (songs.length === 1 && createdIds[0]) setOpenId(createdIds[0]);
     } catch (e) { flash?.(e?.message || "Eroare la adăugarea cântecelor."); }
   }
   async function addMedley(songs) {
     setSongPicker(false); setPickerMode("songs");
+    const ctx = addPickCtxRef.current; addPickCtxRef.current = null;
     if (songs.length < 2) { flash?.("Alege cel puțin 2 cântece pentru medley."); return; }
-    try { const r = await plansApi.createMedley(planId, { songIds: songs.map((s) => s.id), afterItemId: lastId || undefined }); await load(); if (r?.id) setOpenId(r.id); }
-    catch (e) { flash?.(e?.message || "Eroare la medley."); }
+    const base = items ? items.map((x) => x.id) : [];
+    try {
+      const r = await plansApi.createMedley(planId, { songIds: songs.map((s) => s.id), afterItemId: lastId || undefined });
+      if (ctx && r?.id) { const ids = [...base]; ids.splice(Math.max(0, Math.min(ctx.index, ids.length)), 0, r.id); await plansApi.reorderItems(planId, ids); }
+      await load();
+      if (r?.id) setOpenId(r.id);
+    } catch (e) { flash?.(e?.message || "Eroare la medley."); }
+  }
+
+  // Drop pe un rând: dacă tragi un tip nou → inserează înaintea acelui rând; altfel reordonează.
+  function handleRowDrop(toId) {
+    const ti = items ? items.findIndex((x) => String(x.id) === String(toId)) : -1;
+    if (addKindRef.current) { const type = addKindRef.current; endDrag(); insertTypeAtIndex(type, ti < 0 ? (items ? items.length : 0) : ti); return; }
+    onDrop(toId);
+  }
+  // Drop în zona de final (sub ultimul rând) → la coadă.
+  function handleEndDrop() {
+    if (addKindRef.current) { const type = addKindRef.current; endDrag(); insertTypeAtIndex(type, items ? items.length : 0); return; }
+    if (dragId.current && items) { const fromId = dragId.current; endDrag(); const arr = [...items]; const fi = arr.findIndex((x) => String(x.id) === String(fromId)); if (fi < 0) return; const [m] = arr.splice(fi, 1); arr.push(m); setItems(arr); plansApi.reorderItems(planId, arr.map((x) => x.id)).then(() => flash?.("Reordonat.")).catch((e) => { flash?.(e?.message || "Eroare."); load(); }); }
   }
 
   function onDrop(toId) {
-    const fromId = dragId.current; dragId.current = null; setOverId(null);
+    const fromId = dragId.current; endDrag();
     if (!fromId || fromId === toId || !items) return;
     const arr = [...items];
     const fi = arr.findIndex((x) => String(x.id) === String(fromId));
@@ -105,13 +173,18 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
 
       <div className="ord-toolbar">
         <div className="ord-cols"><span className="c-len">LENGTH</span><span className="c-title">TITLE</span></div>
-        {canEdit && <AddItemMenu onAdd={addSimple} onAddSong={() => { setPickerMode("songs"); setSongPicker(true); }} onAddEmptySong={addEmptySong} onAddMedley={() => { setPickerMode("medley"); setSongPicker(true); }} />}
+        {canEdit && <AddItemMenu onAdd={addSimple} onAddSong={() => { setPickerMode("songs"); setSongPicker(true); }} onAddEmptySong={addEmptySong} onAddMedley={() => { setPickerMode("medley"); setSongPicker(true); }} onTypeDragStart={onTypeDragStart} onTypeDragEnd={endDrag} />}
       </div>
 
       {!items.length ? (
-        <div className="ord-empty">
-          <div className="oe-t">Niciun item în ordinea serviciului.</div>
-          {canEdit && <div className="oe-s">Apasă „+ Adaugă" ca să începi programul.</div>}
+        <div
+          className={`ord-empty ${dragging ? "drop" : ""} ${overEnd ? "over" : ""}`}
+          onDragOver={(e) => { if (addKindRef.current) { e.preventDefault(); if (!overEnd) setOverEnd(true); } }}
+          onDragLeave={() => setOverEnd(false)}
+          onDrop={handleEndDrop}
+        >
+          <div className="oe-t">{dragging ? "Lasă aici ca să adaugi primul item" : "Niciun item în ordinea serviciului."}</div>
+          {canEdit && !dragging && <div className="oe-s">Apasă „+ Adaugă" (sau trage un tip aici) ca să începi programul.</div>}
         </div>
       ) : (
         <div className="ord-list">
@@ -135,10 +208,10 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                 className={`row ${isHeader ? "hdr" : ""} ${it.isTransition ? "trans" : ""} ${open ? "open" : ""} ${over ? "over" : ""}`}
                 style={{ borderLeftColor: it.rowColor || "transparent" }}
                 draggable={canEdit}
-                onDragStart={() => { dragId.current = it.id; }}
-                onDragEnd={() => { dragId.current = null; setOverId(null); }}
-                onDragOver={(e) => { if (dragId.current) { e.preventDefault(); if (String(overId) !== String(it.id)) setOverId(it.id); } }}
-                onDrop={() => onDrop(it.id)}
+                onDragStart={(e) => { dragId.current = it.id; setDragging(true); try { e.dataTransfer.effectAllowed = "move"; } catch {} }}
+                onDragEnd={endDrag}
+                onDragOver={(e) => { if (dragId.current || addKindRef.current) { e.preventDefault(); if (String(overId) !== String(it.id)) setOverId(it.id); if (overEnd) setOverEnd(false); autoScrollFromY(e.clientY); } }}
+                onDrop={() => handleRowDrop(it.id)}
                 onClick={() => setOpenId(it.id)}
               >
                 {isHeader ? (
@@ -152,21 +225,27 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                         {isMedley && <span className="mtag" title="Medley">medley · {it.medleyCount}</span>}
                         <span className="r-title">{it.title || "—"}</span>
                         {it.keyName && <span className={`r-key ${it.type === "media" ? "media" : ""}`}>{it.keyName}</span>}
-                        {tr && tr.key && <span className="r-key" title="Gamă tranziție">{tr.key}</span>}
                         {avatarPerson && <span className="r-leadav" title={avatarPerson.name}><PersonAvatar person={avatarPerson} size={33} /></span>}
                       </div>
-                      {voiceLine && <div className="r-voices">{voiceLine}</div>}
-                      {ministryLine && <div className="r-min">{ministryLine}</div>}
-                      {tr && (tr.key || (tr.lights || []).length || tr.prayer) && (
-                        <div className="r-trans">
-                          {tr.key && <span className="rt-part">Gamă: <b>{keyToRo(tr.key)}</b> <span className="rt-sym">({tr.key})</span>{tr.autoKey && <span className="rt-auto" title={tr.keySource ? `din „${tr.keySource}"` : "din următorul cântec"}>· auto</span>}</span>}
-                          {(tr.lights || []).length > 0 && (
-                            <span className="rt-part rt-lights">Lumini:{tr.lights.map((l, i) => <span key={i} className="rt-dot" style={{ background: l.color || "#888" }} title={l.label || l.color} />)}</span>
+                      {tr ? (
+                        // Tranziție — ordine: tip (rugăciune/cuvânt) → descriere → gamă → lumini, fiecare pe rândul lui.
+                        <>
+                          {(tr.kind === "word" || (tr.kind === "prayer" && tr.prayer)) && (
+                            <div className="r-trans-line tp">{tr.kind === "word" ? "Tranziție prin cuvânt" : `Tranziție rugăciune: ${tr.prayer.name}`}</div>
                           )}
-                          {tr.prayer && <span className="rt-part">Tranziție rugăciune: {tr.prayer.name}</span>}
-                        </div>
+                          {it.description && <div className="r-sub">{it.description}</div>}
+                          {tr.key && <div className="r-trans-line">Gamă: <b>{keyToRo(tr.key)}</b> <span className="rt-sym">({tr.key})</span></div>}
+                          {(tr.lights || []).length > 0 && (
+                            <div className="r-trans-line rt-lights">Lumini:{tr.lights.map((l, i) => <span key={i} className="rt-dot" style={{ background: l.color || "#888" }} title={l.color} />)}</div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {voiceLine && <div className="r-voices">{voiceLine}</div>}
+                          {ministryLine && <div className="r-min">{ministryLine}</div>}
+                          {it.description && <div className="r-sub">{it.description}</div>}
+                        </>
                       )}
-                      {it.description && <div className="r-sub">{it.description}</div>}
                     </div>
                     <div className="r-right">
                       {(it.leaders || []).slice(0, 3).map((l, i) => (
@@ -181,6 +260,14 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
               </div>
             );
           })}
+          {canEdit && (
+            <div
+              className={`end-drop ${dragging ? "show" : ""} ${overEnd ? "over" : ""}`}
+              onDragOver={(e) => { if (dragId.current || addKindRef.current) { e.preventDefault(); if (!overEnd) setOverEnd(true); setOverId(null); autoScrollFromY(e.clientY); } }}
+              onDragLeave={() => setOverEnd(false)}
+              onDrop={handleEndDrop}
+            >{dragging ? "Pune la final" : ""}</div>
+          )}
           {totalLabel && (
             <div className="total-row">
               <div className="tr-len">{totalLabel}</div>
@@ -190,7 +277,7 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
         </div>
       )}
 
-      {songPicker && <SongPickerModal mode={pickerMode} onClose={() => { setSongPicker(false); setPickerMode("songs"); }} onPick={pickerMode === "medley" ? addMedley : addSongs} />}
+      {songPicker && <SongPickerModal mode={pickerMode} onClose={() => { setSongPicker(false); setPickerMode("songs"); addPickCtxRef.current = null; }} onPick={pickerMode === "medley" ? addMedley : addSongs} />}
       {openId && (
         <ItemDrawer
           planId={planId} itemId={openId} canEdit={canEdit} flash={flash}
@@ -205,8 +292,13 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
         .ord-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px 7px; border-bottom: 1px solid var(--border); }
         .ord-cols { display: flex; align-items: center; gap: 0; color: var(--text-faint); font-size: 11px; letter-spacing: .5px; font-weight: 600; }
         .c-len { width: 64px; flex: none; } .c-title { }
-        .ord-empty { padding: 42px 14px; text-align: center; }
+        .ord-empty { padding: 42px 14px; text-align: center; border-radius: 10px; transition: background .12s, box-shadow .12s; }
+        .ord-empty.drop { background: rgba(47,129,247,.06); box-shadow: inset 0 0 0 1px var(--border-strong); }
+        .ord-empty.drop.over { background: rgba(47,129,247,.14); box-shadow: inset 0 0 0 2px var(--primary); }
         .oe-t { color: var(--text-dim); font-size: 14px; } .oe-s { color: var(--text-faint); font-size: 12.5px; margin-top: 6px; }
+        .end-drop { height: 0; margin: 0 8px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--primary); font-size: 12px; font-weight: 600; overflow: hidden; transition: height .14s ease, background .12s, border-color .12s; border: 1px dashed transparent; }
+        .end-drop.show { height: 34px; margin: 8px; border-color: var(--border-strong); color: var(--text-faint); }
+        .end-drop.over { background: rgba(47,129,247,.12); border-color: var(--primary); border-style: solid; color: var(--primary); }
         .ord-list { margin-top: 2px; }
         .row { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-left: 3px solid transparent; border-bottom: 1px solid var(--border-soft); cursor: pointer; transition: background .1s; }
         .row:hover:not(.hdr) { background: var(--row-hover); }
@@ -228,12 +320,11 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
         .mexp:hover { color: var(--text); }
         .r-voices { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 2px; white-space: pre-line; }
         .r-min { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 2px; }
-        .r-trans { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; color: var(--text-dim); font-size: 12px; margin-top: 3px; }
-        .rt-part { display: inline-flex; align-items: center; gap: 5px; }
-        .rt-part b { color: var(--text); font-weight: 700; }
+        .r-trans-line { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 2px; }
+        .r-trans-line b { color: var(--text); font-weight: 700; }
+        .r-trans-line.tp { color: var(--text); font-weight: 600; }
         .rt-sym { color: var(--text-faint); }
-        .rt-auto { color: var(--primary); font-size: 11px; font-weight: 700; }
-        .rt-lights { gap: 4px; }
+        .rt-lights { gap: 5px; }
         .rt-dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--border-strong); display: inline-block; }
         .r-sub { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 2px; white-space: pre-wrap; max-width: 640px; }
         .r-right { display: flex; align-items: center; gap: 4px; margin-left: auto; flex: none; }

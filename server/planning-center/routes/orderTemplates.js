@@ -19,7 +19,7 @@ const snapItem = (it, i) => {
   // Slujirile salvează ROLUL, nu persoana — la aplicare se iau automat din Matrix-ul noului plan.
   o.ministries = (it.ministries || []).map((m) => ({ kind: m.kind })).filter((m) => m.kind);
   // Tranziție: păstrăm gama (key/autoKey) + luminile; persoana de rugăciune NU se salvează (ca la slujiri).
-  o.transition = it.transition ? { key: it.transition.key || "", autoKey: !!it.transition.autoKey, lights: (it.transition.lights || []).map((l) => ({ color: l.color || "", label: l.label || "" })) } : null;
+  o.transition = it.transition ? { kind: it.transition.kind || "", key: it.transition.key || "", autoKey: !!it.transition.autoKey, lights: (it.transition.lights || []).map((l) => ({ color: l.color || "", label: l.label || "" })) } : null;
   return o;
 };
 

@@ -15,7 +15,7 @@ const TYPES = [
   { type: "transition", label: "Tranziție", short: "t", d: "Punte între momente: gamă, lumini, rugăciune (toate opționale)." },
 ];
 
-export default function AddItemMenu({ onAdd, onAddSong, onAddEmptySong, onAddMedley }) {
+export default function AddItemMenu({ onAdd, onAddSong, onAddEmptySong, onAddMedley, onTypeDragStart, onTypeDragEnd }) {
   const [open, setOpen] = useState(false);
   function pick(type) {
     setOpen(false);
@@ -34,11 +34,18 @@ export default function AddItemMenu({ onAdd, onAddSong, onAddEmptySong, onAddMed
         <>
           <div className="aim-back" onClick={() => setOpen(false)} />
           <div className="aim-menu" role="menu">
+            <div className="aim-hint">Click = la final · trage un tip între itemi ca să-l pui unde vrei</div>
             {TYPES.map((t) => (
-              <button key={t.type} className="aim-it" onClick={() => pick(t.type)} role="menuitem">
+              <button
+                key={t.type} className="aim-it" onClick={() => pick(t.type)} role="menuitem"
+                draggable={!!onTypeDragStart}
+                onDragStart={(e) => { try { e.dataTransfer.effectAllowed = "copy"; e.dataTransfer.setData("text/plain", t.type); } catch {} setOpen(false); onTypeDragStart?.(t.type); }}
+                onDragEnd={() => onTypeDragEnd?.()}
+              >
                 <span className="aim-l">{t.label}</span>
                 {t.short && <span className="aim-k">{t.short}</span>}
                 <span className="aim-d">{t.d}</span>
+                <span className="aim-grip" aria-hidden="true">⠿</span>
               </button>
             ))}
           </div>
@@ -51,11 +58,15 @@ export default function AddItemMenu({ onAdd, onAddSong, onAddEmptySong, onAddMed
         .aim-back { position: fixed; inset: 0; z-index: 44; }
         .aim-menu { position: absolute; right: 0; top: 36px; z-index: 45; min-width: 272px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: 0 14px 40px rgba(0,0,0,.45); padding: 6px; display: flex; flex-direction: column; animation: aimIn .13s ease; }
         @keyframes aimIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
-        .aim-it { display: grid; grid-template-columns: auto auto; column-gap: 8px; align-items: center; text-align: left; background: transparent; border: none; color: var(--text); padding: 8px 10px; border-radius: 7px; cursor: pointer; }
+        .aim-hint { color: var(--text-faint); font-size: 10.5px; line-height: 1.4; padding: 2px 10px 7px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+        .aim-it { position: relative; display: grid; grid-template-columns: auto auto; column-gap: 8px; align-items: center; text-align: left; background: transparent; border: none; color: var(--text); padding: 8px 10px; border-radius: 7px; cursor: grab; }
         .aim-it:hover { background: var(--surface-2); }
+        .aim-it:active { cursor: grabbing; }
         .aim-l { font-size: 13.5px; font-weight: 600; }
-        .aim-k { justify-self: end; font-size: 10px; color: var(--text-faint); border: 1px solid var(--border-strong); border-radius: 4px; padding: 0 5px; text-transform: uppercase; }
-        .aim-d { grid-column: 1 / -1; color: var(--text-faint); font-size: 11.5px; margin-top: 2px; }
+        .aim-k { justify-self: end; font-size: 10px; color: var(--text-faint); border: 1px solid var(--border-strong); border-radius: 4px; padding: 0 5px; text-transform: uppercase; margin-right: 16px; }
+        .aim-d { grid-column: 1 / -1; color: var(--text-faint); font-size: 11.5px; margin-top: 2px; padding-right: 16px; }
+        .aim-grip { position: absolute; right: 8px; top: 8px; color: var(--text-faint); font-size: 12px; opacity: 0; transition: opacity .12s; letter-spacing: -1px; }
+        .aim-it:hover .aim-grip { opacity: .7; }
       `}</style>
     </div>
   );

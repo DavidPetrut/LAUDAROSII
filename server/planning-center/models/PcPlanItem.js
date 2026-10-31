@@ -62,6 +62,7 @@ const schema = pcSchema({
   // Containere OPȚIONALE (se adaugă cu „+"). Totul se transpune în Rehearse + PDF.
   transition: {
     type: new mongoose.Schema({
+      kind: { type: String, default: "" },                // ""|"prayer"|"word" — tipul tranziției (rugăciune / prin cuvânt)
       key: { type: String, default: "" },                 // gamă (ex. „C", „Dm") — badge dreapta + scris dedesubt
       autoKey: { type: Boolean, default: false },         // dacă true: gama se ia DINAMIC din următorul cântec din Order
       lights: { type: [{ color: String, label: String }], default: [] }, // culori de lumini (una sau mai multe)

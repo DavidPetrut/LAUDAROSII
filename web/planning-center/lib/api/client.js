@@ -187,6 +187,13 @@ export const orderTemplatesApi = {
   remove: (tid) => api.del(`/order-templates/${tid}`),
 };
 
+/* ─── Aranjamente de lumini (tranziții) — server/planning-center/routes/lightArrangements.js ─── */
+export const lightArrangementsApi = {
+  list: () => api.get(`/light-arrangements`),
+  create: (payload) => api.post(`/light-arrangements`, payload), // { name, colors[] }
+  remove: (id) => api.del(`/light-arrangements/${id}`),
+};
+
 /* ─── Service Types (settings) — server/planning-center/routes/services.js ─── */
 export const servicesApi = {
   get: (id) => api.get(`/service-types/${id}`),

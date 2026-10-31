@@ -360,6 +360,7 @@ async function resolveTransitions(req, items, ordered) {
     let key = t.key || ""; const keyAuto = !!t.autoKey; let keySource = "";
     if (keyAuto) { const ns = nextSongKey(it._id); key = ns.key; keySource = ns.source; }
     map[String(it._id)] = {
+      kind: t.kind || "",
       key,
       autoKey: keyAuto,
       keySource,
@@ -499,7 +500,7 @@ router.get("/:id/items/:itemId", requireCan("people.view"), async (req, res) => 
       leaders: leadersMap[String(it._id)] || [],
       voices: voicesMap[String(it._id)] || [],
       ministries: ministriesMap[String(it._id)] || [],
-      transition: transMap[String(it._id)] || { key: "", autoKey: false, keySource: "", lights: [], prayer: null },
+      transition: transMap[String(it._id)] || { kind: "", key: "", autoKey: false, keySource: "", lights: [], prayer: null },
       medley: (it.medley || []).slice().sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)).map((c) => ({
         songId: c.songId ? String(c.songId) : null, arrangementId: c.arrangementId ? String(c.arrangementId) : null,
         keyId: c.keyId ? String(c.keyId) : null, keyName: c.keyName || "", title: c.title || "",
@@ -606,6 +607,7 @@ router.patch("/:id/items/:itemId", requireCan("services.editOrder"), async (req,
     // actualizate independent (dotted paths) ca să nu se șteargă unele pe altele la salvare parțială.
     if (b.transition && typeof b.transition === "object") {
       const t = b.transition;
+      if (t.kind !== undefined) set["transition.kind"] = ["prayer", "word"].includes(t.kind) ? t.kind : "";
       if (t.key !== undefined) set["transition.key"] = String(t.key || "").trim();
       if (t.autoKey !== undefined) set["transition.autoKey"] = !!t.autoKey;
       if (Array.isArray(t.lights)) set["transition.lights"] = t.lights.map((l) => ({ color: String(l.color || "").trim(), label: String(l.label || "").trim() })).filter((l) => l.color || l.label);

@@ -9,6 +9,7 @@ module.exports = {
   PcServicesDefaults: require("./PcServicesDefaults"),
   PcServiceType: require("./PcServiceType"),
   PcOrderTemplate: require("./PcOrderTemplate"),
+  PcLightArrangement: require("./PcLightArrangement"),
   PcPerson: require("./PcPerson"),
   PcHousehold: require("./PcHousehold"),
   PcTeam: require("./PcTeam"),
