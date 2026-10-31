@@ -26,7 +26,7 @@
         "NSPhotoLibraryUsageDescription": "Aplicația folosește pozele tale pentru a alege o imagine pentru devotional.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "9"
+      "buildNumber": "10"
     },
     "android": {
       "adaptiveIcon": {
