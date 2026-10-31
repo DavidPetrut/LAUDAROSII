@@ -19,10 +19,19 @@ const QUICK_TRANS = [
   { k: "prayer", label: "Tranziție cu rugăciune", title: "Rugăciune cu biserică" },
   { k: "word", label: "Tranziție verbală", title: "Tranziție prin cuvânt" },
 ];
-import SongPickerModal from "./SongPickerModal";
+import LinkSongModal from "./LinkSongModal";
 import Skeleton from "@/components/ui/Skeleton";
+import dynamic from "next/dynamic";
+import { usePlayer, isAudioUrl, isYouTube } from "@/lib/player/PlayerProvider";
+import ChartPreviewModal from "@/components/songs/ChartPreviewModal";
+import { abbreviateSequence } from "@/lib/songs/sequence";
+const ClickTrackBar = dynamic(() => import("@/components/songs/ClickTrackBar"), { ssr: false });
 
-const TABS = ["Files", "Song", "Detail", "Media", "Notes"];
+// Tab-uri jos (fără „Media" — scos). Files mereu primul.
+const TABS = ["Files", "Song", "Detail", "Notes"];
+// Chart generat (din ChordPro) → preview in-app identic cu Songs; altfel PDF/url → viewer in-app (iframe).
+const isChartFile = (f) => ["chordChart", "lyrics", "numbers", "numerals", "words"].includes(f?.kind);
+const isGenChart = (f) => isChartFile(f) && (f.source === "generated" || f.source === "chordpro" || f.derived);
 const splitLen = (s) => ({ m: Math.floor((s || 0) / 60), s: (s || 0) % 60 });
 
 export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, onChanged, flash }) {
@@ -48,16 +57,17 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
   const [lightsOpen, setLightsOpen] = useState(true);    // expand/collapse container lumini
   const [mPool, setMPool] = useState({ week: [], preachers: [], byKind: {} });
   const [pool, setPool] = useState([]);
-  const [songPicker, setSongPicker] = useState(false);
+  const [linkModal, setLinkModal] = useState(false); // „Add a song" (import arrangement + gamă)
   const [qtOpen, setQtOpen] = useState(false); // meniul „+ Tranziție"
   const lt = useRef(null);
-
-  async function linkSong(songs) {
-    setSongPicker(false);
-    const s = songs?.[0]; if (!s) return;
-    try { await plansApi.updateItem(planId, itemId, { songId: s.id }); await load(); onChanged?.(); }
-    catch (e) { flash?.(e?.message || "Eroare la legarea cântecului."); }
-  }
+  // Player + click track + preview (reutilizate din Songs)
+  const player = usePlayer();
+  const [showCT, setShowCT] = useState(false);
+  const [ctDefaults, setCtDefaults] = useState(null);
+  const [preview, setPreview] = useState(null);     // { mode, targetKey } → ChartPreviewModal
+  const [pdfUrl, setPdfUrl] = useState(null);        // viewer in-app pt. PDF/url încărcat
+  const [notesDraft, setNotesDraft] = useState("");  // Notes aranjament (view+edit, se propagă în librărie)
+  const [notesSaving, setNotesSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -76,6 +86,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
     } catch (e) { flash?.(e?.message || "Eroare la item."); }
   }, [planId, itemId, flash]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setNotesDraft(arr?.notes || ""); }, [arr?.notes, d?.arrangementId]);
 
   async function patch(payload, reloadOrder = false) {
     try { await plansApi.updateItem(planId, itemId, payload); if (reloadOrder) onChanged?.(); }
@@ -125,6 +136,48 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
   async function changeKey(kid) {
     await patch({ keyId: kid }, true);
     setD((x) => ({ ...x, keyId: kid }));
+  }
+
+  // „Add a song" — importă cântec + aranjament + gamă; SUPRASCRIE titlul + length-ul itemului din cântec.
+  async function importSong({ songId, arrangementId, keyId, title, lengthSec }) {
+    setLinkModal(false);
+    try {
+      await plansApi.updateItem(planId, itemId, { songId, arrangementId: arrangementId || "", keyId: keyId || "", title: title || undefined, lengthSec: lengthSec || 0 });
+      await load(); onChanged?.(); setTab("Files"); flash?.("Cântec importat.");
+    } catch (e) { flash?.(e?.message || "Eroare la import."); }
+  }
+
+  // Notes aranjament (view+edit → se propagă în librăria de cântece).
+  const saveSongNotes = async () => {
+    if (!d?.songId || !d?.arrangementId || (arr?.notes || "") === notesDraft) return;
+    setNotesSaving(true);
+    try { await songsApi.updateArrangement(d.songId, d.arrangementId, { notes: notesDraft }); setArr((a) => (a ? { ...a, notes: notesDraft } : a)); }
+    catch (e) { flash?.(e?.message || "Nu am putut salva notițele."); }
+    finally { setNotesSaving(false); }
+  };
+
+  // Click pe fișier (identic cu Songs): audio/YouTube → player; chart generat → preview in-app; PDF/url → viewer in-app.
+  function openSongFile(f) {
+    if (isAudioUrl(f.url, f.kind) || isYouTube(f.url)) { player.play(f); return; }
+    if (isGenChart(f)) {
+      let mode = "chords", targetKey = "";
+      if (f.kind === "numbers") mode = "numbers"; else if (f.kind === "numerals") mode = "numerals";
+      else if (f.kind === "lyrics") mode = "lyrics"; else if (f.kind === "words") mode = "words";
+      else { mode = "chords"; targetKey = f.displayKey || (/(?:in\s+|-)([A-G][b#]?)m?\b/i.exec(f.name || "") || [])[1] || ""; }
+      setPreview({ mode, targetKey }); return;
+    }
+    if (f.url) { setPdfUrl(f.url); return; } // PDF/orice url → preview in-app (NU download)
+  }
+
+  // Click Track — preia gama (din chord chart), BPM-ul și măsura aranjamentului (identic cu Songs).
+  function openClickTrack() {
+    const ok = String(arr?.chordChart?.originalKey || "").trim();
+    const isMinor = /m(in)?$/i.test(ok) && !/maj/i.test(ok);
+    let key = ok.replace(/m(in)?$/i, "").replace(/maj$/i, "").trim() || "C";
+    const sharp = { "C#": "Db", "D#": "Eb", "F#": "Gb", "G#": "Ab", "A#": "Bb" };
+    if (sharp[key]) key = sharp[key];
+    setCtDefaults({ key, mode: isMinor ? "minor" : "major", bpm: arr?.bpm || 72, meter: arr?.meter || "4/4" });
+    setShowCT(true);
   }
 
   async function del() {
@@ -320,10 +373,24 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
             </div>
           )}
 
+          {/* „Add a song" (stânga, dispare după import) + „Click Track" (dreapta) — pe același row, deasupra tab-urilor. */}
+          {d.type !== "header" && d.type !== "transition" && d.type !== "medley" && (
+            <div className="d-sec addsong-row">
+              {!d.songId && canEdit
+                ? <button className="addsong" onClick={() => setLinkModal(true)}><span className="as-plus">＋</span> Add a song</button>
+                : <span className="addsong-ttl">{d.songId ? (song?.title || d.title) : ""}</span>}
+              <button className="ct-open" onClick={openClickTrack} title="Pad de pian + metronom live (BPM/meter din cântec)">Click Track</button>
+            </div>
+          )}
+
           {d.type !== "header" && d.type !== "transition" && (<>
           {/* ── tabs ── */}
           <div className="d-tabs">
-            {TABS.map((t) => <button key={t} className={`dt ${tab === t ? "on" : ""}`} onClick={() => setTab(t)}>{t}</button>)}
+            {TABS.map((t) => (
+              <button key={t} className={`dt ${tab === t ? "on" : ""}`} onClick={() => setTab(t)}>
+                {t}{t === "Detail" && (d.htmlDetails || "").trim() ? <span className="dt-bang" title="Are detalii">!</span> : null}
+              </button>
+            ))}
           </div>
 
           <div className="d-pane">
@@ -344,59 +411,96 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
                       {(arr?.keys || []).map((k) => <option key={k.id} value={k.id}>{k.startKey}{k.endKey && k.endKey !== k.startKey ? `→${k.endKey}` : ""}{k.description ? ` · ${k.description}` : ""}</option>)}
                     </select>
                   </div>
-                  {(d.sequence?.length || arr?.sequence?.length) ? <div className="st-seq"><span className="st-sl">Sequence</span> {(d.sequence?.length ? d.sequence : arr.sequence).join(", ")}</div> : null}
-                  <div className="st-files">
-                    <div className="stf-h">Fișiere</div>
-                    {(arr?.arrangementFiles || []).map((f) => <FileRow key={f.id} f={f} />)}
-                    {keyFiles.map((f) => <FileRow key={f.id} f={f} />)}
-                    {!(arr?.arrangementFiles || []).length && !keyFiles.length && <div className="st-none">Niciun fișier pe acest aranjament.</div>}
+                  <div className="st-specs">
+                    <span>Length: <b>{arr?.lengthLabel || "0:00"}</b></span>
+                    <span>BPM: <b>{arr?.bpm || "—"}</b></span>
+                    <span>Meter: <b>{arr?.meter || "—"}</b></span>
                   </div>
+                  {(() => { const seq = abbreviateSequence(arr?.sequence || []); return seq.length ? <div className="st-seq"><span className="st-sl">Sequence</span> {seq.join(", ")}</div> : null; })()}
                 </div>
               ) : (
                 <div className="song-link">
-                  <div className="d-none">Acest item nu e legat de un cântec.</div>
-                  {canEdit && <button className="st-linkbtn" onClick={() => setSongPicker(true)}>+ Leagă un cântec</button>}
+                  <div className="d-none">Acest item nu e legat de un cântec. Folosește „＋ Add a song" de mai sus.</div>
+                  {canEdit && <button className="st-linkbtn" onClick={() => setLinkModal(true)}>＋ Add a song</button>}
                 </div>
               )
             )}
 
             {tab === "Files" && (
-              <div className="files-tab">
-                {(d.files || []).map((f) => <FileRow key={f.id} f={f} onDelete={canEdit ? () => plansApi.deleteItemFile(planId, itemId, f.id).then(load) : null} />)}
-                {!(d.files || []).length && <div className="d-none">Niciun fișier atașat acestui item.</div>}
-                {canEdit && <AddFileInline onAdd={async (p) => { await plansApi.addItemFile(planId, itemId, p); await load(); onChanged?.(); }} />}
-              </div>
+              d.songId ? (
+                <div className="song-files-wrap">
+                  <div className="song-files">
+                    <div className="sf-col">
+                      <div className="sf-colh">Arrangement</div>
+                      {(arr?.arrangementFiles || []).map((f) => <SongFileRow key={f.id} f={f} onOpen={() => openSongFile(f)} />)}
+                      {!(arr?.arrangementFiles || []).length && <div className="sf-empty" />}
+                    </div>
+                    {(() => {
+                      const sk = (arr?.keys || []).find((k) => String(k.id) === String(d.keyId));
+                      if (!sk) return null;
+                      const kf = (sk.files || []).filter((f) => !f.derived);
+                      return (
+                        <div className="sf-col">
+                          <div className="sf-colh">{sk.label || sk.startKey}</div>
+                          {kf.map((f) => <SongFileRow key={f.id} f={f} onOpen={() => openSongFile(f)} />)}
+                          {!kf.length && <div className="sf-empty" />}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  {(d.files || []).length > 0 && (
+                    <div className="sf-extra">
+                      <div className="stf-h">Fișiere item</div>
+                      {(d.files || []).map((f) => <SongFileRow key={f.id} f={f} onOpen={() => openSongFile(f)} onDelete={canEdit ? () => plansApi.deleteItemFile(planId, itemId, f.id).then(load) : null} />)}
+                    </div>
+                  )}
+                  {canEdit && <AddFileInline onAdd={async (p) => { await plansApi.addItemFile(planId, itemId, p); await load(); onChanged?.(); }} />}
+                </div>
+              ) : (
+                <div className="files-tab">
+                  {(d.files || []).map((f) => <SongFileRow key={f.id} f={f} onOpen={() => openSongFile(f)} onDelete={canEdit ? () => plansApi.deleteItemFile(planId, itemId, f.id).then(load) : null} />)}
+                  {!(d.files || []).length && <div className="d-none">Niciun fișier atașat acestui item.</div>}
+                  {canEdit && <AddFileInline onAdd={async (p) => { await plansApi.addItemFile(planId, itemId, p); await load(); onChanged?.(); }} />}
+                </div>
+              )
             )}
 
             {tab === "Notes" && (
-              <div className="notes-tab">
-                {notes === null ? <Skeleton lines={2} /> : (
-                  <>
-                    {notes.map((n) => (
-                      <div key={n.id} className="note">
-                        <textarea className="d-desc" defaultValue={n.content} disabled={ro} rows={2} onBlur={(e) => saveNote(n.id, e.target.value)} placeholder="Notă…" />
-                        {canEdit && <button className="note-del" onClick={() => delNote(n.id)}>✕</button>}
-                      </div>
-                    ))}
-                    {!notes.length && <div className="d-none">Nicio notă pe acest item.</div>}
-                    {canEdit && <button className="addnote" onClick={addNote}>+ Adaugă notă</button>}
-                  </>
-                )}
-              </div>
+              d.songId && d.arrangementId ? (
+                <div className="song-notes">
+                  <div className="sn-h">Notes aranjament{notesSaving ? <span className="sn-saving"> · se salvează…</span> : null}</div>
+                  <textarea className="d-desc" value={notesDraft} disabled={ro} onChange={(e) => setNotesDraft(e.target.value)} onBlur={saveSongNotes} rows={6}
+                    placeholder="Notițe pentru acest aranjament (din librăria de cântece; editabile aici)…" />
+                  <div className="sn-hint">View &amp; edit — se propagă în cântecul din librărie (și pe telefon).</div>
+                </div>
+              ) : <div className="d-none">Leagă un cântec ca să vezi notițele aranjamentului.</div>
             )}
 
-            {tab === "Detail" && (
-              <textarea className="d-desc" defaultValue={d.htmlDetails || ""} disabled={ro} rows={6} placeholder="Detalii (rich text, pt. raport)…"
-                onBlur={(e) => patch({ htmlDetails: e.target.value })} />
-            )}
-
-            {tab === "Media" && <div className="d-none">Media — în curând.</div>}
+            {tab === "Detail" && (<>
+              <div className="dt-note">Doar aici — detaliile rămân pe acest item din order, nu suprascriu nimic în librărie.</div>
+              <textarea className="d-desc" defaultValue={d.htmlDetails || ""} disabled={ro} rows={6} placeholder="Detalii (doar pentru acest order)…"
+                onBlur={(e) => { patch({ htmlDetails: e.target.value }); setD((x) => ({ ...x, htmlDetails: e.target.value })); }} />
+            </>)}
           </div>
           </>)}
         </div>
       )}
 
-      {songPicker && <SongPickerModal onClose={() => setSongPicker(false)} onPick={linkSong} />}
+      {linkModal && <LinkSongModal onClose={() => setLinkModal(false)} onImport={importSong} />}
+      {showCT && <ClickTrackBar defaults={ctDefaults} playerActive={!!player.track} onClose={() => setShowCT(false)} />}
+      {preview && d?.songId && <ChartPreviewModal songId={d.songId} arrId={d.arrangementId} song={song} arr={arr} mode={preview.mode} targetKey={preview.targetKey} onClose={() => setPreview(null)} />}
+      {pdfUrl && (
+        <div className="pdf-ov" onMouseDown={(e) => e.target === e.currentTarget && setPdfUrl(null)}>
+          <div className="pdf-box">
+            <div className="pdf-top">
+              <span className="pdf-ttl">Preview</span>
+              <a className="pdf-dl" href={pdfUrl} target="_blank" rel="noreferrer">Deschide / Descarcă</a>
+              <button className="pdf-x" onClick={() => setPdfUrl(null)} aria-label="Închide">✕</button>
+            </div>
+            <iframe className="pdf-frame" src={pdfUrl} title="Preview" />
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .drawer { position: fixed; top: var(--nav-h); right: 0; bottom: 0; width: 340px; background: var(--surface); border-left: 1px solid var(--border-strong); z-index: 50; display: flex; flex-direction: column; box-shadow: -8px 0 28px rgba(0,0,0,.28); animation: drIn .16s ease; }
@@ -444,7 +548,42 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
         .lead-it:hover { background: var(--surface-2); }
         .li-ic { color: var(--text-faint); } .li-sub { color: var(--text-faint); font-size: 11px; margin-left: auto; }
         .li-none { color: var(--text-faint); font-size: 12px; padding: 8px; }
-        .d-tabs { display: flex; margin-top: 18px; border-bottom: 1px solid var(--border); }
+        /* „Add a song" + Click Track row */
+        .addsong-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+        .addsong { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px dashed var(--border-strong); color: var(--text); border-radius: 8px; padding: 8px 13px; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .addsong:hover { color: var(--primary); border-color: var(--primary); }
+        .as-plus { color: var(--product); font-weight: 800; }
+        .addsong-ttl { font-size: 13.5px; font-weight: 600; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+        .ct-open { margin-left: auto; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: 8px; padding: 8px 13px; font-size: 12.5px; font-weight: 600; cursor: pointer; flex: none; }
+        .ct-open:hover { border-color: var(--primary); color: var(--primary); }
+        .d-tabs { display: flex; margin-top: 16px; border-bottom: 1px solid var(--border); }
+        .dt-bang { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; margin-left: 5px; border-radius: 50%; background: var(--st-unconfirmed); color: #1d1600; font-size: 10px; font-weight: 900; vertical-align: middle; animation: dtpulse 1.6s ease-in-out infinite; }
+        @keyframes dtpulse { 0%,100% { box-shadow: 0 0 0 0 rgba(201,162,39,.5); } 50% { box-shadow: 0 0 0 4px rgba(201,162,39,0); } }
+        /* Song tab specs + Files containers + Notes */
+        .st-specs { display: flex; flex-wrap: wrap; gap: 14px; color: var(--text-dim); font-size: 12.5px; margin: 4px 0 10px; }
+        .st-specs b { color: var(--text); }
+        .song-files-wrap { }
+        .song-files { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-x: auto; }
+        .sf-col { flex: 1 1 0; min-width: 0; box-sizing: border-box; padding: 0 10px; border-right: 1px solid var(--border); }
+        .sf-col:last-child { border-right: none; }
+        .sf-colh { color: var(--text-dim); font-size: 13px; margin-bottom: 10px; min-height: 18px; }
+        .sf-empty { min-height: 60px; }
+        .sf-extra { margin-top: 12px; }
+        .song-notes { }
+        .sn-h { color: var(--text-faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+        .sn-saving { color: var(--primary); text-transform: none; letter-spacing: 0; }
+        .sn-hint { color: var(--text-faint); font-size: 11px; margin-top: 6px; }
+        .dt-note { color: var(--text-faint); font-size: 11px; margin-bottom: 8px; line-height: 1.5; }
+        /* PDF/url preview in-app */
+        .pdf-ov { position: fixed; inset: 0; z-index: 90; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; padding: 24px; }
+        .pdf-box { width: min(900px, 94vw); height: 88vh; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.5); }
+        .pdf-top { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+        .pdf-ttl { font-weight: 600; font-size: 13px; }
+        .pdf-dl { margin-left: auto; color: var(--text-link); font-size: 12.5px; text-decoration: none; }
+        .pdf-dl:hover { text-decoration: underline; }
+        .pdf-x { background: transparent; border: none; color: var(--text-dim); font-size: 14px; cursor: pointer; }
+        .pdf-x:hover { color: var(--text); }
+        .pdf-frame { flex: 1; width: 100%; border: none; background: #fff; }
         .dt { flex: 1; text-align: center; background: transparent; border: none; color: var(--text-dim); padding: 8px 4px; cursor: pointer; font-size: 12px; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
         .dt:hover { color: var(--text); } .dt.on { color: var(--text); border-bottom-color: var(--primary); font-weight: 600; }
         .d-pane { padding-top: 14px; }
@@ -491,23 +630,44 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
   );
 }
 
-function FileRow({ f, onDelete }) {
-  const audio = f.kind === "audio" || /\.(mp3|m4a|aac|wav|ogg)$/i.test(f.url || "") || /\.(mp3|m4a|aac|wav|ogg)$/i.test(f.name || "");
+// Rând de fișier în Files — același stil/iconuri ca în Songs. Audio/YouTube = iconiță „play" (se redă în player).
+function SongFileRow({ f, onOpen, onDelete }) {
+  const audio = isAudioUrl(f?.url, f?.kind) || isYouTube(f?.url);
+  const iconName = audio ? "play"
+    : (f.kind === "lyrics" || f.kind === "words") ? "lyrics"
+    : (f.kind === "chordChart" || f.kind === "numbers" || f.kind === "numerals") ? "chart"
+    : f.kind === "link" ? "play" : "file";
   return (
     <div className="frow">
-      <span className="fic">{audio ? "♪" : "▢"}</span>
-      {f.url ? <a className="fn link" href={f.url} target="_blank" rel="noreferrer">{f.name}</a> : <span className="fn">{f.name}</span>}
-      {onDelete && <button className="fdel" onClick={onDelete}>✕</button>}
+      <button className="fl fl-btn" onClick={onOpen} title={audio ? "Redă în player" : "Deschide preview"}>
+        <span className="fi"><Ico name={iconName} size={15} /></span>
+        <span className="fn">{f.name}</span>
+      </button>
+      {onDelete && <button className="fdel" onClick={onDelete} title="Scoate">✕</button>}
       <style jsx>{`
-        .frow { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border-soft); }
-        .fic { color: var(--text-faint); width: 16px; text-align: center; flex: none; }
-        .fn { color: var(--text); font-size: 12.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-        .fn.link { color: var(--text-link); text-decoration: none; } .fn.link:hover { text-decoration: underline; }
+        .frow { position: relative; display: flex; align-items: center; gap: 6px; padding: 6px 0; }
+        .fl { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 13px; }
+        .fl:hover { color: var(--text-link); }
+        .fl-btn { background: transparent; border: none; cursor: pointer; padding: 0; text-align: left; width: 100%; min-width: 0; }
+        .fi { color: var(--text-dim); display: inline-flex; align-items: center; flex: none; }
+        .fn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .fdel { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 11px; flex: none; }
         .fdel:hover { color: var(--danger); }
       `}</style>
     </div>
   );
+}
+
+// Iconițe (stil Lucide) — identice cu Songs.
+function Ico({ name, size = 16 }) {
+  const paths = {
+    audio: <><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></>,
+    chart: <><path d="M3 3v18h18" /><path d="m7 14 3-3 3 3 5-5" /></>,
+    lyrics: <><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h10" /></>,
+    play: <><polygon points="6 3 20 12 6 21 6 3" /></>,
+    file: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6" /></>,
+  }[name] || null;
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths}</svg>;
 }
 
 function AddFileInline({ onAdd }) {
@@ -525,3 +685,4 @@ function AddFileInline({ onAdd }) {
     </div>
   );
 }
+
