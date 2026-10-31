@@ -58,10 +58,14 @@ const schema = pcSchema({
   },
   // ── Tranziție (aditiv) — cântec/parte folosit(ă) doar ca punte: indent + „!" + timp EXCLUS din total.
   isTransition: { type: Boolean, default: false },
-  // ── Lumini (aditiv) — „stamp" de lumini pe ORICE item (nu doar tranziție), afișat sub descriere.
-  // lightsTiming: „after"(default, sub item) / „before"(row vizual deasupra titlului). Informativ (nu auto).
+  // ── Lumini / „Lumini propuse" (aditiv) — scenă + fixtures pe ORICE item (nu doar tranziție).
+  // lightsTiming: „before"(default — la producție luminile se fac mereu înainte) / „after". Informativ (nu auto).
+  // `sceneId` = aranjamentul propus (din pc_lightScenes); `fixtures` = Par/LED/Tobe/Laterale/Coroană (din scenă sau manual).
+  // `lights` (vechi, [{color}]) rămâne pt. tranziții + back-compat. Separat de overlay-ul Rehearse (NU se sincronizează).
   lights: { type: [{ color: String, label: String }], default: [] },
-  lightsTiming: { type: String, default: "after" }, // "before" | "after"
+  sceneId: { type: mongoose.Schema.Types.ObjectId, ref: "PcLightScene", default: null },
+  fixtures: { type: [{ fixture: String, color: String }], default: [] },
+  lightsTiming: { type: String, default: "before" }, // "before" | "after"
   // ── Tip „transition" (aditiv) — punte între momente: gamă (ca badge), lumini (culori), rugăciune (persoană).
   // Containere OPȚIONALE (se adaugă cu „+"). Totul se transpune în Rehearse + PDF.
   transition: {

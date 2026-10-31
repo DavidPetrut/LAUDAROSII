@@ -181,3 +181,9 @@ button { font-family: inherit; }
 .rmic-red { width: 15px; height: 15px; object-fit: contain; vertical-align: middle; flex: none; display: inline-block; animation: rm-pulse-red 2s ease-in-out infinite; }
 .rmic-lg { width: 18px; height: 18px; }
 @media (prefers-reduced-motion: reduce) { .rmic, .rmic-red { animation: none; } }
+
+/* „Lumini propuse: <scenă>" — etichetă discretă deasupra titlului (Order + Rehearse). Doar numele,
+   fără culori/dots; subtil dar vizibil, nu agresiv. */
+.lp-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 9px; margin-bottom: 5px; max-width: fit-content; }
+.lp-tag b { color: var(--product); font-weight: 700; }
+.lp-tag-tim { color: var(--text-faint); font-size: 11px; }

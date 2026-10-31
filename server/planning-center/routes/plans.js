@@ -421,6 +421,8 @@ router.get("/:id/order", requireCan("people.view"), async (req, res) => {
       if ((it.placement || "during") !== "during") continue;
       totalSec += it.lengthSec || 0;
     }
+    const _scenes = await PcLightScene.find(scoped(req)).select("name fixtures").lean();
+    const _sceneById = Object.fromEntries(_scenes.map((s) => [String(s._id), { id: s._id, name: s.name, fixtures: s.fixtures || [] }]));
     res.json({
       totalSec,
       totalLabel: fmtLen(totalSec),
@@ -439,6 +441,9 @@ router.get("/:id/order", requireCan("people.view"), async (req, res) => {
         ministries: ministriesMap[String(it._id)] || [],
         transition: it.type === "transition" ? transMap[String(it._id)] : undefined,
         lights: (it.lights || []).map((l) => ({ color: l.color || "", label: l.label || "" })),
+        sceneId: it.sceneId || null,
+        scene: it.sceneId ? (_sceneById[String(it.sceneId)] || null) : null,
+        fixtures: it.fixtures || [],
         lightsTiming: it.lightsTiming === "before" ? "before" : "after",
         leaders: leadersMap[String(it._id)] || [],
         leader: (leadersMap[String(it._id)] || [])[0] || null,
@@ -517,6 +522,8 @@ router.get("/:id/items/:itemId", requireCan("people.view"), async (req, res) => 
       ministries: ministriesMap[String(it._id)] || [],
       transition: transMap[String(it._id)] || { kind: "", key: "", autoKey: false, keySource: "", lights: [], prayer: null },
       lights: (it.lights || []).map((l) => ({ color: l.color || "", label: l.label || "" })),
+      sceneId: it.sceneId ? String(it.sceneId) : null,
+      fixtures: it.fixtures || [],
       lightsTiming: it.lightsTiming === "before" ? "before" : "after",
       medley: (it.medley || []).slice().sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)).map((c) => ({
         songId: c.songId ? String(c.songId) : null, arrangementId: c.arrangementId ? String(c.arrangementId) : null,
@@ -630,8 +637,10 @@ router.patch("/:id/items/:itemId", requireCan("services.editOrder"), async (req,
       if (Array.isArray(t.lights)) set["transition.lights"] = t.lights.map((l) => ({ color: String(l.color || "").trim(), label: String(l.label || "").trim() })).filter((l) => l.color || l.label);
       if (t.prayerPersonId !== undefined) set["transition.prayerPersonId"] = t.prayerPersonId ? OID(t.prayerPersonId) : null;
     }
-    // Lumini pe ORICE item (stamp): culori + timing (before/after). Informativ.
+    // Lumini / „Lumini propuse" pe ORICE item: scenă + fixtures + timing (before/after). Informativ.
     if (Array.isArray(b.lights)) set.lights = b.lights.map((l) => ({ color: String(l.color || "").trim(), label: String(l.label || "").trim() })).filter((l) => l.color || l.label);
+    if (b.sceneId !== undefined) set.sceneId = b.sceneId ? OID(b.sceneId) : null;
+    if (Array.isArray(b.fixtures)) set.fixtures = b.fixtures.map((f) => ({ fixture: String(f.fixture || "").trim(), color: String(f.color || "").trim() })).filter((f) => f.fixture && f.color);
     if (b.lightsTiming !== undefined) set.lightsTiming = b.lightsTiming === "before" ? "before" : "after";
     // Secvență one-time pt. acest plan (Edit Sequence from a plan).
     if (Array.isArray(b.sequence)) set.sequence = b.sequence.map((s) => String(s)).filter(Boolean);
@@ -2278,14 +2287,14 @@ router.get("/:id/production", requireCan("people.view"), async (req, res) => {
         leader: (leadersMap[String(it._id)] || [])[0] || null,
         transition: it.type === "transition" ? transMap[String(it._id)] : undefined,
         lights: (it.lights || []).map((l) => ({ color: l.color || "", label: l.label || "" })),
-        lightsTiming: it.lightsTiming === "before" ? "before" : "after",
         // overlay producător (aditiv — folosit progresiv pe faze):
         label: o.label || "",
         note: o.note || "",
         reminders: o.reminders || [],
         sceneId: o.sceneId || null,
-        scene: o.sceneId ? (sceneById[String(o.sceneId)] || null) : null, // scena rezolvată (nume + fixtures)
+        scene: o.sceneId ? (sceneById[String(o.sceneId)] || null) : null, // „Lumini propuse" rezolvată (nume + fixtures)
         fixtures: o.fixtures || [],
+        lightsTiming: o.lightsTiming === "after" ? "after" : "before", // timing pe item (din overlay), default before
         sectionCues: o.sectionCues || [],
         sectionRows: o.sectionRows || [],
         rowBreaks: o.rowBreaks || [],
@@ -2310,7 +2319,7 @@ router.get("/:id/production", requireCan("people.view"), async (req, res) => {
 });
 
 // PATCH — scrie DOAR overlay-ul (per owner). body: { item:{itemId,...}, reminders?, simFeedback? }.
-const PROD_ITEM_FIELDS = ["label", "note", "sceneId", "fixtures", "sectionCues", "sectionRows", "rowBreaks", "projection", "reminders"];
+const PROD_ITEM_FIELDS = ["label", "note", "sceneId", "fixtures", "lightsTiming", "sectionCues", "sectionRows", "rowBreaks", "projection", "reminders"];
 router.patch("/:id/production", requireAny(["services.viewRehearsal", "services.editOrder"]), async (req, res) => {
   try {
     const id = OID(req.params.id);

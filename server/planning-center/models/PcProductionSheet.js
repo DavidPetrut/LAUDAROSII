@@ -19,8 +19,9 @@ const Light = { color: { type: String, default: "" }, label: { type: String, def
 const ItemOverlay = new mongoose.Schema({
   itemId: { type: mongoose.Schema.Types.ObjectId, ref: "PcPlanItem", required: true },
   label: { type: String, default: "" },          // denumire scurtă custom (ex. „Aprinde-mă") — NU schimbă Order
-  sceneId: { type: mongoose.Schema.Types.ObjectId, ref: "PcLightScene", default: null }, // scenă de lumini (Faza 2)
-  fixtures: { type: [{ fixture: String, color: String }], default: [] }, // Par/LED/Tobe/Laterale/Coroană (Faza 2)
+  sceneId: { type: mongoose.Schema.Types.ObjectId, ref: "PcLightScene", default: null }, // „Lumini propuse" la item (scenă)
+  fixtures: { type: [{ fixture: String, color: String }], default: [] }, // Par/LED/Tobe/Laterale/Coroană (din scenă sau manual)
+  lightsTiming: { type: String, enum: ["before", "after"], default: "before" }, // momentul luminilor la item: înainte(default) / după
   // Secțiuni personalizabile (fiecare parte din sequence: Verse/Chorus/Bridge…), legate prin `idx` (poziția în sequence).
   // Fiecare secțiune poate avea: notă, culori de lumini, proiecție, remindere. `section` = numele (pt. afișare/print).
   sectionCues: { type: [{

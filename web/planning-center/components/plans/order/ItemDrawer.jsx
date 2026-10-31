@@ -11,7 +11,7 @@ import PersonAvatar from "@/components/plans/PersonAvatar";
 import VoicesPicker from "./VoicesPicker";
 import MinistriesPicker from "./MinistriesPicker";
 import TransitionEditor from "./TransitionEditor";
-import LightsEditor from "./LightsEditor";
+import ScenePicker from "../ScenePicker";
 import MedleyEditor from "./MedleyEditor";
 
 // „+ Tranziție" (quick-insert): creează un ELEMENT simplu dedesubt, cu titlu fix, fără lead.
@@ -51,8 +51,10 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
   const [voices, setVoices] = useState([]);
   const [ministries, setMinistries] = useState([]);
   const [trans, setTrans] = useState({ kind: "", key: "", lights: [], prayer: null });
-  const [lights, setLights] = useState([]);           // lumini pe item (orice tip)
-  const [lightsTiming, setLightsTiming] = useState("after");
+  const [lights, setLights] = useState([]);           // lumini (vechi, [{color}]) — back-compat/tranziție
+  const [sceneId, setSceneId] = useState(null);       // „Lumini propuse": scenă (pc_lightScenes)
+  const [fixtures, setFixtures] = useState([]);       // Par/LED/Tobe/Laterale/Coroană
+  const [lightsTiming, setLightsTiming] = useState("before"); // default: înainte (la producție, mereu înainte)
   const [lightsAdded, setLightsAdded] = useState(false); // afișează containerul chiar gol
   const [lightsOpen, setLightsOpen] = useState(true);    // expand/collapse container lumini
   const [mPool, setMPool] = useState({ week: [], preachers: [], byKind: {} });
@@ -74,7 +76,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
       const r = await plansApi.itemDetail(planId, itemId);
       setD(r); setTitle(r.title || ""); setDesc(r.description || ""); setVoices(r.voices || []); setMinistries(r.ministries || []);
       setTrans(r.transition || { kind: "", key: "", lights: [], prayer: null });
-      setLights(r.lights || []); setLightsTiming(r.lightsTiming || "after"); setLightsAdded(false); setLightsOpen(!(r.lights || []).length);
+      setLights(r.lights || []); setSceneId(r.sceneId || null); setFixtures(r.fixtures || []); setLightsTiming(r.lightsTiming || "before"); setLightsAdded(false); setLightsOpen(!(r.sceneId || (r.fixtures || []).length));
       const L = splitLen(r.lengthSec); setMm(L.m); setSs(L.s);
       plansApi.voicesPool(planId).then((pr) => setPool(pr.people || [])).catch(() => {});
       if (r.type === "item" || r.type === "transition") plansApi.ministryPool(planId).then((pr) => setMPool({ week: pr.week || [], preachers: pr.preachers || [], byKind: pr.byKind || {} })).catch(() => {});
@@ -114,11 +116,11 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
       .then((r) => { if (r?.transition) setTrans(r.transition); })
       .catch((e) => flash?.(e?.message || "Eroare."));
   }
-  // Lumini pe item (orice tip, „+ Lumini"): culori + timing (before/after). Afișate sub descriere (sau row deasupra dacă „before").
-  function saveLights(next) { setLights(next); plansApi.updateItem(planId, itemId, { lights: next }).then(() => onChanged?.()).catch((e) => flash?.(e?.message || "Eroare.")); }
+  // „Lumini propuse" pe item: scenă + fixtures + timing (before/after, default before). Separat de overlay-ul Rehearse.
+  function saveScene(next) { setSceneId(next.sceneId || null); setFixtures(next.fixtures || []); plansApi.updateItem(planId, itemId, { sceneId: next.sceneId || null, fixtures: next.fixtures || [] }).then(() => onChanged?.()).catch((e) => flash?.(e?.message || "Eroare.")); }
   function saveLightsTiming(t) { setLightsTiming(t); plansApi.updateItem(planId, itemId, { lightsTiming: t }).then(() => onChanged?.()).catch((e) => flash?.(e?.message || "Eroare.")); }
   function addLightsBox() { setLightsAdded(true); setLightsOpen(true); }
-  function removeLights() { setLightsAdded(false); saveLights([]); }
+  function removeLights() { setLightsAdded(false); setSceneId(null); setFixtures([]); plansApi.updateItem(planId, itemId, { sceneId: null, fixtures: [] }).then(() => onChanged?.()).catch((e) => flash?.(e?.message || "Eroare.")); }
 
   // „+ Tranziție" (quick-insert): creează un element simplu (fără lead) imediat DEDESUBT, cu titlu fix.
   async function addQuickTransition(title) {
@@ -206,7 +208,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
 
   const ro = !canEdit;
   const keyFiles = arr && d?.keyId ? (arr.keys || []).find((k) => String(k.id) === String(d.keyId))?.files || [] : [];
-  const hasItemLights = !!(lights.length || lightsAdded);
+  const hasItemLights = !!(sceneId || fixtures.length || lights.length || lightsAdded);
   const lightsHost = d && d.type !== "header" && d.type !== "transition"; // „+ Lumini" pe orice item (tranziția își are luminile în editor).
 
   return (
@@ -302,7 +304,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
                 {!hasItemLights && (
                   <button className="qt-btn" onClick={addLightsBox}>
                     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 3v10M3 8h10" /></svg>
-                    Lumini
+                    Lumini propuse
                   </button>
                 )}
               </div>
@@ -323,15 +325,15 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
             <div className="d-sec">
               <section className="lbox">
                 <header className="lb-head" onClick={() => setLightsOpen((v) => !v)}>
-                  <span className="lb-ic">💡</span><span className="lb-ttl">Lumini</span>
-                  <span className="lb-sub">{lightsTiming === "before" ? "înainte" : "după"}</span>
-                  <span className="lb-dots">{lights.slice(0, 6).map((l, i) => <span key={i} className="lb-dot" style={{ background: l.color || "#888" }} />)}</span>
+                  <span className="lb-ic">💡</span><span className="lb-ttl">Lumini propuse</span>
+                  <span className="lb-sub">{lightsTiming === "after" ? "după" : "înainte"}</span>
+                  <span className="lb-dots">{fixtures.slice(0, 6).map((f, i) => <span key={i} className="lb-dot" style={{ background: f.color || "#888" }} />)}</span>
                   {canEdit && <button className="lb-x" onClick={(e) => { e.stopPropagation(); removeLights(); }} title="Scoate luminile">✕</button>}
                   <svg className={`lb-chev ${lightsOpen ? "o" : ""}`} width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6l4 4 4-4" /></svg>
                 </header>
                 {lightsOpen && (
                   <div className="lb-body">
-                    <LightsEditor value={lights} canEdit={canEdit} onChange={saveLights} timing={lightsTiming} onTiming={saveLightsTiming} showTiming />
+                    <ScenePicker sceneId={sceneId} fixtures={fixtures} canEdit={canEdit} onChange={saveScene} timing={lightsTiming} onTiming={saveLightsTiming} showTiming />
                   </div>
                 )}
               </section>

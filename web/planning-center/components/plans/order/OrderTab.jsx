@@ -202,10 +202,8 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
             const tr = it.type === "transition" ? (it.transition || {}) : null;
             // Avatarul = lead vocal SAU prima persoană de la o slujire SAU persoana de rugăciune (tranziție).
             const avatarPerson = leadVoice || minPeople[0] || (tr && tr.prayer) || null;
-            // Lumini pe item (non-tranziție): „before" = row vizual deasupra; „after" (default) = linie sub item.
-            const itLights = (!isHeader && it.type !== "transition") ? (it.lights || []) : [];
-            const lightsBefore = itLights.length > 0 && it.lightsTiming === "before";
-            const lightsAfter = itLights.length > 0 && it.lightsTiming !== "before";
+            // „Lumini propuse" pe item (non-tranziție): scenă (DOAR numele) ca etichetă deasupra titlului; timing before/after (default before).
+            const itemScene = (!isHeader && it.type !== "transition") ? it.scene : null;
             const mainRow = (
               <div
                 key={it.id}
@@ -224,6 +222,7 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                   <>
                     <div className="r-len">{it.lengthLabel || ""}</div>
                     <div className="r-main">
+                      {itemScene && <div className="lp-tag">💡 Lumini propuse: <b>{itemScene.name}</b> <span className="lp-tag-tim">{it.lightsTiming === "after" ? "după" : "înainte"}</span></div>}
                       <div className="r-titleline">
                         {it.isTransition && <span className="bang" title="Tranziție (timp neinclus)">!</span>}
                         {isMedley && <span className="mtag" title="Medley">medley · {it.medleyCount}</span>}
@@ -248,9 +247,6 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                           {voiceLine && <div className="r-voices">{voiceLine}</div>}
                           {ministryLine && <div className="r-min">{ministryLine}</div>}
                           {it.description && <div className="r-sub">{it.description}</div>}
-                          {lightsAfter && (
-                            <div className="r-trans-line rt-lights">Lumini:{itLights.map((l, i) => <span key={i} className="rt-dot" style={{ background: l.color || "#888" }} title={l.color} />)}</div>
-                          )}
                         </>
                       )}
                     </div>
@@ -266,14 +262,7 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                 )}
               </div>
             );
-            if (!lightsBefore) return mainRow;
-            return [
-              <div key={`lb-${it.id}`} className="row lights-row" title="Lumini înainte (informativ)">
-                <div className="r-len" />
-                <div className="r-main"><div className="lr-line">Lumini înainte:{itLights.map((l, i) => <span key={i} className="rt-dot" style={{ background: l.color || "#888" }} title={l.color} />)}</div></div>
-              </div>,
-              mainRow,
-            ];
+            return mainRow;
           })}
           {canEdit && (
             <div

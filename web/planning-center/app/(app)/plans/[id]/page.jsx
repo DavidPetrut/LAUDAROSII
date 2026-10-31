@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { plansApi, peopleApi, productionScenesApi, productionSnippetsApi } from "@/lib/api/client";
 import { formatVoices } from "@/components/plans/order/VoicesPicker";
+import { numberSequence } from "@/lib/songs/sequence";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 import PersonAvatar from "@/components/plans/PersonAvatar";
 import Skeleton from "@/components/ui/Skeleton";
@@ -677,11 +678,12 @@ function buildProductionHtml(data, scenes) {
     const voices = r.voices || []; const lead = voices.find((v) => v.role === "lead") || voices[0];
     const parts = voices.filter((v) => v !== lead).map((v) => `${VOICE_LBL[v.role] ? VOICE_LBL[v.role] + ": " : ""}${esc((v.name || "").split(" ")[0])}`);
     const seq = r.sequence || [];
+    const labels = numberSequence(seq);
     const cueAt = (i) => (r.sectionCues || []).find((c) => c.idx === i) || null;
     let seqHtml = "";
     if (seq.length) {
       const rws = resolveRows(seq, r.sectionRows);
-      const chipOf = (i) => { const c = cueAt(i); const col = cueColor(c) ? dot(cueColor(c)) : ""; const before = c && c.lightsTiming === "before"; return col ? (before ? `${col}${esc(seq[i])}` : `${esc(seq[i])}${col}`) : esc(seq[i]); };
+      const chipOf = (i) => { const c = cueAt(i); const col = cueColor(c) ? dot(cueColor(c)) : ""; const before = c && c.lightsTiming === "before"; return col ? (before ? `${col}${esc(labels[i])}` : `${esc(labels[i])}${col}`) : esc(labels[i]); };
       seqHtml = `<div class="seq">` + rws.map((row) => {
         const chips = row.map(chipOf).join(" &middot; ");
         if (row.length === 1) {
@@ -705,7 +707,7 @@ function buildProductionHtml(data, scenes) {
     return `<div class="row">`
       + `<div class="rh"><span class="t">${esc(r.title)}</span>${r.keyName ? `<span class="k">${esc(r.keyName)}</span>` : ""}</div>`
       + `${lead || parts.length ? `<div class="v">${esc(lead ? lead.name : "")}${parts.length ? " &middot; " + parts.join(" &middot; ") : ""}</div>` : ""}`
-      + `${r.scene ? `<div class="lt"><b>&#9673; ${esc(r.scene.name)}</b></div>` : ""}`
+      + `${r.scene ? `<div class="lp-tag">&#128161; Lumini propuse: <b>${esc(r.scene.name)}</b> <span class="lptim">${r.lightsTiming === "after" ? "după" : "înainte"}</span></div>` : ""}`
       + `${seqHtml}`
       + `${projNote ? `<div class="lt">&#9635; ${esc(projNote)}</div>` : ""}`
       + `${r.note ? `<div class="lt">&#9998; ${esc(r.note)}</div>` : ""}`
@@ -724,6 +726,8 @@ function buildProductionHtml(data, scenes) {
     .t{font-weight:700;font-size:15px;color:#141414}
     .k{background:#6fa02e;color:#fff;border-radius:999px;padding:1px 10px;font-weight:700;font-size:12px}
     .v{color:#666;font-size:12.5px;margin-top:2px}.lt{margin-top:4px;font-size:12.5px;color:#444}
+    .lp-tag{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#555;background:#f3f4f6;border:1px solid #e6e8ec;border-radius:6px;padding:2px 9px;margin:3px 0 2px}
+    .lp-tag b{color:#2d6a4f;font-weight:700}.lptim{color:#8a8f98;font-size:11px}
     .seq{margin-top:7px;display:flex;flex-direction:column;gap:4px}
     .seqrow{font-size:13px;color:#2b2b2b;line-height:1.5}
     .seqrow.solo{background:#f7f8fa;border:1px solid #e6e9ee;border-radius:8px;padding:6px 11px}
@@ -950,13 +954,13 @@ function RehearseTab({ planId, canEdit = false, flash }) {
             const projNote = (r.projection || [])[0]?.note || "";
             const note = r.note || "";
             const seq = r.sequence || [];
-            const sceneFx = (r.scene && r.scene.fixtures) || [];
-            const hasExtra = !!(reminders.length || projNote || note || r.scene);
+            const hasExtra = !!(reminders.length || projNote || note);
             const selIdx = (selSection && String(selSection.itemId) === String(r.id)) ? selSection.idx : null;
             return (
               <div key={r.id} id={`prow-${r.id}`} className={`prod-item ${lv}`}>
                 <div className={`prod-row ${itemSel ? "sel" : ""}`} onClick={() => (live ? setCurId(r.id) : selectItem(r.id))}>
                   <div className="pr-main">
+                    {r.scene && <div className="lp-tag">💡 Lumini propuse: <b>{r.scene.name}</b> <span className="lp-tag-tim">{r.lightsTiming === "after" ? "după" : "înainte"}</span></div>}
                     <div className="pr-top">
                       <span className="pr-title"><span className="pr-t">{r.title}</span>{r.label && <span className="pr-orig" title={`Original: ${r.origTitle}`}>↩</span>}</span>
                       {r.keyName && <span className={`pr-key ${r.type === "media" ? "media" : ""}`}>{r.keyName}</span>}
@@ -970,7 +974,6 @@ function RehearseTab({ planId, canEdit = false, flash }) {
                 </div>
                 {hasExtra && (
                   <div className="pr-extra">
-                    {r.scene && <span className="pr-scene">◉ {r.scene.name}{sceneFx.map((f, i) => <span key={i} className="pr-sqdot" style={{ background: f.color }} />)}</span>}
                     {note && <span className="pr-note">✎ {note}</span>}
                     {projNote && <span className="pr-proj">▣ {projNote}</span>}
                     {reminders.map((rem, i) => <span key={i} className={`rem ${rem.severity === "high" ? "hi" : ""}`}><RmIcon /> <span className="rem-ar">→</span> {rem.text}</span>)}
@@ -1119,6 +1122,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
    Fără drag — sequence-ul rămâne mereu ca în Order/melodie, deci nu se reordonează. */
 function SeqStructure({ item, canEdit, scenes, selIdx, onSelect, onSave }) {
   const seq = item.sequence || [];
+  const labels = numberSequence(seq); // nume cu număr real de secțiune (Verse 1/2…) pt. afișare
   const cues = item.sectionCues || [];
   const cueAt = (i) => cues.find((c) => c.idx === i) || null;
   const rows = resolveRows(seq, item.sectionRows);
@@ -1148,7 +1152,7 @@ function SeqStructure({ item, canEdit, scenes, selIdx, onSelect, onSave }) {
                     onClick={(e) => { e.stopPropagation(); pick(i); }}
                     title={canEdit ? (isSolo(rows, i) ? "Secțiune pe rândul ei — click = editează" : "Click = pune pe rândul ei + editează") : ""}>
                     {col && before && <span className="sq2-dot" style={{ background: col }} title="lumini înainte" />}
-                    <span className="sq2-nm">{seq[i]}</span>
+                    <span className="sq2-nm">{labels[i]}</span>
                     {col && !before && <span className="sq2-dot" style={{ background: col }} title="lumini după" />}
                   </button>
                 );
@@ -1206,7 +1210,7 @@ function SeqStructure({ item, canEdit, scenes, selIdx, onSelect, onSave }) {
 /* Editor contextual per secțiune (DREAPTA): scenă + lumini(+before/after) + notă + proiecție + remindere. */
 function SectionEditor({ item, idx, cue, scenes, canEdit, onSave, onClose }) {
   const [remText, setRemText] = useState("");
-  const section = (item.sequence || [])[idx] || cue?.section || "";
+  const section = numberSequence(item.sequence || [])[idx] || cue?.section || "";
   const fx = cue?.fixtures || [];
   const timing = cue?.lightsTiming === "before" ? "before" : "after";
   const hasLight = fx.length || (cue?.lights || []).length;
@@ -1361,15 +1365,19 @@ function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet,
           )}
         </div>
       </div>
-      {/* Scenă — dropdown + salvează scenă */}
+      {/* Lumini propuse — scenă (dropdown) + când (înainte/după, default înainte) + salvează scenă */}
       <div className="lp-row">
-        <span className="lp-lbl">Scenă</span>
+        <span className="lp-lbl">Lumini propuse</span>
         <div className="lp-scene">
           <select className="sc-sel" value={r.sceneId ? String(r.sceneId) : ""} disabled={!canEdit}
             onChange={(e) => { const v = e.target.value; if (!v) clearScene(); else { const s = scenes.find((x) => String(x.id) === v); if (s) applyScene(s); } }}>
             <option value="">Fără scenă</option>
             {scenes.map((s) => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
           </select>
+          <span className="lp-tim" title="Când se fac luminile față de moment (default: înainte)">
+            <button type="button" className={`lp-tbtn ${(r.lightsTiming === "after" ? "after" : "before") === "before" ? "on" : ""}`} disabled={!canEdit} onClick={() => onSave({ lightsTiming: "before" })}>⬆ înainte</button>
+            <button type="button" className={`lp-tbtn ${r.lightsTiming === "after" ? "on" : ""}`} disabled={!canEdit} onClick={() => onSave({ lightsTiming: "after" })}>după ⬇</button>
+          </span>
           {canEdit && (saveSceneOpen ? (
             <span className="sc-save">
               <input className="sc-in" autoFocus value={sceneName} placeholder="nume scenă" onChange={(e) => setSceneName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && doSaveScene()} />
@@ -1440,6 +1448,11 @@ function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet,
         .lp-scene { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .sc-sel { flex: 1; min-width: 140px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text); font-size: 12.5px; padding: 7px 9px; outline: none; cursor: pointer; }
         .sc-sel:focus { border-color: var(--primary); }
+        .lp-tim { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 7px; overflow: hidden; flex: none; }
+        .lp-tbtn { background: var(--surface-3); border: none; color: var(--text-dim); font-size: 11.5px; font-weight: 600; padding: 6px 10px; cursor: pointer; }
+        .lp-tbtn + .lp-tbtn { border-left: 1px solid var(--border-strong); }
+        .lp-tbtn.on { background: rgba(47,129,247,.18); color: var(--text); }
+        .lp-tbtn:disabled { cursor: default; }
         .sc-saveb { flex: none; background: transparent; border: 1px dashed var(--border-strong); color: var(--text-faint); border-radius: 7px; padding: 6px 10px; font-size: 11.5px; cursor: pointer; }
         .sc-saveb:hover:not(:disabled) { color: #f0d94d; border-color: #f0d94d; }
         .sc-saveb:disabled { opacity: .45; cursor: default; }
