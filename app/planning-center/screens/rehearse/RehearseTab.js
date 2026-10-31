@@ -138,9 +138,15 @@ export function RehearseTab({ planId, navigation }) {
 function ProductionOrder({ data, onSaveSim }) {
   const [simText, setSimText] = useState("");
   const [simN, setSimN] = useState("2");
+  const [live, setLive] = useState(false);
+  const [curId, setCurId] = useState(null);
   const rows = (data && data.items) || [];
   const spotify = data && data.spotify;
   const sim = (data && data.simFeedback) || [];
+  const curIdx = rows.findIndex((r) => String(r.id) === String(curId));
+  const playable = rows.filter((r) => r.type !== "header");
+  const stepLive = () => { const pi = playable.findIndex((r) => String(r.id) === String(curId)); const n = playable[Math.min(playable.length - 1, (pi < 0 ? -1 : pi) + 1)]; if (n) setCurId(n.id); };
+  const curTitle = (playable.find((r) => String(r.id) === String(curId)) || {}).title || "—";
   const addSim = () => { const t = simText.trim(); if (!t) return; onSaveSim?.([...sim, { text: t, sim: simN, severity: "high", done: false, createdAt: Date.now() }]); setSimText(""); };
   const toggleSim = (i) => onSaveSim?.(sim.map((it, x) => (x === i ? { ...it, done: !it.done } : it)));
   if (rows.length === 0) return <Text style={styles.empty}>Order gol. Structura vine din tab-ul „Order".</Text>;
@@ -154,18 +160,34 @@ function ProductionOrder({ data, onSaveSim }) {
           {!!spotify.relative && <Text style={styles.spRel}>relativă {spotify.relative}</Text>}
         </View>
       )}
-      {rows.map((r) => {
-        if (r.type === "header") return <Text key={String(r.id)} style={styles.prodSec}>{r.title}</Text>;
+
+      {live ? (
+        <View style={styles.liveBar}>
+          <View style={styles.liveDot} />
+          <Text style={styles.liveTxt} numberOfLines={1}>{curTitle}</Text>
+          <Pressable style={styles.liveNext} onPress={stepLive}><Text style={styles.liveNextTxt}>Înainte ▶</Text></Pressable>
+          <Pressable onPress={() => setLive(false)} hitSlop={8}><Text style={styles.liveExit}>✕</Text></Pressable>
+        </View>
+      ) : (
+        <Pressable style={styles.liveStart} onPress={() => { setLive(true); if (!curId && playable[0]) setCurId(playable[0].id); }}>
+          <Text style={styles.liveStartTxt}>● Live</Text>
+        </Pressable>
+      )}
+
+      {rows.map((r, ri) => {
+        const lv = live ? (ri < curIdx ? "past" : ri === curIdx ? "cur" : "future") : "";
+        const lvStyle = lv === "past" ? { opacity: 0.38 } : null;
+        if (r.type === "header") return <Text key={String(r.id)} style={[styles.prodSec, lvStyle]}>{r.title}</Text>;
         if (r.type === "transition") {
           const t = r.transition || {};
           return (
-            <View key={String(r.id)} style={styles.prodTrans}>
+            <Pressable key={String(r.id)} style={[styles.prodTrans, lvStyle]} onPress={() => live && setCurId(r.id)}>
               <Ionicons name="return-down-forward-outline" size={14} color={pcColors.textMuted} />
               <Text style={styles.ptLbl}>{TRANS_LBL[t.kind] || "Tranziție"}</Text>
               {!!t.key && <View style={styles.ptKey}><Text style={styles.ptKeyTxt}>{t.key}{t.autoKey ? "·auto" : ""}</Text></View>}
               {!!(t.prayer && t.prayer.name) && <Text style={styles.ptWho}>{t.prayer.name}</Text>}
               {(t.lights || []).map((l, i) => <View key={i} style={[styles.dot, { backgroundColor: l.color || "#888" }]} />)}
-            </View>
+            </Pressable>
           );
         }
         const voices = r.voices || [];
@@ -177,8 +199,8 @@ function ProductionOrder({ data, onSaveSim }) {
         const projNote = (r.projection || [])[0]?.note || "";
         const noteTxt = r.note || "";
         return (
-          <View key={String(r.id)} style={{ marginBottom: 6 }}>
-            <View style={styles.prodRow}>
+          <Pressable key={String(r.id)} style={[{ marginBottom: 6 }, lvStyle]} onPress={() => live && setCurId(r.id)}>
+            <View style={[styles.prodRow, lv === "cur" && styles.prodRowCur]}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.prTitle} numberOfLines={1}>{r.title}</Text>
                 {(lead || parts.length > 0) && (
@@ -205,7 +227,7 @@ function ProductionOrder({ data, onSaveSim }) {
                 {reminders.map((rem, i) => <Text key={i} style={[styles.rem, rem.severity === "high" && styles.remHi]}>{REM_ICON[rem.icon] || "•"} {rem.text}</Text>)}
               </View>
             )}
-          </View>
+          </Pressable>
         );
       })}
 
@@ -275,6 +297,15 @@ const styles = StyleSheet.create({
   // Order producție
   prodSec: { color: pcColors.textMuted, fontSize: 11, fontWeight: "800", letterSpacing: 0.6, textTransform: "uppercase", marginTop: 16, marginBottom: 6 },
   prodRow: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: pcColors.card, borderRadius: 10, paddingHorizontal: 13, paddingVertical: 11 },
+  prodRowCur: { borderWidth: 1, borderColor: pcColors.primary },
+  liveStart: { alignSelf: "flex-start", borderWidth: 1, borderColor: "rgba(229,83,75,0.5)", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginTop: 10, marginBottom: 4 },
+  liveStartTxt: { color: "#e5534b", fontSize: 12.5, fontWeight: "700" },
+  liveBar: { flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: pcColors.card, borderWidth: 1, borderColor: pcColors.primary, borderRadius: 9, paddingHorizontal: 11, paddingVertical: 9, marginTop: 10, marginBottom: 6 },
+  liveDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: "#e5534b" },
+  liveTxt: { flex: 1, color: pcColors.textPrimary, fontSize: 14, fontWeight: "700" },
+  liveNext: { backgroundColor: pcColors.primary, borderRadius: 7, paddingHorizontal: 11, paddingVertical: 6 },
+  liveNextTxt: { color: "#fff", fontSize: 12.5, fontWeight: "700" },
+  liveExit: { color: pcColors.textMuted, fontSize: 15 },
   spotify: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(87,185,138,0.1)", borderWidth: 1, borderColor: "rgba(87,185,138,0.35)", borderRadius: 8, paddingHorizontal: 11, paddingVertical: 7, marginTop: 12, marginBottom: 8 },
   spIco: { color: "#57b98a", fontSize: 13 },
   spLbl: { color: pcColors.textSecondary, fontSize: 11.5, fontWeight: "600" },

@@ -713,6 +713,8 @@ function RehearseTab({ planId, canEdit = false, flash }) {
   const [draft, setDraft] = useState("");
   const [lightsFor, setLightsFor] = useState(null); // itemId cu panoul de producție deschis
   const [share, setShare] = useState(false); // dialog partajare
+  const [live, setLive] = useState(false);   // mod Live (teleprompter): urmărești momentul curent
+  const [curId, setCurId] = useState(null);   // momentul curent în Live
 
   const load = () => plansApi.production(planId).then(setData).catch(() => setData({ items: [] }));
   const loadSnippets = () => productionSnippetsApi.list().then((r) => setSnippets(r.snippets || [])).catch(() => {});
@@ -722,6 +724,13 @@ function RehearseTab({ planId, canEdit = false, flash }) {
     loadSnippets();
     /* eslint-disable-next-line */
   }, [planId]);
+
+  useEffect(() => {
+    if (live && curId && typeof document !== "undefined") {
+      const el = document.getElementById("prow-" + curId);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [curId, live]);
 
   async function saveSnippet(text) {
     const t = (text || "").trim(); if (!t || snippets.some((s) => s.text === t)) return;
@@ -759,17 +768,36 @@ function RehearseTab({ planId, canEdit = false, flash }) {
   const songCount = rows.filter((r) => r.type === "song" || r.type === "medley").length;
   if (!rows.length) return <div className="muted">Order gol. Structura vine din tab-ul „Order"; aici o îmbraci pentru producție.</div>;
 
+  // Mod Live: urmărești momentul curent; ce-a trecut se estompează. „Playable" = tot ce nu-i header.
+  const playable = rows.filter((r) => r.type !== "header");
+  const curIdx = rows.findIndex((r) => String(r.id) === String(curId));
+  const goLive = () => { setLive(true); if (!curId && playable[0]) setCurId(playable[0].id); };
+  const stepLive = (d) => { const pi = playable.findIndex((r) => String(r.id) === String(curId)); const n = playable[Math.max(0, Math.min(playable.length - 1, (pi < 0 ? 0 : pi) + d))]; if (n) setCurId(n.id); };
+
   return (
     <div className="prod">
       <div className="prod-head">
         <span className="prod-cnt">{songCount} cântece · {rows.length} momente</span>
         <span className="prod-hint">Order-ul tău de producție — se sincronizează din Order, nu-l modifică.</span>
         <span className="prod-actions">
+          <button className={`prod-share ${live ? "live-on" : ""}`} onClick={() => (live ? setLive(false) : goLive())} title="Mod Live: urmărește momentul curent">● Live</button>
           <button className="prod-share" onClick={() => printProduction(data)} title="Print color, o pagină curată">⎙ Print</button>
           {canEdit && <button className="prod-share" onClick={() => setShare(true)} title="Trimite copia foii tale altui producător">⤴ Partajează</button>}
         </span>
       </div>
       {share && <ShareDialog planId={planId} onClose={() => setShare(false)} flash={flash} />}
+
+      {live && (
+        <div className="live-bar">
+          <button className="lv-btn" onClick={() => stepLive(-1)} title="Momentul anterior">◀</button>
+          <div className="lv-cur">
+            <span className="lv-dot" />
+            <span className="lv-txt">{(playable.find((r) => String(r.id) === String(curId)) || {}).title || "—"}</span>
+          </div>
+          <button className="lv-btn next" onClick={() => stepLive(1)} title="Următorul moment">Înainte ▶</button>
+          <button className="lv-exit" onClick={() => setLive(false)} title="Ieși din Live">✕</button>
+        </div>
+      )}
 
       {data.spotify && (
         <div className="prod-spotify" title="Gama pentru playlistul Spotify de pre-serviciu (din prima gamă a order-ului)">
@@ -781,12 +809,13 @@ function RehearseTab({ planId, canEdit = false, flash }) {
       )}
 
       <div className="prod-list">
-        {rows.map((r) => {
-          if (r.type === "header") return <div key={r.id} className="prod-sec">{r.title}</div>;
+        {rows.map((r, ri) => {
+          const lv = live ? (ri < curIdx ? "past" : ri === curIdx ? "cur" : "future") : "";
+          if (r.type === "header") return <div key={r.id} className={`prod-sec ${lv}`}>{r.title}</div>;
           const t = r.transition;
           if (r.type === "transition") {
             return (
-              <div key={r.id} className="prod-trans">
+              <div key={r.id} id={`prow-${r.id}`} className={`prod-trans ${lv}`} onClick={() => live && setCurId(r.id)}>
                 <span className="pt-arrow">↳</span>
                 <span className="pt-lbl">{TRANS_LBL[t?.kind] || "Tranziție"}</span>
                 {t?.key && <span className="pt-key">{t.key}{t.autoKey ? " ·auto" : ""}</span>}
@@ -805,8 +834,8 @@ function RehearseTab({ planId, canEdit = false, flash }) {
           const note = r.note || "";
           const open = String(lightsFor) === String(r.id);
           return (
-            <div key={r.id} className="prod-item">
-              <div className="prod-row">
+            <div key={r.id} id={`prow-${r.id}`} className={`prod-item ${lv}`}>
+              <div className="prod-row" onClick={() => live && setCurId(r.id)}>
                 <div className="pr-main">
                   {editing === r.id ? (
                     <input className="pr-edit" autoFocus value={draft} placeholder={r.origTitle}
@@ -814,7 +843,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
                       onKeyDown={(e) => { if (e.key === "Enter") saveLabel(r); if (e.key === "Escape") setEditing(null); }}
                       onBlur={() => saveLabel(r)} />
                   ) : (
-                    <button className="pr-title" disabled={!canEdit} onClick={() => { setEditing(r.id); setDraft(r.label || ""); }} title={canEdit ? "Click = redenumește (doar aici)" : ""}>
+                    <button className="pr-title" disabled={!canEdit && !live} onClick={() => { if (live) { setCurId(r.id); return; } setEditing(r.id); setDraft(r.label || ""); }} title={live ? "Click = momentul curent" : canEdit ? "Click = redenumește (doar aici)" : ""}>
                       <span className="pr-t">{r.title}</span>
                       {r.label && <span className="pr-orig" title={`Original: ${r.origTitle}`}>↩</span>}
                     </button>
@@ -891,6 +920,21 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .pr-proj { color: var(--text-dim); font-size: 11.5px; background: var(--surface-2); border-radius: 5px; padding: 2px 8px; }
         .rem { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--border); border-radius: 5px; padding: 2px 8px; }
         .rem.hi { color: #f0b5b0; background: rgba(229,83,75,.12); border-color: rgba(229,83,75,.4); font-weight: 600; }
+        .prod-share.live-on { color: #e5534b; border-color: #e5534b; }
+        .live-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--primary); border-radius: 9px; padding: 8px 10px; margin-bottom: 10px; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+        .lv-btn { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 7px; padding: 6px 11px; font-size: 12px; cursor: pointer; }
+        .lv-btn:hover { color: var(--text); }
+        .lv-btn.next { color: var(--primary); border-color: var(--primary); font-weight: 600; }
+        .lv-cur { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .lv-dot { width: 9px; height: 9px; border-radius: 50%; background: #e5534b; flex: none; animation: lvpulse 1.4s ease-in-out infinite; }
+        @keyframes lvpulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+        .lv-txt { color: var(--text); font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .lv-exit { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 14px; }
+        .lv-exit:hover { color: var(--danger); }
+        .prod-item.cur .prod-row { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+        .prod-item.past, .prod-trans.past, .prod-sec.past { opacity: .38; }
+        .prod-item.past .pr-extra { display: none; }
+        .prod-item.cur .prod-row, .prod-trans.cur, .prod-item.future .prod-row { cursor: pointer; }
         .prod-trans { display: flex; align-items: center; gap: 8px; padding: 3px 13px 3px 20px; }
         .pt-arrow { color: var(--text-faint); font-size: 13px; }
         .pt-lbl { color: var(--text-dim); font-size: 12px; font-style: italic; }
