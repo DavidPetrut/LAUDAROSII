@@ -30,6 +30,9 @@ const schema = pcSchema({
   detectedLabel: { type: String, default: "" }, // etichetă scurtă, ex. „D" / „Em"
   detectedConf: { type: Number, default: 0 }, // 0..1 încredere estimare
   sortOrder: { type: Number, default: 0 },
+  // Backup off-site (al 2-lea cloud, ex. Backblaze B2) — dublură reală a fișierului:
+  backupKey: { type: String, default: "" }, // cheia/obiectul în bucket-ul de backup (gol = încă necopiat)
+  backupAt: { type: Date, default: null }, // când a fost copiat ultima dată
 });
 
 schema.index({ orgId: 1, arrangementId: 1 });

@@ -122,6 +122,7 @@ setupPrayRoomSockets(io);
 startBroadcastScheduler();
 startPrayRoomScheduler();
 require("./planning-center/alertScheduler").startAlertScheduler(); // alerte programate → push la minut (gated PC_ALERTS_PUSH)
+require("./planning-center/songsBackupScheduler").startSongsBackupScheduler(); // backup nocturn Songs → B2 + manifest (gated PC_SONGS_BACKUP)
 
 // Puntea WhatsApp (Baileys) — DOAR local/always-on (flag). Pe Render rămâne oprită (ephemeral + sleep).
 if (process.env.WHATSAPP_BRIDGE === "1") {

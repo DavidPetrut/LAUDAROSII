@@ -124,6 +124,14 @@ const has = (f) => process.argv.includes(f);
     return;
   }
 
+  // ───────── Backup off-site Songs → B2 + manifest (rulare manuală a turei nocturne) ─────────
+  //   --backup   → copiază în B2 fișierele noi (dacă B2_* setate) + regenerează manifestul
+  if (has("--backup")) {
+    await require("../../songsBackupScheduler").runOnce();
+    await mongoose.disconnect();
+    return;
+  }
+
   // ───────── Import SONGS (felia muzicală): structură + ChordPro + Words + fișiere (rehost Cloudinary) ─────────
   //   --songs            → DRY (numără, nu scrie; estimează volumul de fișiere)
   //   --songs --run      → SCRIE structura + descarcă fișierele reale (dacă NU dai --no-files)
