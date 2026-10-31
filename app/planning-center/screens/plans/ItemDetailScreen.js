@@ -15,6 +15,23 @@ import { PcScreen, PcUnderlineTabs, PcAvatar, PcButton, PcBottomSheet, PcCheckbo
 import { usePc } from "../../navigation/PcContext";
 import { usePcAudio } from "../../navigation/PcAudioContext";
 import { ROLE_META, BASE_ROLES, parseVoicesText } from "../../lib/voices";
+import { keyToRo } from "../../lib/keyName";
+
+// „+ Tranziție" (quick-insert): creează un ELEMENT simplu dedesubt, cu titlu fix, fără lead.
+const QUICK_TRANS = [
+  { k: "prayer", label: "Tranziție cu rugăciune", title: "Rugăciune cu biserică" },
+  { k: "word", label: "Tranziție verbală", title: "Tranziție prin cuvânt" },
+];
+// „Alte slujiri" — kind-uri (rolul se ia AUTOMAT din Matrix; override doar intenționat).
+const MIN_KINDS = [
+  { k: "host", l: "Gazdă serviciu" },
+  { k: "communion", l: "Vorbitor cină" },
+  { k: "prayer", l: "Îndemn rugăciune" },
+  { k: "preach", l: "Predică" },
+  { k: "worship", l: "Lider de închinare" },
+];
+const minKindLabel = (k) => (MIN_KINDS.find((x) => x.k === k) || {}).l || k;
+const LIGHT_SWATCHES = ["#e5534b", "#e2a03f", "#f0d94d", "#57b98a", "#2f81f7", "#9b6cf0", "#ff7ab6", "#ffffff"];
 
 // Numele vine uneori URL-encodat (ex. „My%20Song.mp3") → afișat/redat decodat, lizibil.
 const prettyName = (n) => { const s = String(n || ""); if (!s.includes("%")) return s; try { return decodeURIComponent(s); } catch (e) { return s; } };
@@ -73,6 +90,14 @@ export function ItemDetailScreen({ route, navigation }) {
   const [voices, setVoices] = useState([]);
   const [pool, setPool] = useState([]);
   const [voiceRole, setVoiceRole] = useState(null); // rolul pt. care alegem din pool (sheet)
+  // „Alte slujiri" + „Tranziție" + „+ Tranziție"
+  const [ministries, setMinistries] = useState([]);
+  const [mPool, setMPool] = useState({ week: [], preachers: [], byKind: {} });
+  const [trans, setTrans] = useState({ key: "", autoKey: false, keySource: "", lights: [], prayer: null });
+  const [mOverrideIdx, setMOverrideIdx] = useState(null); // slujirea pt. care alegem manual altă persoană
+  const [mAddOpen, setMAddOpen] = useState(false);        // sheet „+ Alte slujiri"
+  const [prayerOpen, setPrayerOpen] = useState(false);    // sheet persoană rugăciune (tranziție)
+  const [qtOpen, setQtOpen] = useState(false);            // sheet „+ Tranziție"
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -84,7 +109,12 @@ export function ItemDetailScreen({ route, navigation }) {
       setSec(String((it.lengthSec || 0) % 60));
       setDesc(it.description || "");
       setVoices(it.voices || []);
+      setMinistries(it.ministries || []);
+      setTrans(it.transition || { key: "", autoKey: false, keySource: "", lights: [], prayer: null });
       pcApi.plans.voicesPool(planId).then((r) => setPool(r.people || [])).catch(() => {});
+      if (it.type === "item" || it.type === "transition") {
+        pcApi.plans.ministryPool(planId).then((r) => setMPool({ week: r.week || [], preachers: r.preachers || [], byKind: r.byKind || {} })).catch(() => {});
+      }
       setTab((t) => (t === "FILES" && it.type === "song" ? "SONG" : t));
       // Edit a song from a plan: aduce aranjamentele + detaliul aranjamentului linkat.
       if (it.type === "song" && it.songId) {
@@ -134,6 +164,37 @@ export function ItemDetailScreen({ route, navigation }) {
     saveVoices(mapped);
   };
   const toggleTransition = () => { if (!canEdit) return; patch({ isTransition: !item?.isTransition }).then(load); };
+
+  // ── Alte slujiri (kind → persoana se ia din Matrix; override doar intenționat) ──
+  const saveMinistries = (next) => { setMinistries(next); patch({ ministries: next.map((m) => ({ kind: m.kind, personId: m.personId || undefined, name: m.personId ? undefined : (m.name || "") })) }); };
+  const addKind = (k) => { saveMinistries([...ministries, { kind: k, personId: null }]); setMAddOpen(false); };
+  const setMinistryOverride = (idx, p) => { saveMinistries(ministries.map((m, i) => (i === idx ? { ...m, personId: p.personId, name: p.name, avatar: p.avatar, initials: p.initials } : m))); setMOverrideIdx(null); };
+  const clearMinistryOverride = (idx) => saveMinistries(ministries.map((m, i) => (i === idx ? { kind: m.kind, personId: null } : m)));
+  const removeMinistryAt = (idx) => saveMinistries(ministries.filter((_, i) => i !== idx));
+
+  // ── Tranziție (gamă / lumini / rugăciune). Salvăm întreg sub-obiectul; backend folosește dotted paths. ──
+  const saveTransition = (next) => {
+    const merged = { ...trans, ...next };
+    setTrans(merged);
+    patch({ transition: { key: merged.key || "", autoKey: !!merged.autoKey, lights: merged.lights || [], prayerPersonId: merged.prayer ? merged.prayer.personId || merged.prayer.id : null } })
+      .then(() => pcApi.plans.item(planId, itemId)) // re-rezolvă gama auto (din următorul cântec)
+      .then((r) => { if (r?.transition) setTrans(r.transition); })
+      .catch(() => {});
+  };
+  const setTransKey = (k) => saveTransition({ key: k });
+  const setTransAuto = (v) => saveTransition({ autoKey: v });
+  const addLight = (color) => saveTransition({ lights: [...(trans.lights || []), { color: color || LIGHT_SWATCHES[4], label: "" }] });
+  const setLight = (i, patchL) => saveTransition({ lights: (trans.lights || []).map((l, idx) => (idx === i ? { ...l, ...patchL } : l)) });
+  const delLight = (i) => saveTransition({ lights: (trans.lights || []).filter((_, idx) => idx !== i) });
+  const pickPrayer = (p) => { setPrayerOpen(false); saveTransition({ prayer: { personId: p.personId, name: p.name, avatar: p.avatar, initials: p.initials } }); };
+  const clearPrayer = () => saveTransition({ prayer: null });
+
+  // „+ Tranziție" — creează un element simplu (fără lead) imediat DEDESUBT, cu titlu fix.
+  const addQuickTransition = async (ttl) => {
+    setQtOpen(false);
+    try { await pcApi.plans.addItem(planId, { type: "item", title: ttl, afterItemId: itemId }); navigation.goBack(); }
+    catch (e) { showError(e?.message || "Nu s-a putut adăuga."); }
+  };
 
   // ── Medley ──
   const saveMedley = async (next) => {
@@ -200,7 +261,7 @@ export function ItemDetailScreen({ route, navigation }) {
             </Pressable>
           </View>
 
-          {item.type !== "header" && (
+          {item.type !== "header" && item.type !== "transition" && (
             <Pressable style={styles.transRow} onPress={toggleTransition}>
               <PcCheckbox checked={!!item.isTransition} onPress={toggleTransition} size={20} />
               <Text style={styles.transTxt}>Tranziție <Text style={{ color: pcColors.textMuted }}>— timp neinclus, marcat „!"</Text></Text>
@@ -231,7 +292,40 @@ export function ItemDetailScreen({ route, navigation }) {
                 </View>
               );
             })}
+            {/* Alte slujiri — doar la ELEMENT (rolul se ia automat din Matrix). */}
+            {item.type === "item" && (
+              <MinistriesBlock
+                ministries={ministries} byKind={mPool.byKind} canEdit={canEdit}
+                onAdd={() => setMAddOpen(true)}
+                onOverride={(idx) => setMOverrideIdx(idx)}
+                onClearOverride={clearMinistryOverride}
+                onRemove={removeMinistryAt}
+              />
+            )}
           </View>
+          )}
+
+          {/* Tip „Tranziție" — punte: gamă · lumini · rugăciune (containere opționale). */}
+          {item.type === "transition" && (
+            <View style={styles.block}>
+              <Text style={styles.label}>Punte — gamă · lumini · rugăciune</Text>
+              <TransitionBlock
+                trans={trans} canEdit={canEdit}
+                onSetKey={setTransKey} onSetAuto={setTransAuto}
+                onAddLight={addLight} onSetLight={setLight} onDelLight={delLight}
+                onPickPrayer={() => setPrayerOpen(true)} onClearPrayer={clearPrayer}
+              />
+            </View>
+          )}
+
+          {/* „+ Tranziție" — generează un element simplu dedesubt (rugăciune / verbală). Oriunde, nu doar la cântec. */}
+          {item.type !== "header" && canEdit && (
+            <View style={styles.qtWrap}>
+              <Pressable style={styles.qtBtn} onPress={() => setQtOpen(true)}>
+                <Ionicons name="add" size={16} color={pcColors.primary} />
+                <Text style={styles.qtBtnTxt}>Tranziție</Text>
+              </Pressable>
+            </View>
           )}
 
           <View style={styles.block}>
@@ -244,6 +338,7 @@ export function ItemDetailScreen({ route, navigation }) {
               onOpenChart={(c) => c.songId && c.arrangementId && navigation.navigate("PcChartViewer", { songId: c.songId, arrangementId: c.arrangementId, initialDisplayKey: c.keyName })} />
           )}
 
+          {item.type !== "transition" && (<>
           <View style={styles.block}>
             <Text style={styles.label}>Item leader</Text>
             <View style={styles.leaderWrap}>
@@ -296,6 +391,7 @@ export function ItemDetailScreen({ route, navigation }) {
               )}
             </View>
           )}
+          </>)}
         </ScrollView>
       )}
 
@@ -350,7 +446,200 @@ export function ItemDetailScreen({ route, navigation }) {
           </ScrollView>
         </View>
       </PcBottomSheet>
+
+      {/* Alte slujiri — adaugă un kind */}
+      <PcBottomSheet visible={mAddOpen} onClose={() => setMAddOpen(false)} maxHeightPct={0.55}>
+        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+          <Text style={styles.sheetTitle}>+ Alte slujiri</Text>
+          {MIN_KINDS.map((k) => (
+            <Pressable key={k.k} style={styles.kindRow} onPress={() => addKind(k.k)}>
+              <Text style={styles.resName}>{k.l}</Text>
+              <Ionicons name="add" size={20} color={pcColors.primary} />
+            </Pressable>
+          ))}
+        </View>
+      </PcBottomSheet>
+
+      {/* Alte slujiri — override manual (altă persoană decât cea din Matrix) */}
+      <PcBottomSheet visible={mOverrideIdx !== null} onClose={() => setMOverrideIdx(null)} maxHeightPct={0.7}>
+        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+          <Text style={styles.sheetTitle}>Alege manual{mOverrideIdx !== null && ministries[mOverrideIdx] ? ` — ${minKindLabel(ministries[mOverrideIdx].kind)}` : ""}</Text>
+          <Text style={styles.resLabel}>PROGRAMAȚI PE PLAN</Text>
+          <ScrollView style={{ maxHeight: 360, marginTop: 6 }} keyboardShouldPersistTaps="handled">
+            {mPool.week.map((p) => (
+              <Pressable key={String(p.personId)} style={styles.resRow} onPress={() => setMinistryOverride(mOverrideIdx, p)}>
+                <PcAvatar uri={p.avatar} initials={p.initials} size={28} />
+                <Text style={styles.resName}>{p.name}</Text>
+              </Pressable>
+            ))}
+            {!mPool.week.length && <Text style={styles.emptyTxt}>Nimeni programat pe plan.</Text>}
+          </ScrollView>
+        </View>
+      </PcBottomSheet>
+
+      {/* Tranziție — persoana de rugăciune (din Matrix) */}
+      <PcBottomSheet visible={prayerOpen} onClose={() => setPrayerOpen(false)} maxHeightPct={0.7}>
+        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+          <Text style={styles.sheetTitle}>Rugăciune — alege persoana</Text>
+          <Text style={styles.resLabel}>PROGRAMAȚI PE PLAN</Text>
+          <ScrollView style={{ maxHeight: 360, marginTop: 6 }} keyboardShouldPersistTaps="handled">
+            {mPool.week.map((p) => (
+              <Pressable key={String(p.personId)} style={styles.resRow} onPress={() => pickPrayer(p)}>
+                <PcAvatar uri={p.avatar} initials={p.initials} size={28} />
+                <Text style={styles.resName}>{p.name}</Text>
+              </Pressable>
+            ))}
+            {!mPool.week.length && <Text style={styles.emptyTxt}>Nimeni programat pe plan.</Text>}
+          </ScrollView>
+        </View>
+      </PcBottomSheet>
+
+      {/* „+ Tranziție" — creează un element simplu dedesubt */}
+      <PcBottomSheet visible={qtOpen} onClose={() => setQtOpen(false)} maxHeightPct={0.4}>
+        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+          <Text style={styles.sheetTitle}>+ Tranziție</Text>
+          {QUICK_TRANS.map((t) => (
+            <Pressable key={t.k} style={styles.qtItem} onPress={() => addQuickTransition(t.title)}>
+              <Text style={styles.qtItemL}>{t.label}</Text>
+              <Text style={styles.qtItemD}>creează „{t.title}" dedesubt</Text>
+            </Pressable>
+          ))}
+        </View>
+      </PcBottomSheet>
     </PcScreen>
+  );
+}
+
+/** Alte slujiri (mobil) — rolul se ia AUTOMAT din Matrix (byKind); override cu ✎, înapoi la Matrix cu ↺. */
+function MinistriesBlock({ ministries, byKind, canEdit, onAdd, onOverride, onClearOverride, onRemove }) {
+  return (
+    <View style={{ marginTop: 14 }}>
+      <Text style={styles.mHead}>Alte slujiri</Text>
+      {ministries.map((m, idx) => {
+        const auto = byKind[m.kind] || [];
+        const override = m.personId ? { name: m.name || "—", avatar: m.avatar, initials: m.initials } : null;
+        return (
+          <View key={idx} style={styles.mRow}>
+            <Text style={styles.mLabel}>{minKindLabel(m.kind)}</Text>
+            <View style={styles.mPeople}>
+              {override ? (
+                <View style={styles.mChip}>
+                  <PcAvatar uri={override.avatar} initials={override.initials} size={18} />
+                  <Text style={styles.mChipTxt}>{override.name}</Text>
+                  {canEdit && <Pressable onPress={() => onClearOverride(idx)} hitSlop={6}><Ionicons name="refresh" size={14} color={pcColors.textMuted} /></Pressable>}
+                </View>
+              ) : auto.length ? (
+                auto.map((p) => (
+                  <View key={String(p.personId)} style={[styles.mChip, styles.mChipAuto]}>
+                    <PcAvatar uri={p.avatar} initials={p.initials} size={18} />
+                    <Text style={styles.mChipTxt}>{p.name}</Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.mNone}>— nimeni pe rol în Matrix</Text>
+              )}
+              {canEdit && <Pressable onPress={() => onOverride(idx)} hitSlop={6}><Ionicons name="create-outline" size={16} color={pcColors.textMuted} /></Pressable>}
+              {canEdit && <Pressable onPress={() => onRemove(idx)} hitSlop={6}><Ionicons name="close" size={15} color={pcColors.textMuted} /></Pressable>}
+            </View>
+          </View>
+        );
+      })}
+      {canEdit && (
+        <Pressable style={styles.mAdd} onPress={onAdd}>
+          <Ionicons name="add" size={16} color={pcColors.primary} />
+          <Text style={styles.mAddTxt}>Alte slujiri</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+/** Tranziție (mobil) — 3 containere opționale: Gamă (auto/manual + conversie RO), Lumini, Rugăciune. */
+function TransitionBlock({ trans, canEdit, onSetKey, onSetAuto, onAddLight, onSetLight, onDelLight, onPickPrayer, onClearPrayer }) {
+  const [added, setAdded] = useState({ key: false, lights: false });
+  const key = trans.key || "";
+  const autoKey = !!trans.autoKey;
+  const keySource = trans.keySource || "";
+  const lights = trans.lights || [];
+  const prayer = trans.prayer || null;
+  const hasKey = key || autoKey || added.key;
+  const hasLights = lights.length || added.lights;
+
+  return (
+    <View style={{ gap: 8 }}>
+      {/* Gamă */}
+      {hasKey ? (
+        <View style={styles.tBox}>
+          <Text style={styles.tBoxH}>♪ Gamă</Text>
+          {canEdit && (
+            <Pressable style={styles.tAutoRow} onPress={() => onSetAuto(!autoKey)}>
+              <PcCheckbox checked={autoKey} onPress={() => onSetAuto(!autoKey)} size={18} />
+              <Text style={styles.tAutoTxt}>Mapează la următorul cântec <Text style={{ color: pcColors.textMuted }}>— ia automat gama cântecului care urmează</Text></Text>
+            </Pressable>
+          )}
+          {autoKey ? (
+            <View style={styles.tAutoVal}>
+              {key ? (
+                <>
+                  <View style={styles.tSym}><Text style={styles.tSymTxt}>{key}</Text></View>
+                  <Text style={styles.tRo}>{keyToRo(key)}</Text>
+                  {!!keySource && <Text style={styles.tSrc}>din „{keySource}"</Text>}
+                </>
+              ) : <Text style={styles.mNone}>Niciun cântec după tranziție (încă).</Text>}
+            </View>
+          ) : (
+            <>
+              <TextInput style={styles.tKeyIn} value={key} editable={canEdit} onChangeText={onSetKey} placeholder="ex. C, Dm, G→A" placeholderTextColor={pcColors.textMuted} />
+              {!!key && <Text style={styles.tRoLine}>= <Text style={{ color: pcColors.textPrimary, fontWeight: "700" }}>{keyToRo(key)}</Text></Text>}
+            </>
+          )}
+          <Text style={styles.tHint}>Apare ca badge pe rând și scris dedesubt pentru echipă.</Text>
+        </View>
+      ) : canEdit && (
+        <Pressable style={styles.tAdd} onPress={() => setAdded((a) => ({ ...a, key: true }))}><Text style={styles.tAddTxt}>+ Gamă</Text></Pressable>
+      )}
+
+      {/* Lumini */}
+      {hasLights ? (
+        <View style={styles.tBox}>
+          <Text style={styles.tBoxH}>💡 Lumini</Text>
+          {lights.map((l, i) => (
+            <View key={i} style={styles.lightRow}>
+              <View style={[styles.lSwatch, { backgroundColor: l.color || "#2f81f7" }]} />
+              <TextInput style={styles.lLabel} value={l.label || ""} editable={canEdit} onChangeText={(v) => onSetLight(i, { label: v })} placeholder={`Culoare ${i + 1} (etichetă opț.)`} placeholderTextColor={pcColors.textMuted} />
+              {canEdit && <Pressable onPress={() => onDelLight(i)} hitSlop={6}><Ionicons name="close" size={15} color={pcColors.danger} /></Pressable>}
+            </View>
+          ))}
+          {canEdit && (
+            <View style={styles.lSws}>
+              {LIGHT_SWATCHES.map((c) => (
+                <Pressable key={c} style={[styles.lPre, { backgroundColor: c }]} onPress={() => { setAdded((a) => ({ ...a, lights: true })); onAddLight(c); }} />
+              ))}
+            </View>
+          )}
+          {lights.length > 1 && <Text style={styles.tHint}>Mai multe culori = tranziție de la una la alta.</Text>}
+        </View>
+      ) : canEdit && (
+        <Pressable style={styles.tAdd} onPress={() => { setAdded((a) => ({ ...a, lights: true })); onAddLight(); }}><Text style={styles.tAddTxt}>+ Lumini</Text></Pressable>
+      )}
+
+      {/* Rugăciune */}
+      {prayer ? (
+        <View style={styles.tBox}>
+          <Text style={styles.tBoxH}>🙏 Rugăciune</Text>
+          <View style={styles.prRow}>
+            <View style={styles.mChip}>
+              <PcAvatar uri={prayer.avatar} initials={prayer.initials} size={20} />
+              <Text style={styles.mChipTxt}>Tranziție rugăciune: {prayer.name}</Text>
+            </View>
+            {canEdit && <Pressable onPress={onPickPrayer} hitSlop={6}><Ionicons name="create-outline" size={16} color={pcColors.textMuted} /></Pressable>}
+            {canEdit && <Pressable onPress={onClearPrayer} hitSlop={6}><Ionicons name="close" size={15} color={pcColors.danger} /></Pressable>}
+          </View>
+        </View>
+      ) : canEdit && (
+        <Pressable style={styles.tAdd} onPress={onPickPrayer}><Text style={styles.tAddTxt}>+ Rugăciune</Text></Pressable>
+      )}
+    </View>
   );
 }
 
@@ -551,6 +840,46 @@ const styles = StyleSheet.create({
   snTime: { width: 36, backgroundColor: pcColors.input, borderRadius: 6, color: pcColors.textPrimary, fontSize: 13, textAlign: "center", paddingVertical: 4 },
   snSeq: { flex: 1, backgroundColor: pcColors.input, borderRadius: 6, color: pcColors.textPrimary, fontSize: 13, paddingHorizontal: 8, paddingVertical: 5 },
   snArrow: { color: pcColors.primary, fontSize: 16, textAlign: "center", marginTop: 6 },
+  // „+ Tranziție" quick-insert
+  qtWrap: { paddingHorizontal: 16, paddingTop: 2, paddingBottom: 4 },
+  qtBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", borderWidth: 1, borderColor: pcColors.inputBorder, borderStyle: "dashed", borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 },
+  qtBtnTxt: { color: pcColors.primary, fontSize: 13.5, fontWeight: "700" },
+  qtItem: { paddingVertical: 12, paddingHorizontal: 12, borderRadius: 8 },
+  qtItemL: { color: pcColors.textPrimary, fontSize: 15, fontWeight: "700" },
+  qtItemD: { color: pcColors.textMuted, fontSize: 12.5, marginTop: 2 },
+  kindRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: pcColors.divider },
+  // Alte slujiri
+  mHead: { color: pcColors.textSecondary, fontSize: 11, fontWeight: "700", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 },
+  mRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 8, flexWrap: "wrap" },
+  mLabel: { width: 118, color: pcColors.textSecondary, fontSize: 13, paddingTop: 4 },
+  mPeople: { flex: 1, flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
+  mChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: pcColors.card, borderWidth: 1, borderColor: pcColors.inputBorder, borderRadius: 14, paddingVertical: 3, paddingHorizontal: 9 },
+  mChipAuto: { borderStyle: "dashed", backgroundColor: "transparent" },
+  mChipTxt: { color: pcColors.textPrimary, fontSize: 13 },
+  mNone: { color: pcColors.textMuted, fontSize: 12.5 },
+  mAdd: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", borderWidth: 1, borderColor: pcColors.inputBorder, borderStyle: "dashed", borderRadius: 8, paddingVertical: 7, paddingHorizontal: 12, marginTop: 4 },
+  mAddTxt: { color: pcColors.primary, fontSize: 13, fontWeight: "700" },
+  // Tranziție
+  tBox: { backgroundColor: pcColors.card, borderWidth: 1, borderColor: pcColors.divider, borderRadius: 10, padding: 12 },
+  tBoxH: { color: pcColors.textPrimary, fontSize: 13, fontWeight: "700", marginBottom: 8 },
+  tAutoRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 9 },
+  tAutoTxt: { flex: 1, color: pcColors.textSecondary, fontSize: 12.5, lineHeight: 18 },
+  tAutoVal: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 9, backgroundColor: pcColors.input, borderRadius: 7, paddingVertical: 8, paddingHorizontal: 10 },
+  tSym: { backgroundColor: "#6fa02e", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 1 },
+  tSymTxt: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  tRo: { color: pcColors.textPrimary, fontSize: 13, fontWeight: "700" },
+  tSrc: { color: pcColors.textMuted, fontSize: 11.5 },
+  tKeyIn: { backgroundColor: pcColors.input, borderWidth: 1, borderColor: pcColors.inputBorder, borderRadius: 7, color: pcColors.textPrimary, fontSize: 15, fontWeight: "700", paddingVertical: 9, paddingHorizontal: 10 },
+  tRoLine: { color: pcColors.textSecondary, fontSize: 12.5, marginTop: 6 },
+  tHint: { color: pcColors.textMuted, fontSize: 11, marginTop: 6 },
+  tAdd: { borderWidth: 1, borderColor: pcColors.inputBorder, borderStyle: "dashed", borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12 },
+  tAddTxt: { color: pcColors.textSecondary, fontSize: 13, fontWeight: "600" },
+  lightRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
+  lSwatch: { width: 32, height: 28, borderRadius: 6, borderWidth: 1, borderColor: pcColors.inputBorder },
+  lLabel: { flex: 1, backgroundColor: pcColors.input, borderWidth: 1, borderColor: pcColors.inputBorder, borderRadius: 7, color: pcColors.textPrimary, fontSize: 12.5, paddingVertical: 7, paddingHorizontal: 9 },
+  lSws: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 4 },
+  lPre: { width: 22, height: 22, borderRadius: 11, borderWidth: 1, borderColor: pcColors.inputBorder },
+  prRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
 });
 
 export default ItemDetailScreen;

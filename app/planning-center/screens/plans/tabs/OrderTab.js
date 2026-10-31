@@ -10,12 +10,17 @@ import { pcColors, hexToRgba } from "../../../theme";
 import { PcButton, PcAvatar, PcBottomSheet } from "../../../components";
 import { usePc } from "../../../navigation/PcContext";
 import { formatVoices } from "../../../lib/voices";
+import { keyToRo } from "../../../lib/keyName";
+
+// „Alte slujiri" pe rând: prenume cu majuscule, grupuri separate cu „||".
+const minFirst = (s) => String(s || "").trim().split(/[\s\-–—]+/)[0].toUpperCase();
 
 const ADD_TYPES = [
   { key: "song", label: "Song", icon: "musical-notes-outline", short: "s" },
   { key: "songEmpty", label: "Cântec fără muzică", icon: "mic-outline", short: "" },
   { key: "header", label: "Header", icon: "remove-outline", short: "h" },
   { key: "item", label: "Item", icon: "ellipse-outline", short: "i" },
+  { key: "transition", label: "Tranziție", icon: "swap-horizontal-outline", short: "t" },
   { key: "media", label: "Media", icon: "videocam-outline", short: "m" },
   { key: "medley", label: "Medley", icon: "git-merge-outline", short: "" },
 ];
@@ -62,6 +67,12 @@ export function OrderTab({ planId, navigation, head, tabsBar }) {
     }
     const voiceLine = item.voices?.length ? formatVoices(item.voices) : "";
     const leadVoice = (item.voices || []).find((v) => v.role === "lead") || null;
+    // Slujirile rezolvă persoana automat din Matrix (m.people) sau override. Pe rând: doar prenumele.
+    const minPeople = (item.ministries || []).flatMap((m) => m.people || []);
+    const ministryLine = (item.ministries || []).map((m) => (m.people || []).map((p) => minFirst(p.name)).join(", ")).filter(Boolean).join("  ||  ");
+    // Tip „Tranziție": gamă (badge + text), lumini (culori), rugăciune (avatar).
+    const tr = item.type === "transition" ? (item.transition || {}) : null;
+    const avatarPerson = leadVoice || minPeople[0] || (tr && tr.prayer) || null;
     return (
       <Pressable
         style={[
@@ -80,9 +91,25 @@ export function OrderTab({ planId, navigation, head, tabsBar }) {
             {item.type === "medley" && <View style={styles.mtag}><Text style={styles.mtagTxt}>medley · {item.medleyCount}</Text></View>}
             <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
             {!!item.keyName && <View style={[styles.keyBadge, item.type === "media" && styles.keyBadgeMedia]}><Text style={styles.keyTxt}>{item.keyName}</Text></View>}
-            {leadVoice && <View style={{ marginLeft: 20, transform: [{ translateY: 5 }] }}><PcAvatar uri={leadVoice.avatar} initials={leadVoice.initials} size={30} /></View>}
+            {tr && !!tr.key && <View style={styles.keyBadge}><Text style={styles.keyTxt}>{tr.key}</Text></View>}
+            {avatarPerson && <View style={{ marginLeft: 20, transform: [{ translateY: 5 }] }}><PcAvatar uri={avatarPerson.avatar} initials={avatarPerson.initials} size={30} /></View>}
           </View>
           {!!voiceLine && <Text style={styles.voiceLine}>{voiceLine}</Text>}
+          {!!ministryLine && <Text style={styles.voiceLine}>{ministryLine}</Text>}
+          {tr && (tr.key || (tr.lights || []).length || tr.prayer) ? (
+            <View style={styles.trLine}>
+              {!!tr.key && (
+                <Text style={styles.trPart}>Gamă: <Text style={styles.trBold}>{keyToRo(tr.key)}</Text> <Text style={styles.trSym}>({tr.key})</Text>{tr.autoKey ? <Text style={styles.trAuto}> · auto</Text> : null}</Text>
+              )}
+              {(tr.lights || []).length > 0 && (
+                <View style={styles.trLights}>
+                  <Text style={styles.trPart}>Lumini:</Text>
+                  {tr.lights.map((l, i) => <View key={i} style={[styles.trDot, { backgroundColor: l.color || "#888" }]} />)}
+                </View>
+              )}
+              {tr.prayer && <Text style={styles.trPart}>Rugăciune: {tr.prayer.name}</Text>}
+            </View>
+          ) : null}
           {!!item.description && <Text style={styles.desc}>{item.description}</Text>}
         </View>
         {(item.leaders || []).slice(0, 3).map((l, i) =>
@@ -187,6 +214,13 @@ const styles = StyleSheet.create({
   keyTxt: { color: "#fff", fontSize: 15, fontWeight: "800" },
   voiceLine: { color: pcColors.textSecondary, fontSize: 13.5, marginTop: 2, lineHeight: 19 },
   desc: { color: pcColors.textSecondary, fontSize: 13.5, marginTop: 2, lineHeight: 19 },
+  trLine: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 14, marginTop: 3 },
+  trPart: { color: pcColors.textSecondary, fontSize: 13 },
+  trBold: { color: pcColors.textPrimary, fontWeight: "800" },
+  trSym: { color: pcColors.textMuted },
+  trAuto: { color: pcColors.primary, fontWeight: "800", fontSize: 12 },
+  trLights: { flexDirection: "row", alignItems: "center", gap: 5 },
+  trDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1, borderColor: pcColors.inputBorder },
   rowTrans: { paddingLeft: 44 },
   bang: { width: 20, height: 20, borderRadius: 10, backgroundColor: pcColors.danger, alignItems: "center", justifyContent: "center", marginTop: 1 },
   bangTxt: { color: "#fff", fontWeight: "800", fontSize: 12 },

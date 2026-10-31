@@ -201,8 +201,26 @@ export function PlanScreen({ route, navigation }) {
       )}
 
       {/* 3-dot menu */}
-      <PcBottomSheet visible={menuOpen} onClose={() => setMenuOpen(false)} maxHeightPct={0.5}>
+      <PcBottomSheet visible={menuOpen} onClose={() => setMenuOpen(false)} maxHeightPct={0.55}>
         <View style={{ paddingHorizontal: 8, paddingBottom: 8 }}>
+          {!!me?.capabilities?.editOrder && head && (
+            <Pressable
+              style={styles.menuRow}
+              onPress={() => {
+                setMenuOpen(false);
+                navigation.navigate("PcOrderTemplates", {
+                  planId,
+                  serviceTypeId: head.serviceTypeId,
+                  serviceTypeName: head.serviceTypeName,
+                  orderTemplateId: head.orderTemplateId,
+                  planSortDate: head.sortDate,
+                });
+              }}
+            >
+              <Ionicons name="albums-outline" size={22} color={pcColors.textPrimary} />
+              <Text style={styles.menuTxt}>Șablon Order</Text>
+            </Pressable>
+          )}
           {MENU.map((m) => (
             <Pressable
               key={m.key}

@@ -78,12 +78,25 @@ export const pcApi = {
     voicesPool: (planId) => api.get(`${B}/plans/${planId}/voices-pool`),
     createMedley: (planId, data) => api.post(`${B}/plans/${planId}/items/medley`, data),
     updateMedley: (planId, itemId, data) => api.patch(`${B}/plans/${planId}/items/${itemId}/medley`, data),
+    // „Alte slujiri" (byKind din Matrix) + șabloane Order (istoric-safe: aplică doar pe acest plan)
+    ministryPool: (planId) => api.get(`${B}/plans/${planId}/ministry-pool`),
+    applyOrderTemplate: (planId, templateId) => api.post(`${B}/plans/${planId}/apply-order-template`, { templateId }),
     // Scheduling
     schedulable: (planId, q) => api.get(`${B}/plans/${planId}/schedulable${q ? `?q=${encodeURIComponent(q)}` : ""}`),
     assign: (planId, data) => api.post(`${B}/plans/${planId}/assignments`, data),
     unassign: (planId, aid) => api.delete(`${B}/plans/${planId}/assignments/${aid}`),
     sendScheduleEmails: (planId, teamId) => api.post(`${B}/plans/${planId}/send-schedule-emails`, teamId ? { teamId } : {}),
     rehearse: (planId) => api.get(`${B}/plans/${planId}/rehearse`),
+  },
+
+  // Șabloane de ORDER (pc_orderTemplates) — listă/preview/save-as/rescrie/rename/default/delete
+  orderTemplates: {
+    list: (serviceTypeId) => api.get(`${B}/order-templates${serviceTypeId ? `?serviceTypeId=${encodeURIComponent(serviceTypeId)}` : ""}`),
+    get: (tid) => api.get(`${B}/order-templates/${tid}`),
+    create: (payload) => api.post(`${B}/order-templates`, payload),        // { planId, name, serviceTypeId?, isDefault?, itemIds? }
+    update: (tid, payload) => api.patch(`${B}/order-templates/${tid}`, payload), // { name?, isDefault? }
+    overwrite: (tid, payload) => api.patch(`${B}/order-templates/${tid}`, payload), // { planId, itemIds? } → rescrie structura
+    remove: (tid) => api.delete(`${B}/order-templates/${tid}`),
   },
 
   // Planning Center Alerts — latura viewer (toți userii)
