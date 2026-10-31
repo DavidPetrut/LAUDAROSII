@@ -2256,7 +2256,15 @@ router.get("/:id/production", requireCan("people.view"), async (req, res) => {
     const seqOf = (it) => (it.sequence && it.sequence.length ? it.sequence : (arrById[String(it.arrangementId)]?.sequence || [])).map(String);
 
     const rows = items.map((it) => {
-      if (it.type === "header") return { id: it._id, type: "header", title: it.title };
+      if (it.type === "header") {
+        const o = ov[String(it._id)] || {};
+        return {
+          id: it._id, type: "header", title: o.label || it.title, origTitle: it.title, label: o.label || "",
+          note: o.note || "", reminders: o.reminders || [],
+          sceneId: o.sceneId || null, scene: o.sceneId ? (sceneById[String(o.sceneId)] || null) : null,
+          fixtures: o.fixtures || [], projection: o.projection || [],
+        };
+      }
       const o = ov[String(it._id)] || {};
       return {
         id: it._id,
@@ -2279,6 +2287,7 @@ router.get("/:id/production", requireCan("people.view"), async (req, res) => {
         scene: o.sceneId ? (sceneById[String(o.sceneId)] || null) : null, // scena rezolvată (nume + fixtures)
         fixtures: o.fixtures || [],
         sectionCues: o.sectionCues || [],
+        sectionRows: o.sectionRows || [],
         rowBreaks: o.rowBreaks || [],
         projection: o.projection || [],
       };
@@ -2301,7 +2310,7 @@ router.get("/:id/production", requireCan("people.view"), async (req, res) => {
 });
 
 // PATCH — scrie DOAR overlay-ul (per owner). body: { item:{itemId,...}, reminders?, simFeedback? }.
-const PROD_ITEM_FIELDS = ["label", "note", "sceneId", "fixtures", "sectionCues", "rowBreaks", "projection", "reminders"];
+const PROD_ITEM_FIELDS = ["label", "note", "sceneId", "fixtures", "sectionCues", "sectionRows", "rowBreaks", "projection", "reminders"];
 router.patch("/:id/production", requireAny(["services.viewRehearsal", "services.editOrder"]), async (req, res) => {
   try {
     const id = OID(req.params.id);

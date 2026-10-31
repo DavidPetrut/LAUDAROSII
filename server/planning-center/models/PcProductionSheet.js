@@ -25,12 +25,16 @@ const ItemOverlay = new mongoose.Schema({
   // Fiecare secțiune poate avea: notă, culori de lumini, proiecție, remindere. `section` = numele (pt. afișare/print).
   sectionCues: { type: [{
     idx: { type: Number, default: 0 }, section: String,
-    lights: { type: [Light], default: [] },
+    lights: { type: [Light], default: [] },               // accent simplu (o culoare) — compat + dot rapid
+    sceneId: { type: mongoose.Schema.Types.ObjectId, ref: "PcLightScene", default: null }, // scenă la secțiune (orice secțiune poate avea scenă)
+    fixtures: { type: [{ fixture: String, color: String }], default: [] }, // Par/LED/Tobe/Laterale/Coroană la secțiune (din scenă sau manual)
     lightsTiming: { type: String, enum: ["before", "after"], default: "after" }, // momentul luminilor la secțiune (ca în Order): înainte / după
     projection: String, note: String,
     reminders: { type: [{ text: String, icon: { type: String, default: "info" }, severity: { type: String, default: "normal" } }], default: [] },
   }], default: [] },
-  // Împărțirea sequence-ului pe RÂNDURI (multi-row): indicii din sequence la care începe un rând nou (drag-to-split).
+  // Layout-ul sequence-ului: listă de RÂNDURI, fiecare = indicii (din sequence-ul original) în ordinea dorită (reordonare + multi-row, drag pe stânga).
+  // Gol = default (un singur rând, ordinea din Order). Înlocuiește funcțional rowBreaks (păstrat pt. compat/derivare o singură dată).
+  sectionRows: { type: [[Number]], default: [] },
   rowBreaks: { type: [Number], default: [] },
   projection: { type: [{ bgRef: String, note: String }], default: [] }, // fundal/coroană (Faza 3)
   reminders: { type: [{ text: String, icon: { type: String, default: "info" }, severity: { type: String, default: "normal" } }], default: [] },

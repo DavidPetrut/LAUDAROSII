@@ -666,10 +666,11 @@ const uniqSections = (seq) => { const seen = new Set(), out = []; for (const s o
 
 /* Preview/PDF color — HTML care OGLINDEȘTE tot ce s-a aranjat (scene, lumini, secțiuni, note, remindere).
    Întoarce stringul HTML; e folosit în iframe-ul de Preview (+ download/print din el). */
-function buildProductionHtml(data) {
+function buildProductionHtml(data, scenes) {
   if (!data) return "";
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
   const dot = (c) => `<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${esc(c)};border:1px solid #999;vertical-align:middle;margin-right:3px"></span>`;
+  const sceneNameOf = (c) => { if (!c || !c.sceneId) return ""; const s = (scenes || []).find((x) => String(x.id) === String(c.sceneId)); return s ? s.name : ""; };
   const rowsHtml = (data.items || []).map((r) => {
     if (r.type === "header") return `<div class="sec">${esc(r.title)}</div>`;
     if (r.type === "transition") { const t = r.transition || {}; return `<div class="tr">&#8627; ${esc(TRANS_LBL[t.kind] || "Tranziție")}${t.key ? ` &middot; ${esc(t.key)}` : ""}${(t.lights || []).map((l) => " " + dot(l.color)).join("")}</div>`; }
@@ -679,17 +680,16 @@ function buildProductionHtml(data) {
     const cueAt = (i) => (r.sectionCues || []).find((c) => c.idx === i) || null;
     let seqHtml = "";
     if (seq.length) {
-      const isolated = new Set(r.rowBreaks || []);
-      const rws = []; let run = [];
-      for (let i = 0; i < seq.length; i++) { if (isolated.has(i)) { if (run.length) { rws.push(run); run = []; } rws.push([i]); } else run.push(i); }
-      if (run.length) rws.push(run);
-      const chipOf = (i) => { const c = cueAt(i); const hasC = c && c.lights && c.lights[0] && c.lights[0].color; const col = hasC ? dot(c.lights[0].color) : ""; const before = c && c.lightsTiming === "before"; return hasC ? (before ? `${col}${esc(seq[i])}` : `${esc(seq[i])}${col}`) : esc(seq[i]); };
+      const rws = resolveRows(seq, r.sectionRows);
+      const chipOf = (i) => { const c = cueAt(i); const col = cueColor(c) ? dot(cueColor(c)) : ""; const before = c && c.lightsTiming === "before"; return col ? (before ? `${col}${esc(seq[i])}` : `${esc(seq[i])}${col}`) : esc(seq[i]); };
       seqHtml = `<div class="seq">` + rws.map((row) => {
         const chips = row.map(chipOf).join(" &middot; ");
-        if (row.length === 1 && isolated.has(row[0])) {
+        if (row.length === 1) {
           const c = cueAt(row[0]);
-          const lt = c && c.lights && c.lights[0] && c.lights[0].color ? ` <span class="lt-tag">${c.lightsTiming === "before" ? "&#11014; lumini înainte" : "lumini după &#11015;"}</span>` : "";
-          const extra = c ? `${lt}${c.note ? ` &mdash; ${esc(c.note)}` : ""}${c.projection ? ` &#9635; ${esc(c.projection)}` : ""}${(c.reminders || []).map((rm) => ` <span class="rem">${REM_ICON[rm.icon] || "•"} ${esc(rm.text)}</span>`).join("")}` : "";
+          const scn = sceneNameOf(c);
+          const scTag = scn ? ` <span class="sc-tag">&#9673; ${esc(scn)}</span>` : "";
+          const lt = cueHasLight(c) ? ` <span class="lt-tag">${c.lightsTiming === "before" ? "&#11014; lumini înainte" : "lumini după &#11015;"}</span>` : "";
+          const extra = c ? `${scTag}${lt}${c.note ? ` &mdash; ${esc(c.note)}` : ""}${c.projection ? ` &#9635; ${esc(c.projection)}` : ""}${(c.reminders || []).map((rm) => ` <span class="rem">${REM_ICON[rm.icon] || "•"} ${esc(rm.text)}</span>`).join("")}` : "";
           return `<div class="seqrow solo">&#8627; <b>${chips}</b>${extra}</div>`;
         }
         return `<div class="seqrow">${chips}</div>`;
@@ -724,12 +724,49 @@ function buildProductionHtml(data) {
     .seqrow.solo{background:#f7f8fa;border:1px solid #e6e9ee;border-radius:8px;padding:5px 11px}
     .seqrow .rem{margin-left:4px}
     .lt-tag{color:#6b7280;font-weight:600;font-size:11.5px;margin-left:4px}
+    .sc-tag{color:#2d6a4f;font-weight:700;font-size:11.5px;margin-left:4px}
     .tr{color:#999;font-style:italic;padding:1px 0 1px 15px;font-size:12px}
     .rem{color:#b3261e;font-weight:600}
     .sim{margin-top:20px;border-top:2px solid #b3261e;padding-top:9px;page-break-inside:avoid}.sim-h{color:#b3261e;font-weight:700;margin-bottom:5px}
   </style></head><body><h1>Order Producție</h1>${spotify}${rowsHtml}${sim}</body></html>`;
   return html;
 }
+
+/* ───── Structura secvenței (overlay): rânduri = indicii originali în ordinea dorită ───── */
+// Întoarce rândurile efective din `sectionRows` (reordonare + multi-row); robuste la schimbări în Order.
+function resolveRows(seq, sectionRows) {
+  const n = (seq || []).length;
+  if (!n) return [];
+  let rows = (sectionRows || []).map((row) => (row || []).filter((i) => Number.isInteger(i) && i >= 0 && i < n)).filter((r) => r.length);
+  const seen = new Set(rows.flat());
+  const missing = [];
+  for (let i = 0; i < n; i++) if (!seen.has(i)) missing.push(i);
+  if (!rows.length) return [Array.from({ length: n }, (_, i) => i)]; // default: un rând, ordinea din Order
+  if (missing.length) rows = [...rows, ...missing.map((i) => [i])];   // secțiuni noi din Order → rânduri proprii la final
+  return rows;
+}
+const cloneRows = (rows) => rows.map((r) => r.slice());
+const rowsRemove = (rows, i) => rows.map((r) => r.filter((x) => x !== i)).filter((r) => r.length);
+// Mută `i` înainte de `target` (ambii indici originali), în rândul lui `target`.
+function rowsMoveBefore(rows, i, target) {
+  if (i === target) return rows;
+  const rr = rowsRemove(cloneRows(rows), i);
+  for (const row of rr) { const p = row.indexOf(target); if (p >= 0) { row.splice(p, 0, i); return rr; } }
+  rr.push([i]); return rr;
+}
+// Mută `i` pe un rând nou, singur, la final.
+function rowsMoveToNewRow(rows, i) { const rr = rowsRemove(cloneRows(rows), i); rr.push([i]); return rr; }
+// Izolează `i` pe rândul lui acolo unde e; dacă e deja singur, îl lipește la rândul anterior (toggle).
+function rowsToggleIsolate(rows, i) {
+  const soloAt = rows.findIndex((r) => r.length === 1 && r[0] === i);
+  if (soloAt >= 0) { const rr = cloneRows(rows); const [solo] = rr.splice(soloAt, 1); const tgt = rr[soloAt - 1] || rr[soloAt]; if (tgt) tgt.push(solo[0]); else rr.splice(soloAt, 0, solo); return rr; }
+  const rr = [];
+  for (const row of cloneRows(rows)) { const p = row.indexOf(i); if (p < 0) { rr.push(row); continue; } const b = row.slice(0, p), a = row.slice(p + 1); if (b.length) rr.push(b); rr.push([i]); if (a.length) rr.push(a); }
+  return rr;
+}
+// Culoarea „accent" a unei secțiuni (pt. puncte în stânga/preview): prima fixtură, altfel lights, altfel gol.
+const cueColor = (c) => (c && c.fixtures && c.fixtures[0] && c.fixtures[0].color) || (c && c.lights && c.lights[0] && c.lights[0].color) || "";
+const cueHasLight = (c) => !!(c && ((c.fixtures && c.fixtures.length) || (c.lights && c.lights.length)));
 
 function RehearseTab({ planId, canEdit = false, flash }) {
   const [data, setData] = useState(null);
@@ -738,6 +775,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
   const [editing, setEditing] = useState(null); // itemId în curs de redenumire
   const [draft, setDraft] = useState("");
   const [editorItem, setEditorItem] = useState(null); // itemId selectat în panoul-editor din dreapta
+  const [selSection, setSelSection] = useState(null); // { itemId, idx } — secțiune selectată (exclusiv cu selecția de item)
   const [share, setShare] = useState(false); // dialog partajare
   const [preview, setPreview] = useState(false); // preview foaie finală (PDF-like)
   const [live, setLive] = useState(false);   // mod Live (teleprompter): urmărești momentul curent
@@ -776,6 +814,19 @@ function RehearseTab({ planId, canEdit = false, flash }) {
     try { await plansApi.saveProduction(planId, { item: { itemId: it.id, ...patch } }); }
     catch (e) { flash?.(e?.message || "Eroare la salvare."); load(); }
   }
+  // Salvează un „cue" de secțiune (idx = poziția în sequence). Scoate cue-ul dacă rămâne gol.
+  function saveCue(it, idx, patch) {
+    const cues = it.sectionCues || [];
+    const base = cues.find((c) => c.idx === idx) || { idx, section: (it.sequence || [])[idx] || "" };
+    const merged = { ...base, idx, section: (it.sequence || [])[idx] || base.section, ...patch };
+    const active = cueHasLight(merged) || merged.sceneId || (merged.note && merged.note.trim()) || (merged.projection && String(merged.projection).trim()) || (merged.reminders || []).length;
+    const next = cues.filter((c) => c.idx !== idx);
+    if (active) next.push(merged);
+    saveItem(it, { sectionCues: next });
+  }
+  // Selecție exclusivă: element (titlu) SAU secțiune (token din sequence).
+  const selectItem = (id) => { setEditorItem(id); setSelSection(null); };
+  const selectSection = (id, idx) => { setEditorItem(id); setSelSection({ itemId: id, idx }); };
   async function saveSim(next) {
     setData((d) => ({ ...d, simFeedback: next }));
     try { await plansApi.saveProduction(planId, { simFeedback: next }); }
@@ -820,7 +871,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         </span>
       </div>
       {share && <ShareDialog planId={planId} onClose={() => setShare(false)} flash={flash} />}
-      {preview && <PreviewModal html={buildProductionHtml(data)} onClose={() => setPreview(false)} />}
+      {preview && <PreviewModal html={buildProductionHtml(data, scenes)} onClose={() => setPreview(false)} />}
 
       {live && (
         <div className="live-bar">
@@ -844,17 +895,23 @@ function RehearseTab({ planId, canEdit = false, flash }) {
       )}
 
       <div className="prod-split">
-        {/* STÂNGA — structura order-ului (cu headere, sequence și ce-ai editat, live) */}
+        {/* STÂNGA — pânza principală: elemente + structură interactivă (drag + click pe secțiune) */}
         <div className="prod-left">
           {rows.map((r, ri) => {
             const lv = live ? (ri < curIdx ? "past" : ri === curIdx ? "cur" : "future") : "";
-            if (r.type === "header") return <div key={r.id} className={`prod-sec ${lv}`}>{r.title}</div>;
-            const sel = effSel && String(effSel.id) === String(r.id);
-            const pick = () => (live ? setCurId(r.id) : setEditorItem(r.id));
+            const itemSel = effSel && String(effSel.id) === String(r.id) && !selSection;
+            if (r.type === "header") {
+              return (
+                <button key={r.id} id={`prow-${r.id}`} className={`prod-sec ${lv} ${itemSel ? "on" : ""}`} onClick={() => { if (!live) selectItem(r.id); }}>
+                  <span className="ph-t">{r.title}</span>
+                  {r.scene && <span className="ph-scene">◉ {r.scene.name}{((r.scene.fixtures) || []).map((f, i) => <span key={i} className="pr-sqdot" style={{ background: f.color }} />)}</span>}
+                </button>
+              );
+            }
             const t = r.transition;
             if (r.type === "transition") {
               return (
-                <button key={r.id} id={`prow-${r.id}`} className={`prod-trans ${lv} ${sel ? "sel" : ""}`} onClick={pick}>
+                <button key={r.id} id={`prow-${r.id}`} className={`prod-trans ${lv} ${itemSel ? "sel" : ""}`} onClick={() => (live ? setCurId(r.id) : selectItem(r.id))}>
                   <span className="pt-arrow">↳</span>
                   <span className="pt-lbl">{TRANS_LBL[t?.kind] || "Tranziție"}</span>
                   {t?.key && <span className="pt-key">{t.key}{t.autoKey ? " ·auto" : ""}</span>}
@@ -868,11 +925,12 @@ function RehearseTab({ planId, canEdit = false, flash }) {
             const projNote = (r.projection || [])[0]?.note || "";
             const note = r.note || "";
             const seq = r.sequence || [];
-            const secAnn = (r.sectionCues || []).slice().sort((a, b) => (a.idx || 0) - (b.idx || 0)).filter((c) => c.note || c.projection || (c.reminders || []).length);
-            const hasExtra = reminders.length || projNote || note || r.scene || secAnn.length;
+            const sceneFx = (r.scene && r.scene.fixtures) || [];
+            const hasExtra = !!(reminders.length || projNote || note || r.scene);
+            const selIdx = (selSection && String(selSection.itemId) === String(r.id)) ? selSection.idx : null;
             return (
               <div key={r.id} id={`prow-${r.id}`} className={`prod-item ${lv}`}>
-                <button className={`prod-row ${sel ? "sel" : ""}`} onClick={pick}>
+                <div className={`prod-row ${itemSel ? "sel" : ""}`} onClick={() => (live ? setCurId(r.id) : selectItem(r.id))}>
                   <div className="pr-main">
                     <div className="pr-top">
                       <span className="pr-title"><span className="pr-t">{r.title}</span>{r.label && <span className="pr-orig" title={`Original: ${r.origTitle}`}>↩</span>}</span>
@@ -880,24 +938,17 @@ function RehearseTab({ planId, canEdit = false, flash }) {
                     </div>
                     {voiceLine && <div className="pr-voices">{voiceLine}</div>}
                     {seq.length > 0 && (
-                      <div className="pr-seq">
-                        {seq.map((s, i) => { const cc = (r.sectionCues || []).find((x) => x.idx === i); const col = cc?.lights?.[0]?.color || ""; const before = cc?.lightsTiming === "before"; return <span key={i} className="pr-sqtok">{col && before && <span className="pr-sqdot" style={{ background: col }} title="lumini înainte" />}{s}{col && !before && <span className="pr-sqdot" style={{ background: col }} title="lumini după" />}</span>; })}
-                      </div>
+                      <SeqStructure item={r} canEdit={canEdit && !live} scenes={scenes} selIdx={selIdx}
+                        onSelect={(idx) => selectSection(r.id, idx)} onSave={(patch) => saveItem(r, patch)} />
                     )}
                   </div>
-                </button>
+                </div>
                 {hasExtra && (
                   <div className="pr-extra">
-                    {r.scene && <span className="pr-scene">◉ {r.scene.name}</span>}
+                    {r.scene && <span className="pr-scene">◉ {r.scene.name}{sceneFx.map((f, i) => <span key={i} className="pr-sqdot" style={{ background: f.color }} />)}</span>}
                     {note && <span className="pr-note">✎ {note}</span>}
                     {projNote && <span className="pr-proj">▣ {projNote}</span>}
                     {reminders.map((rem, i) => <span key={i} className={`rem ${rem.severity === "high" ? "hi" : ""}`}>{REM_ICON[rem.icon] || "•"} {rem.text}</span>)}
-                    {secAnn.map((c, i) => {
-                      const col = (c.lights || [])[0]?.color || "";
-                      return (
-                        <span key={`s${i}`} className="pr-sann">↳ <b>{c.section}</b>{col && <span className="pr-sqdot" style={{ background: col }} />}{c.note ? ` ${c.note}` : ""}{c.projection ? ` ▣ ${c.projection}` : ""}{(c.reminders || []).map((rm, k) => <span key={k}> {REM_ICON[rm.icon] || "•"} {rm.text}</span>)}</span>
-                      );
-                    })}
                   </div>
                 )}
               </div>
@@ -905,9 +956,15 @@ function RehearseTab({ planId, canEdit = false, flash }) {
           })}
         </div>
 
-        {/* DREAPTA — editorul elementului selectat (se reflectă live în stânga) */}
+        {/* DREAPTA — inspector CONTEXTUAL: doar ce e selectat (element SAU secțiune) */}
         <div className="prod-right">
-          {!effSel ? <div className="pr-empty">Alege un element din stânga ca să-l aranjezi.</div> : (
+          {!effSel ? <div className="pr-empty">Alege un element sau o secțiune din stânga ca să-l aranjezi.</div>
+            : (selSection && String(effSel.id) === String(selSection.itemId)) ? (
+              <SectionEditor item={effSel} idx={selSection.idx}
+                cue={(effSel.sectionCues || []).find((c) => c.idx === selSection.idx) || { idx: selSection.idx, section: (effSel.sequence || [])[selSection.idx] || "" }}
+                scenes={scenes} canEdit={canEdit}
+                onSave={(patch) => saveCue(effSel, selSection.idx, patch)} onClose={() => setSelSection(null)} />
+            ) : (
             <div className="ed2">
               <div className="ed2-h">
                 {editing === effSel.id ? (
@@ -923,9 +980,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
                 {effSel.keyName && <span className="ed2-k">{effSel.keyName}</span>}
               </div>
               {selVoiceLine && <div className="ed2-voices">{selVoiceLine}</div>}
-              {(effSel.sequence || []).length > 0 && (
-                <StructureEditor sequence={effSel.sequence || []} sectionCues={effSel.sectionCues} rowBreaks={effSel.rowBreaks} canEdit={canEdit} onSave={(patch) => saveItem(effSel, patch)} />
-              )}
+              {(effSel.sequence || []).length > 0 && <div className="ed2-tip">Apasă o secțiune din stânga ca s-o aranjezi. Trage secțiunile ca să le reordonezi sau să faci rânduri noi.</div>}
               <LightsPanel r={effSel} scenes={scenes} snippets={snippets} canEdit={canEdit} onSave={(patch) => saveItem(effSel, patch)} onSaveSnippet={saveSnippet} onDelSnippet={delSnippet} onCreateScene={createScene} />
             </div>
           )}
@@ -942,8 +997,13 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .prod-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(460px, 560px); gap: 18px; align-items: start; }
         @media (max-width: 1000px) { .prod-split { grid-template-columns: 1fr; } }
         .prod-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-        .prod-sec { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; padding: 14px 2px 5px; }
-        .prod-sec:first-child { padding-top: 2px; }
+        .prod-sec { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 8px; color: var(--text-faint); font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; padding: 13px 8px 6px; cursor: pointer; }
+        .prod-sec:hover { color: var(--text-dim); }
+        .prod-sec.on { border-color: var(--primary); background: rgba(47,129,247,.06); }
+        .prod-sec:first-child { padding-top: 4px; }
+        .ph-t { flex: none; }
+        .ph-scene { color: var(--product); font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: none; background: rgba(87,185,138,.12); border-radius: 5px; padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px; }
+        .ed2-tip { color: var(--text-faint); font-size: 12px; line-height: 1.5; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; margin: 14px 0 2px; }
         .prod-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 10px 13px; cursor: pointer; }
         .prod-row:hover { border-color: var(--border-strong); }
         .prod-row.sel { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
@@ -953,12 +1013,13 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .pr-sqdot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--border-strong); flex: none; }
         .pr-sum { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; flex: none; }
         .pr-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
-        .pr-title { display: inline-flex; align-items: center; gap: 6px; min-width: 0; background: transparent; border: none; padding: 0; color: var(--text); font-size: 14px; font-weight: 600; cursor: ${canEdit ? "text" : "default"}; text-align: left; }
+        .pr-title { display: inline-flex; align-items: center; gap: 6px; min-width: 0; background: transparent; border: none; padding: 0; color: var(--text); font-size: 15px; font-weight: 600; text-align: left; }
         .pr-title:disabled { cursor: default; }
         .pr-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .pr-orig { color: var(--text-faint); font-size: 11px; flex: none; }
         .pr-edit { width: 100%; background: var(--surface-3); border: 1px solid var(--primary); border-radius: 6px; color: var(--text); font-size: 14px; font-weight: 600; padding: 4px 8px; outline: none; }
-        .pr-voices { color: var(--text-dim); font-size: 12.5px; margin-top: 3px; line-height: 1.45; white-space: pre-line; }
+        .pr-voices { color: var(--text-dim); font-size: 13px; margin-top: 4px; line-height: 1.5; white-space: pre-line; }
+        .prod-row { padding: 12px 14px; }
         .pr-key { flex: none; color: #fff; background: #6fa02e; border: 1px solid #6fa02e; border-radius: 999px; font-size: 13px; font-weight: 700; padding: 1px 8px; line-height: 1.3; font-variant-numeric: tabular-nums; }
         .pr-key.media { background: var(--primary); border-color: var(--primary); }
         .dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--border-strong); flex: none; }
@@ -1023,158 +1084,191 @@ function RehearseTab({ planId, canEdit = false, flash }) {
   );
 }
 
-/* Editor per secțiune (Verse/Chorus/Bridge…) — se remontează per secțiune (key). Culoare + notă + proiecție + remindere. */
-function SectionEditor({ section, cue, canEdit, onSave, onClose }) {
-  const [remText, setRemText] = useState("");
-  const color = cue?.lights?.[0]?.color || "";
-  const timing = cue?.lightsTiming === "before" ? "before" : "after";
-  return (
-    <div className="se">
-      <div className="se-h"><span className="se-t">{section}</span>{canEdit && <button className="se-x" onClick={onClose} title="Închide">✕</button>}</div>
-      <div className="se-row">
-        <label className="se-sw" style={{ background: color || "transparent", borderStyle: color ? "solid" : "dashed" }} title="Culoare lumini la secțiune">
-          <input type="color" value={color || "#e5534b"} disabled={!canEdit} onChange={(e) => onSave({ lights: [{ color: e.target.value, label: "" }] })} />
-        </label>
-        {color && canEdit && <button className="se-clr" onClick={() => onSave({ lights: [] })} title="Scoate culoarea">✕</button>}
-        {color && (
-          <span className="se-tim" title="Momentul luminilor față de secțiune (ca în Order)">
-            <button type="button" className={`se-tbtn ${timing === "before" ? "on" : ""}`} disabled={!canEdit} onClick={() => onSave({ lightsTiming: "before" })}>⬆ înainte</button>
-            <button type="button" className={`se-tbtn ${timing === "after" ? "on" : ""}`} disabled={!canEdit} onClick={() => onSave({ lightsTiming: "after" })}>după ⬇</button>
-          </span>
-        )}
-      </div>
-      <input className="se-note" placeholder="notă la secțiune…" defaultValue={cue?.note || ""} disabled={!canEdit}
-        onBlur={(e) => { const v = e.target.value.trim(); if (v !== (cue?.note || "")) onSave({ note: v }); }} />
-      <input className="se-proj" placeholder="proiecție / fundal la secțiune…" defaultValue={cue?.projection || ""} disabled={!canEdit}
-        onBlur={(e) => { const v = e.target.value.trim(); if (v !== (cue?.projection || "")) onSave({ projection: v }); }} />
-      <div className="se-rem">
-        {(cue?.reminders || []).map((rm, i) => (
-          <span key={i} className="se-rchip">{REM_ICON[rm.icon] || "•"} {rm.text}{canEdit && <button className="se-rx" onClick={() => onSave({ reminders: (cue.reminders || []).filter((_, x) => x !== i) })}>✕</button>}</span>
-        ))}
-        {canEdit && (
-          <span className="se-radd">
-            <input className="se-rin" value={remText} placeholder="reminder la secțiune…" onChange={(e) => setRemText(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && remText.trim()) { onSave({ reminders: [...(cue?.reminders || []), { text: remText.trim(), icon: "warn", severity: "high" }] }); setRemText(""); } }} />
-            <button className="se-rgo" onClick={() => { if (remText.trim()) { onSave({ reminders: [...(cue?.reminders || []), { text: remText.trim(), icon: "warn", severity: "high" }] }); setRemText(""); } }}>+</button>
-          </span>
-        )}
-      </div>
-      <style jsx>{`
-        .se { background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 9px; padding: 11px 13px; margin-top: 10px; display: flex; flex-direction: column; gap: 9px; }
-        .se-h { display: flex; align-items: center; }
-        .se-t { color: var(--text); font-size: 13.5px; font-weight: 700; }
-        .se-x { margin-left: auto; background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 12px; }
-        .se-x:hover { color: var(--danger); }
-        .se-row { display: flex; align-items: center; gap: 8px; }
-        .se-sw { position: relative; width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border-strong); overflow: hidden; flex: none; cursor: pointer; }
-        .se-sw input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
-        .se-clr { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 11px; }
-        .se-tim { display: inline-flex; gap: 0; border: 1px solid var(--border-strong); border-radius: 7px; overflow: hidden; margin-left: auto; }
-        .se-tbtn { background: var(--surface-3); border: none; color: var(--text-dim); font-size: 11.5px; font-weight: 600; padding: 5px 9px; cursor: pointer; }
-        .se-tbtn + .se-tbtn { border-left: 1px solid var(--border-strong); }
-        .se-tbtn.on { background: rgba(47,129,247,.18); color: var(--text); }
-        .se-tbtn:disabled { cursor: default; }
-        .se-note, .se-proj, .se-rin { flex: 1; min-width: 0; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text); font-size: 12.5px; padding: 6px 9px; outline: none; }
-        .se-note:focus, .se-proj:focus, .se-rin:focus { border-color: var(--primary); }
-        .se-rem { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-        .se-rchip { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: #f0b5b0; background: rgba(229,83,75,.12); border: 1px solid rgba(229,83,75,.4); border-radius: 6px; padding: 2px 8px; font-weight: 600; }
-        .se-rx { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 10px; }
-        .se-radd { display: inline-flex; gap: 5px; flex: 1; min-width: 160px; }
-        .se-rgo { background: transparent; border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text-dim); width: 30px; cursor: pointer; }
-        .se-rgo:hover { color: var(--primary); border-color: var(--primary); }
-      `}</style>
-    </div>
-  );
-}
-
-/* Structura cântecului: sequence pe RÂNDURI (drag-to-split) + fiecare secțiune clicabilă → SectionEditor. */
-function StructureEditor({ sequence, sectionCues, rowBreaks, canEdit, onSave }) {
-  const [selIdx, setSelIdx] = useState(null);
+/* Structura interactivă (STÂNGA): sequence pe rânduri (din sectionRows) — drag = reordonare + rânduri noi, click = selectează secțiunea. */
+function SeqStructure({ item, canEdit, scenes, selIdx, onSelect, onSave }) {
   const [dragIdx, setDragIdx] = useState(null);
-  const cues = sectionCues || [];
-  const breaks = (rowBreaks || []).slice().sort((a, b) => a - b);
+  const [overIdx, setOverIdx] = useState(null);
+  const [overNew, setOverNew] = useState(false);
+  const seq = item.sequence || [];
+  const cues = item.sectionCues || [];
   const cueAt = (i) => cues.find((c) => c.idx === i) || null;
-  const hasData = (c) => !!(c && ((c.lights || []).length || c.note || c.projection || (c.reminders || []).length));
-  const setCue = (i, patch) => {
-    const base = cueAt(i) || { idx: i, section: sequence[i] || "" };
-    const merged = { ...base, idx: i, section: sequence[i] || base.section, ...patch };
-    const next = cues.filter((c) => c.idx !== i);
-    if (hasData(merged)) next.push(merged);
-    onSave({ sectionCues: next });
-  };
-  // „rowBreaks" = secțiunile IZOLATE (fiecare pe rândul ei). Restul se grupează pe run-uri contigue.
-  const isolated = new Set(breaks);
-  const toggleIsolate = (i) => { const next = isolated.has(i) ? breaks.filter((x) => x !== i) : [...breaks, i].sort((a, b) => a - b); onSave({ rowBreaks: next }); };
-  const rows = []; let run = [];
-  for (let i = 0; i < sequence.length; i++) { if (isolated.has(i)) { if (run.length) { rows.push(run); run = []; } rows.push([i]); } else run.push(i); }
-  if (run.length) rows.push(run);
-  const sel = selIdx != null ? (cueAt(selIdx) || { idx: selIdx, section: sequence[selIdx] }) : null;
+  const rows = resolveRows(seq, item.sectionRows);
+  const sceneNameOf = (c) => { if (!c || !c.sceneId) return ""; const s = (scenes || []).find((x) => String(x.id) === String(c.sceneId)); return s ? s.name : ""; };
+  const active = (c) => cueHasLight(c) || !!(c && (c.sceneId || (c.note && c.note.trim()) || (c.projection && String(c.projection).trim()) || (c.reminders || []).length));
+  const save = (rr) => onSave({ sectionRows: rr });
+  const dropBefore = (target) => { if (dragIdx == null) return; save(rowsMoveBefore(rows, dragIdx, target)); setDragIdx(null); setOverIdx(null); };
+  const dropNew = () => { if (dragIdx == null) return; save(rowsMoveToNewRow(rows, dragIdx)); setDragIdx(null); setOverNew(false); };
 
   return (
-    <div className="st">
-      <div className="st-h"><span className="st-l">Structură</span></div>
-      <div className="st-box">
-        {rows.map((row, ri) => {
-          const solo = row.length === 1 && isolated.has(row[0]);
-          const c0 = solo ? cueAt(row[0]) : null;
-          return (
-            <div key={ri} className={`st-row ${solo ? "solo" : ""}`}>
-              {solo && <span className="st-arrow">↳</span>}
-              {row.map((i) => {
-                const c = cueAt(i); const color = c?.lights?.[0]?.color || ""; const before = c?.lightsTiming === "before";
-                return (
-                  <button key={i} className={`st-sec ${selIdx === i ? "on" : ""} ${hasData(c) ? "has" : ""}`} draggable={canEdit}
-                    onClick={() => setSelIdx(selIdx === i ? null : i)}
-                    onDragStart={() => setDragIdx(i)} onDragEnd={() => setDragIdx(null)}>
-                    {color && before && <span className="st-dot" style={{ background: color }} title="lumini înainte" />}
-                    <span className="st-nm">{sequence[i]}</span>
-                    {color && !before && <span className="st-dot" style={{ background: color }} title="lumini după" />}
-                    {hasData(c) && !color && <span className="st-mark">•</span>}
-                    {canEdit && <span className="st-split" title={isolated.has(i) ? "Readu în rând" : "Pune pe rândul lui"} onClick={(e) => { e.stopPropagation(); toggleIsolate(i); }}>{isolated.has(i) ? "⤴" : "↵"}</span>}
-                  </button>
-                );
-              })}
-              {solo && c0 && (<>
-                {(c0.lights || []).length > 0 && <span className="st-clt">{c0.lightsTiming === "before" ? "⬆ lumini înainte" : "⬇ lumini după"}<span className="st-dot" style={{ background: c0.lights[0].color }} /></span>}
-                {c0.note && <span className="st-cnote">{c0.note}</span>}
-                {c0.projection && <span className="st-cnote">▣ {c0.projection}</span>}
-                {(c0.reminders || []).map((rm, k) => <span key={k} className="st-crem">{REM_ICON[rm.icon] || "•"} {rm.text}</span>)}
-              </>)}
-            </div>
-          );
-        })}
-        {canEdit && dragIdx != null && (
-          <div className="st-drop" onDragOver={(e) => e.preventDefault()} onDrop={() => { toggleIsolate(dragIdx); setDragIdx(null); }}>⬇ lasă aici = secțiunea pe rândul ei</div>
-        )}
-      </div>
-      {sel && <SectionEditor key={selIdx} section={sequence[selIdx]} cue={sel} canEdit={canEdit} onSave={(patch) => setCue(selIdx, patch)} onClose={() => setSelIdx(null)} />}
+    <div className="sq2" onClick={(e) => e.stopPropagation()}>
+      {rows.map((row, ri) => {
+        const solo = row.length === 1;
+        const c0 = solo ? cueAt(row[0]) : null;
+        return (
+          <div key={ri} className={`sq2-row ${solo ? "solo" : ""}`}>
+            {solo && <span className="sq2-arrow">↳</span>}
+            {row.map((i) => {
+              const c = cueAt(i); const col = cueColor(c); const before = c?.lightsTiming === "before";
+              return (
+                <button key={i} type="button"
+                  className={`sq2-sec ${selIdx === i ? "on" : ""} ${active(c) ? "has" : ""} ${overIdx === i && dragIdx != null && dragIdx !== i ? "over" : ""}`}
+                  draggable={canEdit}
+                  onClick={(e) => { e.stopPropagation(); onSelect(i); }}
+                  onDragStart={() => setDragIdx(i)}
+                  onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
+                  onDragOver={(e) => { if (dragIdx != null && dragIdx !== i) { e.preventDefault(); if (overIdx !== i) setOverIdx(i); } }}
+                  onDrop={(e) => { e.preventDefault(); dropBefore(i); }}>
+                  {col && before && <span className="sq2-dot" style={{ background: col }} title="lumini înainte" />}
+                  <span className="sq2-nm">{seq[i]}</span>
+                  {col && !before && <span className="sq2-dot" style={{ background: col }} title="lumini după" />}
+                </button>
+              );
+            })}
+            {solo && c0 && active(c0) && (
+              <span className="sq2-ann">
+                {sceneNameOf(c0) && <span className="sq2-scene">◉ {sceneNameOf(c0)}</span>}
+                {cueHasLight(c0) && <span className="sq2-lt">{c0.lightsTiming === "before" ? "⬆ lumini înainte" : "lumini după ⬇"}</span>}
+                {c0.note && <span className="sq2-note">{c0.note}</span>}
+                {c0.projection && <span className="sq2-note">▣ {c0.projection}</span>}
+                {(c0.reminders || []).map((rm, k) => <span key={k} className="sq2-rem">{REM_ICON[rm.icon] || "•"} {rm.text}</span>)}
+              </span>
+            )}
+          </div>
+        );
+      })}
+      {canEdit && dragIdx != null && (
+        <div className={`sq2-newrow ${overNew ? "over" : ""}`}
+          onDragOver={(e) => { e.preventDefault(); if (!overNew) setOverNew(true); }}
+          onDragLeave={() => setOverNew(false)}
+          onDrop={(e) => { e.preventDefault(); dropNew(); }}>⬇ lasă aici = rând nou (separat)</div>
+      )}
       <style jsx>{`
-        .st { margin-top: 6px; }
-        .st-h { margin-bottom: 8px; }
-        .st-l { color: var(--text-faint); font-size: 11px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
-        .st-box { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 7px; }
-        .st-row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
-        .st-row.solo { background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 9px; padding: 7px 9px; }
-        .st-arrow { color: var(--text-faint); font-size: 14px; flex: none; }
-        .st-sec { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 8px; padding: 6px 11px; color: var(--text); font-size: 13.5px; font-weight: 600; cursor: pointer; }
-        .st-row.solo .st-sec { background: var(--surface); }
-        .st-sec:hover { border-color: var(--text-faint); }
-        .st-sec.on { background: rgba(47,129,247,.16); border-color: var(--primary); }
-        .st-sec.has { box-shadow: inset 0 -2px 0 rgba(229,83,75,.5); }
-        .st-dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--border-strong); }
-        .st-mark { color: #e5534b; font-size: 14px; line-height: 1; }
-        .st-split { color: var(--text-faint); font-size: 12px; margin-left: 2px; }
-        .st-split:hover { color: var(--primary); }
-        .st-clt { display: inline-flex; align-items: center; gap: 5px; color: var(--text-dim); font-size: 11.5px; font-weight: 600; background: var(--surface-2); border-radius: 5px; padding: 2px 8px; }
-        .st-cnote { color: var(--text-dim); font-size: 12px; background: var(--surface-2); border-radius: 5px; padding: 2px 8px; }
-        .st-crem { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: #f0b5b0; background: rgba(229,83,75,.12); border: 1px solid rgba(229,83,75,.4); border-radius: 5px; padding: 2px 8px; font-weight: 600; }
-        .st-drop { border: 1px dashed var(--primary); border-radius: 8px; padding: 10px; text-align: center; color: var(--primary); font-size: 12px; background: rgba(47,129,247,.07); }
+        .sq2 { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; cursor: default; }
+        .sq2-row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+        .sq2-row.solo { background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 6px 9px; }
+        .sq2-arrow { color: var(--text-faint); font-size: 15px; flex: none; }
+        .sq2-sec { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 8px; padding: 6px 12px; color: var(--text); font-size: 14px; font-weight: 600; cursor: ${canEdit ? "grab" : "pointer"}; }
+        .sq2-row.solo .sq2-sec { background: var(--surface-3); }
+        .sq2-sec:hover { border-color: var(--text-faint); }
+        .sq2-sec.on { background: rgba(47,129,247,.16); border-color: var(--primary); }
+        .sq2-sec.has { box-shadow: inset 0 -2px 0 rgba(47,129,247,.5); }
+        .sq2-sec.over { border-color: var(--primary); box-shadow: -3px 0 0 var(--primary); }
+        .sq2-dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--border-strong); flex: none; }
+        .sq2-ann { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+        .sq2-scene { color: var(--product); font-size: 12px; font-weight: 700; background: rgba(87,185,138,.12); border-radius: 5px; padding: 2px 8px; }
+        .sq2-lt { color: var(--text-dim); font-size: 12px; font-weight: 600; background: var(--surface-3); border-radius: 5px; padding: 2px 8px; }
+        .sq2-note { color: var(--text-dim); font-size: 12px; background: var(--surface-3); border-radius: 5px; padding: 2px 8px; }
+        .sq2-rem { display: inline-flex; align-items: center; gap: 4px; color: #f0b5b0; font-size: 12px; font-weight: 600; background: rgba(229,83,75,.12); border: 1px solid rgba(229,83,75,.4); border-radius: 5px; padding: 2px 8px; }
+        .sq2-newrow { border: 1px dashed var(--primary); border-radius: 8px; padding: 9px; text-align: center; color: var(--primary); font-size: 12px; background: rgba(47,129,247,.07); }
+        .sq2-newrow.over { background: rgba(47,129,247,.16); }
       `}</style>
     </div>
   );
 }
 
-/* Panou producție per item: notă + scenă + fixtures + proiecție + remindere (structura e separat, StructureEditor). */
+/* Editor contextual per secțiune (DREAPTA): scenă + lumini(+before/after) + notă + proiecție + remindere. */
+function SectionEditor({ item, idx, cue, scenes, canEdit, onSave, onClose }) {
+  const [remText, setRemText] = useState("");
+  const section = (item.sequence || [])[idx] || cue?.section || "";
+  const fx = cue?.fixtures || [];
+  const timing = cue?.lightsTiming === "before" ? "before" : "after";
+  const hasLight = fx.length || (cue?.lights || []).length;
+  const colorOf = (key) => (fx.find((f) => f.fixture === key) || {}).color || "";
+  const setFixture = (key, color) => { const next = fx.filter((f) => f.fixture !== key); if (color) next.push({ fixture: key, color }); next.sort((a, b) => FIXTURE_ORDER.indexOf(a.fixture) - FIXTURE_ORDER.indexOf(b.fixture)); onSave({ fixtures: next, lights: [] }); };
+  const applyScene = (s) => onSave({ sceneId: s.id, fixtures: (s.fixtures || []).map((f) => ({ fixture: f.fixture, color: f.color })) });
+  return (
+    <div className="se2">
+      <div className="se2-h">
+        <span className="se2-crumb">{item.title}</span><span className="se2-sep">›</span><span className="se2-t">{section}</span>
+        {canEdit && <button className="se2-x" onClick={onClose} title="Închide secțiunea">✕</button>}
+      </div>
+      <div className="se2-row"><span className="se2-l">Scenă</span>
+        <select className="se2-sel" value={cue?.sceneId ? String(cue.sceneId) : ""} disabled={!canEdit}
+          onChange={(e) => { const v = e.target.value; if (!v) onSave({ sceneId: null }); else { const s = scenes.find((x) => String(x.id) === v); if (s) applyScene(s); } }}>
+          <option value="">Fără scenă</option>
+          {scenes.map((s) => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
+        </select>
+      </div>
+      <div className="se2-row"><span className="se2-l">Lumini</span>
+        <div className="se2-fxwrap">
+          <div className="se2-fx">
+            {FIXTURE_ORDER.map((key) => { const c = colorOf(key); return (
+              <label key={key} className={`fx ${c ? "set" : ""}`} title={FIXTURE_LBL[key]}>
+                <span className="fx-sw" style={{ background: c || "transparent" }}><input type="color" value={c || "#2f81f7"} disabled={!canEdit} onChange={(e) => setFixture(key, e.target.value)} /></span>
+                <span className="fx-nm">{FIXTURE_LBL[key]}</span>
+                {c && canEdit && <span className="fx-x" onClick={(e) => { e.preventDefault(); setFixture(key, ""); }}>✕</span>}
+              </label>
+            ); })}
+          </div>
+          {hasLight && (
+            <span className="se2-tim" title="Momentul luminilor față de secțiune (ca în Order)">
+              <button type="button" className={`se2-tbtn ${timing === "before" ? "on" : ""}`} disabled={!canEdit} onClick={() => onSave({ lightsTiming: "before" })}>⬆ înainte</button>
+              <button type="button" className={`se2-tbtn ${timing === "after" ? "on" : ""}`} disabled={!canEdit} onClick={() => onSave({ lightsTiming: "after" })}>după ⬇</button>
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="se2-row"><span className="se2-l">Notă</span>
+        <input className="se2-in" placeholder="notă la secțiune…" defaultValue={cue?.note || ""} disabled={!canEdit}
+          onBlur={(e) => { const v = e.target.value.trim(); if (v !== (cue?.note || "")) onSave({ note: v }); }} />
+      </div>
+      <div className="se2-row"><span className="se2-l">Proiecție</span>
+        <input className="se2-in" placeholder="proiecție / fundal…" defaultValue={cue?.projection || ""} disabled={!canEdit}
+          onBlur={(e) => { const v = e.target.value.trim(); if (v !== (cue?.projection || "")) onSave({ projection: v }); }} />
+      </div>
+      <div className="se2-row"><span className="se2-l">Remindere</span>
+        <div className="se2-rem">
+          {(cue?.reminders || []).map((rm, i) => (
+            <span key={i} className="se2-rchip">{REM_ICON[rm.icon] || "•"} {rm.text}{canEdit && <button className="se2-rx" onClick={() => onSave({ reminders: (cue.reminders || []).filter((_, x) => x !== i) })}>✕</button>}</span>
+          ))}
+          {canEdit && (
+            <span className="se2-radd">
+              <input className="se2-rin" value={remText} placeholder="reminder…" onChange={(e) => setRemText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && remText.trim()) { onSave({ reminders: [...(cue?.reminders || []), { text: remText.trim(), icon: "warn", severity: "high" }] }); setRemText(""); } }} />
+              <button className="se2-rgo" onClick={() => { if (remText.trim()) { onSave({ reminders: [...(cue?.reminders || []), { text: remText.trim(), icon: "warn", severity: "high" }] }); setRemText(""); } }}>+</button>
+            </span>
+          )}
+        </div>
+      </div>
+      <style jsx>{`
+        .se2 { display: flex; flex-direction: column; gap: 13px; }
+        .se2-h { display: flex; align-items: center; gap: 7px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+        .se2-crumb { color: var(--text-dim); font-size: 13px; font-weight: 600; }
+        .se2-sep { color: var(--text-faint); }
+        .se2-t { color: var(--text); font-size: 16px; font-weight: 700; }
+        .se2-x { margin-left: auto; background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 14px; }
+        .se2-x:hover { color: var(--danger); }
+        .se2-row { display: grid; grid-template-columns: 74px 1fr; gap: 10px; align-items: start; }
+        .se2-l { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; padding-top: 7px; }
+        .se2-sel, .se2-in, .se2-rin { width: 100%; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text); font-size: 13px; padding: 7px 10px; outline: none; }
+        .se2-sel:focus, .se2-in:focus, .se2-rin:focus { border-color: var(--primary); }
+        .se2-sel { cursor: pointer; }
+        .se2-fxwrap { display: flex; flex-direction: column; gap: 9px; }
+        .se2-fx { display: flex; flex-wrap: wrap; gap: 8px; }
+        .fx { position: relative; display: inline-flex; align-items: center; gap: 6px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 8px; padding: 4px 8px 4px 5px; cursor: pointer; }
+        .fx-sw { position: relative; width: 22px; height: 22px; border-radius: 5px; border: 1px solid var(--border-strong); overflow: hidden; flex: none; }
+        .fx-sw input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+        .fx-nm { color: var(--text-dim); font-size: 12.5px; font-weight: 600; }
+        .fx.set .fx-nm { color: var(--text); }
+        .fx-x { color: var(--text-faint); font-size: 11px; cursor: pointer; }
+        .fx-x:hover { color: var(--danger); }
+        .se2-tim { display: inline-flex; align-self: flex-start; border: 1px solid var(--border-strong); border-radius: 7px; overflow: hidden; }
+        .se2-tbtn { background: var(--surface-3); border: none; color: var(--text-dim); font-size: 12.5px; font-weight: 600; padding: 7px 12px; cursor: pointer; }
+        .se2-tbtn + .se2-tbtn { border-left: 1px solid var(--border-strong); }
+        .se2-tbtn.on { background: rgba(47,129,247,.18); color: var(--text); }
+        .se2-tbtn:disabled { cursor: default; }
+        .se2-rem { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .se2-rchip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #f0b5b0; background: rgba(229,83,75,.12); border: 1px solid rgba(229,83,75,.4); border-radius: 6px; padding: 2px 8px; font-weight: 600; }
+        .se2-rx { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 10px; }
+        .se2-radd { display: inline-flex; gap: 5px; flex: 1; min-width: 160px; }
+        .se2-rgo { background: transparent; border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text-dim); width: 32px; cursor: pointer; }
+        .se2-rgo:hover { color: var(--primary); border-color: var(--primary); }
+      `}</style>
+    </div>
+  );
+}
+
+/* Panou producție per ELEMENT: notă + scenă + fixtures + proiecție + remindere (structura e separat, în SeqStructure pe stânga). */
 function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet, onDelSnippet, onCreateScene }) {
   const [remText, setRemText] = useState("");
   const [remIcon, setRemIcon] = useState("info");
