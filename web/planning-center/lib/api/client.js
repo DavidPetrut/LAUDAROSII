@@ -92,6 +92,9 @@ export const plansApi = {
   update: (id, payload) => api.patch(`/plans/${id}`, payload), // ex. { title } — redenumire plan
   teams: (id) => api.get(`/plans/${id}/teams`),
   rehearse: (id) => api.get(`/plans/${id}/rehearse`), // cântecele planului (Rehearse tab)
+  // Order-ul Producției (Rehearse) — overlay ONE-WAY peste Order (nu scrie în Order):
+  production: (id) => api.get(`/plans/${id}/production`),
+  saveProduction: (id, payload) => api.patch(`/plans/${id}/production`, payload), // { item:{itemId,...} | reminders | simFeedback }
   times: (id) => api.get(`/plans/${id}/times`),
   addTime: (id, payload) => api.post(`/plans/${id}/times`, payload),       // { type, name, date, startTime, endTime }
   updateTime: (id, timeId, payload) => api.patch(`/plans/${id}/times/${timeId}`, payload),

@@ -389,7 +389,7 @@ export default function PlanDetailPage() {
                 onEdit={(pp, g, t) => setEditing({ planId: id, teamId: t.teamId, positionId: g.positionId, assignmentId: pp.assignmentId, name: pp.name, avatar: pp.avatar, initials: pp.initials, status: pp.status, teamName: t.name, positionName: g.positionName })}
                 onRemove={removePerson} onNeeded={changeNeeded}
                 dragActive={dragActive} dropKey={dropKey} setDropKey={setDropKey} onDragStartP={onPersonDragStart} onDropPos={dropOnPos} onDragEndP={() => { setDragActive(false); setDropKey(null); setDragHint(""); }} />}
-              {tab === "Rehearse" && <RehearseTab data={cur} />}
+              {tab === "Rehearse" && <RehearseTab planId={id} canEdit={!!caps.editOrder || !!caps.viewRehearsal} flash={flash} />}
               {tab === "Alerts" && <AlertsTab planId={id} flash={flash} canEdit={!!caps.editOrder} />}
             </div>
           )}
@@ -653,65 +653,117 @@ function TeamsTab({ data, sel, onOpenCell, onEdit, onRemove, onNeeded, dragActiv
   );
 }
 
-/* ── Rehearse ── cântecele planului (structuri + documente + media), ca în PCO ── */
-function RehearseTab({ data }) {
-  const [selId, setSelId] = useState(null);
-  if (!data) return <Skeleton lines={3} />;
-  const songs = data.songs || [];
-  if (!songs.length) return <div className="muted">Niciun cântec în acest plan. Adaugă cântece din tab-ul „Order".</div>;
-  const sel = songs.find((s) => String(s.itemId) === String(selId)) || songs[0];
+/* ── Rehearse ── „Order-ul Producției": overlay ONE-WAY peste Order. Curat, pt. lumini/proiecție/sunet.
+   NU replică foaia printată — reimaginare digitală. Faza 1: structură + gamă + cine cântă + rename producător. */
+const VOICE_LBL = { lead: "", support: "S", alto: "A", tenor: "T", soprano: "Sop", bass: "B", custom: "" };
+const TRANS_LBL = { direct: "Tranziție directă", prayer: "Tranziție rugăciune", word: "Tranziție prin cuvânt" };
+
+function RehearseTab({ planId, canEdit = false, flash }) {
+  const [data, setData] = useState(null);
+  const [editing, setEditing] = useState(null); // itemId în curs de redenumire
+  const [draft, setDraft] = useState("");
+
+  const load = () => plansApi.production(planId).then(setData).catch(() => setData({ items: [] }));
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [planId]);
+
+  async function saveLabel(it) {
+    const label = draft.trim();
+    setEditing(null);
+    if (label === (it.label || "")) return;
+    // actualizare optimistă
+    setData((d) => ({ ...d, items: d.items.map((r) => (String(r.id) === String(it.id) ? { ...r, label, title: label || r.origTitle } : r)) }));
+    try { await plansApi.saveProduction(planId, { item: { itemId: it.id, label } }); }
+    catch (e) { flash?.(e?.message || "Eroare la salvare."); load(); }
+  }
+
+  if (!data) return <Skeleton lines={4} />;
+  const rows = data.items || [];
+  const songCount = rows.filter((r) => r.type === "song" || r.type === "medley").length;
+  if (!rows.length) return <div className="muted">Order gol. Structura vine din tab-ul „Order"; aici o îmbraci pentru producție.</div>;
+
   return (
-    <div className="reh">
-      <div className="reh-list">
-        <div className="reh-ll">Cântece · {songs.length}</div>
-        {songs.map((s) => (
-          <button key={s.itemId} className={`reh-item ${String(sel.itemId) === String(s.itemId) ? "on" : ""}`} onClick={() => setSelId(s.itemId)}>
-            <span className="reh-t">{s.title}</span>
-            {s.keyName && <span className="reh-k">{s.keyName}</span>}
-          </button>
-        ))}
+    <div className="prod">
+      <div className="prod-head">
+        <span className="prod-cnt">{songCount} cântece · {rows.length} momente</span>
+        <span className="prod-hint">Order-ul tău de producție — se sincronizează din Order, nu-l modifică.</span>
       </div>
-      <div className="reh-detail">
-        <div className="reh-h">{sel.title}</div>
-        <div className="reh-sub">{[sel.arrangementName, sel.bpm ? `${sel.bpm} bpm` : ""].filter(Boolean).join(" · ") || "—"}</div>
-        {sel.sequence?.length > 0 && <div className="reh-seq"><span className="reh-sl">Sequence</span> {sel.sequence.join(", ")}</div>}
-        {sel.notes && <div className="reh-notes">{sel.notes}</div>}
-        <div className="reh-cards">
-          <div className="reh-card">
-            <div className="reh-ch">Documente</div>
-            {sel.hasChordChart && <div className="reh-f">Chord Chart{sel.originalKey ? ` · ${sel.originalKey}` : ""}</div>}
-            {(sel.docs || []).map((d) => (d.url ? <a key={d.id} className="reh-f link" href={d.url} target="_blank" rel="noreferrer">{d.name}</a> : <div key={d.id} className="reh-f">{d.name}{d.pending ? " (în lucru)" : ""}</div>))}
-            {!sel.hasChordChart && !(sel.docs || []).length && <div className="reh-none">Niciun document.</div>}
-          </div>
-          <div className="reh-card">
-            <div className="reh-ch">Media (audio)</div>
-            {(sel.audio || []).map((a) => <a key={a.id} className="reh-f link" href={a.url} target="_blank" rel="noreferrer">▸ {a.name}</a>)}
-            {!(sel.audio || []).length && <div className="reh-none">Niciun fișier audio.</div>}
-          </div>
-        </div>
+
+      <div className="prod-list">
+        {rows.map((r) => {
+          if (r.type === "header") return <div key={r.id} className="prod-sec">{r.title}</div>;
+          const isTrans = r.type === "transition" || r.isTransition;
+          const t = r.transition;
+          if (r.type === "transition") {
+            return (
+              <div key={r.id} className="prod-trans">
+                <span className="pt-arrow">↳</span>
+                <span className="pt-lbl">{TRANS_LBL[t?.kind] || "Tranziție"}</span>
+                {t?.key && <span className="pt-key">{t.key}{t.autoKey ? " ·auto" : ""}</span>}
+                {t?.prayer && <span className="pt-who">{t.prayer.name}</span>}
+                {(t?.lights || []).map((l, i) => <span key={i} className="dot" style={{ background: l.color }} title={l.label} />)}
+              </div>
+            );
+          }
+          const voices = r.voices || [];
+          const lead = voices.find((v) => v.role === "lead") || voices[0];
+          const parts = voices.filter((v) => v !== lead).map((v) => `${VOICE_LBL[v.role] ? VOICE_LBL[v.role] + ": " : ""}${(v.name || "").split(" ")[0]}`);
+          return (
+            <div key={r.id} className={`prod-row ${isTrans ? "tr" : ""}`}>
+              <div className="pr-main">
+                {editing === r.id ? (
+                  <input className="pr-edit" autoFocus value={draft} placeholder={r.origTitle}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") saveLabel(r); if (e.key === "Escape") setEditing(null); }}
+                    onBlur={() => saveLabel(r)} />
+                ) : (
+                  <button className="pr-title" disabled={!canEdit} onClick={() => { setEditing(r.id); setDraft(r.label || ""); }} title={canEdit ? "Click = redenumește (doar aici)" : ""}>
+                    <span className="pr-t">{r.title}</span>
+                    {r.label && <span className="pr-orig" title={`Original: ${r.origTitle}`}>↩</span>}
+                  </button>
+                )}
+                {(lead || parts.length) && (
+                  <div className="pr-voices">
+                    {lead && <span className="pr-lead">{lead.name}</span>}
+                    {parts.length > 0 && <span className="pr-parts">{parts.join(" · ")}</span>}
+                  </div>
+                )}
+              </div>
+              <div className="pr-side">
+                {(r.lights || []).map((l, i) => <span key={i} className="dot" style={{ background: l.color }} title={l.label} />)}
+                {r.keyName && <span className="pr-key">{r.keyName}</span>}
+              </div>
+            </div>
+          );
+        })}
       </div>
+
       <style jsx>{`
-        .reh { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
-        .reh-list { border: 1px solid var(--border); border-radius: 10px; padding: 8px; background: var(--surface); }
-        .reh-ll { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; padding: 6px 8px 8px; }
-        .reh-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: transparent; border: none; color: var(--text-dim); border-radius: 7px; padding: 10px 10px; cursor: pointer; font-size: 13px; }
-        .reh-item:hover { background: var(--surface-2); color: var(--text); }
-        .reh-item.on { background: rgba(47,129,247,.12); color: var(--text); box-shadow: inset 0 0 0 1px rgba(47,129,247,.4); }
-        .reh-t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .reh-k { flex: none; color: var(--product); border: 1px solid var(--product); border-radius: 4px; font-size: 11px; padding: 0 6px; font-weight: 600; }
-        .reh-detail { border: 1px solid var(--border); border-radius: 10px; padding: 20px 22px; background: var(--surface); min-width: 0; }
-        .reh-h { color: var(--text); font-size: 20px; font-weight: 600; }
-        .reh-sub { color: var(--text-dim); font-size: 13px; margin-top: 4px; }
-        .reh-seq { color: var(--text-dim); font-size: 12.5px; margin-top: 12px; line-height: 1.6; }
-        .reh-sl { color: var(--text-faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; margin-right: 6px; }
-        .reh-notes { color: var(--text-dim); font-size: 13px; margin-top: 10px; background: var(--surface-2); border-radius: 8px; padding: 10px 12px; line-height: 1.5; }
-        .reh-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
-        @media (max-width: 760px) { .reh { grid-template-columns: 1fr; } .reh-cards { grid-template-columns: 1fr; } }
-        .reh-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 12px 14px; }
-        .reh-ch { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; margin-bottom: 9px; }
-        .reh-f { display: block; color: var(--text); font-size: 13px; padding: 5px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .reh-f.link { color: var(--text-link); cursor: pointer; } .reh-f.link:hover { text-decoration: underline; }
-        .reh-none { color: var(--text-faint); font-size: 12.5px; padding: 4px 0; }
+        .prod { min-width: 0; }
+        .prod-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+        .prod-cnt { color: var(--text); font-size: 13px; font-weight: 600; }
+        .prod-hint { color: var(--text-faint); font-size: 12px; }
+        .prod-list { display: flex; flex-direction: column; gap: 4px; }
+        .prod-sec { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; padding: 14px 2px 5px; }
+        .prod-sec:first-child { padding-top: 2px; }
+        .prod-row { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 10px 13px; }
+        .prod-row:hover { border-color: var(--border-strong); }
+        .pr-main { flex: 1; min-width: 0; }
+        .pr-title { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; background: transparent; border: none; padding: 0; color: var(--text); font-size: 14px; font-weight: 600; cursor: ${canEdit ? "text" : "default"}; text-align: left; }
+        .pr-title:disabled { cursor: default; }
+        .pr-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .pr-orig { color: var(--text-faint); font-size: 11px; flex: none; }
+        .pr-edit { width: 100%; background: var(--surface-3); border: 1px solid var(--primary); border-radius: 6px; color: var(--text); font-size: 14px; font-weight: 600; padding: 4px 8px; outline: none; }
+        .pr-voices { display: flex; align-items: baseline; gap: 8px; margin-top: 3px; min-width: 0; }
+        .pr-lead { color: var(--text-dim); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pr-parts { color: var(--text-faint); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pr-side { display: flex; align-items: center; gap: 6px; flex: none; }
+        .pr-key { color: var(--product); border: 1px solid var(--product); border-radius: 5px; font-size: 11.5px; font-weight: 700; padding: 1px 7px; font-variant-numeric: tabular-nums; }
+        .dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--border-strong); flex: none; }
+        .prod-trans { display: flex; align-items: center; gap: 8px; padding: 3px 13px 3px 20px; }
+        .pt-arrow { color: var(--text-faint); font-size: 13px; }
+        .pt-lbl { color: var(--text-dim); font-size: 12px; font-style: italic; }
+        .pt-key { color: var(--product); font-size: 11px; font-weight: 700; border: 1px solid var(--product); border-radius: 4px; padding: 0 5px; }
+        .pt-who { color: var(--text-faint); font-size: 11.5px; }
       `}</style>
     </div>
   );

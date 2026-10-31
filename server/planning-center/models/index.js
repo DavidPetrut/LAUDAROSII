@@ -39,6 +39,7 @@ module.exports = {
   PcNoteView: require("./PcNoteView"),
   PcCalendarToken: require("./PcCalendarToken"),
   PcPlanTemplate: require("./PcPlanTemplate"),
+  PcProductionSheet: require("./PcProductionSheet"),
   PcTimePreferenceOption: require("./PcTimePreferenceOption"),
   PcSchedulingPreference: require("./PcSchedulingPreference"),
   PcSong: require("./PcSong"),

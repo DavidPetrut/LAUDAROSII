@@ -9,7 +9,7 @@ const {
   PcPlan, PcPlanTime, PcPlanItem, PcAssignment, PcNeededPosition, PcPlanNote, PcPlanFile, PcItemNote,
   PcAlert, PcAlertAck, PcNoteView, PcPositionGuestLog,
   PcServiceType, PcOrderTemplate, PcTeam, PcPosition, PcTeamMember, PcPerson, PcOrg, PcCampus, PcSong,
-  PcArrangement, PcKey, PcSongFile, PcBlockout,
+  PcArrangement, PcKey, PcSongFile, PcBlockout, PcProductionSheet,
 } = require("../models");
 const { scoped, stamp } = require("../core/orgScope");
 const { requireCan, requireAny, can, CAN_VIEW_MATRIX, CAN_ASSIGN, CAN_MOVE, CAN_NEEDED, CAN_POSITION_RULES } = require("../core/permissions");
@@ -2208,6 +2208,97 @@ router.get("/:id/rehearse", requireCan("people.view"), async (req, res) => {
   } catch (err) {
     console.error("[pc] GET /plans/:id/rehearse:", err.message);
     res.status(500).json({ error: "Eroare la rehearse." });
+  }
+});
+
+/* ───────── Order-ul Producției (tab Rehearse) — overlay ONE-WAY peste Order ─────────
+   GET = structura LIVE din Order (gamă/voci/tranziții/lumini) ⊕ overlay-ul producătorului.
+   PATCH scrie EXCLUSIV în pc_productionSheets (per owner). NICIODATĂ în PcPlanItem (istoric-safe). */
+router.get("/:id/production", requireCan("people.view"), async (req, res) => {
+  try {
+    const id = OID(req.params.id);
+    if (!id) return res.status(400).json({ error: "ID invalid" });
+    const viewer = await viewerPersonId(req);
+    const items = await PcPlanItem.find(scoped(req, { planId: id })).sort({ sortOrder: 1 }).lean();
+    const [voicesMap, transMap, leadersMap] = await Promise.all([
+      resolveVoices(req, items),
+      resolveTransitions(req, items),
+      resolveItemLeaders(req, id, items),
+    ]);
+    // Overlay: foaia producătorului curent (sau foaia de echipă dacă nu e persoană asociată).
+    const sheet = await PcProductionSheet.findOne(
+      scoped(req, viewer ? { planId: id, ownerId: viewer } : { planId: id, scope: "team" })
+    ).lean();
+    const ov = {};
+    for (const o of (sheet?.items || [])) ov[String(o.itemId)] = o;
+
+    const rows = items.map((it) => {
+      if (it.type === "header") return { id: it._id, type: "header", title: it.title };
+      const o = ov[String(it._id)] || {};
+      return {
+        id: it._id,
+        type: it.type,
+        title: o.label || it.title,        // denumirea scurtă a producătorului are prioritate (nu schimbă Order)
+        origTitle: it.title,               // originalul din Order (pt. „resetează denumirea")
+        keyName: it.keyName || "",
+        isTransition: !!it.isTransition,
+        voices: voicesMap[String(it._id)] || [],
+        leader: (leadersMap[String(it._id)] || [])[0] || null,
+        transition: it.type === "transition" ? transMap[String(it._id)] : undefined,
+        lights: (it.lights || []).map((l) => ({ color: l.color || "", label: l.label || "" })),
+        lightsTiming: it.lightsTiming === "before" ? "before" : "after",
+        // overlay producător (aditiv — folosit progresiv pe faze):
+        label: o.label || "",
+        note: o.note || "",
+        reminders: o.reminders || [],
+        sceneId: o.sceneId || null,
+        fixtures: o.fixtures || [],
+        sectionCues: o.sectionCues || [],
+        projection: o.projection || [],
+      };
+    });
+    res.json({
+      planId: id,
+      ownerId: viewer,
+      scope: sheet?.scope || "owner",
+      items: rows,
+      reminders: sheet?.reminders || [],
+      simFeedback: sheet?.simFeedback || [],
+    });
+  } catch (err) {
+    console.error("[pc] GET /plans/:id/production:", err.message);
+    res.status(500).json({ error: "Eroare la Order-ul producției." });
+  }
+});
+
+// PATCH — scrie DOAR overlay-ul (per owner). body: { item:{itemId,...}, reminders?, simFeedback? }.
+const PROD_ITEM_FIELDS = ["label", "note", "sceneId", "fixtures", "sectionCues", "projection", "reminders"];
+router.patch("/:id/production", requireAny(["services.viewRehearsal", "services.editOrder"]), async (req, res) => {
+  try {
+    const id = OID(req.params.id);
+    if (!id) return res.status(400).json({ error: "ID invalid" });
+    const viewer = await viewerPersonId(req);
+    if (!viewer) return res.status(400).json({ error: "Niciun profil de persoană asociat contului." });
+    let sheet = await PcProductionSheet.findOne(scoped(req, { planId: id, ownerId: viewer }));
+    if (!sheet) sheet = new PcProductionSheet({ orgId: req.pcOrgId, planId: id, ownerId: viewer, scope: "owner" });
+
+    const bi = req.body.item;
+    if (bi && bi.itemId) {
+      const iid = OID(bi.itemId);
+      if (iid) {
+        let row = (sheet.items || []).find((x) => String(x.itemId) === String(iid));
+        if (!row) { sheet.items.push({ itemId: iid }); row = sheet.items[sheet.items.length - 1]; }
+        for (const k of PROD_ITEM_FIELDS) if (k in bi) row[k] = (k === "sceneId" && !bi[k]) ? null : bi[k];
+        sheet.markModified("items");
+      }
+    }
+    if (Array.isArray(req.body.reminders)) sheet.reminders = req.body.reminders;
+    if (Array.isArray(req.body.simFeedback)) sheet.simFeedback = req.body.simFeedback;
+    await sheet.save();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[pc] PATCH /plans/:id/production:", err.message);
+    res.status(500).json({ error: "Eroare la salvarea Order-ului producției." });
   }
 });
 
