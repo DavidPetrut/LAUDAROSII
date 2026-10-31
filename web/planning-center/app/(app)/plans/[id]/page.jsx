@@ -712,7 +712,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
   const [snippets, setSnippets] = useState([]);
   const [editing, setEditing] = useState(null); // itemId în curs de redenumire
   const [draft, setDraft] = useState("");
-  const [lightsFor, setLightsFor] = useState(null); // itemId cu panoul de producție deschis
+  const [editorItem, setEditorItem] = useState(null); // itemId deschis în Editor (ecran dedicat); "" = primul
   const [share, setShare] = useState(false); // dialog partajare
   const [live, setLive] = useState(false);   // mod Live (teleprompter): urmărești momentul curent
   const [curId, setCurId] = useState(null);   // momentul curent în Live
@@ -780,12 +780,14 @@ function RehearseTab({ planId, canEdit = false, flash }) {
       <div className="prod-head">
         <span className="prod-cnt">{songCount} cântece · {rows.length} momente</span>
         <span className="prod-actions">
+          <button className="prod-share" onClick={() => setEditorItem((playable[0] && playable[0].id) || "")} title="Editor: aranjezi structura și luminile pe ecran dedicat">✎ Editor</button>
           <button className={`prod-share ${live ? "live-on" : ""}`} onClick={() => (live ? setLive(false) : goLive())} title="Mod Live: urmărește momentul curent">● Live</button>
           <button className="prod-share" onClick={() => printProduction(data)} title="Print color, o pagină curată">⎙ Print</button>
           {canEdit && <button className="prod-share" onClick={() => setShare(true)} title="Trimite copia foii tale altui producător">⤴ Partajează</button>}
         </span>
       </div>
       {share && <ShareDialog planId={planId} onClose={() => setShare(false)} flash={flash} />}
+      {editorItem !== null && <ProductionEditor items={rows} scenes={scenes} snippets={snippets} canEdit={canEdit} initialItemId={editorItem || null} onSaveItem={saveItem} onSaveSnippet={saveSnippet} onDelSnippet={delSnippet} onClose={() => setEditorItem(null)} />}
 
       {live && (
         <div className="live-bar">
@@ -830,7 +832,6 @@ function RehearseTab({ planId, canEdit = false, flash }) {
           const reminders = r.reminders || [];
           const projNote = (r.projection || [])[0]?.note || "";
           const note = r.note || "";
-          const open = String(lightsFor) === String(r.id);
           return (
             <div key={r.id} id={`prow-${r.id}`} className={`prod-item ${lv}`}>
               <div className="prod-row" onClick={() => live && setCurId(r.id)}>
@@ -851,7 +852,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
                   </div>
                   {voiceLine && <div className="pr-voices">{voiceLine}</div>}
                 </div>
-                <button className={`lights-btn ${open ? "on" : ""}`} onClick={(e) => { e.stopPropagation(); setLightsFor(open ? null : r.id); }} title="Lumini">
+                <button className="lights-btn" onClick={(e) => { e.stopPropagation(); setEditorItem(r.id); }} title="Deschide în Editor">
                   {r.scene && <span className="ls-name">{r.scene.name}</span>}
                   {fx.map((f, i) => <span key={i} className="dot" style={{ background: f.color }} title={FIXTURE_LBL[f.fixture] || f.fixture} />)}
                   {cueCount > 0 && <span className="ls-cue">✦{cueCount}</span>}
@@ -865,7 +866,6 @@ function RehearseTab({ planId, canEdit = false, flash }) {
                   {reminders.map((rem, i) => <span key={i} className={`rem ${rem.severity === "high" ? "hi" : ""}`}>{REM_ICON[rem.icon] || "•"} {rem.text}</span>)}
                 </div>
               )}
-              {open && <LightsPanel r={r} scenes={scenes} snippets={snippets} canEdit={canEdit} onSave={(patch) => saveItem(r, patch)} onSaveSnippet={saveSnippet} onDelSnippet={delSnippet} />}
             </div>
           );
         })}
@@ -1155,6 +1155,110 @@ function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet,
         .cue-x:hover { color: var(--danger); }
         .cue-note { flex: 1; min-width: 0; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 6px; color: var(--text); font-size: 12px; padding: 4px 8px; outline: none; }
         .cue-note:focus { border-color: var(--primary); }
+      `}</style>
+    </div>
+  );
+}
+
+/* Editor producție — ecran dedicat (ca „Lyrics & Chords" la Songs): listă de elemente la stânga,
+   click pe element → îi vezi STRUCTURA (sequence) și-l „migălești" (scenă/lumini/secțiuni/proiecție/note).
+   Scrie DOAR în overlay — nu atinge Order-ul. */
+function ProductionEditor({ items, scenes, snippets, canEdit, initialItemId, onSaveItem, onSaveSnippet, onDelSnippet, onClose }) {
+  const playable = items.filter((r) => r.type !== "header");
+  const [selId, setSelId] = useState(initialItemId || (playable[0] && playable[0].id) || null);
+  const [renaming, setRenaming] = useState(false);
+  const [draft, setDraft] = useState("");
+  const sel = items.find((r) => String(r.id) === String(selId));
+  const saveLabel = () => { const label = draft.trim(); setRenaming(false); if (sel && label !== (sel.label || "")) onSaveItem(sel, { label }); };
+  const voiceLine = sel && (sel.voices || []).length ? formatVoices(sel.voices) : "";
+
+  return (
+    <div className="ed-back" onClick={onClose}>
+      <div className="ed" onClick={(e) => e.stopPropagation()}>
+        <div className="ed-top">
+          <span className="ed-title">Editor producție</span>
+          <span className="ed-hint">aranjezi aici — nu atinge Order-ul</span>
+          <button className="ed-x" onClick={onClose} title="Închide">✕</button>
+        </div>
+        <div className="ed-body">
+          <div className="ed-list">
+            {items.map((r) => {
+              if (r.type === "header") return <div key={r.id} className="ed-sec">{r.title}</div>;
+              const on = String(selId) === String(r.id);
+              if (r.type === "transition") return (
+                <button key={r.id} className={`ed-it tr ${on ? "on" : ""}`} onClick={() => setSelId(r.id)}>
+                  <span className="ed-arrow">↳</span><span className="ed-it-t">{TRANS_LBL[r.transition && r.transition.kind] || "Tranziție"}</span>
+                </button>
+              );
+              const fx = r.fixtures || [];
+              return (
+                <button key={r.id} className={`ed-it ${on ? "on" : ""}`} onClick={() => setSelId(r.id)}>
+                  <span className="ed-it-t">{r.title}</span>
+                  {r.keyName && <span className="ed-it-k">{r.keyName}</span>}
+                  {fx.slice(0, 5).map((f, i) => <span key={i} className="ed-dot" style={{ background: f.color }} />)}
+                </button>
+              );
+            })}
+          </div>
+          <div className="ed-main">
+            {!sel ? <div className="ed-empty">Alege un element din stânga.</div> : (<>
+              <div className="ed-h">
+                {renaming ? (
+                  <input className="ed-rename" autoFocus value={draft} placeholder={sel.origTitle}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") saveLabel(); if (e.key === "Escape") setRenaming(false); }}
+                    onBlur={saveLabel} />
+                ) : (
+                  <button className="ed-h-t" disabled={!canEdit} onClick={() => { setRenaming(true); setDraft(sel.label || ""); }} title={canEdit ? "Redenumește (doar aici)" : ""}>
+                    {sel.title}{sel.label && <span className="ed-reset" title={`Original: ${sel.origTitle}`}>↩</span>}
+                  </button>
+                )}
+                {sel.keyName && <span className="ed-h-k">{sel.keyName}</span>}
+              </div>
+              {voiceLine && <div className="ed-voices">{voiceLine}</div>}
+              {(sel.sequence || []).length > 0 && (
+                <div className="ed-struct">
+                  <span className="ed-struct-l">Structură</span>
+                  <div className="ed-struct-row">{sel.sequence.map((s, i) => <span key={i} className="ed-sq">{s}</span>)}</div>
+                </div>
+              )}
+              <LightsPanel r={sel} scenes={scenes} snippets={snippets} canEdit={canEdit} onSave={(patch) => onSaveItem(sel, patch)} onSaveSnippet={onSaveSnippet} onDelSnippet={onDelSnippet} />
+            </>)}
+          </div>
+        </div>
+      </div>
+      <style jsx>{`
+        .ed-back { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.6); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 24px; }
+        .ed { width: 1100px; max-width: 100%; height: 86vh; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 14px; overflow: hidden; }
+        .ed-top { display: flex; align-items: baseline; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+        .ed-title { color: var(--text); font-size: 15px; font-weight: 700; }
+        .ed-hint { color: var(--text-faint); font-size: 12px; }
+        .ed-x { margin-left: auto; background: transparent; border: none; color: var(--text-faint); font-size: 15px; cursor: pointer; }
+        .ed-x:hover { color: var(--danger); }
+        .ed-body { flex: 1; display: grid; grid-template-columns: 280px 1fr; min-height: 0; }
+        .ed-list { border-right: 1px solid var(--border); overflow: auto; padding: 8px; display: flex; flex-direction: column; gap: 3px; }
+        .ed-sec { color: var(--text-faint); font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; padding: 12px 8px 4px; }
+        .ed-it { display: flex; align-items: center; gap: 7px; width: 100%; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 9px 10px; cursor: pointer; color: var(--text-dim); }
+        .ed-it:hover { background: var(--surface-2); color: var(--text); }
+        .ed-it.on { background: rgba(47,129,247,.12); color: var(--text); border-color: rgba(47,129,247,.4); }
+        .ed-it.tr { padding-left: 16px; color: var(--text-faint); font-style: italic; font-size: 12.5px; }
+        .ed-it-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+        .ed-it-k { flex: none; color: #fff; background: #6fa02e; border-radius: 999px; font-size: 11px; font-weight: 700; padding: 0 6px; }
+        .ed-arrow { color: var(--text-faint); }
+        .ed-dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--border-strong); flex: none; }
+        .ed-main { overflow: auto; padding: 20px 22px; min-width: 0; }
+        .ed-empty { color: var(--text-faint); font-size: 13px; margin-top: 30px; text-align: center; }
+        .ed-h { display: flex; align-items: center; gap: 10px; }
+        .ed-h-t { background: transparent; border: none; padding: 0; color: var(--text); font-size: 19px; font-weight: 700; cursor: ${canEdit ? "text" : "default"}; display: inline-flex; align-items: center; gap: 7px; text-align: left; }
+        .ed-reset { color: var(--text-faint); font-size: 13px; }
+        .ed-h-k { flex: none; color: #fff; background: #6fa02e; border-radius: 999px; font-size: 13px; font-weight: 700; padding: 1px 9px; }
+        .ed-rename { flex: 1; background: var(--surface-3); border: 1px solid var(--primary); border-radius: 8px; color: var(--text); font-size: 18px; font-weight: 700; padding: 5px 10px; outline: none; }
+        .ed-voices { color: var(--text-dim); font-size: 13px; margin-top: 6px; white-space: pre-line; line-height: 1.5; }
+        .ed-struct { margin-top: 16px; }
+        .ed-struct-l { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
+        .ed-struct-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+        .ed-sq { color: var(--text-dim); font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 9px; }
+        @media (max-width: 760px) { .ed-body { grid-template-columns: 1fr; } .ed-list { max-height: 180px; border-right: none; border-bottom: 1px solid var(--border); } }
       `}</style>
     </div>
   );
