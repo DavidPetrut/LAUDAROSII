@@ -320,8 +320,8 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
         .row.open { background: rgba(47,129,247,.09); box-shadow: inset 2px 0 0 var(--primary); }
         .row.over { box-shadow: inset 0 2px 0 var(--primary); }
         .row.trans { padding-left: 42px; }
-        .row.lights-row { cursor: default; padding-top: 7px; padding-bottom: 7px; background: var(--surface-2); border-bottom: 1px solid var(--border-soft); }
-        .row.lights-row:hover { background: var(--surface-2); }
+        .row.lights-row { cursor: default; padding-top: 7px; padding-bottom: 7px; background: transparent; border-bottom: none; border-left-color: transparent; }
+        .row.lights-row:hover { background: transparent; }
         .lr-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--text-dim); font-size: 12px; font-weight: 600; }
         .row.hdr { background: var(--section-head-bg); border-top: 2px solid var(--product); cursor: default; padding: 8px 14px; }
         .hdr-t { color: var(--text); font-weight: 700; text-transform: uppercase; font-size: 11.5px; letter-spacing: .6px; }
