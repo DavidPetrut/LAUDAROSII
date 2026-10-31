@@ -292,41 +292,68 @@ async function syncGroup(number, jid, targetNumbersRaw) {
   const toAdd = target.filter((n) => !currentSet.has(n) && !self.has(n));
   const toRemove = current.filter((n) => !targetSet.has(n) && !self.has(n)); // nu te scoți pe tine (num sau LID)
 
-  const added = [], removed = [], failed = [], needInvite = [];
+  const added = [], removed = [], failed = [], needInvite = [], invited = [];
+  let stopped = false, stopReason = "";
 
-  // Ritm UMAN (anti-ban): NU bulk. O singură persoană pe acțiune, cu pauze variate între ele,
-  // ca să nu arate ca un bot (15 deodată = imposibil manual). Durata nu contează — contează tiparul.
+  // Ritm UMAN & ORGANIC (anti-ban): NU bulk. O persoană pe acțiune, cu pauze variate.
+  // De obicei 4–8s; din când în când (≈1 din 5) o pauză mai lungă 9–16s (ca un om care se oprește).
   const sleep = (ms) => new Promise((r) => setTimeout(r, Math.max(0, ms)));
-  // De obicei 3,5–7,5s; din când în când (1 din 6) o pauză mai lungă 8–15s (ca un om care se oprește).
-  const humanGap = () => (Math.random() < 0.17 ? 8000 + Math.random() * 7000 : 3500 + Math.random() * 4000);
+  const humanGap = () => (Math.random() < 0.2 ? 9000 + Math.random() * 7000 : 4000 + Math.random() * 4000);
 
-  // Scoatere — unul câte unul, cu pauze.
-  for (let i = 0; i < toRemove.length; i++) {
+  // Sondă de sănătate (read-only, inofensivă): conexiune vie + metadata citibilă.
+  const healthy = async () => { try { if (!sock || !sock.user) return false; await sock.groupMetadata(jid); return true; } catch { return false; } };
+  // Link de invitație — generat lazy, o singură dată (pt. fallback).
+  let invite = null;
+  const getInvite = async () => { if (invite === null) { try { invite = `https://chat.whatsapp.com/${await sock.groupInviteCode(jid)}`; } catch { invite = ""; } } return invite; };
+
+  // Circuit breaker: oprește dacă apar semne că WhatsApp ne împinge înapoi.
+  let consecHardErr = 0;   // erori dure consecutive (excepții / status neașteptat)
+  let consecRefuse = 0;    // refuzuri consecutive (403/409) — pot însemna rate-limit, nu doar privacy
+  const trip = (why) => { stopped = true; stopReason = why; };
+
+  // ─ Scoatere — unul câte unul, cu pauze. ─
+  for (let i = 0; i < toRemove.length && !stopped; i++) {
     const n = toRemove[i];
     if (i > 0) await sleep(humanGap());
     try {
       const res = await sock.groupParticipantsUpdate(jid, [jidOf(n)], "remove");
       const st = String((res && res[0] && res[0].status) || "200");
-      (st === "200" ? removed : failed).push(n);
-    } catch (e) { failed.push(n); }
+      if (st === "200") { removed.push(n); consecHardErr = 0; }
+      else { failed.push(n); consecHardErr++; }
+    } catch (e) { failed.push(n); consecHardErr++; }
+    if (consecHardErr >= 3) trip("prea multe erori la scoatere");
   }
 
-  // Pauză mai mare între „scoatere" și „adăugare" (schimbare de ritm, mai natural).
-  if (toRemove.length && toAdd.length) await sleep(humanGap() + 2500);
+  // Pauză mai mare + sondă între „scoatere" și „adăugare".
+  if (!stopped && toRemove.length && toAdd.length) {
+    await sleep(humanGap() + 3000);
+    if (!(await healthy())) trip("conexiune instabilă înainte de adăugare");
+  }
 
-  // Adăugare — unul câte unul, cu pauze (adăugatul e cel mai sensibil la ban).
-  for (let i = 0; i < toAdd.length; i++) {
+  // ─ Adăugare — unul câte unul, cu sondă, circuit breaker și fallback pe invitație. ─
+  for (let i = 0; i < toAdd.length && !stopped; i++) {
     const n = toAdd[i];
     if (i > 0) await sleep(humanGap());
+    // sondă de sănătate la fiecare ~4 adăugări (nu la fiecare, ca să nu facem zgomot inutil)
+    if (i > 0 && i % 4 === 0 && !(await healthy())) { trip("conexiune/metadata instabilă"); break; }
     try {
       const res = await sock.groupParticipantsUpdate(jid, [jidOf(n)], "add");
       const st = String((res && res[0] && res[0].status) || "");
-      if (st === "200") added.push(n);
-      else if (st === "403" || st === "409") needInvite.push(n);
-      else failed.push(n);
-    } catch (e) { needInvite.push(n); }
+      if (st === "200") { added.push(n); consecHardErr = 0; consecRefuse = 0; }
+      else if (st === "403" || st === "409") {
+        // NU forțăm: trimitem invitația (paced, sub breaker). Omul intră singur = zero rapoarte.
+        const link = await getInvite();
+        if (link) { try { await sock.sendMessage(jidOf(n), { text: `Salut! Intră în grup de aici: ${link}` }); invited.push(n); } catch { needInvite.push(n); } }
+        else needInvite.push(n);
+        consecRefuse++;
+        if (consecRefuse >= 6) trip("prea multe refuzuri la rând (posibil rate-limit)"); // precauție
+      } else { failed.push(n); consecHardErr++; }
+    } catch (e) { needInvite.push(n); consecHardErr++; }
+    if (consecHardErr >= 3) trip("prea multe erori la adăugare");
   }
-  return { added, removed, failed, needInvite, targetCount: target.length, currentCount: current.length };
+
+  const skipped = stopped ? [...toRemove.filter((n) => !removed.includes(n) && !failed.includes(n)), ...toAdd.filter((n) => !added.includes(n) && !invited.includes(n) && !needInvite.includes(n) && !failed.includes(n))] : [];
+  return { added, removed, failed, needInvite, invited, stopped, stopReason, skipped, targetCount: target.length, currentCount: current.length };
 }
 
 async function inviteLink(number, jid) {
