@@ -755,6 +755,10 @@ function RehearseTab({ planId, canEdit = false, flash }) {
     try { await plansApi.saveProduction(planId, { simFeedback: next }); }
     catch (e) { flash?.(e?.message || "Eroare la salvare."); load(); }
   }
+  async function createScene(payload) {
+    try { const s = await productionScenesApi.create(payload); setScenes((p) => [...p, s]); flash?.(`Scenă „${s.name}" salvată.`); }
+    catch (e) { flash?.(e?.message || "Eroare la salvarea scenei."); }
+  }
   async function saveLabel(it) {
     const label = draft.trim();
     setEditing(null);
@@ -775,19 +779,21 @@ function RehearseTab({ planId, canEdit = false, flash }) {
   const goLive = () => { setLive(true); if (!curId && playable[0]) setCurId(playable[0].id); };
   const stepLive = (d) => { const pi = playable.findIndex((r) => String(r.id) === String(curId)); const n = playable[Math.max(0, Math.min(playable.length - 1, (pi < 0 ? 0 : pi) + d))]; if (n) setCurId(n.id); };
 
+  // Elementul selectat pt. panoul-editor din dreapta (default: primul moment).
+  const effSel = rows.find((r) => String(r.id) === String(editorItem)) || playable[0] || null;
+  const selVoiceLine = effSel && (effSel.voices || []).length ? formatVoices(effSel.voices) : "";
+
   return (
     <div className="prod">
       <div className="prod-head">
         <span className="prod-cnt">{songCount} cântece · {rows.length} momente</span>
         <span className="prod-actions">
-          <button className="prod-share" onClick={() => setEditorItem((playable[0] && playable[0].id) || "")} title="Editor: aranjezi structura și luminile pe ecran dedicat">✎ Editor</button>
           <button className={`prod-share ${live ? "live-on" : ""}`} onClick={() => (live ? setLive(false) : goLive())} title="Mod Live: urmărește momentul curent">● Live</button>
           <button className="prod-share" onClick={() => printProduction(data)} title="Print color, o pagină curată">⎙ Print</button>
           {canEdit && <button className="prod-share" onClick={() => setShare(true)} title="Trimite copia foii tale altui producător">⤴ Partajează</button>}
         </span>
       </div>
       {share && <ShareDialog planId={planId} onClose={() => setShare(false)} flash={flash} />}
-      {editorItem !== null && <ProductionEditor items={rows} scenes={scenes} snippets={snippets} canEdit={canEdit} initialItemId={editorItem || null} onSaveItem={saveItem} onSaveSnippet={saveSnippet} onDelSnippet={delSnippet} onClose={() => setEditorItem(null)} />}
 
       {live && (
         <div className="live-bar">
@@ -810,65 +816,87 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         </div>
       )}
 
-      <div className="prod-list">
-        {rows.map((r, ri) => {
-          const lv = live ? (ri < curIdx ? "past" : ri === curIdx ? "cur" : "future") : "";
-          if (r.type === "header") return <div key={r.id} className={`prod-sec ${lv}`}>{r.title}</div>;
-          const t = r.transition;
-          if (r.type === "transition") {
+      <div className="prod-split">
+        {/* STÂNGA — structura order-ului (cu headere, sequence și ce-ai editat, live) */}
+        <div className="prod-left">
+          {rows.map((r, ri) => {
+            const lv = live ? (ri < curIdx ? "past" : ri === curIdx ? "cur" : "future") : "";
+            if (r.type === "header") return <div key={r.id} className={`prod-sec ${lv}`}>{r.title}</div>;
+            const sel = effSel && String(effSel.id) === String(r.id);
+            const pick = () => (live ? setCurId(r.id) : setEditorItem(r.id));
+            const t = r.transition;
+            if (r.type === "transition") {
+              return (
+                <button key={r.id} id={`prow-${r.id}`} className={`prod-trans ${lv} ${sel ? "sel" : ""}`} onClick={pick}>
+                  <span className="pt-arrow">↳</span>
+                  <span className="pt-lbl">{TRANS_LBL[t?.kind] || "Tranziție"}</span>
+                  {t?.key && <span className="pt-key">{t.key}{t.autoKey ? " ·auto" : ""}</span>}
+                  {t?.prayer && <span className="pt-who">{t.prayer.name}</span>}
+                  {(t?.lights || []).map((l, i) => <span key={i} className="dot" style={{ background: l.color }} title={l.label} />)}
+                </button>
+              );
+            }
+            const voiceLine = (r.voices || []).length ? formatVoices(r.voices) : "";
+            const fx = r.fixtures || [];
+            const cueCount = (r.sectionCues || []).filter((c) => (c.lights || []).length || c.note).length;
+            const reminders = r.reminders || [];
+            const projNote = (r.projection || [])[0]?.note || "";
+            const note = r.note || "";
+            const seq = r.sequence || [];
             return (
-              <div key={r.id} id={`prow-${r.id}`} className={`prod-trans ${lv}`} onClick={() => live && setCurId(r.id)}>
-                <span className="pt-arrow">↳</span>
-                <span className="pt-lbl">{TRANS_LBL[t?.kind] || "Tranziție"}</span>
-                {t?.key && <span className="pt-key">{t.key}{t.autoKey ? " ·auto" : ""}</span>}
-                {t?.prayer && <span className="pt-who">{t.prayer.name}</span>}
-                {(t?.lights || []).map((l, i) => <span key={i} className="dot" style={{ background: l.color }} title={l.label} />)}
+              <div key={r.id} id={`prow-${r.id}`} className={`prod-item ${lv}`}>
+                <button className={`prod-row ${sel ? "sel" : ""}`} onClick={pick}>
+                  <div className="pr-main">
+                    <div className="pr-top">
+                      <span className="pr-title"><span className="pr-t">{r.title}</span>{r.label && <span className="pr-orig" title={`Original: ${r.origTitle}`}>↩</span>}</span>
+                      {r.keyName && <span className={`pr-key ${r.type === "media" ? "media" : ""}`}>{r.keyName}</span>}
+                    </div>
+                    {voiceLine && <div className="pr-voices">{voiceLine}</div>}
+                    {seq.length > 0 && <div className="pr-seq">{seq.join(" · ")}</div>}
+                  </div>
+                  <span className="pr-sum">
+                    {r.scene && <span className="ls-name">{r.scene.name}</span>}
+                    {fx.map((f, i) => <span key={i} className="dot" style={{ background: f.color }} title={FIXTURE_LBL[f.fixture] || f.fixture} />)}
+                    {cueCount > 0 && <span className="ls-cue">✦{cueCount}</span>}
+                  </span>
+                </button>
+                {(reminders.length > 0 || projNote || note) && (
+                  <div className="pr-extra">
+                    {note && <span className="pr-note">✎ {note}</span>}
+                    {projNote && <span className="pr-proj">▣ {projNote}</span>}
+                    {reminders.map((rem, i) => <span key={i} className={`rem ${rem.severity === "high" ? "hi" : ""}`}>{REM_ICON[rem.icon] || "•"} {rem.text}</span>)}
+                  </div>
+                )}
               </div>
             );
-          }
-          const voiceLine = (r.voices || []).length ? formatVoices(r.voices) : "";
-          const fx = r.fixtures || [];
-          const cueCount = (r.sectionCues || []).filter((c) => (c.lights || []).length || c.note).length;
-          const reminders = r.reminders || [];
-          const projNote = (r.projection || [])[0]?.note || "";
-          const note = r.note || "";
-          return (
-            <div key={r.id} id={`prow-${r.id}`} className={`prod-item ${lv}`}>
-              <div className="prod-row" onClick={() => live && setCurId(r.id)}>
-                <div className="pr-main">
-                  <div className="pr-top">
-                    {editing === r.id ? (
-                      <input className="pr-edit" autoFocus value={draft} placeholder={r.origTitle}
-                        onChange={(e) => setDraft(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") saveLabel(r); if (e.key === "Escape") setEditing(null); }}
-                        onBlur={() => saveLabel(r)} />
-                    ) : (
-                      <button className="pr-title" disabled={!canEdit && !live} onClick={() => { if (live) { setCurId(r.id); return; } setEditing(r.id); setDraft(r.label || ""); }} title={live ? "Click = momentul curent" : canEdit ? "Click = redenumește (doar aici)" : ""}>
-                        <span className="pr-t">{r.title}</span>
-                        {r.label && <span className="pr-orig" title={`Original: ${r.origTitle}`}>↩</span>}
-                      </button>
-                    )}
-                    {r.keyName && <span className={`pr-key ${r.type === "media" ? "media" : ""}`}>{r.keyName}</span>}
-                  </div>
-                  {voiceLine && <div className="pr-voices">{voiceLine}</div>}
-                </div>
-                <button className="lights-btn" onClick={(e) => { e.stopPropagation(); setEditorItem(r.id); }} title="Deschide în Editor">
-                  {r.scene && <span className="ls-name">{r.scene.name}</span>}
-                  {fx.map((f, i) => <span key={i} className="dot" style={{ background: f.color }} title={FIXTURE_LBL[f.fixture] || f.fixture} />)}
-                  {cueCount > 0 && <span className="ls-cue">✦{cueCount}</span>}
-                  {!r.scene && fx.length === 0 && cueCount === 0 && <span className="ls-add">＋ lumini</span>}
-                </button>
+          })}
+        </div>
+
+        {/* DREAPTA — editorul elementului selectat (se reflectă live în stânga) */}
+        <div className="prod-right">
+          {!effSel ? <div className="pr-empty">Alege un element din stânga ca să-l aranjezi.</div> : (
+            <div className="ed2">
+              <div className="ed2-h">
+                {editing === effSel.id ? (
+                  <input className="ed2-rename" autoFocus value={draft} placeholder={effSel.origTitle}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") saveLabel(effSel); if (e.key === "Escape") setEditing(null); }}
+                    onBlur={() => saveLabel(effSel)} />
+                ) : (
+                  <button className="ed2-t" disabled={!canEdit} onClick={() => { setEditing(effSel.id); setDraft(effSel.label || ""); }} title={canEdit ? "Click = redenumește (doar aici)" : ""}>
+                    <span className="ed2-tt">{effSel.title}</span>{effSel.label && <span className="ed2-reset" title={`Original: ${effSel.origTitle}`}>↩</span>}
+                  </button>
+                )}
+                {effSel.keyName && <span className="ed2-k">{effSel.keyName}</span>}
               </div>
-              {(reminders.length > 0 || projNote || note) && (
-                <div className="pr-extra">
-                  {note && <span className="pr-note">✎ {note}</span>}
-                  {projNote && <span className="pr-proj">▣ {projNote}</span>}
-                  {reminders.map((rem, i) => <span key={i} className={`rem ${rem.severity === "high" ? "hi" : ""}`}>{REM_ICON[rem.icon] || "•"} {rem.text}</span>)}
-                </div>
+              {selVoiceLine && <div className="ed2-voices">{selVoiceLine}</div>}
+              {(effSel.sequence || []).length > 0 && (
+                <div className="ed2-seq"><span className="ed2-seq-l">Structură</span><div className="ed2-seq-row">{effSel.sequence.map((s, i) => <span key={i} className="ed2-sq">{s}</span>)}</div></div>
               )}
+              <LightsPanel r={effSel} scenes={scenes} snippets={snippets} canEdit={canEdit} onSave={(patch) => saveItem(effSel, patch)} onSaveSnippet={saveSnippet} onDelSnippet={delSnippet} onCreateScene={createScene} />
             </div>
-          );
-        })}
+          )}
+        </div>
       </div>
 
       <SimFeedback items={data.simFeedback || []} canEdit={canEdit} onSave={saveSim} />
@@ -878,12 +906,17 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .prod-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
         .prod-cnt { color: var(--text); font-size: 13px; font-weight: 600; }
         .prod-hint { color: var(--text-faint); font-size: 12px; }
-        .prod-list { display: flex; flex-direction: column; gap: 4px; }
+        .prod-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 430px); gap: 18px; align-items: start; }
+        @media (max-width: 900px) { .prod-split { grid-template-columns: 1fr; } }
+        .prod-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
         .prod-sec { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; padding: 14px 2px 5px; }
         .prod-sec:first-child { padding-top: 2px; }
-        .prod-row { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 10px 13px; }
+        .prod-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 10px 13px; cursor: pointer; }
         .prod-row:hover { border-color: var(--border-strong); }
+        .prod-row.sel { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
         .pr-main { flex: 1; min-width: 0; }
+        .pr-seq { color: var(--text-faint); font-size: 11px; margin-top: 3px; line-height: 1.4; }
+        .pr-sum { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; flex: none; }
         .pr-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
         .pr-title { display: inline-flex; align-items: center; gap: 6px; min-width: 0; background: transparent; border: none; padding: 0; color: var(--text); font-size: 14px; font-weight: 600; cursor: ${canEdit ? "text" : "default"}; text-align: left; }
         .pr-title:disabled { cursor: default; }
@@ -899,6 +932,19 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .ls-name { color: var(--text-dim); font-size: 11px; font-weight: 600; }
         .ls-cue { color: var(--text-faint); font-size: 10.5px; }
         .ls-add { color: var(--text-faint); font-size: 11px; }
+        .prod-right { position: sticky; top: 8px; align-self: start; max-height: calc(100vh - 110px); overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 11px; padding: 16px 18px; }
+        .pr-empty { color: var(--text-faint); font-size: 13px; text-align: center; padding: 30px 10px; }
+        .ed2-h { display: flex; align-items: center; gap: 10px; }
+        .ed2-t { background: transparent; border: none; padding: 0; color: var(--text); font-size: 17px; font-weight: 700; cursor: ${canEdit ? "text" : "default"}; display: inline-flex; align-items: center; gap: 6px; text-align: left; min-width: 0; }
+        .ed2-tt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ed2-reset { color: var(--text-faint); font-size: 12px; flex: none; }
+        .ed2-k { flex: none; color: #fff; background: #6fa02e; border-radius: 999px; font-size: 13px; font-weight: 700; padding: 1px 9px; }
+        .ed2-rename { flex: 1; background: var(--surface-3); border: 1px solid var(--primary); border-radius: 8px; color: var(--text); font-size: 16px; font-weight: 700; padding: 5px 10px; outline: none; }
+        .ed2-voices { color: var(--text-dim); font-size: 12.5px; margin-top: 6px; white-space: pre-line; line-height: 1.5; }
+        .ed2-seq { margin-top: 14px; }
+        .ed2-seq-l { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
+        .ed2-seq-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+        .ed2-sq { color: var(--text-dim); font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 9px; }
         .prod-spotify { display: inline-flex; align-items: center; gap: 8px; background: rgba(87,185,138,.1); border: 1px solid rgba(87,185,138,.35); border-radius: 8px; padding: 6px 11px; margin-bottom: 12px; }
         .ps-ico { color: #57b98a; font-size: 13px; }
         .ps-lbl { color: var(--text-dim); font-size: 11.5px; font-weight: 600; }
@@ -927,7 +973,9 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .prod-item.past, .prod-trans.past, .prod-sec.past { opacity: .38; }
         .prod-item.past .pr-extra { display: none; }
         .prod-item.cur .prod-row, .prod-trans.cur, .prod-item.future .prod-row { cursor: pointer; }
-        .prod-trans { display: flex; align-items: center; gap: 8px; padding: 3px 13px 3px 20px; }
+        .prod-trans { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 7px; padding: 4px 13px 4px 20px; cursor: pointer; }
+        .prod-trans:hover { background: var(--surface-2); }
+        .prod-trans.sel { border-color: var(--primary); }
         .pt-arrow { color: var(--text-faint); font-size: 13px; }
         .pt-lbl { color: var(--text-dim); font-size: 12px; font-style: italic; }
         .pt-key { color: #fff; background: #6fa02e; font-size: 11.5px; font-weight: 700; border: 1px solid #6fa02e; border-radius: 999px; padding: 0 7px; }
@@ -938,11 +986,13 @@ function RehearseTab({ planId, canEdit = false, flash }) {
 }
 
 /* Panou producție per item: notă + scenă + fixtures + lumini pe secțiune + proiecție + remindere. */
-function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet, onDelSnippet }) {
+function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet, onDelSnippet, onCreateScene }) {
   const [remText, setRemText] = useState("");
   const [remIcon, setRemIcon] = useState("info");
   const [snipOpen, setSnipOpen] = useState(false);
   const [noteVal, setNoteVal] = useState(r.note || "");
+  const [saveSceneOpen, setSaveSceneOpen] = useState(false);
+  const [sceneName, setSceneName] = useState("");
   const insertSnippet = (text) => { const next = (noteVal.trim() ? noteVal.trim() + " · " : "") + text; setNoteVal(next); onSave({ note: next }); setSnipOpen(false); };
   const fx = r.fixtures || [];
   const colorOf = (key) => (fx.find((f) => f.fixture === key) || {}).color || "";
@@ -954,6 +1004,7 @@ function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet,
   };
   const applyScene = (s) => onSave({ sceneId: s.id, fixtures: (s.fixtures || []).map((f) => ({ fixture: f.fixture, color: f.color })) });
   const clearScene = () => onSave({ sceneId: "" });
+  const doSaveScene = () => { const name = sceneName.trim(); if (!name || !fx.length) return; onCreateScene?.({ name, fixtures: fx.map((f) => ({ fixture: f.fixture, color: f.color })) }); setSaveSceneOpen(false); setSceneName(""); };
 
   const sections = uniqSections(r.sequence);
   const cues = r.sectionCues || [];
@@ -1006,15 +1057,23 @@ function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet,
           )}
         </div>
       </div>
-      {/* Scene */}
+      {/* Scenă — dropdown + salvează scenă */}
       <div className="lp-row">
         <span className="lp-lbl">Scenă</span>
-        <div className="lp-scenes">
-          <button className={`sc-chip ${!r.sceneId ? "on" : ""}`} onClick={clearScene} disabled={!canEdit}>Fără</button>
-          {scenes.map((s) => (
-            <button key={s.id} className={`sc-chip ${String(r.sceneId) === String(s.id) ? "on" : ""}`} onClick={() => applyScene(s)} disabled={!canEdit} title={s.intensityNote}>
-              {s.name}
-            </button>
+        <div className="lp-scene">
+          <select className="sc-sel" value={r.sceneId ? String(r.sceneId) : ""} disabled={!canEdit}
+            onChange={(e) => { const v = e.target.value; if (!v) clearScene(); else { const s = scenes.find((x) => String(x.id) === v); if (s) applyScene(s); } }}>
+            <option value="">Fără scenă</option>
+            {scenes.map((s) => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
+          </select>
+          {canEdit && (saveSceneOpen ? (
+            <span className="sc-save">
+              <input className="sc-in" autoFocus value={sceneName} placeholder="nume scenă" onChange={(e) => setSceneName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && doSaveScene()} />
+              <button className="sc-ok" onClick={doSaveScene} title="Salvează">✓</button>
+              <button className="sc-cx" onClick={() => setSaveSceneOpen(false)} title="Renunță">✕</button>
+            </span>
+          ) : (
+            <button className="sc-saveb" disabled={!fx.length} onClick={() => { setSceneName(""); setSaveSceneOpen(true); }} title="Salvează culorile curente ca scenă nouă, reutilizabilă">💾 Salvează scenă</button>
           ))}
         </div>
       </div>
@@ -1096,7 +1155,17 @@ function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet,
       </div>
 
       <style jsx>{`
-        .lp { background: var(--surface-2); border: 1px solid var(--border); border-top: none; border-radius: 0 0 9px 9px; margin-top: -5px; padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 12px; }
+        .lp { background: transparent; border: none; margin-top: 2px; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+        .lp-scene { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .sc-sel { flex: 1; min-width: 140px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text); font-size: 12.5px; padding: 7px 9px; outline: none; cursor: pointer; }
+        .sc-sel:focus { border-color: var(--primary); }
+        .sc-saveb { flex: none; background: transparent; border: 1px dashed var(--border-strong); color: var(--text-faint); border-radius: 7px; padding: 6px 10px; font-size: 11.5px; cursor: pointer; }
+        .sc-saveb:hover:not(:disabled) { color: #f0d94d; border-color: #f0d94d; }
+        .sc-saveb:disabled { opacity: .45; cursor: default; }
+        .sc-save { display: inline-flex; align-items: center; gap: 5px; }
+        .sc-in { width: 130px; background: var(--surface-3); border: 1px solid var(--primary); border-radius: 7px; color: var(--text); font-size: 12.5px; padding: 6px 9px; outline: none; }
+        .sc-ok, .sc-cx { width: 30px; height: 30px; background: transparent; border: 1px solid var(--border-strong); border-radius: 6px; cursor: pointer; font-size: 13px; }
+        .sc-ok { color: var(--product); } .sc-cx { color: var(--text-faint); }
         .lp-proj { width: 100%; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text); font-size: 12.5px; padding: 6px 10px; outline: none; }
         .lp-proj:focus { border-color: var(--primary); }
         .lp-rem { display: flex; flex-direction: column; gap: 8px; }
@@ -1155,110 +1224,6 @@ function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet,
         .cue-x:hover { color: var(--danger); }
         .cue-note { flex: 1; min-width: 0; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 6px; color: var(--text); font-size: 12px; padding: 4px 8px; outline: none; }
         .cue-note:focus { border-color: var(--primary); }
-      `}</style>
-    </div>
-  );
-}
-
-/* Editor producție — ecran dedicat (ca „Lyrics & Chords" la Songs): listă de elemente la stânga,
-   click pe element → îi vezi STRUCTURA (sequence) și-l „migălești" (scenă/lumini/secțiuni/proiecție/note).
-   Scrie DOAR în overlay — nu atinge Order-ul. */
-function ProductionEditor({ items, scenes, snippets, canEdit, initialItemId, onSaveItem, onSaveSnippet, onDelSnippet, onClose }) {
-  const playable = items.filter((r) => r.type !== "header");
-  const [selId, setSelId] = useState(initialItemId || (playable[0] && playable[0].id) || null);
-  const [renaming, setRenaming] = useState(false);
-  const [draft, setDraft] = useState("");
-  const sel = items.find((r) => String(r.id) === String(selId));
-  const saveLabel = () => { const label = draft.trim(); setRenaming(false); if (sel && label !== (sel.label || "")) onSaveItem(sel, { label }); };
-  const voiceLine = sel && (sel.voices || []).length ? formatVoices(sel.voices) : "";
-
-  return (
-    <div className="ed-back" onClick={onClose}>
-      <div className="ed" onClick={(e) => e.stopPropagation()}>
-        <div className="ed-top">
-          <span className="ed-title">Editor producție</span>
-          <span className="ed-hint">aranjezi aici — nu atinge Order-ul</span>
-          <button className="ed-x" onClick={onClose} title="Închide">✕</button>
-        </div>
-        <div className="ed-body">
-          <div className="ed-list">
-            {items.map((r) => {
-              if (r.type === "header") return <div key={r.id} className="ed-sec">{r.title}</div>;
-              const on = String(selId) === String(r.id);
-              if (r.type === "transition") return (
-                <button key={r.id} className={`ed-it tr ${on ? "on" : ""}`} onClick={() => setSelId(r.id)}>
-                  <span className="ed-arrow">↳</span><span className="ed-it-t">{TRANS_LBL[r.transition && r.transition.kind] || "Tranziție"}</span>
-                </button>
-              );
-              const fx = r.fixtures || [];
-              return (
-                <button key={r.id} className={`ed-it ${on ? "on" : ""}`} onClick={() => setSelId(r.id)}>
-                  <span className="ed-it-t">{r.title}</span>
-                  {r.keyName && <span className="ed-it-k">{r.keyName}</span>}
-                  {fx.slice(0, 5).map((f, i) => <span key={i} className="ed-dot" style={{ background: f.color }} />)}
-                </button>
-              );
-            })}
-          </div>
-          <div className="ed-main">
-            {!sel ? <div className="ed-empty">Alege un element din stânga.</div> : (<>
-              <div className="ed-h">
-                {renaming ? (
-                  <input className="ed-rename" autoFocus value={draft} placeholder={sel.origTitle}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") saveLabel(); if (e.key === "Escape") setRenaming(false); }}
-                    onBlur={saveLabel} />
-                ) : (
-                  <button className="ed-h-t" disabled={!canEdit} onClick={() => { setRenaming(true); setDraft(sel.label || ""); }} title={canEdit ? "Redenumește (doar aici)" : ""}>
-                    {sel.title}{sel.label && <span className="ed-reset" title={`Original: ${sel.origTitle}`}>↩</span>}
-                  </button>
-                )}
-                {sel.keyName && <span className="ed-h-k">{sel.keyName}</span>}
-              </div>
-              {voiceLine && <div className="ed-voices">{voiceLine}</div>}
-              {(sel.sequence || []).length > 0 && (
-                <div className="ed-struct">
-                  <span className="ed-struct-l">Structură</span>
-                  <div className="ed-struct-row">{sel.sequence.map((s, i) => <span key={i} className="ed-sq">{s}</span>)}</div>
-                </div>
-              )}
-              <LightsPanel r={sel} scenes={scenes} snippets={snippets} canEdit={canEdit} onSave={(patch) => onSaveItem(sel, patch)} onSaveSnippet={onSaveSnippet} onDelSnippet={onDelSnippet} />
-            </>)}
-          </div>
-        </div>
-      </div>
-      <style jsx>{`
-        .ed-back { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.6); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 24px; }
-        .ed { width: 1100px; max-width: 100%; height: 86vh; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 14px; overflow: hidden; }
-        .ed-top { display: flex; align-items: baseline; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
-        .ed-title { color: var(--text); font-size: 15px; font-weight: 700; }
-        .ed-hint { color: var(--text-faint); font-size: 12px; }
-        .ed-x { margin-left: auto; background: transparent; border: none; color: var(--text-faint); font-size: 15px; cursor: pointer; }
-        .ed-x:hover { color: var(--danger); }
-        .ed-body { flex: 1; display: grid; grid-template-columns: 280px 1fr; min-height: 0; }
-        .ed-list { border-right: 1px solid var(--border); overflow: auto; padding: 8px; display: flex; flex-direction: column; gap: 3px; }
-        .ed-sec { color: var(--text-faint); font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; padding: 12px 8px 4px; }
-        .ed-it { display: flex; align-items: center; gap: 7px; width: 100%; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 9px 10px; cursor: pointer; color: var(--text-dim); }
-        .ed-it:hover { background: var(--surface-2); color: var(--text); }
-        .ed-it.on { background: rgba(47,129,247,.12); color: var(--text); border-color: rgba(47,129,247,.4); }
-        .ed-it.tr { padding-left: 16px; color: var(--text-faint); font-style: italic; font-size: 12.5px; }
-        .ed-it-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-        .ed-it-k { flex: none; color: #fff; background: #6fa02e; border-radius: 999px; font-size: 11px; font-weight: 700; padding: 0 6px; }
-        .ed-arrow { color: var(--text-faint); }
-        .ed-dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--border-strong); flex: none; }
-        .ed-main { overflow: auto; padding: 20px 22px; min-width: 0; }
-        .ed-empty { color: var(--text-faint); font-size: 13px; margin-top: 30px; text-align: center; }
-        .ed-h { display: flex; align-items: center; gap: 10px; }
-        .ed-h-t { background: transparent; border: none; padding: 0; color: var(--text); font-size: 19px; font-weight: 700; cursor: ${canEdit ? "text" : "default"}; display: inline-flex; align-items: center; gap: 7px; text-align: left; }
-        .ed-reset { color: var(--text-faint); font-size: 13px; }
-        .ed-h-k { flex: none; color: #fff; background: #6fa02e; border-radius: 999px; font-size: 13px; font-weight: 700; padding: 1px 9px; }
-        .ed-rename { flex: 1; background: var(--surface-3); border: 1px solid var(--primary); border-radius: 8px; color: var(--text); font-size: 18px; font-weight: 700; padding: 5px 10px; outline: none; }
-        .ed-voices { color: var(--text-dim); font-size: 13px; margin-top: 6px; white-space: pre-line; line-height: 1.5; }
-        .ed-struct { margin-top: 16px; }
-        .ed-struct-l { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
-        .ed-struct-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
-        .ed-sq { color: var(--text-dim); font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 9px; }
-        @media (max-width: 760px) { .ed-body { grid-template-columns: 1fr; } .ed-list { max-height: 180px; border-right: none; border-bottom: 1px solid var(--border); } }
       `}</style>
     </div>
   );
