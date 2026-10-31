@@ -4,7 +4,7 @@
  *  „Cântece"   = lista cântecelor + Media Player / Songbook / Music Stand (practică).
  *  Editarea de producție se face pe laptop (web); pe mobil = vizualizare (cum preferă echipa). */
 import React, { useState, useCallback } from "react";
-import { View, Text, Pressable, ActivityIndicator, StyleSheet, ScrollView } from "react-native";
+import { View, Text, Pressable, ActivityIndicator, StyleSheet, ScrollView, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { showError, showInfo } from "../../../global/functions";
@@ -56,6 +56,11 @@ export function RehearseTab({ planId, navigation }) {
     if (!f.url) return showInfo("Fișier fără conținut încă.");
     showInfo("Deschiderea fișierelor = felie ulterioară (viewer).");
   };
+  const saveSim = async (next) => {
+    setProd((p) => ({ ...(p || {}), simFeedback: next }));
+    try { await pcApi.plans.saveProduction(planId, { simFeedback: next }); }
+    catch (e) { showError(e?.message || "Eroare la salvare."); load(); }
+  };
 
   return (
     <View style={{ flex: 1 }}>
@@ -80,7 +85,7 @@ export function RehearseTab({ planId, navigation }) {
       {loading ? (
         <ActivityIndicator color={pcColors.primary} style={{ marginTop: 40 }} />
       ) : mode === "prod" ? (
-        <ProductionOrder data={prod} />
+        <ProductionOrder data={prod} onSaveSim={saveSim} />
       ) : songs.length === 0 ? (
         <Text style={styles.empty}>Niciun cântec în acest plan.</Text>
       ) : (
@@ -129,10 +134,15 @@ export function RehearseTab({ planId, navigation }) {
   );
 }
 
-/* Order-ul Producției — curat: structură + gamă + cine cântă + lumini. Vizualizare (editare pe web). */
-function ProductionOrder({ data }) {
+/* Order-ul Producției — curat: structură + gamă + cine cântă + lumini + feedback SIM. */
+function ProductionOrder({ data, onSaveSim }) {
+  const [simText, setSimText] = useState("");
+  const [simN, setSimN] = useState("2");
   const rows = (data && data.items) || [];
   const spotify = data && data.spotify;
+  const sim = (data && data.simFeedback) || [];
+  const addSim = () => { const t = simText.trim(); if (!t) return; onSaveSim?.([...sim, { text: t, sim: simN, severity: "high", done: false, createdAt: Date.now() }]); setSimText(""); };
+  const toggleSim = (i) => onSaveSim?.(sim.map((it, x) => (x === i ? { ...it, done: !it.done } : it)));
   if (rows.length === 0) return <Text style={styles.empty}>Order gol. Structura vine din tab-ul „Order".</Text>;
   return (
     <ScrollView style={{ paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 24 }}>
@@ -198,6 +208,30 @@ function ProductionOrder({ data }) {
           </View>
         );
       })}
+
+      {/* Feedback între programe (SIM) */}
+      <View style={styles.simWrap}>
+        <Text style={styles.simH}>🛑 Feedback între programe (SIM)</Text>
+        {sim.map((it, i) => (
+          <Pressable key={i} style={[styles.simIt, it.done && styles.simDone]} onPress={() => toggleSim(i)}>
+            <Text style={styles.simCk}>{it.done ? "☑" : "☐"}</Text>
+            {!!it.sim && <Text style={styles.simTag}>SIM{it.sim}</Text>}
+            <Text style={[styles.simTxt, it.done && styles.simTxtDone]}>{it.text}</Text>
+          </Pressable>
+        ))}
+        {sim.length === 0 && <Text style={styles.simNone}>Nimic de verificat încă.</Text>}
+        <View style={styles.simAdd}>
+          <View style={styles.simSel}>
+            {["1", "2"].map((s) => (
+              <Pressable key={s} style={[styles.simSb, simN === s && styles.simSbOn]} onPress={() => setSimN(s)}>
+                <Text style={[styles.simSbTxt, simN === s && styles.simSbTxtOn]}>SIM{s}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <TextInput style={styles.simIn} value={simText} onChangeText={setSimText} placeholder="verifică la SIM…" placeholderTextColor={pcColors.textMuted} onSubmitEditing={addSim} returnKeyType="done" />
+          <Pressable style={styles.simGo} onPress={addSim}><Text style={styles.simGoTxt}>+</Text></Pressable>
+        </View>
+      </View>
     </ScrollView>
   );
 }
@@ -250,6 +284,24 @@ const styles = StyleSheet.create({
   prProj: { color: pcColors.textSecondary, fontSize: 11.5, backgroundColor: pcColors.card, borderRadius: 5, paddingHorizontal: 8, paddingVertical: 2, overflow: "hidden" },
   rem: { color: pcColors.textSecondary, fontSize: 11.5, backgroundColor: pcColors.card, borderRadius: 5, paddingHorizontal: 8, paddingVertical: 2, overflow: "hidden" },
   remHi: { color: "#f0b5b0", backgroundColor: "rgba(229,83,75,0.12)", fontWeight: "700" },
+  simWrap: { marginTop: 20, borderTopWidth: 2, borderTopColor: "rgba(229,83,75,0.5)", paddingTop: 12 },
+  simH: { color: "#e5534b", fontSize: 12, fontWeight: "800", letterSpacing: 0.5, marginBottom: 8 },
+  simIt: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(229,83,75,0.07)", borderWidth: 1, borderColor: "rgba(229,83,75,0.25)", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 5 },
+  simDone: { opacity: 0.55 },
+  simCk: { color: "#e5534b", fontSize: 16 },
+  simTag: { color: "#e5534b", fontSize: 10, fontWeight: "800", borderWidth: 1, borderColor: "rgba(229,83,75,0.5)", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  simTxt: { flex: 1, color: pcColors.textPrimary, fontSize: 13.5 },
+  simTxtDone: { textDecorationLine: "line-through" },
+  simNone: { color: pcColors.textMuted, fontSize: 12.5, marginBottom: 8 },
+  simAdd: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 4 },
+  simSel: { flexDirection: "row", borderWidth: 1, borderColor: pcColors.chipBorder, borderRadius: 8, overflow: "hidden" },
+  simSb: { paddingHorizontal: 9, paddingVertical: 8 },
+  simSbOn: { backgroundColor: "#e5534b" },
+  simSbTxt: { color: pcColors.textMuted, fontSize: 11, fontWeight: "800" },
+  simSbTxtOn: { color: "#fff" },
+  simIn: { flex: 1, backgroundColor: pcColors.card, borderWidth: 1, borderColor: pcColors.chipBorder, borderRadius: 8, color: pcColors.textPrimary, fontSize: 13, paddingHorizontal: 10, paddingVertical: 8 },
+  simGo: { width: 36, height: 36, borderWidth: 1, borderColor: pcColors.chipBorder, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  simGoTxt: { color: pcColors.textSecondary, fontSize: 18 },
   prTitle: { color: pcColors.textPrimary, fontSize: 15, fontWeight: "700" },
   prVoices: { color: pcColors.textSecondary, fontSize: 12.5, marginTop: 2 },
   prLights: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 5, flexWrap: "wrap" },

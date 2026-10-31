@@ -663,6 +663,48 @@ const REM_ICON = { stop: "🛑", warn: "⚠️", info: "ℹ️" };
 const REM_PRESETS = [{ text: "Oprește Spotify", icon: "stop", severity: "high" }, { text: "Recomandări pian / stativ", icon: "info", severity: "normal" }];
 const uniqSections = (seq) => { const seen = new Set(), out = []; for (const s of (seq || [])) if (s && !seen.has(s)) { seen.add(s); out.push(s); } return out; };
 
+/* Print color, o pagină curată — fereastră auto-generată (înlocuiește foaia mâzgălită). */
+function printProduction(data) {
+  if (!data || typeof window === "undefined") return;
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  const dot = (c) => `<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${esc(c)};border:1px solid #999;vertical-align:middle;margin-right:3px"></span>`;
+  const rowsHtml = (data.items || []).map((r) => {
+    if (r.type === "header") return `<div class="sec">${esc(r.title)}</div>`;
+    if (r.type === "transition") { const t = r.transition || {}; return `<div class="tr">&#8627; ${esc(TRANS_LBL[t.kind] || "Tranziție")}${t.key ? ` · ${esc(t.key)}` : ""}${(t.lights || []).map((l) => " " + dot(l.color)).join("")}</div>`; }
+    const voices = r.voices || []; const lead = voices.find((v) => v.role === "lead") || voices[0];
+    const parts = voices.filter((v) => v !== lead).map((v) => `${VOICE_LBL[v.role] ? VOICE_LBL[v.role] + ": " : ""}${esc((v.name || "").split(" ")[0])}`);
+    const fx = (r.fixtures || []).map((f) => dot(f.color)).join("");
+    const cues = (r.sectionCues || []).filter((c) => (c.lights || []).length || c.note).map((c) => `${esc(c.section)}${(c.lights || [])[0] && c.lights[0].color ? " " + dot(c.lights[0].color) : ""}${c.note ? ` ${esc(c.note)}` : ""}`).join(" · ");
+    const projNote = (r.projection || [])[0] ? r.projection[0].note : "";
+    const reminders = (r.reminders || []).map((rem) => `<span class="rem">${REM_ICON[rem.icon] || "•"} ${esc(rem.text)}</span>`).join(" ");
+    return `<div class="row">${r.keyName ? `<span class="k">${esc(r.keyName)}</span>` : ""}<span class="t">${esc(r.title)}</span>`
+      + `${lead || parts.length ? `<div class="v">${esc(lead ? lead.name : "")}${parts.length ? " · " + parts.join(" · ") : ""}</div>` : ""}`
+      + `${r.scene || fx || cues ? `<div class="lt">${r.scene ? `<b>${esc(r.scene.name)}</b> ` : ""}${fx}${cues ? ` &nbsp; &#10022; ${cues}` : ""}</div>` : ""}`
+      + `${projNote ? `<div class="lt">&#9635; ${esc(projNote)}</div>` : ""}`
+      + `${r.note ? `<div class="lt">&#9998; ${esc(r.note)}</div>` : ""}`
+      + `${reminders ? `<div class="lt">${reminders}</div>` : ""}</div>`;
+  }).join("");
+  const spotify = data.spotify ? `<div class="sp">&#9834; Spotify pre-serviciu: <b>${esc(data.spotify.key)}</b>${data.spotify.relative ? ` (relativă ${esc(data.spotify.relative)})` : ""}</div>` : "";
+  const sim = (data.simFeedback || []).length ? `<div class="sim"><div class="sim-h">Feedback între programe (SIM)</div>${data.simFeedback.map((f) => `<div>${f.done ? "&#9745;" : "&#9744;"} ${f.sim ? `[SIM${esc(f.sim)}] ` : ""}${esc(f.text)}</div>`).join("")}</div>` : "";
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Order Producție</title><style>
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}
+    body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111;margin:22px;font-size:13px}
+    h1{font-size:18px;margin:0 0 10px}
+    .sp{background:#e8f6ee;border:1px solid #bfe3cd;border-radius:6px;padding:6px 10px;margin-bottom:12px;display:inline-block}
+    .sec{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#666;margin:14px 0 4px}
+    .row{border:1px solid #ddd;border-radius:7px;padding:7px 10px;margin-bottom:5px;page-break-inside:avoid}
+    .t{font-weight:700}.k{float:right;border:1px solid #2f6fd6;color:#2f6fd6;border-radius:4px;padding:0 6px;font-weight:700}
+    .v{color:#555;font-size:12px;margin-top:2px}.lt{margin-top:3px;font-size:12px;color:#444}
+    .tr{color:#666;font-style:italic;padding:2px 0 2px 16px;font-size:12px}
+    .rem{color:#b3261e;font-weight:600}
+    .sim{margin-top:18px;border-top:2px solid #b3261e;padding-top:8px;page-break-inside:avoid}.sim-h{color:#b3261e;font-weight:700;margin-bottom:4px}
+  </style></head><body><h1>Order Producție</h1>${spotify}${rowsHtml}${sim}
+  <script>window.onload=function(){setTimeout(function(){window.print()},150)}</script></body></html>`;
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
 function RehearseTab({ planId, canEdit = false, flash }) {
   const [data, setData] = useState(null);
   const [scenes, setScenes] = useState([]);
@@ -698,6 +740,11 @@ function RehearseTab({ planId, canEdit = false, flash }) {
     try { await plansApi.saveProduction(planId, { item: { itemId: it.id, ...patch } }); }
     catch (e) { flash?.(e?.message || "Eroare la salvare."); load(); }
   }
+  async function saveSim(next) {
+    setData((d) => ({ ...d, simFeedback: next }));
+    try { await plansApi.saveProduction(planId, { simFeedback: next }); }
+    catch (e) { flash?.(e?.message || "Eroare la salvare."); load(); }
+  }
   async function saveLabel(it) {
     const label = draft.trim();
     setEditing(null);
@@ -717,7 +764,10 @@ function RehearseTab({ planId, canEdit = false, flash }) {
       <div className="prod-head">
         <span className="prod-cnt">{songCount} cântece · {rows.length} momente</span>
         <span className="prod-hint">Order-ul tău de producție — se sincronizează din Order, nu-l modifică.</span>
-        {canEdit && <button className="prod-share" onClick={() => setShare(true)} title="Trimite copia foii tale altui producător">⤴ Partajează</button>}
+        <span className="prod-actions">
+          <button className="prod-share" onClick={() => printProduction(data)} title="Print color, o pagină curată">⎙ Print</button>
+          {canEdit && <button className="prod-share" onClick={() => setShare(true)} title="Trimite copia foii tale altui producător">⤴ Partajează</button>}
+        </span>
       </div>
       {share && <ShareDialog planId={planId} onClose={() => setShare(false)} flash={flash} />}
 
@@ -799,6 +849,8 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         })}
       </div>
 
+      <SimFeedback items={data.simFeedback || []} canEdit={canEdit} onSave={saveSim} />
+
       <style jsx>{`
         .prod { min-width: 0; }
         .prod-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -831,7 +883,8 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .ps-lbl { color: var(--text-dim); font-size: 11.5px; font-weight: 600; }
         .ps-key { color: var(--text); font-size: 13px; font-weight: 700; }
         .ps-rel { color: var(--text-faint); font-size: 11.5px; }
-        .prod-share { margin-left: auto; background: transparent; border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 7px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
+        .prod-actions { margin-left: auto; display: inline-flex; gap: 8px; }
+        .prod-share { background: transparent; border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 7px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
         .prod-share:hover { color: var(--primary); border-color: var(--primary); }
         .pr-extra { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 4px 2px 13px; }
         .pr-note { color: var(--text-dim); font-size: 11.5px; background: var(--surface-2); border-radius: 5px; padding: 2px 8px; }
@@ -1116,6 +1169,63 @@ function ShareDialog({ planId, onClose, flash }) {
         .sd-nm { flex: 1; font-size: 13.5px; }
         .sd-busy { color: var(--text-faint); }
         .sd-none { color: var(--text-faint); font-size: 12.5px; padding: 12px; text-align: center; }
+      `}</style>
+    </div>
+  );
+}
+
+/* Feedback între programe (SIM1/SIM2) — checklist roșu, jos. Bifabil. */
+function SimFeedback({ items, canEdit, onSave }) {
+  const [text, setText] = useState("");
+  const [sim, setSim] = useState("2");
+  if (!canEdit && items.length === 0) return null;
+  const add = () => { const t = text.trim(); if (!t) return; onSave([...items, { text: t, sim, severity: "high", done: false, createdAt: Date.now() }]); setText(""); };
+  const toggle = (i) => canEdit && onSave(items.map((it, x) => (x === i ? { ...it, done: !it.done } : it)));
+  const del = (i) => onSave(items.filter((_, x) => x !== i));
+  return (
+    <div className="sf">
+      <div className="sf-h">Feedback între programe (SIM)</div>
+      <div className="sf-list">
+        {items.map((it, i) => (
+          <div key={i} className={`sf-it ${it.done ? "done" : ""}`}>
+            <button className="sf-ck" onClick={() => toggle(i)} title="Bifează">{it.done ? "☑" : "☐"}</button>
+            {it.sim && <span className="sf-sim">SIM{it.sim}</span>}
+            <span className="sf-txt">{it.text}</span>
+            {canEdit && <button className="sf-x" onClick={() => del(i)} title="Șterge">✕</button>}
+          </div>
+        ))}
+        {items.length === 0 && <div className="sf-none">Nimic de verificat încă.</div>}
+      </div>
+      {canEdit && (
+        <div className="sf-add">
+          <span className="sf-simsel">
+            {["1", "2"].map((s) => <button key={s} className={`sf-sb ${sim === s ? "on" : ""}`} onClick={() => setSim(s)}>SIM{s}</button>)}
+          </span>
+          <input className="sf-in" value={text} placeholder="ex. verifică mic kick la SIM2…" onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+          <button className="sf-go" onClick={add}>+</button>
+        </div>
+      )}
+      <style jsx>{`
+        .sf { margin-top: 22px; border-top: 2px solid rgba(229,83,75,.5); padding-top: 12px; }
+        .sf-h { color: #e5534b; font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; margin-bottom: 8px; }
+        .sf-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+        .sf-it { display: flex; align-items: center; gap: 8px; background: rgba(229,83,75,.07); border: 1px solid rgba(229,83,75,.25); border-radius: 7px; padding: 6px 10px; }
+        .sf-it.done { opacity: .55; }
+        .sf-it.done .sf-txt { text-decoration: line-through; }
+        .sf-ck { background: transparent; border: none; color: #e5534b; cursor: ${canEdit ? "pointer" : "default"}; font-size: 15px; line-height: 1; padding: 0; }
+        .sf-sim { flex: none; color: #e5534b; border: 1px solid rgba(229,83,75,.5); border-radius: 4px; font-size: 10px; font-weight: 700; padding: 1px 5px; }
+        .sf-txt { flex: 1; color: var(--text); font-size: 13px; }
+        .sf-x { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 11px; }
+        .sf-x:hover { color: var(--danger); }
+        .sf-none { color: var(--text-faint); font-size: 12.5px; }
+        .sf-add { display: flex; align-items: center; gap: 7px; }
+        .sf-simsel { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 7px; overflow: hidden; flex: none; }
+        .sf-sb { background: transparent; border: none; color: var(--text-faint); font-size: 10.5px; font-weight: 700; padding: 6px 9px; cursor: pointer; }
+        .sf-sb.on { background: #e5534b; color: #fff; }
+        .sf-in { flex: 1; min-width: 0; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text); font-size: 12.5px; padding: 7px 10px; outline: none; }
+        .sf-in:focus { border-color: var(--primary); }
+        .sf-go { background: transparent; border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text-dim); width: 32px; height: 32px; cursor: pointer; font-size: 15px; }
+        .sf-go:hover { color: var(--primary); border-color: var(--primary); }
       `}</style>
     </div>
   );
