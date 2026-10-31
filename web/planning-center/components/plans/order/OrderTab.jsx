@@ -7,7 +7,7 @@
  * Tranziții (indent + „!" + timp exclus) și medley (rând expandabil) randate din date (Faza 3/4).
  * Consumă aceleași rute /pc/v1 ca mobilul (plansApi). ZERO fork de logică.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { plansApi } from "@/lib/api/client";
 import PersonAvatar from "@/components/plans/PersonAvatar";
 import AddItemMenu from "./AddItemMenu";
@@ -250,12 +250,6 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                         </>
                       )}
                       {itemScene && it.lightsTiming === "after" && <div className="r-lights r-lights-end">Lumini propuse: <b>{itemScene.name}</b></div>}
-                      {it.directNext && (
-                        <div className="r-direct" title="Tranziție directă — curge direct în următorul">
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14" /><path d="m6 13 6 6 6-6" /></svg>
-                          <span>direct</span>
-                        </div>
-                      )}
                     </div>
                     <div className="r-right">
                       {(it.leaders || []).slice(0, 3).map((l, i) => (
@@ -268,6 +262,15 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                   </>
                 )}
               </div>
+            );
+            if (it.directNext) return (
+              <Fragment key={it.id}>
+                {mainRow}
+                <div className="o-direct" title="Tranziție directă — curge direct în următorul">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v15" /><path d="m7 14 5 5 5-5" /></svg>
+                  <span>direct</span>
+                </div>
+              </Fragment>
             );
             return mainRow;
           })}
@@ -344,8 +347,8 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
         .r-lights { color: var(--text-dim); font-size: 12px; margin-bottom: 3px; }
         .r-lights.r-lights-end { margin-top: 6px; margin-bottom: 0; }
         .r-lights b { color: var(--product); font-weight: 600; }
-        .r-direct { display: flex; flex-direction: column; align-items: center; gap: 1px; color: var(--primary); margin-top: 10px; padding-top: 4px; }
-        .r-direct span { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; opacity: .85; }
+        .o-direct { display: flex; align-items: center; gap: 7px; padding: 5px 0 5px 84px; color: var(--text-faint); }
+        .o-direct span { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
         .r-right { display: flex; align-items: center; gap: 4px; margin-left: auto; flex: none; }
         .lead-av { display: inline-flex; }
         .need-dot { width: 20px; height: 20px; border-radius: 50%; background: var(--st-unconfirmed); color: #1d1600; font-weight: 800; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; margin-left: 2px; }
