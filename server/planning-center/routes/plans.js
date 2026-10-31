@@ -2279,6 +2279,7 @@ router.get("/:id/production", requireCan("people.view"), async (req, res) => {
         scene: o.sceneId ? (sceneById[String(o.sceneId)] || null) : null, // scena rezolvată (nume + fixtures)
         fixtures: o.fixtures || [],
         sectionCues: o.sectionCues || [],
+        rowBreaks: o.rowBreaks || [],
         projection: o.projection || [],
       };
     });
@@ -2300,7 +2301,7 @@ router.get("/:id/production", requireCan("people.view"), async (req, res) => {
 });
 
 // PATCH — scrie DOAR overlay-ul (per owner). body: { item:{itemId,...}, reminders?, simFeedback? }.
-const PROD_ITEM_FIELDS = ["label", "note", "sceneId", "fixtures", "sectionCues", "projection", "reminders"];
+const PROD_ITEM_FIELDS = ["label", "note", "sceneId", "fixtures", "sectionCues", "rowBreaks", "projection", "reminders"];
 router.patch("/:id/production", requireAny(["services.viewRehearsal", "services.editOrder"]), async (req, res) => {
   try {
     const id = OID(req.params.id);

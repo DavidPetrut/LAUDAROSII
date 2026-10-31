@@ -676,7 +676,13 @@ function buildProductionHtml(data) {
     const voices = r.voices || []; const lead = voices.find((v) => v.role === "lead") || voices[0];
     const parts = voices.filter((v) => v !== lead).map((v) => `${VOICE_LBL[v.role] ? VOICE_LBL[v.role] + ": " : ""}${esc((v.name || "").split(" ")[0])}`);
     const fx = (r.fixtures || []).map((f) => dot(f.color)).join("");
-    const cues = (r.sectionCues || []).filter((c) => (c.lights || []).length || c.note).map((c) => `${esc(c.section)}${(c.lights || [])[0] && c.lights[0].color ? " " + dot(c.lights[0].color) : ""}${c.note ? ` ${esc(c.note)}` : ""}`).join(" · ");
+    const cues = (r.sectionCues || []).slice().sort((a, b) => (a.idx || 0) - (b.idx || 0))
+      .filter((c) => (c.lights || []).length || c.note || c.projection || (c.reminders || []).length)
+      .map((c) => {
+        const col = (c.lights || [])[0] && c.lights[0].color ? " " + dot(c.lights[0].color) : "";
+        const rem = (c.reminders || []).map((rm) => ` <span class="rem">${REM_ICON[rm.icon] || "•"} ${esc(rm.text)}</span>`).join("");
+        return `<b>${esc(c.section)}</b>${col}${c.note ? ` ${esc(c.note)}` : ""}${c.projection ? ` &#9635; ${esc(c.projection)}` : ""}${rem}`;
+      }).join(" &nbsp;·&nbsp; ");
     const projNote = (r.projection || [])[0] ? r.projection[0].note : "";
     const reminders = (r.reminders || []).map((rem) => `<span class="rem">${REM_ICON[rem.icon] || "•"} ${esc(rem.text)}</span>`).join(" ");
     return `<div class="row">${r.keyName ? `<span class="k">${esc(r.keyName)}</span>` : ""}<span class="t">${esc(r.title)}</span>`
@@ -852,7 +858,11 @@ function RehearseTab({ planId, canEdit = false, flash }) {
                       {r.keyName && <span className={`pr-key ${r.type === "media" ? "media" : ""}`}>{r.keyName}</span>}
                     </div>
                     {voiceLine && <div className="pr-voices">{voiceLine}</div>}
-                    {seq.length > 0 && <div className="pr-seq">{seq.join(" · ")}</div>}
+                    {seq.length > 0 && (
+                      <div className="pr-seq">
+                        {seq.map((s, i) => { const col = (r.sectionCues || []).find((x) => x.idx === i)?.lights?.[0]?.color || ""; return <span key={i} className="pr-sqtok">{col && <span className="pr-sqdot" style={{ background: col }} />}{s}</span>; })}
+                      </div>
+                    )}
                   </div>
                   <span className="pr-sum">
                     {r.scene && <span className="ls-name">{r.scene.name}</span>}
@@ -891,7 +901,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
               </div>
               {selVoiceLine && <div className="ed2-voices">{selVoiceLine}</div>}
               {(effSel.sequence || []).length > 0 && (
-                <div className="ed2-seq"><span className="ed2-seq-l">Structură</span><div className="ed2-seq-row">{effSel.sequence.map((s, i) => <span key={i} className="ed2-sq">{s}</span>)}</div></div>
+                <StructureEditor sequence={effSel.sequence || []} sectionCues={effSel.sectionCues} rowBreaks={effSel.rowBreaks} canEdit={canEdit} onSave={(patch) => saveItem(effSel, patch)} />
               )}
               <LightsPanel r={effSel} scenes={scenes} snippets={snippets} canEdit={canEdit} onSave={(patch) => saveItem(effSel, patch)} onSaveSnippet={saveSnippet} onDelSnippet={delSnippet} onCreateScene={createScene} />
             </div>
@@ -915,7 +925,9 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .prod-row:hover { border-color: var(--border-strong); }
         .prod-row.sel { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
         .pr-main { flex: 1; min-width: 0; }
-        .pr-seq { color: var(--text-dim); font-size: 12px; margin-top: 4px; line-height: 1.5; }
+        .pr-seq { color: var(--text-dim); font-size: 12px; margin-top: 4px; line-height: 1.7; display: flex; flex-wrap: wrap; gap: 3px 10px; }
+        .pr-sqtok { display: inline-flex; align-items: center; gap: 3px; }
+        .pr-sqdot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--border-strong); flex: none; }
         .pr-sum { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; flex: none; }
         .pr-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
         .pr-title { display: inline-flex; align-items: center; gap: 6px; min-width: 0; background: transparent; border: none; padding: 0; color: var(--text); font-size: 14px; font-weight: 600; cursor: ${canEdit ? "text" : "default"}; text-align: left; }
@@ -985,7 +997,126 @@ function RehearseTab({ planId, canEdit = false, flash }) {
   );
 }
 
-/* Panou producție per item: notă + scenă + fixtures + lumini pe secțiune + proiecție + remindere. */
+/* Editor per secțiune (Verse/Chorus/Bridge…) — se remontează per secțiune (key). Culoare + notă + proiecție + remindere. */
+function SectionEditor({ section, cue, canEdit, onSave, onClose }) {
+  const [remText, setRemText] = useState("");
+  const color = cue?.lights?.[0]?.color || "";
+  return (
+    <div className="se">
+      <div className="se-h"><span className="se-t">{section}</span>{canEdit && <button className="se-x" onClick={onClose} title="Închide">✕</button>}</div>
+      <div className="se-row">
+        <label className="se-sw" style={{ background: color || "transparent", borderStyle: color ? "solid" : "dashed" }} title="Culoare lumini la secțiune">
+          <input type="color" value={color || "#e5534b"} disabled={!canEdit} onChange={(e) => onSave({ lights: [{ color: e.target.value, label: "" }] })} />
+        </label>
+        {color && canEdit && <button className="se-clr" onClick={() => onSave({ lights: [] })} title="Scoate culoarea">✕</button>}
+        <input className="se-note" placeholder="notă la secțiune…" defaultValue={cue?.note || ""} disabled={!canEdit}
+          onBlur={(e) => { const v = e.target.value.trim(); if (v !== (cue?.note || "")) onSave({ note: v }); }} />
+      </div>
+      <input className="se-proj" placeholder="proiecție / fundal la secțiune…" defaultValue={cue?.projection || ""} disabled={!canEdit}
+        onBlur={(e) => { const v = e.target.value.trim(); if (v !== (cue?.projection || "")) onSave({ projection: v }); }} />
+      <div className="se-rem">
+        {(cue?.reminders || []).map((rm, i) => (
+          <span key={i} className="se-rchip">{REM_ICON[rm.icon] || "•"} {rm.text}{canEdit && <button className="se-rx" onClick={() => onSave({ reminders: (cue.reminders || []).filter((_, x) => x !== i) })}>✕</button>}</span>
+        ))}
+        {canEdit && (
+          <span className="se-radd">
+            <input className="se-rin" value={remText} placeholder="reminder la secțiune…" onChange={(e) => setRemText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && remText.trim()) { onSave({ reminders: [...(cue?.reminders || []), { text: remText.trim(), icon: "warn", severity: "high" }] }); setRemText(""); } }} />
+            <button className="se-rgo" onClick={() => { if (remText.trim()) { onSave({ reminders: [...(cue?.reminders || []), { text: remText.trim(), icon: "warn", severity: "high" }] }); setRemText(""); } }}>+</button>
+          </span>
+        )}
+      </div>
+      <style jsx>{`
+        .se { background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 9px; padding: 11px 13px; margin-top: 10px; display: flex; flex-direction: column; gap: 9px; }
+        .se-h { display: flex; align-items: center; }
+        .se-t { color: var(--text); font-size: 13.5px; font-weight: 700; }
+        .se-x { margin-left: auto; background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 12px; }
+        .se-x:hover { color: var(--danger); }
+        .se-row { display: flex; align-items: center; gap: 8px; }
+        .se-sw { position: relative; width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border-strong); overflow: hidden; flex: none; cursor: pointer; }
+        .se-sw input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+        .se-clr { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 11px; }
+        .se-note, .se-proj, .se-rin { flex: 1; min-width: 0; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text); font-size: 12.5px; padding: 6px 9px; outline: none; }
+        .se-note:focus, .se-proj:focus, .se-rin:focus { border-color: var(--primary); }
+        .se-rem { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .se-rchip { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: #f0b5b0; background: rgba(229,83,75,.12); border: 1px solid rgba(229,83,75,.4); border-radius: 6px; padding: 2px 8px; font-weight: 600; }
+        .se-rx { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 10px; }
+        .se-radd { display: inline-flex; gap: 5px; flex: 1; min-width: 160px; }
+        .se-rgo { background: transparent; border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text-dim); width: 30px; cursor: pointer; }
+        .se-rgo:hover { color: var(--primary); border-color: var(--primary); }
+      `}</style>
+    </div>
+  );
+}
+
+/* Structura cântecului: sequence pe RÂNDURI (drag-to-split) + fiecare secțiune clicabilă → SectionEditor. */
+function StructureEditor({ sequence, sectionCues, rowBreaks, canEdit, onSave }) {
+  const [selIdx, setSelIdx] = useState(null);
+  const [dragIdx, setDragIdx] = useState(null);
+  const cues = sectionCues || [];
+  const breaks = (rowBreaks || []).slice().sort((a, b) => a - b);
+  const cueAt = (i) => cues.find((c) => c.idx === i) || null;
+  const hasData = (c) => !!(c && ((c.lights || []).length || c.note || c.projection || (c.reminders || []).length));
+  const setCue = (i, patch) => {
+    const base = cueAt(i) || { idx: i, section: sequence[i] || "" };
+    const merged = { ...base, idx: i, section: sequence[i] || base.section, ...patch };
+    const next = cues.filter((c) => c.idx !== i);
+    if (hasData(merged)) next.push(merged);
+    onSave({ sectionCues: next });
+  };
+  const toggleBreak = (i) => { if (i <= 0) return; const next = breaks.includes(i) ? breaks.filter((x) => x !== i) : [...breaks, i].sort((a, b) => a - b); onSave({ rowBreaks: next }); };
+
+  // Construiește rândurile din sequence + breaks.
+  const rows = []; let cur = [];
+  for (let i = 0; i < sequence.length; i++) { if (i > 0 && breaks.includes(i)) { rows.push(cur); cur = []; } cur.push(i); }
+  if (cur.length) rows.push(cur);
+  const sel = selIdx != null ? (cueAt(selIdx) || { idx: selIdx, section: sequence[selIdx] }) : null;
+
+  return (
+    <div className="st">
+      <div className="st-h"><span className="st-l">Structură</span>{canEdit && <span className="st-hint">click pe o secțiune = editează · ↵ = rând nou de aici</span>}</div>
+      {rows.map((row, ri) => (
+        <div key={ri} className="st-row">
+          {row.map((i) => {
+            const c = cueAt(i); const color = c?.lights?.[0]?.color || "";
+            return (
+              <button key={i} className={`st-sec ${selIdx === i ? "on" : ""} ${hasData(c) ? "has" : ""}`} draggable={canEdit}
+                onClick={() => setSelIdx(selIdx === i ? null : i)}
+                onDragStart={() => setDragIdx(i)} onDragEnd={() => setDragIdx(null)}>
+                {color && <span className="st-dot" style={{ background: color }} />}
+                <span className="st-nm">{sequence[i]}</span>
+                {hasData(c) && !color && <span className="st-mark">•</span>}
+                {canEdit && i > 0 && <span className="st-split" title={breaks.includes(i) ? "Unește cu rândul de sus" : "Rând nou de aici"} onClick={(e) => { e.stopPropagation(); toggleBreak(i); }}>{breaks.includes(i) ? "⤴" : "↵"}</span>}
+              </button>
+            );
+          })}
+        </div>
+      ))}
+      {canEdit && dragIdx != null && (
+        <div className="st-drop" onDragOver={(e) => e.preventDefault()} onDrop={() => { if (dragIdx > 0) toggleBreak(dragIdx); setDragIdx(null); }}>⬇ lasă aici = rând nou</div>
+      )}
+      {sel && <SectionEditor key={selIdx} section={sequence[selIdx]} cue={sel} canEdit={canEdit} onSave={(patch) => setCue(selIdx, patch)} onClose={() => setSelIdx(null)} />}
+      <style jsx>{`
+        .st { margin-top: 6px; }
+        .st-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+        .st-l { color: var(--text-faint); font-size: 11px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
+        .st-hint { color: var(--text-faint); font-size: 11px; }
+        .st-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; padding: 6px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; }
+        .st-sec { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 8px; padding: 5px 10px; color: var(--text); font-size: 13.5px; font-weight: 600; cursor: pointer; }
+        .st-sec:hover { border-color: var(--text-faint); }
+        .st-sec.on { background: rgba(47,129,247,.14); border-color: var(--primary); }
+        .st-sec.has { box-shadow: inset 0 -2px 0 rgba(229,83,75,.5); }
+        .st-dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--border-strong); }
+        .st-mark { color: #e5534b; font-size: 14px; line-height: 1; }
+        .st-split { color: var(--text-faint); font-size: 12px; margin-left: 2px; }
+        .st-split:hover { color: var(--primary); }
+        .st-drop { margin-top: 8px; border: 1px dashed var(--primary); border-radius: 8px; padding: 10px; text-align: center; color: var(--primary); font-size: 12px; background: rgba(47,129,247,.07); }
+      `}</style>
+    </div>
+  );
+}
+
+/* Panou producție per item: notă + scenă + fixtures + proiecție + remindere (structura e separat, StructureEditor). */
 function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet, onDelSnippet, onCreateScene }) {
   const [remText, setRemText] = useState("");
   const [remIcon, setRemIcon] = useState("info");
@@ -1005,22 +1136,6 @@ function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet,
   const applyScene = (s) => onSave({ sceneId: s.id, fixtures: (s.fixtures || []).map((f) => ({ fixture: f.fixture, color: f.color })) });
   const clearScene = () => onSave({ sceneId: "" });
   const doSaveScene = () => { const name = sceneName.trim(); if (!name || !fx.length) return; onCreateScene?.({ name, fixtures: fx.map((f) => ({ fixture: f.fixture, color: f.color })) }); setSaveSceneOpen(false); setSceneName(""); };
-
-  const sections = uniqSections(r.sequence);
-  const cues = r.sectionCues || [];
-  const cueFor = (sec) => cues.find((c) => c.section === sec) || null;
-  const setCue = (sec, { color, note }) => {
-    const existing = cueFor(sec);
-    const merged = {
-      section: sec,
-      lights: color !== undefined ? (color ? [{ color, label: "" }] : []) : (existing?.lights || []),
-      note: note !== undefined ? note : (existing?.note || ""),
-      projection: existing?.projection || "",
-    };
-    const next = cues.filter((c) => c.section !== sec);
-    if ((merged.lights || []).length || merged.note || merged.projection) next.push(merged);
-    onSave({ sectionCues: next });
-  };
 
   const projNote = (r.projection || [])[0]?.note || "";
   const setProjection = (note) => onSave({ projection: note.trim() ? [{ bgRef: "", note: note.trim() }] : [] });
@@ -1095,29 +1210,6 @@ function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet,
           })}
         </div>
       </div>
-      {/* Lumini pe secțiune (doar cântece cu structură) */}
-      {sections.length > 0 && (
-        <div className="lp-row">
-          <span className="lp-lbl">Pe secțiune</span>
-          <div className="lp-cues">
-            {sections.map((sec) => {
-              const cue = cueFor(sec);
-              const cc = cue?.lights?.[0]?.color || "";
-              return (
-                <div key={sec} className="cue">
-                  <span className="cue-sec">{sec}</span>
-                  <label className="cue-sw" style={{ background: cc || "transparent", borderStyle: cc ? "solid" : "dashed" }} title="Culoare la secțiune">
-                    <input type="color" value={cc || "#e5534b"} disabled={!canEdit} onChange={(e) => setCue(sec, { color: e.target.value })} />
-                  </label>
-                  {cc && canEdit && <button className="cue-x" onClick={() => setCue(sec, { color: "" })} title="Scoate">✕</button>}
-                  <input className="cue-note" placeholder="notă…" defaultValue={cue?.note || ""} disabled={!canEdit}
-                    onBlur={(e) => { const v = e.target.value.trim(); if (v !== (cue?.note || "")) setCue(sec, { note: v }); }} />
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
       {/* Proiecție / fundal */}
       <div className="lp-row">
         <span className="lp-lbl">Proiecție</span>

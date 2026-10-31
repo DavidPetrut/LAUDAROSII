@@ -21,8 +21,15 @@ const ItemOverlay = new mongoose.Schema({
   label: { type: String, default: "" },          // denumire scurtă custom (ex. „Aprinde-mă") — NU schimbă Order
   sceneId: { type: mongoose.Schema.Types.ObjectId, ref: "PcLightScene", default: null }, // scenă de lumini (Faza 2)
   fixtures: { type: [{ fixture: String, color: String }], default: [] }, // Par/LED/Tobe/Laterale/Coroană (Faza 2)
-  // Indicii pe secțiune (ex. „pe C2 → roșu", „fundal până la bridge") — legate de o parte din secvență (Faza 2/3):
-  sectionCues: { type: [{ section: String, lights: { type: [Light], default: [] }, projection: String, note: String }], default: [] },
+  // Secțiuni personalizabile (fiecare parte din sequence: Verse/Chorus/Bridge…), legate prin `idx` (poziția în sequence).
+  // Fiecare secțiune poate avea: notă, culori de lumini, proiecție, remindere. `section` = numele (pt. afișare/print).
+  sectionCues: { type: [{
+    idx: { type: Number, default: 0 }, section: String,
+    lights: { type: [Light], default: [] }, projection: String, note: String,
+    reminders: { type: [{ text: String, icon: { type: String, default: "info" }, severity: { type: String, default: "normal" } }], default: [] },
+  }], default: [] },
+  // Împărțirea sequence-ului pe RÂNDURI (multi-row): indicii din sequence la care începe un rând nou (drag-to-split).
+  rowBreaks: { type: [Number], default: [] },
   projection: { type: [{ bgRef: String, note: String }], default: [] }, // fundal/coroană (Faza 3)
   reminders: { type: [{ text: String, icon: { type: String, default: "info" }, severity: { type: String, default: "normal" } }], default: [] },
   note: { type: String, default: "" },           // notă personală a producătorului pe acest item
