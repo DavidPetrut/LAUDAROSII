@@ -714,7 +714,8 @@ function buildProductionHtml(data, scenes) {
       + `${r.note ? `<div class="lt">&#9998; ${esc(r.note)}</div>` : ""}`
       + `${reminders ? `<div class="lt">${reminders}</div>` : ""}`
       + `${afterLights ? sceneTag : ""}`
-      + `${r.directNext ? `<div class="pv-direct">&#8595; direct</div>` : ""}</div>`;
+      + `</div>`
+      + `${r.directNext ? `<div class="pv-direct"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15"/><path d="m7 14 5 5 5-5"/></svg> Tranziție directă</div>` : ""}`;
   }).join("");
   const spotify = data.spotify ? `<div class="sp">&#9834; Spotify pre-serviciu: <b>${esc(data.spotify.key)}</b>${data.spotify.relative ? ` (relativă ${esc(data.spotify.relative)})` : ""}</div>` : "";
   const sim = (data.simFeedback || []).length ? `<div class="sim"><div class="sim-h"><img class="pv-rm" src="/reminder-rosu.png" alt=""> Remindere importante — între programe</div>${["1", "2"].map((s) => { const list = (data.simFeedback || []).filter((f) => (f.sim || "1") === s); if (!list.length) return ""; return `<div class="sim-g"><div class="sim-gh">SIM ${s}</div>${list.map((f) => `<div class="sim-it ${f.done ? "done" : ""}">${f.done ? "&#9745;" : "&#9744;"} <img class="pv-rm" src="/reminder-rosu.png" alt=""> &#8594; ${esc(f.text)}</div>`).join("")}</div>`; }).join("")}</div>` : "";
@@ -731,7 +732,7 @@ function buildProductionHtml(data, scenes) {
     .v{color:#666;font-size:12.5px;margin-top:2px}.lt{margin-top:4px;font-size:12.5px;color:#444}
     .lp-tag{display:inline-block;font-size:12px;color:#555;background:#f3f4f6;border:1px solid #e6e8ec;border-radius:6px;padding:2px 9px;margin:3px 0 4px}
     .lp-tag b{color:#2d6a4f;font-weight:700}
-    .pv-direct{color:#9aa0a8;font-size:10.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding-left:60px;margin-top:6px}
+    .pv-direct{display:flex;align-items:center;justify-content:center;gap:8px;color:#8b5cf0;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:13px 0}
     .seq{margin-top:7px;display:flex;flex-direction:column;gap:4px}
     .seqrow{font-size:13px;color:#2b2b2b;line-height:1.5}
     .seqrow.solo{background:#f7f8fa;border:1px solid #e6e9ee;border-radius:8px;padding:6px 11px}
@@ -992,9 +993,9 @@ function RehearseTab({ planId, canEdit = false, flash }) {
                 {afterLights && <div className="pr-afterlights">{sceneTag}</div>}
               </div>
               {r.directNext && (
-                <div className="prod-direct" title="Tranziție directă — curge direct în următorul">
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v15" /><path d="m7 14 5 5 5-5" /></svg>
-                  <span>direct</span>
+                <div className="prod-direct" title="Curge direct în următorul moment">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v15" /><path d="m7 14 5 5 5-5" /></svg>
+                  <span>Tranziție directă</span>
                 </div>
               )}
               </Fragment>
@@ -1122,8 +1123,8 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .prod-item.past, .prod-trans.past, .prod-sec.past { opacity: .38; }
         .prod-item.past .pr-extra { display: none; }
         .pr-afterlights { padding: 6px 4px 2px 13px; }
-        .prod-direct { display: flex; align-items: center; gap: 7px; color: var(--text-faint); padding: 4px 0 6px 44px; }
-        .prod-direct span { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+        .prod-direct { display: flex; align-items: center; justify-content: center; gap: 7px; color: #c58bff; padding: 5px 0 7px; }
+        .prod-direct span { font-size: 10.5px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
         .prod-item.cur .prod-row, .prod-trans.cur, .prod-item.future .prod-row { cursor: pointer; }
         .prod-trans { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 7px; padding: 4px 13px 4px 20px; cursor: pointer; }
         .prod-trans:hover { background: var(--surface-2); }
