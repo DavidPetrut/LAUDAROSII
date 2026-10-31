@@ -425,6 +425,8 @@ router.get("/:id/order", requireCan("people.view"), async (req, res) => {
         voices: voicesMap[String(it._id)] || [],
         ministries: ministriesMap[String(it._id)] || [],
         transition: it.type === "transition" ? transMap[String(it._id)] : undefined,
+        lights: (it.lights || []).map((l) => ({ color: l.color || "", label: l.label || "" })),
+        lightsTiming: it.lightsTiming === "before" ? "before" : "after",
         leaders: leadersMap[String(it._id)] || [],
         leader: (leadersMap[String(it._id)] || [])[0] || null,
       })),
@@ -501,6 +503,8 @@ router.get("/:id/items/:itemId", requireCan("people.view"), async (req, res) => 
       voices: voicesMap[String(it._id)] || [],
       ministries: ministriesMap[String(it._id)] || [],
       transition: transMap[String(it._id)] || { kind: "", key: "", autoKey: false, keySource: "", lights: [], prayer: null },
+      lights: (it.lights || []).map((l) => ({ color: l.color || "", label: l.label || "" })),
+      lightsTiming: it.lightsTiming === "before" ? "before" : "after",
       medley: (it.medley || []).slice().sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)).map((c) => ({
         songId: c.songId ? String(c.songId) : null, arrangementId: c.arrangementId ? String(c.arrangementId) : null,
         keyId: c.keyId ? String(c.keyId) : null, keyName: c.keyName || "", title: c.title || "",
@@ -613,6 +617,9 @@ router.patch("/:id/items/:itemId", requireCan("services.editOrder"), async (req,
       if (Array.isArray(t.lights)) set["transition.lights"] = t.lights.map((l) => ({ color: String(l.color || "").trim(), label: String(l.label || "").trim() })).filter((l) => l.color || l.label);
       if (t.prayerPersonId !== undefined) set["transition.prayerPersonId"] = t.prayerPersonId ? OID(t.prayerPersonId) : null;
     }
+    // Lumini pe ORICE item (stamp): culori + timing (before/after). Informativ.
+    if (Array.isArray(b.lights)) set.lights = b.lights.map((l) => ({ color: String(l.color || "").trim(), label: String(l.label || "").trim() })).filter((l) => l.color || l.label);
+    if (b.lightsTiming !== undefined) set.lightsTiming = b.lightsTiming === "before" ? "before" : "after";
     // Secvență one-time pt. acest plan (Edit Sequence from a plan).
     if (Array.isArray(b.sequence)) set.sequence = b.sequence.map((s) => String(s)).filter(Boolean);
     // Edit a song from a plan: schimbă aranjamentul / cheia linkate (keyName se auto-rezolvă).

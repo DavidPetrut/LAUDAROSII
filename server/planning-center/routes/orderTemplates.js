@@ -12,7 +12,7 @@ const { requireCan } = require("../core/permissions");
 const router = express.Router();
 const OID = (v) => (mongoose.Types.ObjectId.isValid(v) ? new mongoose.Types.ObjectId(v) : null);
 
-const SNAP_FIELDS = ["type", "title", "description", "lengthSec", "keyName", "placement", "duringAll", "rowColor", "isTransition", "voices", "ministries", "leaders", "songId", "arrangementId", "keyId", "sequence", "medley"];
+const SNAP_FIELDS = ["type", "title", "description", "lengthSec", "keyName", "placement", "duringAll", "rowColor", "isTransition", "voices", "ministries", "leaders", "lights", "lightsTiming", "songId", "arrangementId", "keyId", "sequence", "medley"];
 const snapItem = (it, i) => {
   const o = { sortOrder: i };
   for (const f of SNAP_FIELDS) if (it[f] !== undefined) o[f] = it[f];

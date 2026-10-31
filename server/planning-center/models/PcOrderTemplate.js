@@ -22,6 +22,8 @@ const itemSnap = {
   rowColor: { type: String, default: "" },
   sortOrder: { type: Number, default: 0 },
   isTransition: { type: Boolean, default: false },
+  lights: { type: [Mixed], default: [] },
+  lightsTiming: { type: String, default: "after" },
   voices: { type: [Mixed], default: [] },
   ministries: { type: [Mixed], default: [] },
   leaders: { type: [Mixed], default: [] },

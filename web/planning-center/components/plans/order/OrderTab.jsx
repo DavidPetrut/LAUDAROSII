@@ -202,7 +202,11 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
             const tr = it.type === "transition" ? (it.transition || {}) : null;
             // Avatarul = lead vocal SAU prima persoană de la o slujire SAU persoana de rugăciune (tranziție).
             const avatarPerson = leadVoice || minPeople[0] || (tr && tr.prayer) || null;
-            return (
+            // Lumini pe item (non-tranziție): „before" = row vizual deasupra; „after" (default) = linie sub item.
+            const itLights = (!isHeader && it.type !== "transition") ? (it.lights || []) : [];
+            const lightsBefore = itLights.length > 0 && it.lightsTiming === "before";
+            const lightsAfter = itLights.length > 0 && it.lightsTiming !== "before";
+            const mainRow = (
               <div
                 key={it.id}
                 className={`row ${isHeader ? "hdr" : ""} ${it.isTransition ? "trans" : ""} ${open ? "open" : ""} ${over ? "over" : ""}`}
@@ -244,6 +248,9 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                           {voiceLine && <div className="r-voices">{voiceLine}</div>}
                           {ministryLine && <div className="r-min">{ministryLine}</div>}
                           {it.description && <div className="r-sub">{it.description}</div>}
+                          {lightsAfter && (
+                            <div className="r-trans-line rt-lights">Lumini:{itLights.map((l, i) => <span key={i} className="rt-dot" style={{ background: l.color || "#888" }} title={l.color} />)}</div>
+                          )}
                         </>
                       )}
                     </div>
@@ -259,6 +266,14 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                 )}
               </div>
             );
+            if (!lightsBefore) return mainRow;
+            return [
+              <div key={`lb-${it.id}`} className="row lights-row" title="Lumini înainte (informativ)">
+                <div className="r-len" />
+                <div className="r-main"><div className="lr-line">Lumini înainte:{itLights.map((l, i) => <span key={i} className="rt-dot" style={{ background: l.color || "#888" }} title={l.color} />)}</div></div>
+              </div>,
+              mainRow,
+            ];
           })}
           {canEdit && (
             <div
@@ -305,6 +320,9 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
         .row.open { background: rgba(47,129,247,.09); box-shadow: inset 2px 0 0 var(--primary); }
         .row.over { box-shadow: inset 0 2px 0 var(--primary); }
         .row.trans { padding-left: 42px; }
+        .row.lights-row { cursor: default; padding-top: 7px; padding-bottom: 7px; background: var(--surface-2); border-bottom: 1px solid var(--border-soft); }
+        .row.lights-row:hover { background: var(--surface-2); }
+        .lr-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--text-dim); font-size: 12px; font-weight: 600; }
         .row.hdr { background: var(--section-head-bg); border-top: 2px solid var(--product); cursor: default; padding: 8px 14px; }
         .hdr-t { color: var(--text); font-weight: 700; text-transform: uppercase; font-size: 11.5px; letter-spacing: .6px; }
         .r-len { width: 64px; flex: none; color: var(--text-faint); font-size: 12.5px; font-variant-numeric: tabular-nums; }
@@ -338,3 +356,4 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
     </div>
   );
 }
+

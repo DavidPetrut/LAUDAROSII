@@ -58,6 +58,10 @@ const schema = pcSchema({
   },
   // ── Tranziție (aditiv) — cântec/parte folosit(ă) doar ca punte: indent + „!" + timp EXCLUS din total.
   isTransition: { type: Boolean, default: false },
+  // ── Lumini (aditiv) — „stamp" de lumini pe ORICE item (nu doar tranziție), afișat sub descriere.
+  // lightsTiming: „after"(default, sub item) / „before"(row vizual deasupra titlului). Informativ (nu auto).
+  lights: { type: [{ color: String, label: String }], default: [] },
+  lightsTiming: { type: String, default: "after" }, // "before" | "after"
   // ── Tip „transition" (aditiv) — punte între momente: gamă (ca badge), lumini (culori), rugăciune (persoană).
   // Containere OPȚIONALE (se adaugă cu „+"). Totul se transpune în Rehearse + PDF.
   transition: {

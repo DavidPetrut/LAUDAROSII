@@ -11,6 +11,7 @@ import PersonAvatar from "@/components/plans/PersonAvatar";
 import VoicesPicker from "./VoicesPicker";
 import MinistriesPicker from "./MinistriesPicker";
 import TransitionEditor from "./TransitionEditor";
+import LightsEditor from "./LightsEditor";
 import MedleyEditor from "./MedleyEditor";
 
 // „+ Tranziție" (quick-insert): creează un ELEMENT simplu dedesubt, cu titlu fix, fără lead.
@@ -41,6 +42,10 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
   const [voices, setVoices] = useState([]);
   const [ministries, setMinistries] = useState([]);
   const [trans, setTrans] = useState({ kind: "", key: "", lights: [], prayer: null });
+  const [lights, setLights] = useState([]);           // lumini pe item (orice tip)
+  const [lightsTiming, setLightsTiming] = useState("after");
+  const [lightsAdded, setLightsAdded] = useState(false); // afișează containerul chiar gol
+  const [lightsOpen, setLightsOpen] = useState(true);    // expand/collapse container lumini
   const [mPool, setMPool] = useState({ week: [], preachers: [], byKind: {} });
   const [pool, setPool] = useState([]);
   const [songPicker, setSongPicker] = useState(false);
@@ -59,6 +64,7 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
       const r = await plansApi.itemDetail(planId, itemId);
       setD(r); setTitle(r.title || ""); setDesc(r.description || ""); setVoices(r.voices || []); setMinistries(r.ministries || []);
       setTrans(r.transition || { kind: "", key: "", lights: [], prayer: null });
+      setLights(r.lights || []); setLightsTiming(r.lightsTiming || "after"); setLightsAdded(false); setLightsOpen(!(r.lights || []).length);
       const L = splitLen(r.lengthSec); setMm(L.m); setSs(L.s);
       plansApi.voicesPool(planId).then((pr) => setPool(pr.people || [])).catch(() => {});
       if (r.type === "item" || r.type === "transition") plansApi.ministryPool(planId).then((pr) => setMPool({ week: pr.week || [], preachers: pr.preachers || [], byKind: pr.byKind || {} })).catch(() => {});
@@ -97,6 +103,12 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
       .then((r) => { if (r?.transition) setTrans(r.transition); })
       .catch((e) => flash?.(e?.message || "Eroare."));
   }
+  // Lumini pe item (orice tip, „+ Lumini"): culori + timing (before/after). Afișate sub descriere (sau row deasupra dacă „before").
+  function saveLights(next) { setLights(next); plansApi.updateItem(planId, itemId, { lights: next }).then(() => onChanged?.()).catch((e) => flash?.(e?.message || "Eroare.")); }
+  function saveLightsTiming(t) { setLightsTiming(t); plansApi.updateItem(planId, itemId, { lightsTiming: t }).then(() => onChanged?.()).catch((e) => flash?.(e?.message || "Eroare.")); }
+  function addLightsBox() { setLightsAdded(true); setLightsOpen(true); }
+  function removeLights() { setLightsAdded(false); saveLights([]); }
+
   // „+ Tranziție" (quick-insert): creează un element simplu (fără lead) imediat DEDESUBT, cu titlu fix.
   async function addQuickTransition(title) {
     setQtOpen(false);
@@ -141,15 +153,8 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
 
   const ro = !canEdit;
   const keyFiles = arr && d?.keyId ? (arr.keys || []).find((k) => String(k.id) === String(d.keyId))?.files || [] : [];
-
-  // Description — reutilizat ca secțiune de sine stătătoare SAU injectat în TransitionEditor (sub „Tranziție").
-  const descBox = (
-    <div className="d-sec">
-      <div className="d-sl">Description</div>
-      <textarea className="d-desc" value={desc} disabled={ro} onChange={(e) => setDesc(e.target.value)} onBlur={saveDesc}
-        placeholder={"Note libere (versete, cue-uri)…"} rows={3} />
-    </div>
-  );
+  const hasItemLights = !!(lights.length || lightsAdded);
+  const lightsHost = d && d.type !== "header" && d.type !== "transition"; // „+ Lumini" pe orice item (tranziția își are luminile în editor).
 
   return (
     <aside className="drawer">
@@ -215,35 +220,70 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
           {d.type === "transition" && (
             <div className="d-sec">
               <div className="d-sl">Punte — tranziție · gamă · lumini</div>
-              <TransitionEditor value={trans} week={mPool.week} canEdit={canEdit} onChange={saveTransition} descriptionSlot={descBox} />
+              <TransitionEditor value={trans} week={mPool.week} canEdit={canEdit} onChange={saveTransition}
+                desc={desc} onDescChange={setDesc} onDescBlur={saveDesc} />
             </div>
           )}
 
-          {/* „+ Tranziție" — generează un element simplu dedesubt (rugăciune / verbală). Doar la cântec/element, NU la tipul „transition". */}
-          {d.type !== "header" && d.type !== "transition" && canEdit && (
+          {/* „+ Tranziție" (creează row dedesubt) + „+ Lumini" (stamp pe acest item, sub descriere). Doar la cântec/element. */}
+          {lightsHost && canEdit && (
             <div className="d-sec qt">
-              <div className="qt-wrap">
-                <button className="qt-btn" onClick={() => setQtOpen((v) => !v)}>
-                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 3v10M3 8h10" /></svg>
-                  Tranziție
-                </button>
-                {qtOpen && (<>
-                  <div className="qt-back" onClick={() => setQtOpen(false)} />
-                  <div className="qt-menu">
-                    {QUICK_TRANS.map((t) => (
-                      <button key={t.k} className="qt-it" onClick={() => addQuickTransition(t.title)}>
-                        <span className="qt-l">{t.label}</span>
-                        <span className="qt-d">creează „{t.title}" dedesubt</span>
-                      </button>
-                    ))}
-                  </div>
-                </>)}
+              <div className="qt-row">
+                <div className="qt-wrap">
+                  <button className="qt-btn" onClick={() => setQtOpen((v) => !v)}>
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 3v10M3 8h10" /></svg>
+                    Tranziție
+                  </button>
+                  {qtOpen && (<>
+                    <div className="qt-back" onClick={() => setQtOpen(false)} />
+                    <div className="qt-menu">
+                      {QUICK_TRANS.map((t) => (
+                        <button key={t.k} className="qt-it" onClick={() => addQuickTransition(t.title)}>
+                          <span className="qt-l">{t.label}</span>
+                          <span className="qt-d">creează „{t.title}" dedesubt</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>)}
+                </div>
+                {!hasItemLights && (
+                  <button className="qt-btn" onClick={addLightsBox}>
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 3v10M3 8h10" /></svg>
+                    Lumini
+                  </button>
+                )}
               </div>
             </div>
           )}
 
-          {/* Description — pt. tipul „transition" e injectat în editor (sub „Tranziție"), deci nu-l dublăm aici. */}
-          {d.type !== "transition" && descBox}
+          {/* Description — pt. tipul „transition" e randat în editor (sub „Tranziție"), deci nu-l dublăm aici. */}
+          {d.type !== "transition" && (
+            <div className="d-sec">
+              <div className="d-sl">Description</div>
+              <textarea className="d-desc" value={desc} disabled={ro} onChange={(e) => setDesc(e.target.value)} onBlur={saveDesc}
+                placeholder={"Note libere (versete, cue-uri)…"} rows={3} />
+            </div>
+          )}
+
+          {/* Lumini pe item (stamp) — sub descriere; container collapsible cu X. */}
+          {lightsHost && hasItemLights && (
+            <div className="d-sec">
+              <section className="lbox">
+                <header className="lb-head" onClick={() => setLightsOpen((v) => !v)}>
+                  <span className="lb-ic">💡</span><span className="lb-ttl">Lumini</span>
+                  <span className="lb-sub">{lightsTiming === "before" ? "înainte" : "după"}</span>
+                  <span className="lb-dots">{lights.slice(0, 6).map((l, i) => <span key={i} className="lb-dot" style={{ background: l.color || "#888" }} />)}</span>
+                  {canEdit && <button className="lb-x" onClick={(e) => { e.stopPropagation(); removeLights(); }} title="Scoate luminile">✕</button>}
+                  <svg className={`lb-chev ${lightsOpen ? "o" : ""}`} width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6l4 4 4-4" /></svg>
+                </header>
+                {lightsOpen && (
+                  <div className="lb-body">
+                    <LightsEditor value={lights} canEdit={canEdit} onChange={saveLights} timing={lightsTiming} onTiming={saveLightsTiming} showTiming />
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
 
           {d.type !== "header" && d.type !== "transition" && (
           <div className="d-sec">
@@ -423,7 +463,21 @@ export default function ItemDrawer({ planId, itemId, canEdit = false, onClose, o
         .addnote { background: var(--surface-2); border: 1px dashed var(--border-strong); color: var(--text-faint); border-radius: 7px; padding: 7px 12px; font-size: 12.5px; cursor: pointer; width: 100%; }
         .addnote:hover { color: var(--primary); border-color: var(--primary); }
         .d-sec.qt { margin-top: 12px; }
+        .qt-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .qt-wrap { position: relative; }
+        .lbox { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+        .lb-head { display: flex; align-items: center; gap: 8px; padding: 11px 12px; cursor: pointer; user-select: none; }
+        .lb-head:hover { background: var(--surface-3); }
+        .lb-ic { font-size: 14px; }
+        .lb-ttl { color: var(--text); font-size: 12.5px; font-weight: 600; }
+        .lb-sub { color: var(--text-faint); font-size: 11px; border: 1px solid var(--border-strong); border-radius: 999px; padding: 0 7px; }
+        .lb-dots { display: inline-flex; gap: 3px; flex: 1; }
+        .lb-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--border-strong); }
+        .lb-x { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 12px; padding: 2px 4px; border-radius: 4px; flex: none; }
+        .lb-x:hover { color: var(--danger); background: var(--surface); }
+        .lb-chev { color: var(--text-faint); transition: transform .14s ease; flex: none; }
+        .lb-chev.o { transform: rotate(180deg); }
+        .lb-body { padding: 2px 12px 12px; }
         .qt-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px dashed var(--border-strong); color: var(--text-dim); border-radius: 8px; padding: 7px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
         .qt-btn:hover { color: var(--primary); border-color: var(--primary); }
         .qt-back { position: fixed; inset: 0; z-index: 6; }
