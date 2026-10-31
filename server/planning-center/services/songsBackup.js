@@ -14,7 +14,7 @@
  * NIMIC distructiv: citește din DB + Cloudinary, scrie în B2 + marchează `backupKey` pe fișier.
  */
 const crypto = require("crypto");
-const M = require("../../models");
+const M = require("../models");
 
 const AUTH_URL = "https://api.backblazeb2.com/b2api/v2/b2_authorize_account";
 
