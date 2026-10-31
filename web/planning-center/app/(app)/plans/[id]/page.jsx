@@ -11,7 +11,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { plansApi, peopleApi, productionScenesApi, productionSnippetsApi } from "@/lib/api/client";
 import { formatVoices } from "@/components/plans/order/VoicesPicker";
-import { numberSequence } from "@/lib/songs/sequence";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 import PersonAvatar from "@/components/plans/PersonAvatar";
 import Skeleton from "@/components/ui/Skeleton";
@@ -678,7 +677,7 @@ function buildProductionHtml(data, scenes) {
     const voices = r.voices || []; const lead = voices.find((v) => v.role === "lead") || voices[0];
     const parts = voices.filter((v) => v !== lead).map((v) => `${VOICE_LBL[v.role] ? VOICE_LBL[v.role] + ": " : ""}${esc((v.name || "").split(" ")[0])}`);
     const seq = r.sequence || [];
-    const labels = numberSequence(seq);
+    const labels = seq;
     const cueAt = (i) => (r.sectionCues || []).find((c) => c.idx === i) || null;
     let seqHtml = "";
     if (seq.length) {
@@ -1121,8 +1120,8 @@ function RehearseTab({ planId, canEdit = false, flash }) {
    ei ÎN LOC (sparge run-ul: înainte | secțiunea | după) + o selectează pt. editare. ⤴ o pune la loc.
    Fără drag — sequence-ul rămâne mereu ca în Order/melodie, deci nu se reordonează. */
 function SeqStructure({ item, canEdit, scenes, selIdx, onSelect, onSave }) {
-  const seq = item.sequence || [];
-  const labels = numberSequence(seq); // nume cu număr real de secțiune (Verse 1/2…) pt. afișare
+  const seq = item.sequence || []; // numele reale de secțiune (Verse 1/2…) vin din date (sequence_full din PCO)
+  const labels = seq;
   const cues = item.sectionCues || [];
   const cueAt = (i) => cues.find((c) => c.idx === i) || null;
   const rows = resolveRows(seq, item.sectionRows);
@@ -1210,7 +1209,7 @@ function SeqStructure({ item, canEdit, scenes, selIdx, onSelect, onSave }) {
 /* Editor contextual per secțiune (DREAPTA): scenă + lumini(+before/after) + notă + proiecție + remindere. */
 function SectionEditor({ item, idx, cue, scenes, canEdit, onSave, onClose }) {
   const [remText, setRemText] = useState("");
-  const section = numberSequence(item.sequence || [])[idx] || cue?.section || "";
+  const section = (item.sequence || [])[idx] || cue?.section || "";
   const fx = cue?.fixtures || [];
   const timing = cue?.lightsTiming === "before" ? "before" : "after";
   const hasLight = fx.length || (cue?.lights || []).length;

@@ -44,22 +44,3 @@ export function abbreviateSequence(seq) {
   }
   return tokens.map((t) => (t.mult > 1 ? `${t.base}×${t.mult}` : t.base));
 }
-
-/**
- * Ca abbreviateSequence, dar păstrează NUMELE COMPLETE și NU comasează repetările.
- * Adaugă număr de ocurență DOAR la etichetele „goale" numerotabile care apar de mai multe ori
- * (`Verse`→`Verse 1`, `Verse 2`), lăsând NEATINSE cele deja etichetate (`Verse 1`, `V1`, `Chorus 2`).
- * Așa: date generice devin citibile, iar datele cu identitate reală (ex. „Verse 1","Verse 1") rămân
- * corecte și repetarea aceleiași secțiuni e vizibilă.
- */
-export function numberSequence(seq) {
-  if (!Array.isArray(seq)) return [];
-  const total = {};
-  for (const l of seq) { const s = String(l == null ? "" : l); if (NUMBERED.has(s)) total[s] = (total[s] || 0) + 1; }
-  const counts = {};
-  return seq.map((l) => {
-    const s = String(l == null ? "" : l);
-    if (NUMBERED.has(s) && total[s] > 1) { counts[s] = (counts[s] || 0) + 1; return `${s} ${counts[s]}`; }
-    return s;
-  });
-}

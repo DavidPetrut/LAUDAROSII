@@ -19,6 +19,21 @@ const SOURCE = "pco";
 const A = (r) => r.attributes || {};
 const PCO_BASE = "https://api.planningcenteronline.com/services/v2";
 
+// Secvență cu NUMELE REALE de secțiune (Verse 1/2, Bridge 1…) din PCO `sequence_full` ([{label,number}]).
+// Numărul se pune doar la secțiunile „numerotabile" (restul — Intro/Outro/Ending/Instrumental — rămân simple).
+// Fallback pe `sequence` (etichete generice) dacă `sequence_full` lipsește.
+const SEQ_NUMBERED = new Set(["Verse", "Chorus", "Bridge", "Refrain", "Pre-Chorus", "PreChorus", "Pre Chorus", "Post-Chorus"]);
+function seqFromFull(full, fallback) {
+  if (Array.isArray(full) && full.length) {
+    return full.map((it) => {
+      const label = String((it && it.label) || "").trim();
+      const num = String((it && it.number) || "").trim();
+      return (num && SEQ_NUMBERED.has(label)) ? `${label} ${num}` : label;
+    }).filter(Boolean);
+  }
+  return Array.isArray(fallback) ? fallback.map(String) : [];
+}
+
 // Cloudinary (reutilizează contul vostru, ca /uploads). Lazy + tolerant.
 let cloudinary = null, cloudOk = false;
 try {
@@ -159,7 +174,7 @@ class SongsImporter {
         bpm: aa.bpm != null ? Number(aa.bpm) : null,
         lengthSec: Number(aa.length) || 0,
         meter: aa.meter || "",
-        sequence: Array.isArray(aa.sequence) ? aa.sequence.map(String) : [],
+        sequence: seqFromFull(aa.sequence_full, aa.sequence),
         notes: aa.notes || "",
         wordsText,
         sortOrder: idx++,
@@ -218,4 +233,4 @@ class SongsImporter {
   }
 }
 
-module.exports = { SongsImporter };
+module.exports = { SongsImporter, seqFromFull };

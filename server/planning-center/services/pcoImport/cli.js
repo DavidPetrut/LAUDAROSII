@@ -161,6 +161,52 @@ const has = (f) => process.argv.includes(f);
     return;
   }
 
+  // ───────── Re-sequence: NUME REALE de secțiuni din PCO `sequence_full` (Verse 1/2, Bridge 1…) — CHIRURGICAL ─────────
+  //   --resequence         → DRY (raportează ce s-ar schimba; NU scrie nimic)
+  //   --resequence --apply → SCRIE DOAR `pc_arrangements.sequence` + item-urile de plan care au copiat EXACT secvența veche.
+  //   NU atinge fișiere/chord charts/Words/chei — doar array-ul `sequence` (etichetele de secțiune). Idempotent.
+  if (has("--resequence")) {
+    const apply = has("--apply");
+    if (!process.env.PCO_APP_ID || !process.env.PCO_SECRET) { console.error("Lipsesc PCO_APP_ID/PCO_SECRET în env."); await mongoose.disconnect(); process.exit(1); }
+    const { PcoClient } = require("./client");
+    const { seqFromFull } = require("./songs");
+    const client = new PcoClient({ appId: process.env.PCO_APP_ID, secret: process.env.PCO_SECRET });
+    const songs = await M.PcSong.find({ orgId, remoteSource: "pco", remoteId: { $ne: null } }).select("_id remoteId title").lean();
+    console.log(`[reseq] ${songs.length} cântece PCO. apply=${apply}`);
+    let arrChanged = 0, arrSame = 0, itChanged = 0, done = 0; const samples = [];
+    for (const s of songs) {
+      done++;
+      let arrs;
+      try { arrs = await client.getAll(`/songs/${s.remoteId}/arrangements`); }
+      catch (e) { console.log(`  ! ${s.remoteId} (${s.title}): ${e.message}`); continue; }
+      for (const ar of (arrs.data || [])) {
+        const a = ar.attributes || {};
+        const next = seqFromFull(a.sequence_full, a.sequence);
+        if (!next.length) continue; // nu suprascrie cu gol
+        const doc = await M.PcArrangement.findOne({ orgId, remoteSource: "pco", remoteId: ar.id }).select("_id sequence").lean();
+        if (!doc) continue;
+        const old = (doc.sequence || []).map(String);
+        if (JSON.stringify(old) === JSON.stringify(next)) { arrSame++; continue; }
+        arrChanged++;
+        if (samples.length < 14) samples.push({ title: s.title, old: old.join(" · "), next: next.join(" · ") });
+        if (apply) {
+          await M.PcArrangement.updateOne({ _id: doc._id }, { $set: { sequence: next } });
+          const r = await M.PcPlanItem.updateMany({ orgId, arrangementId: doc._id, sequence: old }, { $set: { sequence: next } });
+          itChanged += r.modifiedCount || 0;
+        } else {
+          itChanged += await M.PcPlanItem.countDocuments({ orgId, arrangementId: doc._id, sequence: old });
+        }
+      }
+      if (done % 50 === 0) console.log(`  …${done}/${songs.length} (${arrChanged} de schimbat)`);
+    }
+    console.log(`[reseq] aranjamente: ${arrChanged} de schimbat, ${arrSame} identice. item-uri de plan (exact-match, copiate): ${itChanged}.`);
+    console.log("[reseq] mostre:");
+    samples.forEach((x) => console.log(`  • ${x.title}\n      OLD: ${x.old}\n      NEW: ${x.next}`));
+    if (!apply) console.log("[reseq] DRY — rulează cu --apply ca să scrii (DOAR sequence; fișierele/charturile rămân neatinse).");
+    await mongoose.disconnect();
+    return;
+  }
+
   const dryRun = !has("--run");
   console.log(`[cli] ÎNAINTE:`, JSON.stringify(await counts()));
   const { runImport } = require("./index");
