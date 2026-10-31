@@ -36,3 +36,6 @@ sass/
 
 # Audio TTS generat (cache)
 server/cache/
+
+# Backup snapshots Songs (regenerabile cu `--manifest`; rămân pe disc, nu în repo)
+server/planning-center/backups/

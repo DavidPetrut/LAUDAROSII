@@ -113,6 +113,17 @@ const has = (f) => process.argv.includes(f);
     return;
   }
 
+  // ───────── Manifest-backup Songs (plasă de siguranță, read-only) ─────────
+  //   --manifest   → scrie <server>/planning-center/backups/songs-manifest-<ts>.{json,csv}
+  if (has("--manifest")) {
+    const path = require("path");
+    const { buildManifest } = require("./manifest");
+    const outDir = path.join(__dirname, "..", "..", "backups");
+    await buildManifest({ orgId, outDir });
+    await mongoose.disconnect();
+    return;
+  }
+
   // ───────── Import SONGS (felia muzicală): structură + ChordPro + Words + fișiere (rehost Cloudinary) ─────────
   //   --songs            → DRY (numără, nu scrie; estimează volumul de fișiere)
   //   --songs --run      → SCRIE structura + descarcă fișierele reale (dacă NU dai --no-files)
