@@ -664,9 +664,10 @@ const REM_ICON = { stop: "🛑", warn: "⚠️", info: "ℹ️" };
 const REM_PRESETS = [{ text: "Oprește Spotify", icon: "stop", severity: "high" }, { text: "Recomandări pian / stativ", icon: "info", severity: "normal" }];
 const uniqSections = (seq) => { const seen = new Set(), out = []; for (const s of (seq || [])) if (s && !seen.has(s)) { seen.add(s); out.push(s); } return out; };
 
-/* Print color, o pagină curată — fereastră auto-generată (înlocuiește foaia mâzgălită). */
-function printProduction(data) {
-  if (!data || typeof window === "undefined") return;
+/* Preview/PDF color — HTML care OGLINDEȘTE tot ce s-a aranjat (scene, lumini, secțiuni, note, remindere).
+   Întoarce stringul HTML; e folosit în iframe-ul de Preview (+ download/print din el). */
+function buildProductionHtml(data) {
+  if (!data) return "";
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
   const dot = (c) => `<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${esc(c)};border:1px solid #999;vertical-align:middle;margin-right:3px"></span>`;
   const rowsHtml = (data.items || []).map((r) => {
@@ -694,16 +695,13 @@ function printProduction(data) {
     .sp{background:#e8f6ee;border:1px solid #bfe3cd;border-radius:6px;padding:6px 10px;margin-bottom:12px;display:inline-block}
     .sec{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#666;margin:14px 0 4px}
     .row{border:1px solid #ddd;border-radius:7px;padding:7px 10px;margin-bottom:5px;page-break-inside:avoid}
-    .t{font-weight:700}.k{float:right;border:1px solid #2f6fd6;color:#2f6fd6;border-radius:4px;padding:0 6px;font-weight:700}
+    .t{font-weight:700;font-size:14px}.k{float:right;background:#6fa02e;color:#fff;border-radius:999px;padding:1px 8px;font-weight:700}
     .v{color:#555;font-size:12px;margin-top:2px}.lt{margin-top:3px;font-size:12px;color:#444}
     .tr{color:#666;font-style:italic;padding:2px 0 2px 16px;font-size:12px}
     .rem{color:#b3261e;font-weight:600}
     .sim{margin-top:18px;border-top:2px solid #b3261e;padding-top:8px;page-break-inside:avoid}.sim-h{color:#b3261e;font-weight:700;margin-bottom:4px}
-  </style></head><body><h1>Order Producție</h1>${spotify}${rowsHtml}${sim}
-  <script>window.onload=function(){setTimeout(function(){window.print()},150)}</script></body></html>`;
-  const w = window.open("", "_blank");
-  if (!w) return;
-  w.document.open(); w.document.write(html); w.document.close();
+  </style></head><body><h1>Order Producție</h1>${spotify}${rowsHtml}${sim}</body></html>`;
+  return html;
 }
 
 function RehearseTab({ planId, canEdit = false, flash }) {
@@ -712,8 +710,9 @@ function RehearseTab({ planId, canEdit = false, flash }) {
   const [snippets, setSnippets] = useState([]);
   const [editing, setEditing] = useState(null); // itemId în curs de redenumire
   const [draft, setDraft] = useState("");
-  const [editorItem, setEditorItem] = useState(null); // itemId deschis în Editor (ecran dedicat); "" = primul
+  const [editorItem, setEditorItem] = useState(null); // itemId selectat în panoul-editor din dreapta
   const [share, setShare] = useState(false); // dialog partajare
+  const [preview, setPreview] = useState(false); // preview foaie finală (PDF-like)
   const [live, setLive] = useState(false);   // mod Live (teleprompter): urmărești momentul curent
   const [curId, setCurId] = useState(null);   // momentul curent în Live
 
@@ -788,12 +787,13 @@ function RehearseTab({ planId, canEdit = false, flash }) {
       <div className="prod-head">
         <span className="prod-cnt">{songCount} cântece · {rows.length} momente</span>
         <span className="prod-actions">
+          <button className="prod-share" onClick={() => setPreview(true)} title="Preview foaia finală + descarcă PDF">⧉ Preview</button>
           <button className={`prod-share ${live ? "live-on" : ""}`} onClick={() => (live ? setLive(false) : goLive())} title="Mod Live: urmărește momentul curent">● Live</button>
-          <button className="prod-share" onClick={() => printProduction(data)} title="Print color, o pagină curată">⎙ Print</button>
           {canEdit && <button className="prod-share" onClick={() => setShare(true)} title="Trimite copia foii tale altui producător">⤴ Partajează</button>}
         </span>
       </div>
       {share && <ShareDialog planId={planId} onClose={() => setShare(false)} flash={flash} />}
+      {preview && <PreviewModal html={buildProductionHtml(data)} onClose={() => setPreview(false)} />}
 
       {live && (
         <div className="live-bar">
@@ -906,8 +906,8 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .prod-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
         .prod-cnt { color: var(--text); font-size: 13px; font-weight: 600; }
         .prod-hint { color: var(--text-faint); font-size: 12px; }
-        .prod-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 430px); gap: 18px; align-items: start; }
-        @media (max-width: 900px) { .prod-split { grid-template-columns: 1fr; } }
+        .prod-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(460px, 560px); gap: 18px; align-items: start; }
+        @media (max-width: 1000px) { .prod-split { grid-template-columns: 1fr; } }
         .prod-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
         .prod-sec { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; padding: 14px 2px 5px; }
         .prod-sec:first-child { padding-top: 2px; }
@@ -915,7 +915,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .prod-row:hover { border-color: var(--border-strong); }
         .prod-row.sel { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
         .pr-main { flex: 1; min-width: 0; }
-        .pr-seq { color: var(--text-faint); font-size: 11px; margin-top: 3px; line-height: 1.4; }
+        .pr-seq { color: var(--text-dim); font-size: 12px; margin-top: 4px; line-height: 1.5; }
         .pr-sum { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; flex: none; }
         .pr-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
         .pr-title { display: inline-flex; align-items: center; gap: 6px; min-width: 0; background: transparent; border: none; padding: 0; color: var(--text); font-size: 14px; font-weight: 600; cursor: ${canEdit ? "text" : "default"}; text-align: left; }
@@ -941,10 +941,10 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .ed2-k { flex: none; color: #fff; background: #6fa02e; border-radius: 999px; font-size: 13px; font-weight: 700; padding: 1px 9px; }
         .ed2-rename { flex: 1; background: var(--surface-3); border: 1px solid var(--primary); border-radius: 8px; color: var(--text); font-size: 16px; font-weight: 700; padding: 5px 10px; outline: none; }
         .ed2-voices { color: var(--text-dim); font-size: 12.5px; margin-top: 6px; white-space: pre-line; line-height: 1.5; }
-        .ed2-seq { margin-top: 14px; }
-        .ed2-seq-l { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
-        .ed2-seq-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
-        .ed2-sq { color: var(--text-dim); font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 9px; }
+        .ed2-seq { margin-top: 16px; }
+        .ed2-seq-l { color: var(--text-faint); font-size: 11px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
+        .ed2-seq-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+        .ed2-sq { color: var(--text); font-size: 13.5px; font-weight: 600; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 8px; padding: 5px 12px; }
         .prod-spotify { display: inline-flex; align-items: center; gap: 8px; background: rgba(87,185,138,.1); border: 1px solid rgba(87,185,138,.35); border-radius: 8px; padding: 6px 11px; margin-bottom: 12px; }
         .ps-ico { color: #57b98a; font-size: 13px; }
         .ps-lbl { color: var(--text-dim); font-size: 11.5px; font-weight: 600; }
@@ -1224,6 +1224,34 @@ function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet,
         .cue-x:hover { color: var(--danger); }
         .cue-note { flex: 1; min-width: 0; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 6px; color: var(--text); font-size: 12px; padding: 4px 8px; outline: none; }
         .cue-note:focus { border-color: var(--primary); }
+      `}</style>
+    </div>
+  );
+}
+
+/* Preview — foaia finală (PDF-like), oglindește tot. Iframe + download/print. */
+function PreviewModal({ html, onClose }) {
+  const print = () => { const f = document.getElementById("pv-frame"); try { f && f.contentWindow && (f.contentWindow.focus(), f.contentWindow.print()); } catch {} };
+  return (
+    <div className="pv-back" onClick={onClose}>
+      <div className="pv" onClick={(e) => e.stopPropagation()}>
+        <div className="pv-top">
+          <span className="pv-title">Preview — foaia finală</span>
+          <button className="pv-dl" onClick={print} title="Deschide dialogul de print → Salvează ca PDF">⎙ Descarcă / Print</button>
+          <button className="pv-x" onClick={onClose} title="Închide">✕</button>
+        </div>
+        <iframe id="pv-frame" className="pv-frame" srcDoc={html} title="Preview foaie producție" />
+      </div>
+      <style jsx>{`
+        .pv-back { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.6); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 24px; }
+        .pv { width: 820px; max-width: 100%; height: 88vh; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 14px; overflow: hidden; }
+        .pv-top { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+        .pv-title { color: var(--text); font-size: 14px; font-weight: 700; }
+        .pv-dl { margin-left: auto; background: var(--primary); border: none; color: #fff; border-radius: 8px; padding: 7px 13px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+        .pv-dl:hover { filter: brightness(1.08); }
+        .pv-x { background: transparent; border: none; color: var(--text-faint); font-size: 15px; cursor: pointer; }
+        .pv-x:hover { color: var(--danger); }
+        .pv-frame { flex: 1; width: 100%; border: none; background: #fff; }
       `}</style>
     </div>
   );
