@@ -672,22 +672,34 @@ function buildProductionHtml(data) {
   const dot = (c) => `<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${esc(c)};border:1px solid #999;vertical-align:middle;margin-right:3px"></span>`;
   const rowsHtml = (data.items || []).map((r) => {
     if (r.type === "header") return `<div class="sec">${esc(r.title)}</div>`;
-    if (r.type === "transition") { const t = r.transition || {}; return `<div class="tr">&#8627; ${esc(TRANS_LBL[t.kind] || "Tranziție")}${t.key ? ` · ${esc(t.key)}` : ""}${(t.lights || []).map((l) => " " + dot(l.color)).join("")}</div>`; }
+    if (r.type === "transition") { const t = r.transition || {}; return `<div class="tr">&#8627; ${esc(TRANS_LBL[t.kind] || "Tranziție")}${t.key ? ` &middot; ${esc(t.key)}` : ""}${(t.lights || []).map((l) => " " + dot(l.color)).join("")}</div>`; }
     const voices = r.voices || []; const lead = voices.find((v) => v.role === "lead") || voices[0];
     const parts = voices.filter((v) => v !== lead).map((v) => `${VOICE_LBL[v.role] ? VOICE_LBL[v.role] + ": " : ""}${esc((v.name || "").split(" ")[0])}`);
-    const fx = (r.fixtures || []).map((f) => dot(f.color)).join("");
-    const cues = (r.sectionCues || []).slice().sort((a, b) => (a.idx || 0) - (b.idx || 0))
-      .filter((c) => (c.lights || []).length || c.note || c.projection || (c.reminders || []).length)
-      .map((c) => {
-        const col = (c.lights || [])[0] && c.lights[0].color ? " " + dot(c.lights[0].color) : "";
-        const rem = (c.reminders || []).map((rm) => ` <span class="rem">${REM_ICON[rm.icon] || "•"} ${esc(rm.text)}</span>`).join("");
-        return `<b>${esc(c.section)}</b>${col}${c.note ? ` ${esc(c.note)}` : ""}${c.projection ? ` &#9635; ${esc(c.projection)}` : ""}${rem}`;
-      }).join(" &nbsp;·&nbsp; ");
+    const seq = r.sequence || [];
+    const cueAt = (i) => (r.sectionCues || []).find((c) => c.idx === i) || null;
+    let seqHtml = "";
+    if (seq.length) {
+      const isolated = new Set(r.rowBreaks || []);
+      const rws = []; let run = [];
+      for (let i = 0; i < seq.length; i++) { if (isolated.has(i)) { if (run.length) { rws.push(run); run = []; } rws.push([i]); } else run.push(i); }
+      if (run.length) rws.push(run);
+      seqHtml = `<div class="seq">` + rws.map((row) => {
+        const chips = row.map((i) => { const c = cueAt(i); const col = c && c.lights && c.lights[0] && c.lights[0].color ? dot(c.lights[0].color) : ""; return `${col}${esc(seq[i])}`; }).join(" &middot; ");
+        if (row.length === 1 && isolated.has(row[0])) {
+          const c = cueAt(row[0]);
+          const extra = c ? `${c.note ? ` &mdash; ${esc(c.note)}` : ""}${c.projection ? ` &#9635; ${esc(c.projection)}` : ""}${(c.reminders || []).map((rm) => ` <span class="rem">${REM_ICON[rm.icon] || "•"} ${esc(rm.text)}</span>`).join("")}` : "";
+          return `<div class="seqrow solo">&#8627; <b>${chips}</b>${extra}</div>`;
+        }
+        return `<div class="seqrow">${chips}</div>`;
+      }).join("") + `</div>`;
+    }
     const projNote = (r.projection || [])[0] ? r.projection[0].note : "";
     const reminders = (r.reminders || []).map((rem) => `<span class="rem">${REM_ICON[rem.icon] || "•"} ${esc(rem.text)}</span>`).join(" ");
-    return `<div class="row">${r.keyName ? `<span class="k">${esc(r.keyName)}</span>` : ""}<span class="t">${esc(r.title)}</span>`
-      + `${lead || parts.length ? `<div class="v">${esc(lead ? lead.name : "")}${parts.length ? " · " + parts.join(" · ") : ""}</div>` : ""}`
-      + `${r.scene || fx || cues ? `<div class="lt">${r.scene ? `<b>${esc(r.scene.name)}</b> ` : ""}${fx}${cues ? ` &nbsp; &#10022; ${cues}` : ""}</div>` : ""}`
+    return `<div class="row">`
+      + `<div class="rh"><span class="t">${esc(r.title)}</span>${r.keyName ? `<span class="k">${esc(r.keyName)}</span>` : ""}</div>`
+      + `${lead || parts.length ? `<div class="v">${esc(lead ? lead.name : "")}${parts.length ? " &middot; " + parts.join(" &middot; ") : ""}</div>` : ""}`
+      + `${r.scene ? `<div class="lt"><b>&#9673; ${esc(r.scene.name)}</b></div>` : ""}`
+      + `${seqHtml}`
       + `${projNote ? `<div class="lt">&#9635; ${esc(projNote)}</div>` : ""}`
       + `${r.note ? `<div class="lt">&#9998; ${esc(r.note)}</div>` : ""}`
       + `${reminders ? `<div class="lt">${reminders}</div>` : ""}</div>`;
@@ -699,13 +711,19 @@ function buildProductionHtml(data) {
     body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111;margin:22px;font-size:13px}
     h1{font-size:18px;margin:0 0 10px}
     .sp{background:#e8f6ee;border:1px solid #bfe3cd;border-radius:6px;padding:6px 10px;margin-bottom:12px;display:inline-block}
-    .sec{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#666;margin:14px 0 4px}
-    .row{border:1px solid #ddd;border-radius:7px;padding:7px 10px;margin-bottom:5px;page-break-inside:avoid}
-    .t{font-weight:700;font-size:14px}.k{float:right;background:#6fa02e;color:#fff;border-radius:999px;padding:1px 8px;font-weight:700}
-    .v{color:#555;font-size:12px;margin-top:2px}.lt{margin-top:3px;font-size:12px;color:#444}
-    .tr{color:#666;font-style:italic;padding:2px 0 2px 16px;font-size:12px}
+    .sec{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#888;margin:18px 0 6px;border-bottom:1px solid #eee;padding-bottom:3px}
+    .row{border:none;border-left:3px solid #ececec;padding:4px 0 10px 13px;margin-bottom:9px;page-break-inside:avoid}
+    .rh{display:flex;align-items:center;gap:9px}
+    .t{font-weight:700;font-size:15px;color:#141414}
+    .k{background:#6fa02e;color:#fff;border-radius:999px;padding:1px 10px;font-weight:700;font-size:12px}
+    .v{color:#666;font-size:12.5px;margin-top:2px}.lt{margin-top:4px;font-size:12.5px;color:#444}
+    .seq{margin-top:7px;display:flex;flex-direction:column;gap:4px}
+    .seqrow{font-size:13px;color:#2b2b2b;line-height:1.5}
+    .seqrow.solo{background:#f7f8fa;border:1px solid #e6e9ee;border-radius:8px;padding:5px 11px}
+    .seqrow .rem{margin-left:4px}
+    .tr{color:#999;font-style:italic;padding:1px 0 1px 15px;font-size:12px}
     .rem{color:#b3261e;font-weight:600}
-    .sim{margin-top:18px;border-top:2px solid #b3261e;padding-top:8px;page-break-inside:avoid}.sim-h{color:#b3261e;font-weight:700;margin-bottom:4px}
+    .sim{margin-top:20px;border-top:2px solid #b3261e;padding-top:9px;page-break-inside:avoid}.sim-h{color:#b3261e;font-weight:700;margin-bottom:5px}
   </style></head><body><h1>Order Producție</h1>${spotify}${rowsHtml}${sim}</body></html>`;
   return html;
 }
@@ -843,12 +861,12 @@ function RehearseTab({ planId, canEdit = false, flash }) {
               );
             }
             const voiceLine = (r.voices || []).length ? formatVoices(r.voices) : "";
-            const fx = r.fixtures || [];
-            const cueCount = (r.sectionCues || []).filter((c) => (c.lights || []).length || c.note).length;
             const reminders = r.reminders || [];
             const projNote = (r.projection || [])[0]?.note || "";
             const note = r.note || "";
             const seq = r.sequence || [];
+            const secAnn = (r.sectionCues || []).slice().sort((a, b) => (a.idx || 0) - (b.idx || 0)).filter((c) => c.note || c.projection || (c.reminders || []).length);
+            const hasExtra = reminders.length || projNote || note || r.scene || secAnn.length;
             return (
               <div key={r.id} id={`prow-${r.id}`} className={`prod-item ${lv}`}>
                 <button className={`prod-row ${sel ? "sel" : ""}`} onClick={pick}>
@@ -864,17 +882,19 @@ function RehearseTab({ planId, canEdit = false, flash }) {
                       </div>
                     )}
                   </div>
-                  <span className="pr-sum">
-                    {r.scene && <span className="ls-name">{r.scene.name}</span>}
-                    {fx.map((f, i) => <span key={i} className="dot" style={{ background: f.color }} title={FIXTURE_LBL[f.fixture] || f.fixture} />)}
-                    {cueCount > 0 && <span className="ls-cue">✦{cueCount}</span>}
-                  </span>
                 </button>
-                {(reminders.length > 0 || projNote || note) && (
+                {hasExtra && (
                   <div className="pr-extra">
+                    {r.scene && <span className="pr-scene">◉ {r.scene.name}</span>}
                     {note && <span className="pr-note">✎ {note}</span>}
                     {projNote && <span className="pr-proj">▣ {projNote}</span>}
                     {reminders.map((rem, i) => <span key={i} className={`rem ${rem.severity === "high" ? "hi" : ""}`}>{REM_ICON[rem.icon] || "•"} {rem.text}</span>)}
+                    {secAnn.map((c, i) => {
+                      const col = (c.lights || [])[0]?.color || "";
+                      return (
+                        <span key={`s${i}`} className="pr-sann">↳ <b>{c.section}</b>{col && <span className="pr-sqdot" style={{ background: col }} />}{c.note ? ` ${c.note}` : ""}{c.projection ? ` ▣ ${c.projection}` : ""}{(c.reminders || []).map((rm, k) => <span key={k}> {REM_ICON[rm.icon] || "•"} {rm.text}</span>)}</span>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -968,6 +988,9 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .pr-extra { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 4px 2px 13px; }
         .pr-note { color: var(--text-dim); font-size: 11.5px; background: var(--surface-2); border-radius: 5px; padding: 2px 8px; }
         .pr-proj { color: var(--text-dim); font-size: 11.5px; background: var(--surface-2); border-radius: 5px; padding: 2px 8px; }
+        .pr-scene { color: var(--text-dim); font-size: 11.5px; font-weight: 600; background: var(--surface-2); border-radius: 5px; padding: 2px 8px; }
+        .pr-sann { display: inline-flex; align-items: center; gap: 4px; color: var(--text-dim); font-size: 11.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 5px; padding: 2px 8px; }
+        .pr-sann b { color: var(--text); font-weight: 700; }
         .rem { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--border); border-radius: 5px; padding: 2px 8px; }
         .rem.hi { color: #f0b5b0; background: rgba(229,83,75,.12); border-color: rgba(229,83,75,.4); font-weight: 600; }
         .prod-share.live-on { color: #e5534b; border-color: #e5534b; }
@@ -1064,53 +1087,70 @@ function StructureEditor({ sequence, sectionCues, rowBreaks, canEdit, onSave }) 
     if (hasData(merged)) next.push(merged);
     onSave({ sectionCues: next });
   };
-  const toggleBreak = (i) => { if (i <= 0) return; const next = breaks.includes(i) ? breaks.filter((x) => x !== i) : [...breaks, i].sort((a, b) => a - b); onSave({ rowBreaks: next }); };
-
-  // Construiește rândurile din sequence + breaks.
-  const rows = []; let cur = [];
-  for (let i = 0; i < sequence.length; i++) { if (i > 0 && breaks.includes(i)) { rows.push(cur); cur = []; } cur.push(i); }
-  if (cur.length) rows.push(cur);
+  // „rowBreaks" = secțiunile IZOLATE (fiecare pe rândul ei). Restul se grupează pe run-uri contigue.
+  const isolated = new Set(breaks);
+  const toggleIsolate = (i) => { const next = isolated.has(i) ? breaks.filter((x) => x !== i) : [...breaks, i].sort((a, b) => a - b); onSave({ rowBreaks: next }); };
+  const rows = []; let run = [];
+  for (let i = 0; i < sequence.length; i++) { if (isolated.has(i)) { if (run.length) { rows.push(run); run = []; } rows.push([i]); } else run.push(i); }
+  if (run.length) rows.push(run);
   const sel = selIdx != null ? (cueAt(selIdx) || { idx: selIdx, section: sequence[selIdx] }) : null;
 
   return (
     <div className="st">
-      <div className="st-h"><span className="st-l">Structură</span>{canEdit && <span className="st-hint">click pe o secțiune = editează · ↵ = rând nou de aici</span>}</div>
-      {rows.map((row, ri) => (
-        <div key={ri} className="st-row">
-          {row.map((i) => {
-            const c = cueAt(i); const color = c?.lights?.[0]?.color || "";
-            return (
-              <button key={i} className={`st-sec ${selIdx === i ? "on" : ""} ${hasData(c) ? "has" : ""}`} draggable={canEdit}
-                onClick={() => setSelIdx(selIdx === i ? null : i)}
-                onDragStart={() => setDragIdx(i)} onDragEnd={() => setDragIdx(null)}>
-                {color && <span className="st-dot" style={{ background: color }} />}
-                <span className="st-nm">{sequence[i]}</span>
-                {hasData(c) && !color && <span className="st-mark">•</span>}
-                {canEdit && i > 0 && <span className="st-split" title={breaks.includes(i) ? "Unește cu rândul de sus" : "Rând nou de aici"} onClick={(e) => { e.stopPropagation(); toggleBreak(i); }}>{breaks.includes(i) ? "⤴" : "↵"}</span>}
-              </button>
-            );
-          })}
-        </div>
-      ))}
-      {canEdit && dragIdx != null && (
-        <div className="st-drop" onDragOver={(e) => e.preventDefault()} onDrop={() => { if (dragIdx > 0) toggleBreak(dragIdx); setDragIdx(null); }}>⬇ lasă aici = rând nou</div>
-      )}
+      <div className="st-h"><span className="st-l">Structură</span></div>
+      <div className="st-box">
+        {rows.map((row, ri) => {
+          const solo = row.length === 1 && isolated.has(row[0]);
+          const c0 = solo ? cueAt(row[0]) : null;
+          return (
+            <div key={ri} className={`st-row ${solo ? "solo" : ""}`}>
+              {solo && <span className="st-arrow">↳</span>}
+              {row.map((i) => {
+                const c = cueAt(i); const color = c?.lights?.[0]?.color || "";
+                return (
+                  <button key={i} className={`st-sec ${selIdx === i ? "on" : ""} ${hasData(c) ? "has" : ""}`} draggable={canEdit}
+                    onClick={() => setSelIdx(selIdx === i ? null : i)}
+                    onDragStart={() => setDragIdx(i)} onDragEnd={() => setDragIdx(null)}>
+                    {color && <span className="st-dot" style={{ background: color }} />}
+                    <span className="st-nm">{sequence[i]}</span>
+                    {hasData(c) && !color && <span className="st-mark">•</span>}
+                    {canEdit && <span className="st-split" title={isolated.has(i) ? "Readu în rând" : "Pune pe rândul lui"} onClick={(e) => { e.stopPropagation(); toggleIsolate(i); }}>{isolated.has(i) ? "⤴" : "↵"}</span>}
+                  </button>
+                );
+              })}
+              {solo && c0 && (<>
+                {c0.note && <span className="st-cnote">{c0.note}</span>}
+                {c0.projection && <span className="st-cnote">▣ {c0.projection}</span>}
+                {(c0.reminders || []).map((rm, k) => <span key={k} className="st-crem">{REM_ICON[rm.icon] || "•"} {rm.text}</span>)}
+              </>)}
+            </div>
+          );
+        })}
+        {canEdit && dragIdx != null && (
+          <div className="st-drop" onDragOver={(e) => e.preventDefault()} onDrop={() => { toggleIsolate(dragIdx); setDragIdx(null); }}>⬇ lasă aici = secțiunea pe rândul ei</div>
+        )}
+      </div>
       {sel && <SectionEditor key={selIdx} section={sequence[selIdx]} cue={sel} canEdit={canEdit} onSave={(patch) => setCue(selIdx, patch)} onClose={() => setSelIdx(null)} />}
       <style jsx>{`
         .st { margin-top: 6px; }
-        .st-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+        .st-h { margin-bottom: 8px; }
         .st-l { color: var(--text-faint); font-size: 11px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
-        .st-hint { color: var(--text-faint); font-size: 11px; }
-        .st-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; padding: 6px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; }
-        .st-sec { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 8px; padding: 5px 10px; color: var(--text); font-size: 13.5px; font-weight: 600; cursor: pointer; }
+        .st-box { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 7px; }
+        .st-row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+        .st-row.solo { background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 9px; padding: 7px 9px; }
+        .st-arrow { color: var(--text-faint); font-size: 14px; flex: none; }
+        .st-sec { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 8px; padding: 6px 11px; color: var(--text); font-size: 13.5px; font-weight: 600; cursor: pointer; }
+        .st-row.solo .st-sec { background: var(--surface); }
         .st-sec:hover { border-color: var(--text-faint); }
-        .st-sec.on { background: rgba(47,129,247,.14); border-color: var(--primary); }
+        .st-sec.on { background: rgba(47,129,247,.16); border-color: var(--primary); }
         .st-sec.has { box-shadow: inset 0 -2px 0 rgba(229,83,75,.5); }
         .st-dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--border-strong); }
         .st-mark { color: #e5534b; font-size: 14px; line-height: 1; }
         .st-split { color: var(--text-faint); font-size: 12px; margin-left: 2px; }
         .st-split:hover { color: var(--primary); }
-        .st-drop { margin-top: 8px; border: 1px dashed var(--primary); border-radius: 8px; padding: 10px; text-align: center; color: var(--primary); font-size: 12px; background: rgba(47,129,247,.07); }
+        .st-cnote { color: var(--text-dim); font-size: 12px; background: var(--surface-2); border-radius: 5px; padding: 2px 8px; }
+        .st-crem { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: #f0b5b0; background: rgba(229,83,75,.12); border: 1px solid rgba(229,83,75,.4); border-radius: 5px; padding: 2px 8px; font-weight: 600; }
+        .st-drop { border: 1px dashed var(--primary); border-radius: 8px; padding: 10px; text-align: center; color: var(--primary); font-size: 12px; background: rgba(47,129,247,.07); }
       `}</style>
     </div>
   );
