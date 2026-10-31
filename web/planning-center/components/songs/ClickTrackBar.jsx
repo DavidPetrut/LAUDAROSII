@@ -6,7 +6,7 @@
  * Controale LIVE care NU modifică setările salvate ale aranjamentului.
  */
 import { useEffect, useRef, useState } from "react";
-import { ClickTrackEngine, accentPattern, KEYS, METERS, PADS } from "@/lib/clicktrack/engine";
+import { ClickTrackEngine, accentPattern, KEYS, METERS } from "@/lib/clicktrack/engine";
 import { usePlayer } from "@/lib/player/PlayerProvider";
 
 function NoteMute({ muted, onClick, title }) {
@@ -27,10 +27,9 @@ function NoteMute({ muted, onClick, title }) {
 
 export default function ClickTrackBar({ defaults, playerActive, onClose }) {
   const engineRef = useRef(null);
-  const [st, setSt] = useState({ keyName: "C", mode: "major", bpm: 72, meter: "4/4", playing: false, padReady: false, loadingPad: false, padMuted: false, clickMuted: false, padIndex: 0 });
+  const [st, setSt] = useState({ keyName: "C", mode: "major", bpm: 72, meter: "4/4", playing: false, padReady: false, loadingPad: false, padMuted: false, clickMuted: false });
   const [beat, setBeat] = useState(-1);
   const [keyOpen, setKeyOpen] = useState(false);
-  const [padOpen, setPadOpen] = useState(false);
   const { registerBar, unregisterBar } = usePlayer();
 
   // înregistrează bara click track (înălțime ~92px) ca toast-urile/AI să știe de ea
@@ -61,28 +60,13 @@ export default function ClickTrackBar({ defaults, playerActive, onClose }) {
         {/* Board 1 — Pad (sunet + gamă) */}
         <div className="board">
           <div className="board-h">
-            <div className="padwrap">
-              <button className="pad-title" onClick={() => { setPadOpen((o) => !o); setKeyOpen(false); }} title="Alege sunetul de pad">
-                PAD <span className="pt-dash">—</span> <b>Pad {st.padIndex + 1}</b>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
-              </button>
-              {padOpen && (
-                <>
-                  <div className="keybackdrop" onClick={() => setPadOpen(false)} />
-                  <div className="padgrid">
-                    {PADS.map((p, i) => (
-                      <button key={i} className={`keyopt ${i === st.padIndex ? "on" : ""}`} title={p.label} onClick={() => { eng().setPadIndex(i); setPadOpen(false); }}>Pad {i + 1}</button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+            <span className="pad-lbl">PAD <b>{st.mode === "minor" ? "Minor" : "Major"}</b></span>
             <NoteMute muted={st.padMuted} onClick={() => eng().setPadMuted(!st.padMuted)} title="Mut pad" />
           </div>
           <div className="row">
             {/* selector GAMĂ */}
             <div className="keywrap">
-              <button className="keybtn" onClick={() => { setKeyOpen((o) => !o); setPadOpen(false); }} title="Alege gama">
+              <button className="keybtn" onClick={() => setKeyOpen((o) => !o)} title="Alege gama">
                 <span>{st.keyName}</span>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
               </button>
@@ -166,6 +150,8 @@ export default function ClickTrackBar({ defaults, playerActive, onClose }) {
         .pad-title:hover { background: var(--surface-2); }
         .pad-title:hover b { text-decoration: underline; }
         .pt-dash { color: var(--text-faint); }
+        .pad-lbl { color: var(--text-faint); font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase; }
+        .pad-lbl b { color: var(--text); font-size: 12.5px; text-transform: none; letter-spacing: 0; margin-left: 3px; }
         .padgrid { position: absolute; left: 0; bottom: 100%; margin-bottom: 8px; z-index: 91; display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 10px; padding: 11px; box-shadow: 0 12px 34px rgba(0,0,0,.55); }
         .padgrid .keyopt { min-width: 60px; padding: 10px 14px; text-align: center; }
         input[type="number"] { width: 58px; text-align: center; }

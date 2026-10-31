@@ -1,0 +1,30 @@
+{
+  "major": {
+    "C": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488376/clickpads/pad-major-C.mp3",
+    "Db": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488378/clickpads/pad-major-Db.mp3",
+    "D": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488380/clickpads/pad-major-D.mp3",
+    "Eb": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488381/clickpads/pad-major-Eb.mp3",
+    "E": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488383/clickpads/pad-major-E.mp3",
+    "F": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488384/clickpads/pad-major-F.mp3",
+    "Gb": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488385/clickpads/pad-major-Gb.mp3",
+    "G": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488386/clickpads/pad-major-G.mp3",
+    "Ab": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488388/clickpads/pad-major-Ab.mp3",
+    "A": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488389/clickpads/pad-major-A.mp3",
+    "Bb": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488390/clickpads/pad-major-Bb.mp3",
+    "B": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488392/clickpads/pad-major-B.mp3"
+  },
+  "minor": {
+    "C": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488393/clickpads/pad-minor-C.mp3",
+    "Db": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488394/clickpads/pad-minor-Db.mp3",
+    "D": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488396/clickpads/pad-minor-D.mp3",
+    "Eb": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488397/clickpads/pad-minor-Eb.mp3",
+    "E": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488398/clickpads/pad-minor-E.mp3",
+    "F": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488399/clickpads/pad-minor-F.mp3",
+    "Gb": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488401/clickpads/pad-minor-Gb.mp3",
+    "G": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488403/clickpads/pad-minor-G.mp3",
+    "Ab": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488405/clickpads/pad-minor-Ab.mp3",
+    "A": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488407/clickpads/pad-minor-A.mp3",
+    "Bb": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488409/clickpads/pad-minor-Bb.mp3",
+    "B": "https://res.cloudinary.com/jn70srsw/video/upload/v1793488411/clickpads/pad-minor-B.mp3"
+  }
+}
