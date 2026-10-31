@@ -218,7 +218,7 @@ export function PlanScreen({ route, navigation }) {
               }}
             >
               <Ionicons name="albums-outline" size={22} color={pcColors.textPrimary} />
-              <Text style={styles.menuTxt}>Șablon Order</Text>
+              <Text style={styles.menuTxt}>Arrangement order</Text>
             </Pressable>
           )}
           {MENU.map((m) => (

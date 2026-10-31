@@ -266,7 +266,7 @@ export default function PlansPage() {
                     </select></label>
                   </div>
                   <div className="frow">
-                    <label>Șablon Order (din „Save as Template")<select value={addOrderTpl} onChange={(e) => setAddOrderTpl(e.target.value)}>
+                    <label>Arrangement order (din „Save as Template")<select value={addOrderTpl} onChange={(e) => setAddOrderTpl(e.target.value)}>
                       <option value="">Fără șablon de order</option>
                       {addTpls.map((t) => <option key={t.id} value={t.id}>{t.name}{t.isDefault ? " · default" : ""} ({t.itemCount})</option>)}
                     </select></label>

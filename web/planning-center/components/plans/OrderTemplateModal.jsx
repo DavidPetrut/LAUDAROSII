@@ -63,7 +63,7 @@ export default function OrderTemplateModal({ planId, serviceTypeId, serviceTypeN
   }
 
   return (
-    <Modal title="Șablon Order" width={600} onClose={onClose}
+    <Modal title="Arrangement order" width={600} onClose={onClose}
       footer={<>
         <button className="btn btn-ghost" onClick={onClose} disabled={busy}>Închide</button>
         {canEdit && <button className="btn btn-primary" onClick={() => setSaveAs(true)} disabled={busy}>Salvează structura curentă ca șablon nou</button>}

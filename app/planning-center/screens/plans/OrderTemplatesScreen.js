@@ -126,7 +126,7 @@ export function OrderTemplatesScreen({ route, navigation }) {
         <Pressable onPress={() => navigation.goBack()} hitSlop={10}>
           <Ionicons name="close" size={26} color={pcColors.primary} />
         </Pressable>
-        <Text style={styles.headerTitle}>Șablon Order</Text>
+        <Text style={styles.headerTitle}>Arrangement order</Text>
         <View style={{ width: 26 }} />
       </View>
 
