@@ -41,6 +41,7 @@ module.exports = {
   PcPlanTemplate: require("./PcPlanTemplate"),
   PcProductionSheet: require("./PcProductionSheet"),
   PcLightScene: require("./PcLightScene"),
+  PcProductionSnippet: require("./PcProductionSnippet"),
   PcTimePreferenceOption: require("./PcTimePreferenceOption"),
   PcSchedulingPreference: require("./PcSchedulingPreference"),
   PcSong: require("./PcSong"),

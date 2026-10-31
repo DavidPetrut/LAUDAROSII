@@ -21,6 +21,7 @@ router.use("/v1/plans", require("./plans"));
 router.use("/v1/order-templates", require("./orderTemplates"));
 router.use("/v1/light-arrangements", require("./lightArrangements"));
 router.use("/v1/production-scenes", require("./productionScenes"));
+router.use("/v1/production-snippets", require("./productionSnippets"));
 router.use("/v1/service-types", require("./services"));
 router.use("/v1/teams", require("./teams"));
 router.use("/v1/songs", require("./songs"));

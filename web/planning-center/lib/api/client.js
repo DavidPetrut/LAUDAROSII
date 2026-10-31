@@ -95,6 +95,8 @@ export const plansApi = {
   // Order-ul Producției (Rehearse) — overlay ONE-WAY peste Order (nu scrie în Order):
   production: (id) => api.get(`/plans/${id}/production`),
   saveProduction: (id, payload) => api.patch(`/plans/${id}/production`, payload), // { item:{itemId,...} | reminders | simFeedback }
+  productionProducers: (id) => api.get(`/plans/${id}/production/producers`),
+  shareProduction: (id, toPersonId) => api.post(`/plans/${id}/production/share`, { toPersonId }), // copiază foaia mea la alt producător
   times: (id) => api.get(`/plans/${id}/times`),
   addTime: (id, payload) => api.post(`/plans/${id}/times`, payload),       // { type, name, date, startTime, endTime }
   updateTime: (id, timeId, payload) => api.patch(`/plans/${id}/times/${timeId}`, payload),
@@ -203,6 +205,13 @@ export const productionScenesApi = {
   create: (payload) => api.post(`/production-scenes`, payload), // { name, fixtures:[{fixture,color}], intensityNote }
   update: (id, payload) => api.patch(`/production-scenes/${id}`, payload),
   remove: (id) => api.del(`/production-scenes/${id}`),
+};
+
+/* ─── Șabloane de note producător — server/planning-center/routes/productionSnippets.js ─── */
+export const productionSnippetsApi = {
+  list: () => api.get(`/production-snippets`), // { snippets:[{id,text}] } — ale mele
+  create: (text) => api.post(`/production-snippets`, { text }),
+  remove: (id) => api.del(`/production-snippets/${id}`),
 };
 
 /* ─── Service Types (settings) — server/planning-center/routes/services.js ─── */

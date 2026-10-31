@@ -165,6 +165,7 @@ function ProductionOrder({ data }) {
         const cueCount = (r.sectionCues || []).filter((c) => (c.lights || []).length || c.note).length;
         const reminders = r.reminders || [];
         const projNote = (r.projection || [])[0]?.note || "";
+        const noteTxt = r.note || "";
         return (
           <View key={String(r.id)} style={{ marginBottom: 6 }}>
             <View style={styles.prodRow}>
@@ -187,8 +188,9 @@ function ProductionOrder({ data }) {
                 {!!r.keyName && <View style={styles.prKey}><Text style={styles.prKeyTxt}>{r.keyName}</Text></View>}
               </View>
             </View>
-            {(reminders.length > 0 || !!projNote) && (
+            {(reminders.length > 0 || !!projNote || !!noteTxt) && (
               <View style={styles.prExtra}>
+                {!!noteTxt && <Text style={styles.prProj}>✎ {noteTxt}</Text>}
                 {!!projNote && <Text style={styles.prProj}>▣ {projNote}</Text>}
                 {reminders.map((rem, i) => <Text key={i} style={[styles.rem, rem.severity === "high" && styles.remHi]}>{REM_ICON[rem.icon] || "•"} {rem.text}</Text>)}
               </View>

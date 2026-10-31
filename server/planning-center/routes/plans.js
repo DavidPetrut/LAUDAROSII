@@ -2330,4 +2330,37 @@ router.patch("/:id/production", requireAny(["services.viewRehearsal", "services.
   }
 });
 
+// GET producători — persoanele cu cont (pt. partajarea foii de producție).
+router.get("/:id/production/producers", requireCan("people.view"), async (req, res) => {
+  try {
+    const people = await PcPerson.find(scoped(req, { userId: { $ne: null } })).select("firstName lastName avatar").sort({ firstName: 1, lastName: 1 }).limit(400).lean();
+    res.json({ producers: people.map((p) => personMini(p)) });
+  } catch (err) { console.error("[pc] GET production/producers:", err.message); res.status(500).json({ error: "Eroare." }); }
+});
+
+// POST share — copiază foaia MEA de pe acest plan la alt producător (toPersonId). Nu atinge Order.
+const stripSubId = (o) => { const { _id, ...rest } = o || {}; return rest; };
+router.post("/:id/production/share", requireAny(["services.viewRehearsal", "services.editOrder"]), async (req, res) => {
+  try {
+    const id = OID(req.params.id);
+    const viewer = await viewerPersonId(req);
+    const to = OID((req.body || {}).toPersonId);
+    if (!id || !viewer || !to) return res.status(400).json({ error: "Date invalide." });
+    if (String(to) === String(viewer)) return res.status(400).json({ error: "E deja foaia ta." });
+    const mine = await PcProductionSheet.findOne(scoped(req, { planId: id, ownerId: viewer })).lean();
+    if (!mine) return res.status(404).json({ error: "N-ai nimic de partajat pe acest plan." });
+    await PcProductionSheet.findOneAndUpdate(
+      scoped(req, { planId: id, ownerId: to }),
+      { $set: {
+        orgId: req.pcOrgId, planId: id, ownerId: to, scope: "owner",
+        items: (mine.items || []).map(stripSubId),
+        reminders: (mine.reminders || []).map(stripSubId),
+        simFeedback: (mine.simFeedback || []).map(stripSubId),
+      } },
+      { upsert: true }
+    );
+    res.json({ ok: true });
+  } catch (err) { console.error("[pc] POST production/share:", err.message); res.status(500).json({ error: "Eroare la partajare." }); }
+});
+
 module.exports = router;

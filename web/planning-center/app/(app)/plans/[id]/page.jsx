@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { plansApi, peopleApi, productionScenesApi } from "@/lib/api/client";
+import { plansApi, peopleApi, productionScenesApi, productionSnippetsApi } from "@/lib/api/client";
 import { useAiSurface } from "@/lib/ai/useAiSurface";
 import PersonAvatar from "@/components/plans/PersonAvatar";
 import Skeleton from "@/components/ui/Skeleton";
@@ -666,16 +666,30 @@ const uniqSections = (seq) => { const seen = new Set(), out = []; for (const s o
 function RehearseTab({ planId, canEdit = false, flash }) {
   const [data, setData] = useState(null);
   const [scenes, setScenes] = useState([]);
+  const [snippets, setSnippets] = useState([]);
   const [editing, setEditing] = useState(null); // itemId în curs de redenumire
   const [draft, setDraft] = useState("");
-  const [lightsFor, setLightsFor] = useState(null); // itemId cu panoul de lumini deschis
+  const [lightsFor, setLightsFor] = useState(null); // itemId cu panoul de producție deschis
+  const [share, setShare] = useState(false); // dialog partajare
 
   const load = () => plansApi.production(planId).then(setData).catch(() => setData({ items: [] }));
+  const loadSnippets = () => productionSnippetsApi.list().then((r) => setSnippets(r.snippets || [])).catch(() => {});
   useEffect(() => {
     load();
     productionScenesApi.list().then((r) => setScenes(r.scenes || [])).catch(() => {});
+    loadSnippets();
     /* eslint-disable-next-line */
   }, [planId]);
+
+  async function saveSnippet(text) {
+    const t = (text || "").trim(); if (!t || snippets.some((s) => s.text === t)) return;
+    try { const r = await productionSnippetsApi.create(t); setSnippets((p) => [...p, { id: r.id, text: r.text }]); }
+    catch (e) { flash?.(e?.message || "Eroare."); }
+  }
+  async function delSnippet(id) {
+    try { await productionSnippetsApi.remove(id); setSnippets((p) => p.filter((s) => String(s.id) !== String(id))); }
+    catch (e) { flash?.(e?.message || "Eroare."); }
+  }
 
   const patchRow = (id, patch) => setData((d) => ({ ...d, items: d.items.map((r) => (String(r.id) === String(id) ? { ...r, ...patch } : r)) }));
 
@@ -703,7 +717,9 @@ function RehearseTab({ planId, canEdit = false, flash }) {
       <div className="prod-head">
         <span className="prod-cnt">{songCount} cântece · {rows.length} momente</span>
         <span className="prod-hint">Order-ul tău de producție — se sincronizează din Order, nu-l modifică.</span>
+        {canEdit && <button className="prod-share" onClick={() => setShare(true)} title="Trimite copia foii tale altui producător">⤴ Partajează</button>}
       </div>
+      {share && <ShareDialog planId={planId} onClose={() => setShare(false)} flash={flash} />}
 
       {data.spotify && (
         <div className="prod-spotify" title="Gama pentru playlistul Spotify de pre-serviciu (din prima gamă a order-ului)">
@@ -736,6 +752,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
           const cueCount = (r.sectionCues || []).filter((c) => (c.lights || []).length || c.note).length;
           const reminders = r.reminders || [];
           const projNote = (r.projection || [])[0]?.note || "";
+          const note = r.note || "";
           const open = String(lightsFor) === String(r.id);
           return (
             <div key={r.id} className="prod-item">
@@ -769,13 +786,14 @@ function RehearseTab({ planId, canEdit = false, flash }) {
                   {r.keyName && <span className="pr-key">{r.keyName}</span>}
                 </div>
               </div>
-              {(reminders.length > 0 || projNote) && (
+              {(reminders.length > 0 || projNote || note) && (
                 <div className="pr-extra">
+                  {note && <span className="pr-note">✎ {note}</span>}
                   {projNote && <span className="pr-proj">▣ {projNote}</span>}
                   {reminders.map((rem, i) => <span key={i} className={`rem ${rem.severity === "high" ? "hi" : ""}`}>{REM_ICON[rem.icon] || "•"} {rem.text}</span>)}
                 </div>
               )}
-              {open && <LightsPanel r={r} scenes={scenes} canEdit={canEdit} onSave={(patch) => saveItem(r, patch)} />}
+              {open && <LightsPanel r={r} scenes={scenes} snippets={snippets} canEdit={canEdit} onSave={(patch) => saveItem(r, patch)} onSaveSnippet={saveSnippet} onDelSnippet={delSnippet} />}
             </div>
           );
         })}
@@ -813,7 +831,10 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .ps-lbl { color: var(--text-dim); font-size: 11.5px; font-weight: 600; }
         .ps-key { color: var(--text); font-size: 13px; font-weight: 700; }
         .ps-rel { color: var(--text-faint); font-size: 11.5px; }
+        .prod-share { margin-left: auto; background: transparent; border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 7px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
+        .prod-share:hover { color: var(--primary); border-color: var(--primary); }
         .pr-extra { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 4px 2px 13px; }
+        .pr-note { color: var(--text-dim); font-size: 11.5px; background: var(--surface-2); border-radius: 5px; padding: 2px 8px; }
         .pr-proj { color: var(--text-dim); font-size: 11.5px; background: var(--surface-2); border-radius: 5px; padding: 2px 8px; }
         .rem { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--border); border-radius: 5px; padding: 2px 8px; }
         .rem.hi { color: #f0b5b0; background: rgba(229,83,75,.12); border-color: rgba(229,83,75,.4); font-weight: 600; }
@@ -827,10 +848,13 @@ function RehearseTab({ planId, canEdit = false, flash }) {
   );
 }
 
-/* Panou producție per item: scenă + fixtures + lumini pe secțiune + proiecție + remindere. */
-function LightsPanel({ r, scenes, canEdit, onSave }) {
+/* Panou producție per item: notă + scenă + fixtures + lumini pe secțiune + proiecție + remindere. */
+function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet, onDelSnippet }) {
   const [remText, setRemText] = useState("");
   const [remIcon, setRemIcon] = useState("info");
+  const [snipOpen, setSnipOpen] = useState(false);
+  const [noteVal, setNoteVal] = useState(r.note || "");
+  const insertSnippet = (text) => { const next = (noteVal.trim() ? noteVal.trim() + " · " : "") + text; setNoteVal(next); onSave({ note: next }); setSnipOpen(false); };
   const fx = r.fixtures || [];
   const colorOf = (key) => (fx.find((f) => f.fixture === key) || {}).color || "";
   const setFixture = (key, color) => {
@@ -866,6 +890,33 @@ function LightsPanel({ r, scenes, canEdit, onSave }) {
 
   return (
     <div className="lp">
+      {/* Notă personală + șabloane */}
+      <div className="lp-row">
+        <span className="lp-lbl">Notă</span>
+        <div className="lp-note">
+          <input className="note-in" value={noteVal} disabled={!canEdit} placeholder="notă personală pe acest moment…"
+            onChange={(e) => setNoteVal(e.target.value)}
+            onBlur={() => { if (noteVal !== (r.note || "")) onSave({ note: noteVal }); }} />
+          {canEdit && (
+            <div className="note-tpl">
+              <button className="note-sv" title="Salvează nota ca șablon" disabled={!noteVal.trim()} onClick={() => onSaveSnippet?.(noteVal)}>★</button>
+              <button className="note-pick" onClick={() => setSnipOpen((v) => !v)} title="Inserează din șabloane">▾</button>
+              {snipOpen && (<>
+                <div className="note-back" onClick={() => setSnipOpen(false)} />
+                <div className="note-menu">
+                  {snippets.length === 0 && <div className="note-none">Niciun șablon. Salvează unul cu ★.</div>}
+                  {snippets.map((s) => (
+                    <div key={s.id} className="note-it">
+                      <button className="note-apply" onClick={() => insertSnippet(s.text)}>{s.text}</button>
+                      <button className="note-del" onClick={() => onDelSnippet?.(s.id)} title="Șterge șablonul">✕</button>
+                    </div>
+                  ))}
+                </div>
+              </>)}
+            </div>
+          )}
+        </div>
+      </div>
       {/* Scene */}
       <div className="lp-row">
         <span className="lp-lbl">Scenă</span>
@@ -975,6 +1026,22 @@ function LightsPanel({ r, scenes, canEdit, onSave }) {
         .rem-presets { display: flex; flex-wrap: wrap; gap: 6px; }
         .rem-pre { background: transparent; border: 1px dashed var(--border-strong); color: var(--text-faint); border-radius: 6px; padding: 3px 9px; font-size: 11.5px; cursor: pointer; }
         .rem-pre:hover { color: var(--primary); border-color: var(--primary); }
+        .lp-note { position: relative; display: flex; gap: 6px; }
+        .note-in { flex: 1; min-width: 0; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text); font-size: 12.5px; padding: 6px 10px; outline: none; }
+        .note-in:focus { border-color: var(--primary); }
+        .note-tpl { position: relative; display: flex; gap: 4px; flex: none; }
+        .note-sv, .note-pick { background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 6px; color: var(--text-dim); width: 30px; cursor: pointer; font-size: 13px; }
+        .note-sv:disabled { opacity: .4; cursor: default; }
+        .note-sv:hover:not(:disabled) { color: #f0d94d; }
+        .note-pick:hover { color: var(--primary); }
+        .note-back { position: fixed; inset: 0; z-index: 6; }
+        .note-menu { position: absolute; z-index: 8; top: 34px; right: 0; width: 240px; max-height: 220px; overflow: auto; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 9px; box-shadow: 0 12px 34px rgba(0,0,0,.45); padding: 6px; }
+        .note-none { color: var(--text-faint); font-size: 12px; padding: 8px; }
+        .note-it { display: flex; align-items: center; gap: 4px; }
+        .note-apply { flex: 1; text-align: left; background: transparent; border: none; color: var(--text); font-size: 12.5px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+        .note-apply:hover { background: var(--surface-2); }
+        .note-del { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 11px; }
+        .note-del:hover { color: var(--danger); }
         .lp-row { display: grid; grid-template-columns: 78px 1fr; gap: 10px; align-items: start; }
         .lp-lbl { color: var(--text-faint); font-size: 10.5px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; padding-top: 6px; }
         .lp-scenes { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -999,6 +1066,56 @@ function LightsPanel({ r, scenes, canEdit, onSave }) {
         .cue-x:hover { color: var(--danger); }
         .cue-note { flex: 1; min-width: 0; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 6px; color: var(--text); font-size: 12px; padding: 4px 8px; outline: none; }
         .cue-note:focus { border-color: var(--primary); }
+      `}</style>
+    </div>
+  );
+}
+
+/* Dialog partajare: copiază foaia MEA de producție de pe acest plan la alt producător. */
+function ShareDialog({ planId, onClose, flash }) {
+  const [people, setPeople] = useState([]);
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(null);
+  useEffect(() => { plansApi.productionProducers(planId).then((r) => setPeople(r.producers || [])).catch(() => {}); }, [planId]);
+  const filtered = people.filter((p) => (p.name || "").toLowerCase().includes(q.toLowerCase())).slice(0, 60);
+  async function doShare(p) {
+    if (typeof window !== "undefined" && !window.confirm(`Trimiți copia foii tale de producție lui ${p.name}?\nÎi suprascrie foaia lui pe acest plan (nu atinge Order-ul).`)) return;
+    setBusy(p.id);
+    try { await plansApi.shareProduction(planId, p.id); flash?.(`Foaie trimisă lui ${p.name}.`); onClose(); }
+    catch (e) { flash?.(e?.message || "Eroare la partajare."); setBusy(null); }
+  }
+  return (
+    <div className="sd-back" onClick={onClose}>
+      <div className="sd" onClick={(e) => e.stopPropagation()}>
+        <div className="sd-h">Partajează foaia de producție</div>
+        <div className="sd-sub">Copia foii tale (lumini, note, remindere) ajunge la producătorul ales, ca punct de start.</div>
+        <input className="sd-q" autoFocus placeholder="caută producător…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="sd-list">
+          {filtered.map((p) => (
+            <button key={p.id} className="sd-p" disabled={!!busy} onClick={() => doShare(p)}>
+              <span className="sd-av">{p.initials}</span>
+              <span className="sd-nm">{p.name}</span>
+              {String(busy) === String(p.id) && <span className="sd-busy">…</span>}
+            </button>
+          ))}
+          {filtered.length === 0 && <div className="sd-none">Niciun producător găsit.</div>}
+        </div>
+      </div>
+      <style jsx>{`
+        .sd-back { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+        .sd { width: 420px; max-width: 100%; max-height: 80vh; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 14px; padding: 18px 18px 14px; }
+        .sd-h { color: var(--text); font-size: 16px; font-weight: 700; }
+        .sd-sub { color: var(--text-faint); font-size: 12.5px; margin: 4px 0 12px; line-height: 1.5; }
+        .sd-q { background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text); font-size: 13px; padding: 8px 11px; outline: none; margin-bottom: 10px; }
+        .sd-q:focus { border-color: var(--primary); }
+        .sd-list { overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+        .sd-p { display: flex; align-items: center; gap: 10px; background: transparent; border: none; color: var(--text); padding: 8px 9px; border-radius: 8px; cursor: pointer; text-align: left; }
+        .sd-p:hover:not(:disabled) { background: var(--surface-2); }
+        .sd-p:disabled { opacity: .5; cursor: default; }
+        .sd-av { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text-dim); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+        .sd-nm { flex: 1; font-size: 13.5px; }
+        .sd-busy { color: var(--text-faint); }
+        .sd-none { color: var(--text-faint); font-size: 12.5px; padding: 12px; text-align: center; }
       `}</style>
     </div>
   );
