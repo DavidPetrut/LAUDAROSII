@@ -151,6 +151,8 @@ function ProductionOrder({ data }) {
         const voices = r.voices || [];
         const lead = voices.find((v) => v.role === "lead") || voices[0];
         const parts = voices.filter((v) => v !== lead).map((v) => `${VOICE_LBL[v.role] ? VOICE_LBL[v.role] + ": " : ""}${String(v.name || "").split(" ")[0]}`);
+        const fx = r.fixtures || [];
+        const cueCount = (r.sectionCues || []).filter((c) => (c.lights || []).length || c.note).length;
         return (
           <View key={String(r.id)} style={styles.prodRow}>
             <View style={{ flex: 1, minWidth: 0 }}>
@@ -160,9 +162,15 @@ function ProductionOrder({ data }) {
                   {lead ? lead.name : ""}{parts.length > 0 ? `  ·  ${parts.join(" · ")}` : ""}
                 </Text>
               )}
+              {!!(r.scene || fx.length || cueCount) && (
+                <View style={styles.prLights}>
+                  {!!r.scene && <Text style={styles.prScene}>{r.scene.name}</Text>}
+                  {fx.map((f, i) => <View key={i} style={[styles.dot, { backgroundColor: f.color || "#888" }]} />)}
+                  {cueCount > 0 && <Text style={styles.prCue}>✦{cueCount}</Text>}
+                </View>
+              )}
             </View>
             <View style={styles.prSide}>
-              {(r.lights || []).map((l, i) => <View key={i} style={[styles.dot, { backgroundColor: l.color || "#888" }]} />)}
               {!!r.keyName && <View style={styles.prKey}><Text style={styles.prKeyTxt}>{r.keyName}</Text></View>}
             </View>
           </View>
@@ -213,6 +221,9 @@ const styles = StyleSheet.create({
   prodRow: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: pcColors.card, borderRadius: 10, paddingHorizontal: 13, paddingVertical: 11, marginBottom: 6 },
   prTitle: { color: pcColors.textPrimary, fontSize: 15, fontWeight: "700" },
   prVoices: { color: pcColors.textSecondary, fontSize: 12.5, marginTop: 2 },
+  prLights: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 5, flexWrap: "wrap" },
+  prScene: { color: pcColors.textSecondary, fontSize: 11, fontWeight: "600" },
+  prCue: { color: pcColors.textMuted, fontSize: 10.5 },
   prSide: { flexDirection: "row", alignItems: "center", gap: 6 },
   prKey: { borderWidth: 1, borderColor: pcColors.primary, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 1 },
   prKeyTxt: { color: pcColors.primary, fontSize: 12, fontWeight: "800" },

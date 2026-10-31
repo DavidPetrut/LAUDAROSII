@@ -9,7 +9,7 @@ const {
   PcPlan, PcPlanTime, PcPlanItem, PcAssignment, PcNeededPosition, PcPlanNote, PcPlanFile, PcItemNote,
   PcAlert, PcAlertAck, PcNoteView, PcPositionGuestLog,
   PcServiceType, PcOrderTemplate, PcTeam, PcPosition, PcTeamMember, PcPerson, PcOrg, PcCampus, PcSong,
-  PcArrangement, PcKey, PcSongFile, PcBlockout, PcProductionSheet,
+  PcArrangement, PcKey, PcSongFile, PcBlockout, PcProductionSheet, PcLightScene,
 } = require("../models");
 const { scoped, stamp } = require("../core/orgScope");
 const { requireCan, requireAny, can, CAN_VIEW_MATRIX, CAN_ASSIGN, CAN_MOVE, CAN_NEEDED, CAN_POSITION_RULES } = require("../core/permissions");
@@ -2232,6 +2232,16 @@ router.get("/:id/production", requireCan("people.view"), async (req, res) => {
     const ov = {};
     for (const o of (sheet?.items || [])) ov[String(o.itemId)] = o;
 
+    // Scene de lumini (pt. rezolvarea sceneId → nume + fixtures) + secvențele cântecelor (pt. lumini pe secțiune).
+    const arrIds = [...new Set(items.filter((i) => i.arrangementId).map((i) => String(i.arrangementId)))].map(OID).filter(Boolean);
+    const [scenesList, arrs] = await Promise.all([
+      PcLightScene.find(scoped(req)).select("name fixtures intensityNote").lean(),
+      arrIds.length ? PcArrangement.find(scoped(req, { _id: { $in: arrIds } })).select("sequence").lean() : [],
+    ]);
+    const sceneById = Object.fromEntries(scenesList.map((s) => [String(s._id), { id: s._id, name: s.name, fixtures: s.fixtures || [], intensityNote: s.intensityNote || "" }]));
+    const arrById = Object.fromEntries(arrs.map((a) => [String(a._id), a]));
+    const seqOf = (it) => (it.sequence && it.sequence.length ? it.sequence : (arrById[String(it.arrangementId)]?.sequence || [])).map(String);
+
     const rows = items.map((it) => {
       if (it.type === "header") return { id: it._id, type: "header", title: it.title };
       const o = ov[String(it._id)] || {};
@@ -2242,6 +2252,7 @@ router.get("/:id/production", requireCan("people.view"), async (req, res) => {
         origTitle: it.title,               // originalul din Order (pt. „resetează denumirea")
         keyName: it.keyName || "",
         isTransition: !!it.isTransition,
+        sequence: (it.type === "song" || it.type === "medley") ? seqOf(it) : [],
         voices: voicesMap[String(it._id)] || [],
         leader: (leadersMap[String(it._id)] || [])[0] || null,
         transition: it.type === "transition" ? transMap[String(it._id)] : undefined,
@@ -2252,6 +2263,7 @@ router.get("/:id/production", requireCan("people.view"), async (req, res) => {
         note: o.note || "",
         reminders: o.reminders || [],
         sceneId: o.sceneId || null,
+        scene: o.sceneId ? (sceneById[String(o.sceneId)] || null) : null, // scena rezolvată (nume + fixtures)
         fixtures: o.fixtures || [],
         sectionCues: o.sectionCues || [],
         projection: o.projection || [],

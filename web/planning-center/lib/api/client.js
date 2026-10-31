@@ -197,6 +197,14 @@ export const lightArrangementsApi = {
   remove: (id) => api.del(`/light-arrangements/${id}`),
 };
 
+/* ─── Scene de lumini (Order-ul Producției) — server/planning-center/routes/productionScenes.js ─── */
+export const productionScenesApi = {
+  list: () => api.get(`/production-scenes`), // { fixtures:[...], scenes:[{id,name,fixtures,intensityNote,isStandard}] }
+  create: (payload) => api.post(`/production-scenes`, payload), // { name, fixtures:[{fixture,color}], intensityNote }
+  update: (id, payload) => api.patch(`/production-scenes/${id}`, payload),
+  remove: (id) => api.del(`/production-scenes/${id}`),
+};
+
 /* ─── Service Types (settings) — server/planning-center/routes/services.js ─── */
 export const servicesApi = {
   get: (id) => api.get(`/service-types/${id}`),
