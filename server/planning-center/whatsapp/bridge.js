@@ -293,22 +293,38 @@ async function syncGroup(number, jid, targetNumbersRaw) {
   const toRemove = current.filter((n) => !targetSet.has(n) && !self.has(n)); // nu te scoți pe tine (num sau LID)
 
   const added = [], removed = [], failed = [], needInvite = [];
-  if (toRemove.length) {
+
+  // Ritm UMAN (anti-ban): NU bulk. O singură persoană pe acțiune, cu pauze variate între ele,
+  // ca să nu arate ca un bot (15 deodată = imposibil manual). Durata nu contează — contează tiparul.
+  const sleep = (ms) => new Promise((r) => setTimeout(r, Math.max(0, ms)));
+  // De obicei 3,5–7,5s; din când în când (1 din 6) o pauză mai lungă 8–15s (ca un om care se oprește).
+  const humanGap = () => (Math.random() < 0.17 ? 8000 + Math.random() * 7000 : 3500 + Math.random() * 4000);
+
+  // Scoatere — unul câte unul, cu pauze.
+  for (let i = 0; i < toRemove.length; i++) {
+    const n = toRemove[i];
+    if (i > 0) await sleep(humanGap());
     try {
-      const res = await sock.groupParticipantsUpdate(jid, toRemove.map(jidOf), "remove");
-      (res || []).forEach((r) => { const n = locPart(r.jid); (String(r.status) === "200" ? removed : failed).push(n); });
-    } catch (e) { toRemove.forEach((n) => failed.push(n)); }
+      const res = await sock.groupParticipantsUpdate(jid, [jidOf(n)], "remove");
+      const st = String((res && res[0] && res[0].status) || "200");
+      (st === "200" ? removed : failed).push(n);
+    } catch (e) { failed.push(n); }
   }
-  if (toAdd.length) {
+
+  // Pauză mai mare între „scoatere" și „adăugare" (schimbare de ritm, mai natural).
+  if (toRemove.length && toAdd.length) await sleep(humanGap() + 2500);
+
+  // Adăugare — unul câte unul, cu pauze (adăugatul e cel mai sensibil la ban).
+  for (let i = 0; i < toAdd.length; i++) {
+    const n = toAdd[i];
+    if (i > 0) await sleep(humanGap());
     try {
-      const res = await sock.groupParticipantsUpdate(jid, toAdd.map(jidOf), "add");
-      (res || []).forEach((r) => {
-        const n = locPart(r.jid); const st = String(r.status);
-        if (st === "200") added.push(n);
-        else if (st === "403" || st === "409") needInvite.push(n);
-        else failed.push(n);
-      });
-    } catch (e) { toAdd.forEach((n) => needInvite.push(n)); }
+      const res = await sock.groupParticipantsUpdate(jid, [jidOf(n)], "add");
+      const st = String((res && res[0] && res[0].status) || "");
+      if (st === "200") added.push(n);
+      else if (st === "403" || st === "409") needInvite.push(n);
+      else failed.push(n);
+    } catch (e) { needInvite.push(n); }
   }
   return { added, removed, failed, needInvite, targetCount: target.length, currentCount: current.length };
 }
