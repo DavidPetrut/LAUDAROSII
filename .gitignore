@@ -39,3 +39,6 @@ server/cache/
 
 # Backup snapshots Songs (regenerabile cu `--manifest`; rămân pe disc, nu în repo)
 server/planning-center/backups/
+
+# Config MCP local (conține cheia API 21st.dev Magic — NU se urcă)
+.mcp.json
