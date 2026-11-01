@@ -14,6 +14,12 @@ Obiectivul: design **modern, premium** — gata cu „minimum bars" / improvizat
 
 **Stack:** web = Next.js (JS, App Router) la `web/planning-center` (port 4100), **styled-jsx + tokens** (NU shadcn/Tailwind). Componentele 21st (React+Tailwind) = inspirație → le **adaptezi** la stilul nostru. Acoperă mereu stările (loading / empty / error) + light & dark + ambele breakpoints.
 
+## ICONURI — REGULA SUPREMĂ
+**Iconurile se iau EXCLUSIV din Phosphor** (`@phosphor-icons/react`, instalat în `web/planning-center`). NICIODATĂ alt set, nimic „basic/urât/free random", niciun emoji ca iconiță funcțională.
+- **Alegerea iconiței** = fie recomandată de **UI/UX Pro Max** (domeniul `icons`), fie **o gândesc eu** una frumoasă/potrivită pentru designul lui David — nu la întâmplare, ci cu intenție de design.
+- **Cum se folosește:** `import { NumeIcon } from '@phosphor-icons/react'`, `<NumeIcon size={…} weight="…" />`. Greutăți disponibile: `thin | light | regular | bold | fill | duotone`. **Duotone** = accentul nostru premium (dă profunzime); folosește-l pentru iconuri-vedetă. Culoarea MEREU din tokens (`currentColor` / var-uri din `globals.css`), nu hardcodată.
+- Pe mobil (React Native) rămân seturile existente; regula Phosphor e pentru WEB.
+
 ## Alte reguli (detalii în memorie)
 - Backend `server/` NU e hot-reload → după modificări, restart `node index.js`.
 - DB (MongoDB) = READ-only fără instrucțiune scrisă explicită în chat.
