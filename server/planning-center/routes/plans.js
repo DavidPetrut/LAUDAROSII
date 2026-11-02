@@ -9,7 +9,7 @@ const {
   PcPlan, PcPlanTime, PcPlanItem, PcAssignment, PcNeededPosition, PcPlanNote, PcPlanFile, PcItemNote,
   PcAlert, PcAlertAck, PcNoteView, PcPositionGuestLog,
   PcServiceType, PcOrderTemplate, PcTeam, PcPosition, PcTeamMember, PcPerson, PcOrg, PcCampus, PcSong,
-  PcArrangement, PcKey, PcSongFile, PcBlockout, PcProductionSheet, PcLightScene,
+  PcArrangement, PcKey, PcSongFile, PcBlockout, PcProductionSheet, PcLightScene, PcTempSong,
 } = require("../models");
 const { scoped, stamp } = require("../core/orgScope");
 const { requireCan, requireAny, can, CAN_VIEW_MATRIX, CAN_ASSIGN, CAN_MOVE, CAN_NEEDED, CAN_POSITION_RULES } = require("../core/permissions");
@@ -48,6 +48,80 @@ const weekdayRo = (d, tz) => { if (!d) return { ro: "", color: "#8b949e" }; cons
 const isoDateTz = (d, tz) => (d ? new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(d)) : "");
 const fmtLen = (sec) => { const s = Math.max(0, Math.floor(sec || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 const personMini = (p) => (p ? { id: p._id, name: [p.firstName, p.lastName].filter(Boolean).join(" "), avatar: p.avatar || "", initials: `${(p.firstName || "").charAt(0)}${(p.lastName || "").charAt(0)}`.toUpperCase() } : null);
+
+/* ---------- Mashup Studio: clone temporare (pc_tempSongs) ---------- */
+// ChordPro combinat dintr-un snapshot (concatenează blocurile: etichetă + corp), ca varianta web `combinedChordpro`.
+function combinedChordproFromSnapshot(snap) {
+  const blocks = (snap && Array.isArray(snap.blocks)) ? snap.blocks : [];
+  const parts = blocks.map((b) => {
+    const head = b.label ? `${b.label}\n` : "";
+    return (head + (b.chordpro || "")).replace(/\n+$/, "");
+  });
+  return parts.filter((p) => p.trim()).join("\n\n") + (parts.length ? "\n" : "");
+}
+// Eticheta de gamă a unui snapshot: „A" sau „A / B" (mashup).
+function snapshotKeysLabel(snap) {
+  const labels = ((snap && snap.keys) || []).map((k) => String(k.label || k.startKey || "").trim()).filter(Boolean);
+  return [...new Set(labels)].join(" / ");
+}
+// Gamele unice (startKey) dintr-un snapshot, în ordine.
+function snapshotStartKeys(snap) {
+  const ks = ((snap && snap.keys) || []).map((k) => String(k.startKey || k.label || "").trim()).filter(Boolean);
+  return [...new Set(ks)];
+}
+// „Save as new": nume unic cu sufix numeric incremental („Oceans" → „Oceans 2") față de numele existente.
+// Fără coliziune → întoarce baza neschimbată (mai curat decât să forțeze mereu „ 1").
+function nextNumberedName(existing, base) {
+  const b = String(base || "").trim();
+  if (!b) return b;
+  const bl = b.toLowerCase();
+  let maxN = 0;
+  for (const raw of (existing || [])) {
+    const n = String(raw || "").trim(); const nl = n.toLowerCase();
+    if (nl === bl) { maxN = Math.max(maxN, 1); continue; }
+    if (nl.startsWith(bl + " ")) { const rest = n.slice(b.length).trim(); if (/^\d+$/.test(rest)) maxN = Math.max(maxN, parseInt(rest, 10)); }
+  }
+  return maxN === 0 ? b : `${b} ${maxN + 1}`;
+}
+// Creează un aranjament COMPLET dintr-un snapshot (sequence + master ChordPro + game + copie fișiere prin referință url).
+// Reutilizat de „Save as new → melodie nouă" ȘI „→ aranjament nou". Returnează aranjamentul creat.
+async function createArrangementFromSnapshot(req, songId, name, snap, srcFiles) {
+  const sequence = Array.isArray(snap.sequence) ? snap.sequence.map(String) : [];
+  const chordpro = combinedChordproFromSnapshot(snap);
+  const keys = snapshotStartKeys(snap);
+  const primaryKey = keys[0] || "";
+  const count = await PcArrangement.countDocuments(scoped(req, { songId }));
+  const arr = await PcArrangement.create(stamp(req, {
+    songId, name: name || "Default Arrangement",
+    bpm: snap.bpm ?? null, meter: snap.meter || "", lengthSec: snap.lengthSec || 0, sequence, sortOrder: count,
+  }));
+  for (let i = 0; i < keys.length; i++) await PcKey.create(stamp(req, { arrangementId: arr._id, songId, startKey: keys[i], sortOrder: i }));
+  await PcSongFile.create(stamp(req, {
+    songId, arrangementId: arr._id, scope: "arrangement", kind: "chordChart", source: "chordpro",
+    name: "Lyrics & Chords", chordpro, originalKey: primaryKey,
+  }));
+  // Copie audio/documente prin REFERINȚĂ la același url (fără re-upload — storage limitat). Flatten la scope aranjament.
+  for (const f of (srcFiles || [])) {
+    await PcSongFile.create(stamp(req, {
+      songId, arrangementId: arr._id, keyId: null, scope: "arrangement",
+      kind: f.kind, name: f.name, url: f.url, source: f.source || "upload", importRef: f.importRef || "",
+      audioAccess: f.audioAccess || "stream", keyLabel: f.keyLabel || "",
+      detectedKey: f.detectedKey || "", detectedLabel: f.detectedLabel || "", detectedConf: f.detectedConf || 0,
+      sortOrder: f.sortOrder || 0,
+    }));
+  }
+  return arr;
+}
+// Hartă itemId → tempSong (pentru itemii care au tempSongId). Un singur query.
+async function tempSongsForItems(req, items) {
+  const ids = items.filter((i) => i.tempSongId).map((i) => OID(i.tempSongId)).filter(Boolean);
+  if (!ids.length) return {};
+  const temps = await PcTempSong.find(scoped(req, { _id: { $in: ids } })).lean();
+  const byId = Object.fromEntries(temps.map((t) => [String(t._id), t]));
+  const out = {};
+  for (const it of items) { const t = it.tempSongId ? byId[String(it.tempSongId)] : null; if (t) out[String(it._id)] = t; }
+  return out;
+}
 
 // Gama relativă (pt. playlist Spotify de pre-serviciu): major→minor relativă (-3 semitonuri), minor→major (+3).
 const SHARP12 = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -423,16 +497,23 @@ router.get("/:id/order", requireCan("people.view"), async (req, res) => {
     }
     const _scenes = await PcLightScene.find(scoped(req)).select("name fixtures").lean();
     const _sceneById = Object.fromEntries(_scenes.map((s) => [String(s._id), { id: s._id, name: s.name, fixtures: s.fixtures || [] }]));
+    const tempMap = await tempSongsForItems(req, items); // Mashup Studio: badge „editat" + titlu/gamă temporare
     res.json({
       totalSec,
       totalLabel: fmtLen(totalSec),
-      items: items.map((it) => ({
+      hasTempSongs: Object.keys(tempMap).length > 0, // pt. butonul „Curăță melodiile temporare"
+      items: items.map((it) => {
+        const temp = tempMap[String(it._id)];
+        const tempKey = temp ? snapshotKeysLabel(temp.snapshot) : "";
+        return ({
         id: it._id,
         type: it.type,
-        title: it.title,
+        title: (temp?.snapshot?.title || it.title),
+        edited: !!temp,                 // melodie editată temporar (Mashup Studio)
+        mashup: temp?.kind === "mashup", // mai multe melodii unite într-un rând
         description: it.description || "",
         lengthLabel: fmtLen(it.lengthSec),
-        keyName: it.keyName || "",
+        keyName: (tempKey || it.keyName) || "",
         rowColor: rowColorFor(it, rules),
         isTransition: !!it.isTransition,
         directNext: !!it.directNext,
@@ -448,7 +529,8 @@ router.get("/:id/order", requireCan("people.view"), async (req, res) => {
         lightsTiming: it.lightsTiming === "before" ? "before" : "after",
         leaders: leadersMap[String(it._id)] || [],
         leader: (leadersMap[String(it._id)] || [])[0] || null,
-      })),
+        });
+      }),
     });
   } catch (err) {
     console.error("[pc] GET /plans/:id/order:", err.message);
@@ -486,6 +568,8 @@ router.get("/:id/items/:itemId", requireCan("people.view"), async (req, res) => 
     if (!itemId) return res.status(400).json({ error: "ID invalid" });
     const it = await PcPlanItem.findOne(scoped(req, { _id: itemId })).lean();
     if (!it) return res.status(404).json({ error: "Item inexistent" });
+    // Mashup Studio: dacă itemul are o clonă temporară, o întoarcem (Studio-ul încarcă snapshot-ul salvat).
+    const tempSong = it.tempSongId ? await PcTempSong.findOne(scoped(req, { _id: OID(it.tempSongId) })).lean() : null;
     const planId = OID(req.params.id);
     const leadersMap = await resolveItemLeaders(req, planId, [it]);
     const voicesMap = await resolveVoices(req, [it]);
@@ -517,6 +601,10 @@ router.get("/:id/items/:itemId", requireCan("people.view"), async (req, res) => 
       arrangementId: it.arrangementId ? String(it.arrangementId) : null,
       keyId: it.keyId ? String(it.keyId) : null,
       sequence: Array.isArray(it.sequence) ? it.sequence : [],
+      // Mashup Studio: clonă temporară (snapshot editat local pe acest Order).
+      tempSongId: it.tempSongId ? String(it.tempSongId) : null,
+      tempKind: tempSong?.kind || null,
+      tempSnapshot: tempSong?.snapshot || null,
       duringLabel: (it.placement && it.placement !== "during") ? `${it.placement[0].toUpperCase()}${it.placement.slice(1)} All` : (it.duringAll !== false ? "During All" : `${(it.timeIds || []).length} time(s)`),
       leaders: leadersMap[String(it._id)] || [],
       voices: voicesMap[String(it._id)] || [],
@@ -689,6 +777,216 @@ router.delete("/:id/items/:itemId", requireCan("services.editOrder"), async (req
   } catch (err) {
     console.error("[pc] DELETE /plans/:id/items/:itemId:", err.message);
     res.status(500).json({ error: "Eroare la ștergere." });
+  }
+});
+
+/* ───────── Mashup Studio — clone temporare (pc_tempSongs) ─────────
+   TEMPORAR nu scrie NICIODATĂ în pc_songs/arrangements/keys/songFiles (§4.1). Doar aici. */
+
+// POST — salvează/actualizează clona temporară a itemului (single-edit). Setează item.tempSongId.
+router.post("/:id/items/:itemId/temp-song", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id), itemId = OID(req.params.itemId);
+    if (!planId || !itemId) return res.status(400).json({ error: "ID invalid" });
+    const b = req.body || {};
+    const snapshot = (b.snapshot && typeof b.snapshot === "object") ? b.snapshot : null;
+    if (!snapshot || !Array.isArray(snapshot.blocks)) return res.status(400).json({ error: "Snapshot invalid." });
+    const kind = b.kind === "mashup" ? "mashup" : "single";
+    const item = await PcPlanItem.findOne(scoped(req, { _id: itemId })).select("_id tempSongId").lean();
+    if (!item) return res.status(404).json({ error: "Item inexistent" });
+    const createdBy = await viewerPersonId(req);
+    // Mashup: itemii „consumați" (uniți) dispar din Order (soft-delete, REVERSIBIL). Niciodată itemul-gazdă.
+    const consumed = (kind === "mashup" && Array.isArray(b.sourceItemIds))
+      ? b.sourceItemIds.map(OID).filter((x) => x && String(x) !== String(itemId))
+      : [];
+    let tempId = item.tempSongId ? OID(item.tempSongId) : null;
+    let prevConsumed = []; // melodiile deja unite ÎNAINTE de acest save (ca să detectăm ce e NOU)
+    if (tempId) {
+      const existing = await PcTempSong.findOne(scoped(req, { _id: tempId })).select("sourceItemIds").lean();
+      if (existing) prevConsumed = (existing.sourceItemIds || []).map(String);
+      const update = { $set: { snapshot, kind, planId, itemId, savedAt: new Date() } };
+      if (consumed.length) update.$addToSet = { sourceItemIds: { $each: consumed } }; // merge, nu suprascrie
+      const upd = await PcTempSong.findOneAndUpdate(scoped(req, { _id: tempId }), update, { new: true }).select("_id").lean();
+      if (!upd) { tempId = null; prevConsumed = []; } // clona a dispărut (ex. curățată) → recreăm
+    }
+    if (!tempId) {
+      const created = await PcTempSong.create(stamp(req, { planId, itemId, kind, snapshot, sourceItemIds: consumed, createdBy: createdBy || null, savedAt: new Date() }));
+      tempId = created._id;
+      await PcPlanItem.updateOne(scoped(req, { _id: itemId }), { $set: { tempSongId: tempId } });
+    }
+    // Scoate itemii uniți din Order (reversibil la „Șterge editarea" / „Curăță").
+    if (consumed.length) await PcPlanItem.updateMany(scoped(req, { _id: { $in: consumed } }), { $set: { deletedAt: new Date() } });
+    // RESET VOCI la mashup: când se unesc melodii NOI în itemul-gazdă, golim vocile (lead/support/alto/tenor…)
+    // ca liderul să le repună pentru piesa combinată — fără conflicte de la asignările vechi ale melodiilor.
+    // O SINGURĂ dată (doar pt. melodiile nou-consumate): re-salvările ulterioare NU ating vocile re-introduse.
+    const newlyConsumed = consumed.map(String).filter((id) => !prevConsumed.includes(id));
+    if (newlyConsumed.length) await PcPlanItem.updateOne(scoped(req, { _id: itemId }), { $set: { voices: [] } });
+    res.json({ ok: true, tempSongId: String(tempId), kind, consumed: consumed.map(String), voicesReset: newlyConsumed.length > 0 });
+  } catch (err) {
+    console.error("[pc] POST /plans/:id/items/:itemId/temp-song:", err.message);
+    res.status(500).json({ error: "Eroare la salvarea temporară." });
+  }
+});
+
+// DELETE — scoate clona temporară a UNUI item (revii la melodia originală legată).
+router.delete("/:id/items/:itemId/temp-song", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const itemId = OID(req.params.itemId);
+    const item = await PcPlanItem.findOne(scoped(req, { _id: itemId })).select("_id tempSongId").lean();
+    if (!item) return res.status(404).json({ error: "Item inexistent" });
+    if (item.tempSongId) {
+      const temp = await PcTempSong.findOne(scoped(req, { _id: OID(item.tempSongId) })).select("sourceItemIds").lean();
+      await PcTempSong.updateOne(scoped(req, { _id: OID(item.tempSongId) }), { $set: { deletedAt: new Date() } });
+      await PcPlanItem.updateOne(scoped(req, { _id: itemId }), { $set: { tempSongId: null } });
+      // Mashup: readu itemii uniți înapoi în Order (un-soft-delete).
+      const back = (temp?.sourceItemIds || []).map(OID).filter(Boolean);
+      if (back.length) await PcPlanItem.updateMany(scoped(req, { _id: { $in: back } }), { $set: { deletedAt: null } });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[pc] DELETE /plans/:id/items/:itemId/temp-song:", err.message);
+    res.status(500).json({ error: "Eroare la ștergerea clonei temporare." });
+  }
+});
+
+// DELETE — „Curăță melodiile temporare" ale ACESTUI plan (soft-delete + dezleagă itemii). Plan-scoped = safe.
+router.delete("/:id/temp-songs", requireCan("services.editOrder"), async (req, res) => {
+  try {
+    const planId = OID(req.params.id);
+    if (!planId) return res.status(400).json({ error: "ID invalid" });
+    const temps = await PcTempSong.find(scoped(req, { planId })).select("_id sourceItemIds").lean();
+    const ids = temps.map((t) => t._id);
+    if (ids.length) {
+      await PcTempSong.updateMany(scoped(req, { _id: { $in: ids } }), { $set: { deletedAt: new Date() } });
+      await PcPlanItem.updateMany(scoped(req, { planId, tempSongId: { $in: ids } }), { $set: { tempSongId: null } });
+      // Readu în Order toți itemii uniți prin mashup-uri (un-soft-delete).
+      const back = temps.flatMap((t) => (t.sourceItemIds || [])).map(OID).filter(Boolean);
+      if (back.length) await PcPlanItem.updateMany(scoped(req, { _id: { $in: back } }), { $set: { deletedAt: null } });
+    }
+    res.json({ ok: true, cleaned: ids.length });
+  } catch (err) {
+    console.error("[pc] DELETE /plans/:id/temp-songs:", err.message);
+    res.status(500).json({ error: "Eroare la curățarea melodiilor temporare." });
+  }
+});
+
+/* POST /:id/items/:itemId/replace-arrangement — Faza 5: REPLACE & SAVE.
+   Scrie DEFINITIV editul temporar în biblioteca Songs (arrangement.sequence + masterul ChordPro).
+   Doar single-edit (mashup = INTERZIS). Cere `confirmTitle` = titlul EXACT al melodiei. `newTitle` OPȚIONAL.
+   Ireversibil. requireCan("songs.edit") (editarea bibliotecii, nu doar a Order-ului). */
+router.post("/:id/items/:itemId/replace-arrangement", requireCan("songs.edit"), async (req, res) => {
+  try {
+    const itemId = OID(req.params.itemId);
+    if (!itemId) return res.status(400).json({ error: "ID invalid" });
+    const b = req.body || {};
+    const item = await PcPlanItem.findOne(scoped(req, { _id: itemId })).select("_id arrangementId songId tempSongId title").lean();
+    if (!item) return res.status(404).json({ error: "Item inexistent" });
+    if (!item.arrangementId) return res.status(400).json({ error: "Itemul nu are un aranjament de bibliotecă de suprascris." });
+    if (!item.tempSongId) return res.status(400).json({ error: "Nu există o versiune editată de salvat." });
+    const temp = await PcTempSong.findOne(scoped(req, { _id: OID(item.tempSongId) })).lean();
+    if (!temp || !temp.snapshot) return res.status(404).json({ error: "Versiunea editată nu mai există." });
+    if (temp.kind === "mashup") return res.status(400).json({ error: "Replace e interzis pentru mashup. Folosește „Salvează ca melodie nouă”." });
+
+    const arr = await PcArrangement.findOne(scoped(req, { _id: OID(item.arrangementId) })).lean();
+    if (!arr) return res.status(404).json({ error: "Aranjament inexistent." });
+    const song = await PcSong.findOne(scoped(req, { _id: OID(arr.songId || item.songId) })).lean();
+    if (!song) return res.status(404).json({ error: "Melodie inexistentă." });
+
+    // „Type-to-confirm": trebuie scris EXACT titlul melodiei (robust la spații/majuscule).
+    const norm = (s) => String(s == null ? "" : s).trim().replace(/\s+/g, " ").toLowerCase();
+    if (norm(b.confirmTitle) !== norm(song.title)) {
+      return res.status(422).json({ error: "Titlul scris nu corespunde. Scrie exact titlul melodiei ca să confirmi." });
+    }
+
+    const snap = temp.snapshot;
+    const sequence = Array.isArray(snap.sequence) ? snap.sequence.map(String) : [];
+    const chordpro = combinedChordproFromSnapshot(snap);
+    const master = await PcSongFile.findOne(scoped(req, { arrangementId: arr._id, scope: "arrangement", kind: "chordChart", source: "chordpro" })).select("originalKey").lean();
+    const originalKey = (snap.keys && snap.keys[0] && (snap.keys[0].startKey || snap.keys[0].label)) || master?.originalKey || "";
+
+    // 1) Secvența aranjamentului. 2) Masterul ChordPro (upsert, exact ca PUT chordchart din songs.js — `formatting` neatins).
+    await PcArrangement.updateOne(scoped(req, { _id: arr._id }), { $set: { sequence } });
+    await PcSongFile.findOneAndUpdate(
+      scoped(req, { arrangementId: arr._id, scope: "arrangement", kind: "chordChart", source: "chordpro" }),
+      { $set: { chordpro, originalKey: String(originalKey || ""), name: "Lyrics & Chords", kind: "chordChart", source: "chordpro", scope: "arrangement" },
+        $setOnInsert: stamp(req, { songId: song._id, arrangementId: arr._id }) },
+      { upsert: true }
+    );
+    // 3) Redenumire OPȚIONALĂ a melodiei (e același song).
+    const newTitle = String(b.newTitle || "").trim();
+    const renamed = newTitle && norm(newTitle) !== norm(song.title);
+    if (renamed) await PcSong.updateOne(scoped(req, { _id: song._id }), { $set: { title: newTitle } });
+    // 4) Editul temporar nu mai e necesar — itemul pointează la aranjamentul (acum) actualizat.
+    await PcTempSong.updateOne(scoped(req, { _id: temp._id }), { $set: { deletedAt: new Date() } });
+    const clearItem = { tempSongId: null };
+    if (renamed) clearItem.title = newTitle;
+    await PcPlanItem.updateOne(scoped(req, { _id: itemId }), { $set: clearItem });
+
+    res.json({ ok: true, songId: String(song._id), arrangementId: String(arr._id), title: renamed ? newTitle : song.title });
+  } catch (err) {
+    console.error("[pc] POST /plans/:id/items/:itemId/replace-arrangement:", err.message);
+    res.status(500).json({ error: "Eroare la suprascrierea aranjamentului." });
+  }
+});
+
+/* POST /:id/items/:itemId/save-as-new — Faza 6: SAVE AS NEW.
+   mode "song"        → melodie NOUĂ standalone (pc_songs + arrangement + keys + master ChordPro + copie fișiere).
+   mode "arrangement" → aranjament NOU sub melodia/melodiile existente. La mashup, `targets` = songId-urile bifate
+                        (fiecare primește o dublură cu secvența/versurile combinate). Copie fișiere = referință url.
+   Nu atinge editul temporar de pe plan (rămâne). requireCan("songs.edit"). */
+router.post("/:id/items/:itemId/save-as-new", requireCan("songs.edit"), async (req, res) => {
+  try {
+    const itemId = OID(req.params.itemId);
+    if (!itemId) return res.status(400).json({ error: "ID invalid" });
+    const b = req.body || {};
+    const mode = b.mode === "arrangement" ? "arrangement" : "song";
+    const baseTitle = String(b.title || "").trim();
+    if (!baseTitle) return res.status(400).json({ error: "Titlul e obligatoriu." });
+
+    const item = await PcPlanItem.findOne(scoped(req, { _id: itemId })).select("_id arrangementId songId tempSongId").lean();
+    if (!item) return res.status(404).json({ error: "Item inexistent" });
+    if (!item.tempSongId) return res.status(400).json({ error: "Nu există o versiune editată de salvat." });
+    const temp = await PcTempSong.findOne(scoped(req, { _id: OID(item.tempSongId) })).lean();
+    if (!temp || !temp.snapshot) return res.status(404).json({ error: "Versiunea editată nu mai există." });
+    const snap = temp.snapshot;
+    const sources = Array.isArray(snap.sources) ? snap.sources : [];
+
+    // Fișierele (audio/documente) ale TUTUROR surselor — unite; copiate prin referință (fără master ChordPro).
+    const srcArrIds = [...new Set(sources.map((s) => s.arrangementId).filter(Boolean).map(String))].map(OID).filter(Boolean);
+    const allFiles = srcArrIds.length ? await PcSongFile.find(scoped(req, { arrangementId: { $in: srcArrIds } })).lean() : [];
+    const copyFiles = allFiles.filter((f) => f.url && !(f.kind === "chordChart" && f.source === "chordpro"));
+
+    if (mode === "song") {
+      const existing = await PcSong.find(scoped(req)).select("title").lean();
+      const finalTitle = nextNumberedName(existing.map((s) => s.title), baseTitle);
+      const srcSong = sources[0]?.songId ? await PcSong.findOne(scoped(req, { _id: OID(sources[0].songId) })).lean() : null;
+      const song = await PcSong.create(stamp(req, {
+        title: finalTitle, defaultKey: snapshotStartKeys(snap)[0] || "", bpm: (snap.bpm ?? srcSong?.bpm) ?? null,
+        author: srcSong?.author || "", ccli: srcSong?.ccli || "", copyrightYear: srcSong?.copyrightYear || "",
+        administration: srcSong?.administration || "", themes: srcSong?.themes || [],
+      }));
+      const arrName = sources.length > 1 ? "Mashup" : "Default Arrangement";
+      const arr = await createArrangementFromSnapshot(req, song._id, arrName, snap, copyFiles);
+      return res.status(201).json({ ok: true, mode, songId: String(song._id), arrangementId: String(arr._id), title: finalTitle });
+    }
+
+    // mode "arrangement" — sub melodia/melodiile existente.
+    let targetSongIds = (Array.isArray(b.targets) && b.targets.length)
+      ? b.targets.map(OID).filter(Boolean)
+      : (sources.length > 1 ? [] : [OID(sources[0]?.songId || item.songId)].filter(Boolean));
+    targetSongIds = [...new Map(targetSongIds.map((x) => [String(x), x])).values()]; // dedupe
+    if (!targetSongIds.length) return res.status(400).json({ error: "Alege cel puțin o melodie-sursă care primește aranjamentul nou." });
+    const created = [];
+    for (const songId of targetSongIds) {
+      const existingArrs = await PcArrangement.find(scoped(req, { songId })).select("name").lean();
+      const finalName = nextNumberedName(existingArrs.map((a) => a.name), baseTitle);
+      const arr = await createArrangementFromSnapshot(req, songId, finalName, snap, copyFiles);
+      created.push({ songId: String(songId), arrangementId: String(arr._id), name: finalName });
+    }
+    return res.status(201).json({ ok: true, mode, created });
+  } catch (err) {
+    console.error("[pc] POST /plans/:id/items/:itemId/save-as-new:", err.message);
+    res.status(500).json({ error: "Eroare la Save as new: " + err.message });
   }
 });
 
@@ -2212,19 +2510,26 @@ router.get("/:id/rehearse", requireCan("people.view"), async (req, res) => {
       arrIds.length ? PcSongFile.find(scoped(req, { arrangementId: { $in: arrIds } })).lean() : [],
     ]);
     const arrById = Object.fromEntries(arrs.map((a) => [String(a._id), a]));
+    const tempMap = await tempSongsForItems(req, items); // Mashup Studio: reflectă editul temporar
     const songs = items.map((it) => {
       const arr = arrById[String(it.arrangementId)] || null;
       const af = files.filter((f) => String(f.arrangementId) === String(it.arrangementId));
       const master = af.find((f) => f.scope === "arrangement" && f.kind === "chordChart" && f.source === "chordpro");
       const audio = af.filter((f) => isAudioFile(f) && f.url).map((f) => ({ id: f._id, name: f.name, url: f.url }));
       const docs = af.filter((f) => !isAudioFile(f) && !(f.kind === "chordChart" && f.source === "chordpro")).map((f) => ({ id: f._id, name: f.name, kind: f.kind, url: f.url, source: f.source, pending: f.transposeStatus === "pending" || (!f.url && f.source === "multitracks") }));
+      const temp = tempMap[String(it._id)];
+      const tempSnap = temp?.snapshot || null;
+      const tempCp = tempSnap ? combinedChordproFromSnapshot(tempSnap) : "";
+      const tempKey = tempSnap ? snapshotKeysLabel(tempSnap) : "";
       return {
-        itemId: it._id, songId: it.songId, title: it.title, keyName: it.keyName || "",
-        arrangementId: it.arrangementId, arrangementName: arr?.name || "", bpm: arr?.bpm || null,
-        sequence: (it.sequence && it.sequence.length ? it.sequence : arr?.sequence) || [],
+        itemId: it._id, songId: it.songId, title: (tempSnap?.title || it.title), keyName: (tempKey || it.keyName) || "",
+        edited: !!temp,
+        arrangementId: it.arrangementId, arrangementName: arr?.name || "", bpm: (tempSnap?.bpm ?? arr?.bpm) || null,
+        sequence: (tempSnap && Array.isArray(tempSnap.sequence) && tempSnap.sequence.length ? tempSnap.sequence
+          : (it.sequence && it.sequence.length ? it.sequence : arr?.sequence)) || [],
         audio, docs,
-        hasChordChart: !!(master && (master.chordpro || "").trim()),
-        chordpro: master?.chordpro || "", originalKey: master?.originalKey || "",
+        hasChordChart: !!((tempCp || master?.chordpro || "").trim()),
+        chordpro: (tempCp || master?.chordpro || ""), originalKey: master?.originalKey || (tempSnap?.keys?.[0]?.startKey || ""),
         notes: it.description || "",
       };
     });
@@ -2244,10 +2549,11 @@ router.get("/:id/production", requireCan("people.view"), async (req, res) => {
     if (!id) return res.status(400).json({ error: "ID invalid" });
     const viewer = await viewerPersonId(req);
     const items = await PcPlanItem.find(scoped(req, { planId: id })).sort({ sortOrder: 1 }).lean();
-    const [voicesMap, transMap, leadersMap] = await Promise.all([
+    const [voicesMap, transMap, leadersMap, tempMap] = await Promise.all([
       resolveVoices(req, items),
       resolveTransitions(req, items),
       resolveItemLeaders(req, id, items),
+      tempSongsForItems(req, items),
     ]);
     // Overlay: foaia producătorului curent (sau foaia de echipă dacă nu e persoană asociată).
     const sheet = await PcProductionSheet.findOne(
@@ -2258,13 +2564,34 @@ router.get("/:id/production", requireCan("people.view"), async (req, res) => {
 
     // Scene de lumini (pt. rezolvarea sceneId → nume + fixtures) + secvențele cântecelor (pt. lumini pe secțiune).
     const arrIds = [...new Set(items.filter((i) => i.arrangementId).map((i) => String(i.arrangementId)))].map(OID).filter(Boolean);
-    const [scenesList, arrs] = await Promise.all([
+    // Mashup Studio: pt. foaia finală adunăm fișierele (mp3-uri + documente) fiecărei melodii-sursă dintr-un mashup.
+    const mashupSrcArrIds = [];
+    for (const it of items) {
+      const t = tempMap[String(it._id)];
+      if (t?.kind === "mashup") for (const s of (t.snapshot?.sources || [])) if (s.arrangementId) mashupSrcArrIds.push(String(s.arrangementId));
+    }
+    const srcArrOids = [...new Set(mashupSrcArrIds)].map(OID).filter(Boolean);
+    const [scenesList, arrs, srcFiles] = await Promise.all([
       PcLightScene.find(scoped(req)).select("name fixtures intensityNote").lean(),
       arrIds.length ? PcArrangement.find(scoped(req, { _id: { $in: arrIds } })).select("sequence").lean() : [],
+      srcArrOids.length ? PcSongFile.find(scoped(req, { arrangementId: { $in: srcArrOids } })).lean() : [],
     ]);
     const sceneById = Object.fromEntries(scenesList.map((s) => [String(s._id), { id: s._id, name: s.name, fixtures: s.fixtures || [], intensityNote: s.intensityNote || "" }]));
     const arrById = Object.fromEntries(arrs.map((a) => [String(a._id), a]));
-    const seqOf = (it) => (it.sequence && it.sequence.length ? it.sequence : (arrById[String(it.arrangementId)]?.sequence || [])).map(String);
+    const filesByArr = {};
+    for (const f of srcFiles) (filesByArr[String(f.arrangementId)] ||= []).push(f);
+    // Containere de resurse per melodie-sursă (doar sursele care chiar au fișiere).
+    const resourcesForSnap = (snap) => (snap?.sources || []).map((s) => {
+      const af = filesByArr[String(s.arrangementId)] || [];
+      const audio = af.filter((f) => isAudioFile(f) && f.url).map((f) => ({ name: f.name, url: f.url }));
+      const docs = af.filter((f) => f.url && !isAudioFile(f) && !(f.kind === "chordChart" && f.source === "chordpro")).map((f) => ({ name: f.name, url: f.url }));
+      return { title: s.title || "", keyName: s.keyName || "", audio, docs };
+    }).filter((r) => r.audio.length || r.docs.length);
+    const seqOf = (it) => {
+      const t = tempMap[String(it._id)];
+      if (t && Array.isArray(t.snapshot?.sequence) && t.snapshot.sequence.length) return t.snapshot.sequence.map(String);
+      return (it.sequence && it.sequence.length ? it.sequence : (arrById[String(it.arrangementId)]?.sequence || [])).map(String);
+    };
 
     const rows = items.map((it) => {
       if (it.type === "header") {
@@ -2277,12 +2604,20 @@ router.get("/:id/production", requireCan("people.view"), async (req, res) => {
         };
       }
       const o = ov[String(it._id)] || {};
+      const temp = tempMap[String(it._id)];           // clonă temporară (Mashup Studio) — reflectă editul
+      const tempKey = temp ? snapshotKeysLabel(temp.snapshot) : "";
       return {
         id: it._id,
         type: it.type,
-        title: o.label || it.title,        // denumirea scurtă a producătorului are prioritate (nu schimbă Order)
+        title: o.label || temp?.snapshot?.title || it.title,  // producător > temp > original
         origTitle: it.title,               // originalul din Order (pt. „resetează denumirea")
-        keyName: it.keyName || "",
+        edited: !!temp,                    // true = melodie editată temporar (badge „editat")
+        mashup: temp?.kind === "mashup",   // mai multe melodii unite
+        headers: (temp?.snapshot?.headers || []).map((h) => ({ title: h.title || "", bpm: h.bpm ?? null, meter: h.meter || "" })), // tranziții de mashup (pt. foaia finală)
+        resources: temp?.kind === "mashup" ? resourcesForSnap(temp.snapshot) : [], // mp3-uri + documente per melodie-sursă (foaia finală)
+        keyName: (tempKey || it.keyName) || "",
+        lengthSec: it.lengthSec || 0,
+        lengthLabel: fmtLen(it.lengthSec),   // durata (pt. axa Y din preview)
         isTransition: !!it.isTransition,
         sequence: (it.type === "song" || it.type === "medley") ? seqOf(it) : [],
         directNext: !!it.directNext,
@@ -2306,10 +2641,15 @@ router.get("/:id/production", requireCan("people.view"), async (req, res) => {
     });
     // Gamă Spotify (pre-serviciu): prima gamă din order + relativa (ajută sunetiștii + playlistul de fundal).
     const firstKey = (items.find((it) => (it.type === "song" || it.type === "medley") && it.keyName) || {}).keyName || "";
+    const tz = await campusTz(req);
+    const plan = await PcPlan.findOne(scoped(req, { _id: id })).select("sortDate title").lean();
+    const dateLabel = plan?.sortDate ? new Intl.DateTimeFormat("ro-RO", { timeZone: tz, day: "numeric", month: "long", year: "numeric" }).format(new Date(plan.sortDate)) : "";
     res.json({
       planId: id,
       ownerId: viewer,
       scope: sheet?.scope || "owner",
+      dateLabel,
+      title: plan?.title || "",
       spotify: firstKey ? { key: firstKey, relative: relativeKey(firstKey) } : null,
       items: rows,
       reminders: sheet?.reminders || [],

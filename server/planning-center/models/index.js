@@ -49,6 +49,10 @@ module.exports = {
   PcArrangement: require("./PcArrangement"),
   PcKey: require("./PcKey"),
   PcSongFile: require("./PcSongFile"),
+  // Order — Mashup Studio: clona temporară izolată (NU în biblioteca Songs).
+  PcTempSong: require("./PcTempSong"),
+  PcTransitionPreset: require("./PcTransitionPreset"),
+  PcAiLesson: require("./PcAiLesson"),
   PcIntegration: require("./PcIntegration").PcIntegration,
   PcIntegrationAccount: require("./PcIntegration").PcIntegrationAccount,
   PcMediaItem: require("./PcMediaItem"),

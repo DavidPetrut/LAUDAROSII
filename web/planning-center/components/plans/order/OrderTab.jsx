@@ -13,9 +13,11 @@ import PersonAvatar from "@/components/plans/PersonAvatar";
 import AddItemMenu from "./AddItemMenu";
 import SongPickerModal from "./SongPickerModal";
 import ItemDrawer from "./ItemDrawer";
+import MashupStudio from "./MashupStudio";
 import { formatVoices } from "./VoicesPicker";
 import { keyToRo } from "@/lib/keyName";
 import Skeleton from "@/components/ui/Skeleton";
+import { PencilSimple, Broom } from "@phosphor-icons/react";
 
 // „Alte slujiri" pe rând: etichete scurte + prenume cu majuscule.
 const MIN_LABEL = { host: "Gazdă", communion: "Cină", prayer: "Îndemn", preach: "Predică" };
@@ -34,8 +36,11 @@ function Clip({ n }) {
 export default function OrderTab({ planId, canEdit = false, onSideChange, flash }) {
   const [items, setItems] = useState(null);
   const [totalLabel, setTotalLabel] = useState("");
+  const [hasTempSongs, setHasTempSongs] = useState(false); // plan are melodii editate temporar (Mashup Studio)
+  const [cleaning, setCleaning] = useState(false);
   const [err, setErr] = useState("");
   const [openId, setOpenId] = useState(null);     // itemul deschis în drawer
+  const [studioItemId, setStudioItemId] = useState(null); // itemul deschis în Mashup Studio (editor)
   const [songPicker, setSongPicker] = useState(false);
   const [pickerMode, setPickerMode] = useState("songs"); // "songs" | "medley"
   const dragId = useRef(null);
@@ -49,9 +54,19 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
   const autoScroll = useRef({ raf: 0, vy: 0 });
 
   const load = useCallback(async () => {
-    try { const r = await plansApi.order(planId); setItems(r.items || []); setTotalLabel(r.totalLabel || ""); setErr(""); }
+    try { const r = await plansApi.order(planId); setItems(r.items || []); setTotalLabel(r.totalLabel || ""); setHasTempSongs(!!r.hasTempSongs); setErr(""); }
     catch (e) { setErr(e?.message || "Eroare la ordine."); setItems([]); }
   }, [planId]);
+
+  // „Curăță melodiile temporare" (acest plan) — șterge toate clonele temporare, itemii revin la original.
+  const cleanTempSongs = useCallback(async () => {
+    if (cleaning) return;
+    if (!window.confirm("Ștergi toate melodiile editate temporar de pe acest plan? Melodiile revin la varianta originală din bibliotecă. Originalele nu sunt afectate.")) return;
+    setCleaning(true);
+    try { await plansApi.cleanTempSongs(planId); flash?.("Melodiile temporare au fost curățate."); await load(); }
+    catch (e) { flash?.(e?.message || "Eroare la curățare."); }
+    finally { setCleaning(false); }
+  }, [planId, cleaning, load, flash]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { onSideChange?.(!!openId); }, [openId, onSideChange]);
   useEffect(() => () => stopAutoScroll(), []); // cleanup la unmount
@@ -173,7 +188,14 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
 
       <div className="ord-toolbar">
         <div className="ord-cols"><span className="c-len">LENGTH</span><span className="c-title">TITLE</span></div>
-        {canEdit && <AddItemMenu onAdd={addSimple} onAddSong={() => { setPickerMode("songs"); setSongPicker(true); }} onAddEmptySong={addEmptySong} onAddMedley={() => { setPickerMode("medley"); setSongPicker(true); }} onTypeDragStart={onTypeDragStart} onTypeDragEnd={endDrag} />}
+        <div className="ord-tools">
+          {canEdit && hasTempSongs && (
+            <button className="ord-clean" onClick={cleanTempSongs} disabled={cleaning} title="Șterge melodiile editate temporar de pe acest plan">
+              <Broom size={15} weight="bold" /> {cleaning ? "Se curăță…" : "Curăță temporare"}
+            </button>
+          )}
+          {canEdit && <AddItemMenu onAdd={addSimple} onAddSong={() => { setPickerMode("songs"); setSongPicker(true); }} onAddEmptySong={addEmptySong} onAddMedley={() => { setPickerMode("medley"); setSongPicker(true); }} onTypeDragStart={onTypeDragStart} onTypeDragEnd={endDrag} />}
+        </div>
       </div>
 
       {!items.length ? (
@@ -227,6 +249,11 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                         {it.isTransition && <span className="bang" title="Tranziție (timp neinclus)">!</span>}
                         {isMedley && <span className="mtag" title="Medley">medley · {it.medleyCount}</span>}
                         <span className="r-title">{it.title || "—"}</span>
+                        {it.mashup
+                          ? <span className="etag" title="Mashup — mai multe melodii unite (doar pe acest plan)"><PencilSimple size={10} weight="bold" /> mashup</span>
+                          : it.edited
+                            ? <span className="etag" title="Editată temporar în Studio (doar pe acest plan)"><PencilSimple size={10} weight="bold" /> editat</span>
+                            : null}
                         {it.keyName && <span className={`r-key ${it.type === "media" ? "media" : ""}`}>{it.keyName}</span>}
                         {avatarPerson && <span className="r-leadav" title={avatarPerson.name}><PersonAvatar person={avatarPerson} size={33} /></span>}
                       </div>
@@ -258,6 +285,16 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
                           : <span key={i} className="lead-av" style={{ marginLeft: i ? -8 : 0 }} title={l.name}><PersonAvatar person={l} size={26} /></span>
                       ))}
                       <Clip n={it.fileCount} />
+                      {canEdit && (it.type === "song" || it.type === "medley") && (
+                        <button
+                          className="r-edit"
+                          title="Editează în Studio (secvență · versuri · mashup)"
+                          aria-label="Editează melodia în Studio"
+                          onClick={(e) => { e.stopPropagation(); setStudioItemId(it.id); }}
+                        >
+                          <PencilSimple size={15} weight="bold" />
+                        </button>
+                      )}
                     </div>
                   </>
                 )}
@@ -299,12 +336,21 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
           onChanged={load}
         />
       )}
+      {studioItemId && (
+        <MashupStudio planId={planId} itemId={studioItemId} canEdit={canEdit} onClose={() => { setStudioItemId(null); load(); }} />
+      )}
 
       <style jsx>{`
         .ord { position: relative; }
         .ord-err { background: rgba(229,83,75,.12); border: 1px solid rgba(229,83,75,.4); color: #f0a7a2; padding: 9px 12px; border-radius: 6px; margin-bottom: 10px; font-size: 13px; }
         .ord-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px 7px; border-bottom: 1px solid var(--border); }
         .ord-cols { display: flex; align-items: center; gap: 0; color: var(--text-faint); font-size: 11px; letter-spacing: .5px; font-weight: 600; }
+        .ord-tools { display: flex; align-items: center; gap: 8px; }
+        .ord-clean { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 8px;
+                     background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-dim); font-size: 12.5px; font-weight: 600; cursor: pointer; transition: all .15s ease; }
+        .ord-clean:hover:not(:disabled) { color: var(--text); border-color: var(--text-faint); }
+        .ord-clean:disabled { opacity: .55; cursor: not-allowed; }
+        .ord-clean:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
         .c-len { width: 64px; flex: none; } .c-title { }
         .ord-empty { padding: 42px 14px; text-align: center; border-radius: 10px; transition: background .12s, box-shadow .12s; }
         .ord-empty.drop { background: rgba(47,129,247,.06); box-shadow: inset 0 0 0 1px var(--border-strong); }
@@ -333,6 +379,8 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
         .r-leadav { display: inline-flex; margin: -9px 0 -9px 20px; align-self: center; transform: translateY(5px); }
         .bang { flex: none; width: 17px; height: 17px; border-radius: 50%; background: var(--danger); color: #fff; font-weight: 800; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; }
         .mtag { flex: none; font-size: 9px; text-transform: uppercase; letter-spacing: .4px; color: var(--primary); border: 1px solid var(--primary); border-radius: 9px; padding: 0 6px; font-weight: 700; }
+        .etag { flex: none; display: inline-flex; align-items: center; gap: 3px; font-size: 9px; text-transform: uppercase; letter-spacing: .4px;
+                color: var(--text-dim); border: 1px solid var(--border-strong); border-radius: 9px; padding: 1px 6px; font-weight: 700; }
         .mexp { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 11.5px; padding: 0 2px; }
         .mexp:hover { color: var(--text); }
         .r-voices { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin-top: 2px; white-space: pre-line; }
@@ -353,6 +401,10 @@ export default function OrderTab({ planId, canEdit = false, onSideChange, flash 
         .lead-av { display: inline-flex; }
         .need-dot { width: 20px; height: 20px; border-radius: 50%; background: var(--st-unconfirmed); color: #1d1600; font-weight: 800; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; margin-left: 2px; }
         .clip { display: inline-flex; align-items: center; gap: 3px; color: var(--text-faint); font-size: 12px; margin-left: 8px; }
+        .r-edit { display: inline-flex; align-items: center; justify-content: center; width: 27px; height: 27px; border-radius: 7px; background: transparent; border: 1px solid transparent; color: var(--text-faint); cursor: pointer; margin-left: 4px; opacity: .6; transition: opacity .15s ease, color .15s ease, background .15s ease, border-color .15s ease; }
+        .row:hover .r-edit { opacity: 1; }
+        .r-edit:hover { color: var(--primary); background: var(--surface-2); border-color: var(--border-strong); }
+        .r-edit:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; opacity: 1; }
         .total-row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-top: 1px solid var(--border); margin-top: 2px; }
         .tr-len { width: 64px; flex: none; color: var(--text); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
         .tr-lbl { color: var(--text-faint); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }

@@ -32,6 +32,10 @@ const schema = pcSchema({
   keyId: { type: mongoose.Schema.Types.ObjectId, ref: "PcKey", default: null },
   mediaItemId: { type: mongoose.Schema.Types.ObjectId, ref: "PcMediaItem", default: null }, // dacă type=media linkat din bibliotecă
   sequence: { type: [String], default: [] }, // secvență one-time pt. acest plan (gol = moștenește din aranjament)
+  // ── Mashup Studio (aditiv) — dacă itemul a fost editat/combinat în Studio, pointează la clona TEMPORARĂ
+  // izolată din pc_tempSongs (vezi ORDER_EDITOR_PLAN.md §4.3, decizia D1). Null = melodie normală.
+  // Randarea (Order/Rehearse/Preview) citește tempSong.snapshot când tempSongId != null. NU atinge pc_songs.
+  tempSongId: { type: mongoose.Schema.Types.ObjectId, ref: "PcTempSong", default: null },
   rowColor: { type: String, default: "" },
   sortOrder: { type: Number, default: 0 },
   // ── Voci structurate (aditiv) — lead / support(S) / alto(A) / tenor(T)… ─────────────────────

@@ -5,7 +5,7 @@
  * prezent în fiecare ecran, fără ca ecranele să-l importe explicit.
  */
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
-import { subscribe, listSurfaces, snapshotContext, catalogActions, runAction } from "@/lib/ai/registry";
+import { subscribe, listSurfaces, snapshotContext, catalogActions, catalogRules, runAction } from "@/lib/ai/registry";
 import { runAi } from "@/lib/ai/client";
 
 const AiCtx = createContext(null);
@@ -17,7 +17,7 @@ export function AiProvider({ children }) {
   useEffect(() => subscribe(() => force((n) => n + 1)), []);
 
   const ask = useCallback(async (prompt) => {
-    return runAi({ prompt, context: snapshotContext(), actions: catalogActions() });
+    return runAi({ prompt, context: snapshotContext(), actions: catalogActions(), rules: catalogRules() });
   }, []);
 
   const value = useMemo(() => ({

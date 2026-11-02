@@ -14,6 +14,11 @@ Obiectivul: design **modern, premium** — gata cu „minimum bars" / improvizat
 
 **Stack:** web = Next.js (JS, App Router) la `web/planning-center` (port 4100), **styled-jsx + tokens** (NU shadcn/Tailwind). Componentele 21st (React+Tailwind) = inspirație → le **adaptezi** la stilul nostru. Acoperă mereu stările (loading / empty / error) + light & dark + ambele breakpoints.
 
+## FĂRĂ BARE COLORATE — REGULA SUPREMĂ
+**NU** adăuga bare/dungi de accent colorate: `border-left` sau `border-bottom` (sau `::before`/`box-shadow` folosit ca dungă) într-o culoare de accent (roșu, albastru, gradient etc.) pe carduri, containere, chips, rânduri. David le detestă.
+- Separarea/ierarhia se face prin: **containere** (surface + border neutru + radius), **spacing**, **background subtil**, divider-e **neutre** (hairline `var(--border)`) — NU prin dungi colorate.
+- Indentările structurale neutre (gri, hairline) pentru lizibilitate sunt ok; dunga de accent colorată — NU.
+
 ## ICONURI — REGULA SUPREMĂ
 **Iconurile se iau EXCLUSIV din Phosphor** (`@phosphor-icons/react`, instalat în `web/planning-center`). NICIODATĂ alt set, nimic „basic/urât/free random", niciun emoji ca iconiță funcțională.
 - **Alegerea iconiței** = fie recomandată de **UI/UX Pro Max** (domeniul `icons`), fie **o gândesc eu** una frumoasă/potrivită pentru designul lui David — nu la întâmplare, ci cu intenție de design.

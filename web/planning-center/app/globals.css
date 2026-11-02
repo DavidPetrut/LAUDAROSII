@@ -177,12 +177,14 @@ button { font-family: inherit; }
   0%, 100% { filter: drop-shadow(0 0 0.5px rgba(229, 83, 75, .5)); transform: scale(1); }
   50%      { filter: drop-shadow(0 0 5px rgba(229, 83, 75, .95));  transform: scale(1.1); }
 }
-.rmic { width: 15px; height: 15px; object-fit: contain; vertical-align: middle; flex: none; display: inline-block; animation: rm-pulse-green 2.4s ease-in-out infinite; }
-.rmic-red { width: 15px; height: 15px; object-fit: contain; vertical-align: middle; flex: none; display: inline-block; animation: rm-pulse-red 2s ease-in-out infinite; }
+.rmic { width: 16px; height: 16px; object-fit: contain; vertical-align: middle; flex: none; display: inline-block; animation: rm-pulse-green 2.4s ease-in-out infinite; }
+.rmic-red { width: 16px; height: 16px; object-fit: contain; vertical-align: middle; flex: none; display: inline-block; animation: rm-pulse-red 2s ease-in-out infinite; }
 .rmic-lg { width: 18px; height: 18px; }
 @media (prefers-reduced-motion: reduce) { .rmic, .rmic-red { animation: none; } }
 
 /* „Lumini propuse: <scenă>" — etichetă discretă deasupra titlului (Order + Rehearse). Doar numele,
    fără culori/dots; subtil dar vizibil, nu agresiv. */
-.lp-tag { display: inline-block; font-size: 12px; color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px 12px; margin-bottom: 6px; max-width: fit-content; }
-.lp-tag b { color: var(--product); font-weight: 700; }
+.lp-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-faint); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 4px 11px; margin-bottom: 8px; max-width: fit-content; line-height: 1; }
+.lp-tag svg { color: var(--product); flex: none; }
+.lp-tag .lp-k { text-transform: uppercase; letter-spacing: .4px; font-weight: 700; }
+.lp-tag b { color: var(--product); font-weight: 700; font-size: 12.5px; }

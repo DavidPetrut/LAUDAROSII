@@ -30,10 +30,21 @@ export function subscribe(fn) { listeners.add(fn); return () => listeners.delete
 
 export function listSurfaces() { return [...surfaces.values()]; }
 
-/** Snapshot al a tot ce „vede" AI-ul acum pe ecran (toate suprafețele active). */
+/**
+ * Suprafețele „active" pentru AI. Dacă e deschis un MODAL (ex. Mashup Studio), acela e focusul:
+ * trimitem DOAR contextul/acțiunile modalului — altfel contextul paginii din spate diluează
+ * (și poate trunchia) ce vede AI-ul despre ce e efectiv pe ecran. Fără modal → toate suprafețele.
+ */
+function activeSurfaces() {
+  const all = [...surfaces.values()];
+  const modals = all.filter((s) => (s.scope || "") === "modal");
+  return modals.length ? modals : all;
+}
+
+/** Snapshot al a tot ce „vede" AI-ul acum pe ecran (suprafețele active). */
 export function snapshotContext() {
   const out = {};
-  for (const s of surfaces.values()) {
+  for (const s of activeSurfaces()) {
     try { out[s.id] = { label: s.label || s.id, scope: s.scope || "component", context: s.getContext ? s.getContext() : null }; }
     catch (e) { out[s.id] = { label: s.label || s.id, error: String(e?.message || e) }; }
   }
@@ -43,11 +54,18 @@ export function snapshotContext() {
 /** Catalogul de acțiuni disponibile acum (metadate, FĂRĂ funcții — pt. trimis la gateway). */
 export function catalogActions() {
   const out = [];
-  for (const s of surfaces.values()) {
+  for (const s of activeSurfaces()) {
     for (const a of s.actions || []) {
       out.push({ surfaceId: s.id, actionId: a.id, label: a.label, description: a.description || "", params: a.params || null });
     }
   }
+  return out;
+}
+
+/** Regulile „foolproof" ale suprafețelor active (fiecare surface poate aduce `rules[]`). Pt. gateway. */
+export function catalogRules() {
+  const out = [];
+  for (const s of activeSurfaces()) for (const r of (s.rules || [])) out.push(r);
   return out;
 }
 

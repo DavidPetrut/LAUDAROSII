@@ -110,6 +110,12 @@ export const plansApi = {
   updateItem: (id, itemId, payload) => api.patch(`/plans/${id}/items/${itemId}`, payload),
   deleteItem: (id, itemId) => api.del(`/plans/${id}/items/${itemId}`),
   reorderItems: (id, itemIds) => api.post(`/plans/${id}/items/reorder`, { itemIds }),
+  // ─── Mashup Studio: clone temporare (pc_tempSongs) ───
+  saveTempSong: (id, itemId, snapshot, kind = "single", sourceItemIds = []) => api.post(`/plans/${id}/items/${itemId}/temp-song`, { snapshot, kind, sourceItemIds }),
+  deleteTempSong: (id, itemId) => api.del(`/plans/${id}/items/${itemId}/temp-song`), // revii la melodia originală
+  cleanTempSongs: (id) => api.del(`/plans/${id}/temp-songs`), // „Curăță melodiile temporare" (acest plan)
+  replaceArrangement: (id, itemId, confirmTitle, newTitle = "") => api.post(`/plans/${id}/items/${itemId}/replace-arrangement`, { confirmTitle, newTitle }), // REPLACE & SAVE — scrie definitiv în bibliotecă
+  saveAsNew: (id, itemId, mode, title, targets = []) => api.post(`/plans/${id}/items/${itemId}/save-as-new`, { mode, title, targets }), // SAVE AS NEW — melodie/aranjament nou în bibliotecă
   addLeader: (id, itemId, payload) => api.post(`/plans/${id}/items/${itemId}/leaders`, payload), // { personId } | { positionId }
   removeLeader: (id, itemId, { personId, positionId } = {}) => {
     const qs = new URLSearchParams(Object.entries({ personId, positionId }).filter(([, v]) => v)).toString();
@@ -212,6 +218,13 @@ export const productionSnippetsApi = {
   list: () => api.get(`/production-snippets`), // { snippets:[{id,text}] } — ale mele
   create: (text) => api.post(`/production-snippets`, { text }),
   remove: (id) => api.del(`/production-snippets/${id}`),
+};
+
+/* ─── Preseturi de tranziție (mashup) — global per org — routes/transitionPresets.js ─── */
+export const transitionPresetsApi = {
+  list: () => api.get(`/transition-presets`), // { presets:[{id,label,slug,note,isStandard}] }
+  create: (payload) => api.post(`/transition-presets`, payload), // { label, note? }
+  remove: (id) => api.del(`/transition-presets/${id}`),
 };
 
 /* ─── Service Types (settings) — server/planning-center/routes/services.js ─── */

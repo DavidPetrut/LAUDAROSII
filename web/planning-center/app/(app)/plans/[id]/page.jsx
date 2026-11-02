@@ -8,6 +8,7 @@
  * UX seamless: update OPTIMIST + reconciliere silențioasă. ZERO emailuri trimise de aici.
  */
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Lightbulb, MusicNote } from "@phosphor-icons/react";
 import { useParams, useRouter } from "next/navigation";
 import { plansApi, peopleApi, productionScenesApi, productionSnippetsApi } from "@/lib/api/client";
 import { formatVoices } from "@/components/plans/order/VoicesPicker";
@@ -666,14 +667,17 @@ const uniqSections = (seq) => { const seen = new Set(), out = []; for (const s o
 
 /* Preview/PDF color — HTML care OGLINDEȘTE tot ce s-a aranjat (scene, lumini, secțiuni, note, remindere).
    Întoarce stringul HTML; e folosit în iframe-ul de Preview (+ download/print din el). */
-function buildProductionHtml(data, scenes) {
+function buildProductionHtml(data, scenes, opts = {}) {
   if (!data) return "";
+  const showLights = !!opts.showLights; // setare din Preview: afișează culorile luminilor (altfel doar scena)
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
   const dot = (c) => `<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${esc(c)};border:1px solid #999;vertical-align:middle;margin-right:3px"></span>`;
   const sceneNameOf = (c) => { if (!c || !c.sceneId) return ""; const s = (scenes || []).find((x) => String(x.id) === String(c.sceneId)); return s ? s.name : ""; };
+  const branch = `<svg class="br" width="15" height="16" viewBox="0 0 15 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v6a3 3 0 0 0 3 3h5"/><path d="m9 8 3 3-3 3"/></svg>`;
   const rowsHtml = (data.items || []).map((r) => {
-    if (r.type === "header") return `<div class="sec">${esc(r.title)}</div>`;
-    if (r.type === "transition") { const t = r.transition || {}; return `<div class="tr">&#8627; ${esc(TRANS_LBL[t.kind] || "Tranziție")}${t.key ? ` &middot; ${esc(t.key)}` : ""}${(t.lights || []).map((l) => " " + dot(l.color)).join("")}</div>`; }
+    const wrap = (dur, main) => `<div class="pvrow"><div class="gutter">${dur}</div><div class="pvmain">${main}</div></div>`;
+    if (r.type === "header") return `<div class="sec">${esc(r.title)}</div>`; // full-width, în afara axei Y (linia se întrerupe aici)
+    if (r.type === "transition") { const t = r.transition || {}; return wrap("", `<div class="tr">&#8627; ${esc(TRANS_LBL[t.kind] || "Tranziție")}${t.key ? ` &middot; ${esc(t.key)}` : ""}${(t.lights || []).map((l) => " " + dot(l.color)).join("")}</div>`); }
     const voices = r.voices || []; const lead = voices.find((v) => v.role === "lead") || voices[0];
     const parts = voices.filter((v) => v !== lead).map((v) => `${VOICE_LBL[v.role] ? VOICE_LBL[v.role] + ": " : ""}${esc((v.name || "").split(" ")[0])}`);
     const seq = r.sequence || [];
@@ -682,7 +686,7 @@ function buildProductionHtml(data, scenes) {
     let seqHtml = "";
     if (seq.length) {
       const rws = resolveRows(seq, r.sectionRows);
-      const chipOf = (i) => { const c = cueAt(i); const col = cueColor(c) ? dot(cueColor(c)) : ""; const before = c && c.lightsTiming === "before"; return col ? (before ? `${col}${esc(labels[i])}` : `${esc(labels[i])}${col}`) : esc(labels[i]); };
+      const chipOf = (i) => { const c = cueAt(i); const col = (showLights && cueColor(c)) ? dot(cueColor(c)) : ""; const before = c && c.lightsTiming === "before"; return col ? (before ? `${col}${esc(labels[i])}` : `${esc(labels[i])}${col}`) : esc(labels[i]); };
       seqHtml = `<div class="seq">` + rws.map((row) => {
         const chips = row.map(chipOf).join(" &middot; ");
         if (row.length === 1) {
@@ -690,69 +694,141 @@ function buildProductionHtml(data, scenes) {
           const scn = sceneNameOf(c);
           const fxcols = c ? ((c.fixtures && c.fixtures.length ? c.fixtures : c.lights || []).map((x) => x.color).filter(Boolean)) : [];
           const kv = [];
-          if (scn) kv.push(`<div class="kv"><span class="kk">Scenă</span><span class="ka">&#8594;</span><span class="kvv"><b style="color:#2d6a4f">&#9673; ${esc(scn)}</b>${(c.fixtures || []).map((f) => dot(f.color)).join("")}</span></div>`);
-          if (cueHasLight(c)) kv.push(`<div class="kv"><span class="kk">Lumini</span><span class="ka">&#8594;</span><span class="kvv">${fxcols.map((col) => dot(col)).join("")}<span class="tim">${c.lightsTiming === "before" ? "înainte &#11014;" : "după &#11015;"}</span></span></div>`);
+          if (scn) kv.push(`<div class="kv"><span class="kk">Scenă</span><span class="ka">&#8594;</span><span class="kvv"><b class="scn">${esc(scn)}</b>${showLights ? (c.fixtures || []).map((f) => dot(f.color)).join("") : ""}</span></div>`);
+          if (cueHasLight(c) && (showLights || !scn)) kv.push(`<div class="kv"><span class="kk">Lumini</span><span class="ka">&#8594;</span><span class="kvv">${fxcols.map((col) => dot(col)).join("")}<span class="tim">${c.lightsTiming === "before" ? "înainte &#11014;" : "după &#11015;"}</span></span></div>`);
           if (c && c.projection) kv.push(`<div class="kv"><span class="kk">Proiecție</span><span class="ka">&#8594;</span><span class="kvv">${esc(c.projection)}</span></div>`);
           if (c && c.note) kv.push(`<div class="kv"><span class="kk">Notă</span><span class="ka">&#8594;</span><span class="kvv">${esc(c.note)}</span></div>`);
           ((c && c.reminders) || []).forEach((rm) => kv.push(`<div class="kv rem"><span class="kk"><img class="pv-rm" src="/reminder-verde.png" alt=""></span><span class="ka">&#8594;</span><span class="kvv">${esc(rm.text)}</span></div>`));
           const det = kv.length ? `<div class="det">${kv.join("")}</div>` : "";
-          return `<div class="seqrow solo"><div class="sh">&#8627; <b>${chips}</b></div>${det}</div>`;
+          return `<div class="seqrow solo"><div class="sh">${branch} <b>${chips}</b></div>${det}</div>`;
         }
         return `<div class="seqrow">${chips}</div>`;
       }).join("") + `</div>`;
     }
+    // Mashup: un singur header de tranziție afișat pt. tot mashup-ul + containere de resurse per melodie-sursă.
+    const headersHtml = (r.headers || []).length
+      ? (r.headers).map((h) => `<div class="mh-pv">${branch} <b>${esc(h.title || "Tranziție")}</b>${h.bpm ? `<span class="mh-m">&middot; ${esc(h.bpm)} BPM</span>` : ""}${h.meter ? `<span class="mh-m">&middot; ${esc(h.meter)}</span>` : ""}</div>`).join("")
+      : "";
+    const resHtml = (r.resources || []).length
+      ? `<div class="res">` + (r.resources).map((src) => {
+          const items = []
+            .concat((src.audio || []).map((a) => `<div class="res-it"><span class="res-ic">&#9834;</span> ${esc(a.name)}</div>`))
+            .concat((src.docs || []).map((d) => `<div class="res-it"><span class="res-ic">&#9636;</span> ${esc(d.name)}</div>`))
+            .join("");
+          return `<div class="res-g"><div class="res-h">Resurse &mdash; ${esc(src.title)}${src.keyName ? `<span class="res-k">${esc(src.keyName)}</span>` : ""}</div>${items}</div>`;
+        }).join("") + `</div>`
+      : "";
     const projNote = (r.projection || [])[0] ? r.projection[0].note : "";
     const reminders = (r.reminders || []).map((rem) => `<span class="itrem"><img class="pv-rm" src="/reminder-verde.png" alt=""> &#8594; ${esc(rem.text)}</span>`).join(" &nbsp; ");
-    const sceneTag = r.scene ? `<div class="lp-tag">Lumini propuse: <b>${esc(r.scene.name)}</b></div>` : "";
+    const sceneTag = r.scene ? `<div class="lp-tag scene"><span class="scene-ic">&#9636;</span><span class="scene-k">SCENĂ</span><b>${esc(r.scene.name)}</b></div>` : "";
     const afterLights = r.scene && r.lightsTiming === "after"; // „după" = ultimul lucru
-    return `<div class="row">`
-      + `${!afterLights ? sceneTag : ""}`
-      + `<div class="rh"><span class="t">${esc(r.title)}</span>${r.keyName ? `<span class="k">${esc(r.keyName)}</span>` : ""}</div>`
-      + `${lead || parts.length ? `<div class="v">${esc(lead ? lead.name : "")}${parts.length ? " &middot; " + parts.join(" &middot; ") : ""}</div>` : ""}`
-      + `${seqHtml}`
-      + `${projNote ? `<div class="lt">&#9635; ${esc(projNote)}</div>` : ""}`
-      + `${r.note ? `<div class="lt">&#9998; ${esc(r.note)}</div>` : ""}`
-      + `${reminders ? `<div class="lt">${reminders}</div>` : ""}`
-      + `${afterLights ? sceneTag : ""}`
+    const sceneCols = (showLights && r.scene && r.scene.fixtures) ? r.scene.fixtures.map((f) => f.color).filter(Boolean) : [];
+    const dur = (r.lengthSec > 0 && r.lengthLabel) ? `<div class="dur">${esc(r.lengthLabel)}</div>` : "";
+    const main = `<div class="song">`
+      + `${!afterLights && sceneTag ? `<div class="song-lp">${sceneTag}</div>` : ""}`
+      + `<div class="song-title"><span class="t">${esc(r.title)}</span>${r.keyName ? `<span class="k">${esc(r.keyName)}</span>` : ""}${sceneCols.length ? `<span class="hdr-lights">${sceneCols.map(dot).join("")}</span>` : ""}</div>`
+      + `<div class="song-body">`
+      +   `${lead ? `<div class="v-lead">Lead: ${esc(lead.name)}</div>` : ""}`
+      +   `${parts.length ? `<div class="v-sup">${parts.join(" &middot; ")}</div>` : ""}`
+      +   `${headersHtml}`
+      +   `${seqHtml}`
+      +   `${projNote ? `<div class="lt">&#9635; ${esc(projNote)}</div>` : ""}`
+      +   `${r.note ? `<div class="lt">&#9998; ${esc(r.note)}</div>` : ""}`
+      +   `${reminders ? `<div class="lt">${reminders}</div>` : ""}`
+      +   `${resHtml}`
+      +   `${afterLights && sceneTag ? `<div class="song-lp after">${sceneTag}</div>` : ""}`
       + `</div>`
-      + `${r.directNext ? `<div class="pv-direct"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15"/><path d="m7 14 5 5 5-5"/></svg> Tranziție directă</div>` : ""}`;
+      + `</div>`
+      + `${r.directNext ? `<div class="pv-direct"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15"/><path d="m7 14 5 5 5-5"/></svg> Tranziție directă</div>` : ""}`;
+    return wrap(dur, main);
   }).join("");
-  const spotify = data.spotify ? `<div class="sp">&#9834; Spotify pre-serviciu: <b>${esc(data.spotify.key)}</b>${data.spotify.relative ? ` (relativă ${esc(data.spotify.relative)})` : ""}</div>` : "";
-  const sim = (data.simFeedback || []).length ? `<div class="sim"><div class="sim-h"><img class="pv-rm" src="/reminder-rosu.png" alt=""> Remindere importante — între programe</div>${["1", "2"].map((s) => { const list = (data.simFeedback || []).filter((f) => (f.sim || "1") === s); if (!list.length) return ""; return `<div class="sim-g"><div class="sim-gh">SIM ${s}</div>${list.map((f) => `<div class="sim-it ${f.done ? "done" : ""}">${f.done ? "&#9745;" : "&#9744;"} <img class="pv-rm" src="/reminder-rosu.png" alt=""> &#8594; ${esc(f.text)}</div>`).join("")}</div>`; }).join("")}</div>` : "";
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Order Producție</title><style>
+  const spotifyIc = `<svg width="17" height="17" viewBox="0 0 24 24" fill="#1DB954"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.5 17.3c-.22.36-.68.47-1.03.25-2.82-1.72-6.37-2.11-10.55-1.16-.4.09-.8-.16-.9-.56-.09-.4.16-.8.56-.9 4.57-1.04 8.5-.6 11.66 1.33.36.22.47.68.26 1.04zm1.47-3.27c-.28.45-.87.6-1.32.32-3.23-1.98-8.15-2.56-11.97-1.4-.5.15-1.04-.13-1.2-.63-.15-.5.13-1.04.63-1.2 4.37-1.32 9.79-.68 13.5 1.6.45.27.59.87.32 1.31zm.13-3.4C15.26 8.3 8.82 8.08 5.1 9.2c-.6.18-1.24-.16-1.42-.76-.18-.6.16-1.24.76-1.42 4.27-1.3 11.38-1.04 15.86 1.62.54.32.72 1.02.4 1.56-.32.54-1.02.72-1.56.4z"/></svg>`;
+  const spotify = data.spotify ? `<div class="sp">${spotifyIc}<span class="sp-t">Gamă: <b>${esc(data.spotify.key)}</b>${data.spotify.relative ? ` <span class="sp-rel">(relativă ${esc(data.spotify.relative)})</span>` : ""}</span></div>` : "";
+  const simItems = data.simFeedback || [];
+  const simLabel = (s) => { const v = String(s == null ? "" : s).trim(); return /^\d+$/.test(v) ? "SIM " + v : v; };
+  const simGroups = [];
+  simItems.forEach((f) => { const lbl = simLabel(f.sim); let g = simGroups.find((x) => x.lbl === lbl); if (!g) { g = { lbl, items: [] }; simGroups.push(g); } g.items.push(f); });
+  const sim = simItems.length ? `<div class="sim"><div class="sim-h"><img class="pv-rm" src="/reminder-rosu.png" alt=""> Remindere</div>${simGroups.map((g) => `<div class="sim-g">${g.lbl ? `<div class="sim-gh">${esc(g.lbl)}</div>` : ""}${g.items.map((f) => `<div class="sim-it ${f.done ? "done" : ""}">${f.done ? "&#9745;" : "&#9744;"} <img class="pv-rm" src="/reminder-rosu.png" alt=""> &#8594; ${esc(f.text)}</div>`).join("")}</div>`).join("")}</div>` : "";
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title></title><style>
     *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}
-    body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111;margin:22px;font-size:13px}
-    h1{font-size:18px;margin:0 0 10px}
-    .sp{background:#e8f6ee;border:1px solid #bfe3cd;border-radius:6px;padding:6px 10px;margin-bottom:12px;display:inline-block}
-    .sec{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#888;margin:18px 0 6px;border-bottom:1px solid #eee;padding-bottom:3px}
-    .row{border:none;border-left:3px solid #ececec;padding:4px 0 10px 13px;margin-bottom:9px;page-break-inside:avoid}
-    .rh{display:flex;align-items:center;gap:9px}
-    .t{font-weight:700;font-size:15px;color:#141414}
-    .k{background:#6fa02e;color:#fff;border-radius:999px;padding:1px 10px;font-weight:700;font-size:12px}
-    .v{color:#666;font-size:12.5px;margin-top:2px}.lt{margin-top:4px;font-size:12.5px;color:#444}
-    .lp-tag{display:inline-block;font-size:12px;color:#555;background:#f3f4f6;border:1px solid #e6e8ec;border-radius:6px;padding:2px 9px;margin:3px 0 4px}
-    .lp-tag b{color:#2d6a4f;font-weight:700}
-    .pv-direct{display:flex;align-items:center;justify-content:center;gap:8px;color:#8b5cf0;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:13px 0}
+    @page{margin:0}
+    body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1a1d21;margin:0;font-size:13px;line-height:1.5}
+    .frame{width:100%;border-collapse:collapse}
+    .frame>thead>tr>td,.frame>tfoot>tr>td{padding:0;border:0}
+    .frame-body{padding:6px 24px 0}
+    .phead{display:flex;align-items:center;gap:12px;height:48px;padding:0 24px}
+    .ph-date{font-size:11px;font-weight:700;color:#8a9099;letter-spacing:.4px;text-transform:uppercase}
+    .ph-brand{margin-left:auto;display:flex;align-items:center;gap:9px}
+    .ph-city{font-size:12px;font-weight:800;letter-spacing:2px;color:#9099a3}
+    .ph-logo{height:27px;width:auto;object-fit:contain;opacity:.5}
+    .pfoot{padding:8px 24px 10px}
+    .pf-cr{font-size:10px;color:#9099a3;letter-spacing:.2px}
+    .sp{display:inline-flex;align-items:center;gap:8px;background:#f3faf5;border:1px solid #cfe8d9;border-radius:2px;padding:7px 12px;margin:2px 0 10px}
+    .sp svg{flex:none}
+    .sp-t{font-size:13px;color:#1a1d21}
+    .sp b{font-weight:800}
+    .sp-rel{color:#6a6f76;font-weight:600}
+    .pvrow{display:flex;align-items:stretch}
+    .gutter{flex:none;width:60px;position:relative;display:flex;justify-content:flex-end;padding:11px 12px 0 0}
+    .gutter::before{content:"";position:absolute;top:0;bottom:0;right:0;width:1px;background:#dfe3e8}
+    .dur{font-size:12px;font-weight:700;color:#5a6069;font-variant-numeric:tabular-nums;background:#fff;position:relative;z-index:1;line-height:1;padding-bottom:3px}
+    .pvmain{flex:1;min-width:0;padding-left:15px;padding-bottom:2px}
+    .sec{background:#2f343c;color:#fff;font-size:12px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;padding:9px 16px;margin:22px 0 0;border-radius:2px 2px 0 0}
+    .sec:first-child{margin-top:0}
+    .sp + .sec{margin-top:8px}
+    .song{border:1px solid #dfe3e8;border-radius:2px;margin-bottom:11px;overflow:hidden;background:#fff;page-break-inside:avoid}
+    .song-lp{padding:9px 12px 0}
+    .song-lp.after{padding:0 12px 10px}
+    .song-title{display:flex;align-items:center;gap:10px;background:#e6e6e6;border-bottom:1px solid #d8dadd;padding:9px 13px}
+    .t{font-weight:800;font-size:15.5px;color:#15181c}
+    .k{background:#6fa02e;color:#fff;border-radius:2px;padding:2px 10px;font-weight:700;font-size:12.5px}
+    .song-body{padding:11px 13px}
+    .v-lead{color:#15181c;font-weight:700;font-size:13.5px}
+    .v-sup{color:#6a6f76;font-size:12.5px;margin-top:3px}
+    .lt{margin-top:6px;font-size:12.5px;color:#444}
+    .lp-tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6a6f76;background:#f0f1f3;border:1px solid #e3e5e9;border-radius:2px;padding:3px 10px}
+    .lp-tag b{color:#2d6a4f;font-weight:700;font-size:12px}
+    .lp-tag.scene{display:inline-flex;align-items:center;gap:7px;background:#eaf5ef;border:1px solid #bfe0cd;border-radius:2px;padding:4px 11px}
+    .scene-ic{color:#2d6a4f;font-size:12px;line-height:1}
+    .scene-k{color:#2d6a4f;font-size:10px;font-weight:800;letter-spacing:.8px}
+    .lp-tag.scene b{color:#15302a;font-weight:800;font-size:13px}
+    .scn{color:#2d6a4f;font-weight:700}
+    .hdr-lights{display:inline-flex;align-items:center;margin-left:auto;padding-left:8px}
+    .br{vertical-align:middle;color:#8a9099}
+    .pv-direct{display:flex;align-items:center;justify-content:flex-start;gap:8px;color:#8b5cf0;font-size:12px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;margin:10px 0 10px 2px}
     .seq{margin-top:7px;display:flex;flex-direction:column;gap:4px}
-    .seqrow{font-size:13px;color:#2b2b2b;line-height:1.5}
-    .seqrow.solo{background:#f7f8fa;border:1px solid #e6e9ee;border-radius:8px;padding:6px 11px}
-    .sh{font-size:13px;color:#2b2b2b}
-    .det{margin:5px 0 1px 20px;padding-left:11px;border-left:2px solid #d9dee5;display:flex;flex-direction:column;gap:4px}
+    .seqrow{font-size:13px;color:#2b2b2b;line-height:1.5;text-transform:uppercase;letter-spacing:.3px}
+    .seqrow.solo{background:#f7f8fa;border:1px solid #e6e9ee;border-radius:2px;padding:7px 11px}
+    .sh{display:flex;align-items:center;gap:5px;font-size:13px;color:#2b2b2b}
+    .det{margin:5px 0 1px 20px;padding-left:11px;border-left:2px solid #d9dee5;display:flex;flex-direction:column;gap:4px;text-transform:none;letter-spacing:normal}
     .kv{display:flex;align-items:flex-start;gap:8px;font-size:12.5px}
     .kk{flex:none;min-width:70px;color:#8a8f98;font-size:10.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;padding-top:1px;display:inline-flex;align-items:center;gap:4px}
     .ka{flex:none;color:#aab}
     .kvv{color:#222;display:inline-flex;flex-wrap:wrap;align-items:center;gap:5px}
     .kv.rem .kvv{color:#b3261e;font-weight:600}
     .tim{color:#555;font-weight:600;font-size:12px}
-    .pv-rm{width:13px;height:13px;object-fit:contain;vertical-align:middle}
+    .pv-rm{width:15px;height:15px;object-fit:contain;vertical-align:middle}
     .itrem{color:#2d6a4f;font-weight:600}
     .tr{color:#999;font-style:italic;padding:1px 0 1px 15px;font-size:12px}
+    .mh-pv{display:flex;align-items:center;gap:7px;margin:9px 0 2px;font-size:13px;font-weight:700;color:#2b2b2b;background:#f7f8fa;border:1px solid #e6e9ee;border-radius:2px;padding:7px 11px}
+    .mh-pv .br{color:#8a9099;flex:none}
+    .mh-m{font-size:11px;font-weight:700;color:#8a8f98;letter-spacing:.3px}
+    .res{margin-top:9px;display:flex;flex-direction:column;gap:7px}
+    .res-g{background:#f7f8fa;border:1px solid #e6e9ee;border-radius:2px;padding:8px 11px}
+    .res-h{font-size:10.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#8a8f98;margin-bottom:5px;display:flex;align-items:center;gap:7px}
+    .res-k{background:#eef0f3;color:#5a6069;border-radius:2px;padding:1px 7px;font-size:11px;font-weight:700;letter-spacing:0;text-transform:none}
+    .res-it{font-size:12.5px;color:#2b2b2b;padding:2px 0;display:flex;align-items:center;gap:7px}
+    .res-ic{color:#8a9099;font-size:12px;flex:none}
     .rem{color:#b3261e;font-weight:600}
-    .sim{margin-top:20px;border-top:1px solid #e3b9b5;padding-top:10px;page-break-inside:avoid}
-    .sim-h{display:flex;align-items:center;gap:6px;color:#b3261e;font-weight:700;margin-bottom:8px}
-    .sim-g{margin-bottom:8px}.sim-gh{color:#8a8f98;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
-    .sim-it{display:flex;align-items:center;gap:6px;color:#222;font-size:12.5px;padding:2px 0}.sim-it.done{opacity:.55;text-decoration:line-through}
-  </style></head><body><h1>Order Producție</h1>${spotify}${rowsHtml}${sim}</body></html>`;
+    .sim{margin-top:28px;border-top:1px solid #e2e5ea;padding-top:16px;page-break-inside:avoid}
+    .sim-h{display:flex;align-items:center;gap:8px;color:#b3261e;font-weight:800;font-size:16px;letter-spacing:.4px;text-transform:uppercase;margin-bottom:16px}
+    .sim-h .pv-rm{width:18px;height:18px}
+    .sim-g{margin-bottom:16px}
+    .sim-gh{display:inline-block;color:#b3261e;background:#fbeceb;border:1px solid #f0cfcc;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:2px 9px;border-radius:2px;margin-bottom:9px}
+    .sim-it{display:flex;align-items:center;gap:10px;color:#1f2328;font-size:15px;padding:6px 0}.sim-it.done{opacity:.55;text-decoration:line-through}
+    .sim-it .pv-rm{width:16px;height:16px}
+    /* header/footer pe fiecare pagină = .frame thead/tfoot (CSS mai sus) */
+  </style></head><body><table class="frame"><thead><tr><td><div class="phead"><span class="ph-date">${esc(data.dateLabel || "")}</span><span class="ph-brand"><span class="ph-city">BUCURESTI</span><img class="ph-logo" src="/logo_stamp.png" alt=""></span></div></td></tr></thead><tfoot><tr><td><div class="pfoot"><span class="pf-cr">© ${new Date().getFullYear()} Vertical București · Toate drepturile rezervate</span></div></td></tr></tfoot><tbody><tr><td class="frame-body">${spotify}${rowsHtml}${sim}</td></tr></tbody></table></body></html>`;
   return html;
 }
 
@@ -804,6 +880,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
   const [preview, setPreview] = useState(false); // preview foaie finală (PDF-like)
   const [live, setLive] = useState(false);   // mod Live (teleprompter): urmărești momentul curent
   const [curId, setCurId] = useState(null);   // momentul curent în Live
+  const [alertsOpen, setAlertsOpen] = useState(false); // popover remindere importante (din header)
 
   const load = () => plansApi.production(planId).then(setData).catch(() => setData({ items: [] }));
   const loadSnippets = () => productionSnippetsApi.list().then((r) => setSnippets(r.snippets || [])).catch(() => {});
@@ -896,10 +973,25 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         <span className="prod-cnt">{songCount} cântece · {rows.length} momente</span>
         <span className="prod-actions">
           {(data.simFeedback || []).filter((f) => !f.done).length > 0 && (
-            <span className="prod-rembar" title="Remindere importante (din secțiunea de jos)">
-              {(data.simFeedback || []).filter((f) => !f.done).map((f, i) => (
-                <span key={i} className="prod-rem"><RmIcon red />{f.sim && <span className="prod-rem-sim">SIM{f.sim}</span>}<span className="prod-rem-ar">→</span>{f.text}</span>
-              ))}
+            <span className="prod-alert">
+              <button type="button" className={`prod-alert-btn ${alertsOpen ? "on" : ""}`} onClick={() => setAlertsOpen((v) => !v)} title="Remindere importante — între programe">
+                <img className="rmic-red" src="/reminder-rosu.png" alt="" />
+                <span className="prod-alert-badge">{(data.simFeedback || []).filter((f) => !f.done).length}</span>
+              </button>
+              {alertsOpen && (<>
+                <div className="prod-alert-back" onClick={() => setAlertsOpen(false)} />
+                <div className="prod-alert-pop" role="dialog">
+                  <div className="pa-head"><img className="rmic-red" src="/reminder-rosu.png" alt="" /> Remindere importante <span className="pa-sub">între programe</span></div>
+                  <div className="pa-list">
+                    {(data.simFeedback || []).filter((f) => !f.done).map((f, i) => (
+                      <div key={i} className="pa-it">
+                        {f.sim && <span className="pa-sim">{/^\d+$/.test(String(f.sim).trim()) ? "SIM " + String(f.sim).trim() : f.sim}</span>}
+                        <span className="pa-tx">{f.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>)}
             </span>
           )}
           <button className="prod-share" onClick={() => setPreview(true)} title="Preview foaia finală + descarcă PDF">⧉ Preview</button>
@@ -908,7 +1000,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         </span>
       </div>
       {share && <ShareDialog planId={planId} onClose={() => setShare(false)} flash={flash} />}
-      {preview && <PreviewModal html={buildProductionHtml(data, scenes)} onClose={() => setPreview(false)} />}
+      {preview && <PreviewModal data={data} scenes={scenes} onClose={() => setPreview(false)} />}
 
       {live && (
         <div className="live-bar">
@@ -924,10 +1016,11 @@ function RehearseTab({ planId, canEdit = false, flash }) {
 
       {data.spotify && (
         <div className="prod-spotify" title="Gama pentru playlistul Spotify de pre-serviciu (din prima gamă a order-ului)">
-          <span className="ps-ico">♫</span>
-          <span className="ps-lbl">Spotify pre-serviciu</span>
-          <span className="ps-key">{data.spotify.key}</span>
-          {data.spotify.relative && <span className="ps-rel">relativă {data.spotify.relative}</span>}
+          <span className="ps-badge"><MusicNote size={16} weight="fill" /></span>
+          <span className="ps-meta">
+            <span className="ps-lbl">Spotify · pre-serviciu</span>
+            <span className="ps-keys"><span className="ps-key">{data.spotify.key}</span>{data.spotify.relative && <span className="ps-rel">relativă {data.spotify.relative}</span>}</span>
+          </span>
         </div>
       )}
 
@@ -965,7 +1058,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
             const hasExtra = !!(reminders.length || projNote || note);
             const selIdx = (selSection && String(selSection.itemId) === String(r.id)) ? selSection.idx : null;
             const afterLights = r.scene && r.lightsTiming === "after"; // „după" = la sfârșit de tot
-            const sceneTag = r.scene ? <div className="lp-tag">Lumini propuse: <b>{r.scene.name}</b></div> : null;
+            const sceneTag = r.scene ? <div className="lp-tag"><Lightbulb size={13} weight="fill" /><span className="lp-k">Scenă</span><b>{r.scene.name}</b></div> : null;
             return (
               <Fragment key={r.id}>
               <div id={`prow-${r.id}`} className={`prod-item ${lv}`}>
@@ -1042,7 +1135,7 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .prod-hint { color: var(--text-faint); font-size: 12px; }
         .prod-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(460px, 560px); gap: 18px; align-items: start; }
         @media (max-width: 1000px) { .prod-split { grid-template-columns: 1fr; } }
-        .prod-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+        .prod-left { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
         .prod-sec { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 8px; color: var(--text-faint); font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; padding: 13px 8px 6px; cursor: pointer; }
         .prod-sec:hover { color: var(--text-dim); }
         .prod-sec.on { border-color: var(--primary); background: rgba(47,129,247,.06); }
@@ -1087,16 +1180,29 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .ed2-seq-l { color: var(--text-faint); font-size: 11px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
         .ed2-seq-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
         .ed2-sq { color: var(--text); font-size: 13.5px; font-weight: 600; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 8px; padding: 5px 12px; }
-        .prod-spotify { display: inline-flex; align-items: center; gap: 8px; background: rgba(87,185,138,.1); border: 1px solid rgba(87,185,138,.35); border-radius: 8px; padding: 6px 11px; margin-bottom: 12px; }
-        .ps-ico { color: #57b98a; font-size: 13px; }
-        .ps-lbl { color: var(--text-dim); font-size: 11.5px; font-weight: 600; }
-        .ps-key { color: var(--text); font-size: 13px; font-weight: 700; }
+        .prod-spotify { display: inline-flex; align-items: center; gap: 11px; background: var(--surface); border: 1px solid var(--border); border-radius: 11px; padding: 9px 14px 9px 10px; margin-bottom: 14px; }
+        .ps-badge { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex: none; border-radius: 8px; background: rgba(87,185,138,.14); color: #57b98a; }
+        .ps-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+        .ps-lbl { color: var(--text-faint); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+        .ps-keys { display: inline-flex; align-items: baseline; gap: 8px; }
+        .ps-key { color: var(--text); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
         .ps-rel { color: var(--text-faint); font-size: 11.5px; }
         .prod-actions { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
-        .prod-rembar { display: inline-flex; align-items: center; gap: 6px; max-width: 44vw; overflow-x: auto; padding: 2px 0; }
-        .prod-rem { display: inline-flex; align-items: center; gap: 5px; flex: none; color: #f3c9c4; font-size: 12px; font-weight: 600; background: rgba(229,83,75,.1); border: 1px solid rgba(229,83,75,.4); border-radius: 999px; padding: 3px 11px; }
-        .prod-rem-sim { color: #e5534b; font-size: 10px; font-weight: 700; border: 1px solid rgba(229,83,75,.5); border-radius: 4px; padding: 0 4px; }
-        .prod-rem-ar { color: var(--text-faint); }
+        .prod-alert { position: relative; display: inline-flex; }
+        .prod-alert-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; background: rgba(229,83,75,.1); border: 1px solid rgba(229,83,75,.38); border-radius: 9px; cursor: pointer; transition: background .14s ease, border-color .14s ease; }
+        .prod-alert-btn:hover, .prod-alert-btn.on { background: rgba(229,83,75,.18); border-color: rgba(229,83,75,.6); }
+        .prod-alert-btn :global(img) { width: 17px; height: 17px; }
+        .prod-alert-badge { position: absolute; top: -6px; right: -6px; min-width: 17px; height: 17px; padding: 0 4px; background: #e5534b; color: #fff; font-size: 10px; font-weight: 800; line-height: 17px; text-align: center; border-radius: 999px; box-shadow: 0 0 0 2px var(--bg, var(--surface)); font-variant-numeric: tabular-nums; }
+        .prod-alert-back { position: fixed; inset: 0; z-index: 20; }
+        .prod-alert-pop { position: absolute; z-index: 22; top: calc(100% + 9px); right: 0; width: 320px; max-height: 60vh; overflow: auto; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 13px; box-shadow: 0 16px 42px rgba(0,0,0,.5); padding: 13px; animation: paIn .16s ease; }
+        @keyframes paIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+        .pa-head { display: flex; align-items: center; gap: 7px; color: #e5534b; font-size: 12.5px; font-weight: 800; letter-spacing: .2px; padding-bottom: 11px; margin-bottom: 10px; border-bottom: 1px solid var(--border); }
+        .pa-head :global(img) { width: 16px; height: 16px; }
+        .pa-sub { color: var(--text-faint); font-size: 11px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+        .pa-list { display: flex; flex-direction: column; gap: 8px; }
+        .pa-it { display: flex; align-items: flex-start; gap: 8px; background: rgba(229,83,75,.08); border: 1px solid rgba(229,83,75,.3); border-radius: 9px; padding: 9px 11px; }
+        .pa-sim { flex: none; color: #e5534b; font-size: 9.5px; font-weight: 800; letter-spacing: .3px; border: 1px solid rgba(229,83,75,.5); border-radius: 5px; padding: 1px 6px; margin-top: 1px; }
+        .pa-tx { flex: 1; min-width: 0; color: var(--text); font-size: 13px; font-weight: 500; line-height: 1.45; }
         .rem-ar { color: var(--text-faint); }
         .prod-share { background: transparent; border: 1px solid var(--border-strong); color: var(--text-dim); border-radius: 7px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
         .prod-share:hover { color: var(--primary); border-color: var(--primary); }
@@ -1123,8 +1229,8 @@ function RehearseTab({ planId, canEdit = false, flash }) {
         .prod-item.past, .prod-trans.past, .prod-sec.past { opacity: .38; }
         .prod-item.past .pr-extra { display: none; }
         .pr-afterlights { padding: 6px 4px 2px 13px; }
-        .prod-direct { display: flex; align-items: center; justify-content: center; gap: 7px; color: #c58bff; padding: 5px 0 7px; }
-        .prod-direct span { font-size: 10.5px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+        .prod-direct { display: flex; align-items: center; justify-content: flex-start; gap: 8px; color: #a855f7; padding: 4px 0 6px 22px; }
+        .prod-direct span { font-size: 11.5px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; }
         .prod-item.cur .prod-row, .prod-trans.cur, .prod-item.future .prod-row { cursor: pointer; }
         .prod-trans { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 7px; padding: 4px 13px 4px 20px; cursor: pointer; }
         .prod-trans:hover { background: var(--surface-2); }
@@ -1164,7 +1270,7 @@ function SeqStructure({ item, canEdit, scenes, selIdx, onSelect, onSave }) {
         return (
           <div key={ri} className={`sq2-row ${solo ? "solo" : ""} ${detailed ? "det" : ""}`}>
             <div className="sq2-head">
-              {solo && <span className="sq2-arrow">↳</span>}
+              {solo && <span className="sq2-arrow" aria-hidden><svg width="15" height="16" viewBox="0 0 15 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 2v6a3 3 0 0 0 3 3h5" /><path d="m9 8 3 3-3 3" /></svg></span>}
               {row.map((i) => {
                 const c = cueAt(i); const col = cueColor(c); const before = c?.lightsTiming === "before";
                 return (
@@ -1201,16 +1307,16 @@ function SeqStructure({ item, canEdit, scenes, selIdx, onSelect, onSave }) {
         );
       })}
       <style jsx>{`
-        .sq2 { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; cursor: default; }
+        .sq2 { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; cursor: default; }
         .sq2-row { display: flex; flex-direction: column; gap: 6px; }
-        .sq2-row.solo { background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 7px 10px; }
-        .sq2-head { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
-        .sq2-arrow { color: var(--text-faint); font-size: 15px; flex: none; }
-        .sq2-sec { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 8px; padding: 6px 12px; color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; }
+        .sq2-row.solo { background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; }
+        .sq2-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .sq2-arrow { color: var(--text-dim); display: inline-flex; align-items: center; flex: none; margin-right: 1px; }
+        .sq2-sec { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 8px; padding: 6px 12px; color: var(--text); font-size: 13px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; cursor: pointer; }
         .sq2-row.solo .sq2-sec { background: var(--surface-3); }
         .sq2-sec:hover { border-color: var(--text-faint); }
         .sq2-sec.on { background: rgba(47,129,247,.16); border-color: var(--primary); }
-        .sq2-sec.has { box-shadow: inset 0 -2px 0 rgba(47,129,247,.5); }
+        .sq2-sec.has { border-color: var(--text-faint); background: var(--surface-3); }
         .sq2-x { margin-left: auto; background: transparent; border: none; color: var(--text-faint); font-size: 12px; line-height: 1; padding: 3px 4px; cursor: pointer; flex: none; opacity: .6; }
         .sq2-x:hover { color: var(--danger); opacity: 1; }
         .sq2-dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--border-strong); flex: none; }
@@ -1293,8 +1399,8 @@ function SectionEditor({ item, idx, cue, scenes, canEdit, onSave, onClose }) {
         </div>
       </div>
       <style jsx>{`
-        .se2 { display: flex; flex-direction: column; gap: 13px; }
-        .se2-h { display: flex; align-items: center; gap: 7px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+        .se2 { display: flex; flex-direction: column; gap: 17px; }
+        .se2-h { display: flex; align-items: center; gap: 7px; padding-bottom: 13px; margin-bottom: 3px; border-bottom: 1px solid var(--border); }
         .se2-crumb { color: var(--text-dim); font-size: 13px; font-weight: 600; }
         .se2-sep { color: var(--text-faint); }
         .se2-t { color: var(--text); font-size: 16px; font-weight: 700; }
@@ -1388,7 +1494,7 @@ function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet,
       </div>
       {/* Lumini propuse — scenă (dropdown) + când (înainte/după, default înainte) + salvează scenă */}
       <div className="lp-row">
-        <span className="lp-lbl">Lumini propuse</span>
+        <span className="lp-lbl">Scenă</span>
         <div className="lp-scene">
           <select className="sc-sel" value={r.sceneId ? String(r.sceneId) : ""} disabled={!canEdit}
             onChange={(e) => { const v = e.target.value; if (!v) clearScene(); else { const s = scenes.find((x) => String(x.id) === v); if (s) applyScene(s); } }}>
@@ -1431,7 +1537,7 @@ function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet,
       {/* Proiecție / fundal */}
       <div className="lp-row">
         <span className="lp-lbl">Proiecție</span>
-        <input className="lp-proj" defaultValue={projNote} disabled={!canEdit} placeholder="ex. intro negru → fundal pe C1 → coroană pe C2"
+        <input className="lp-proj" defaultValue={projNote} disabled={!canEdit} placeholder="fundal / proiecție…"
           onBlur={(e) => { const v = e.target.value; if (v.trim() !== projNote) setProjection(v); }} />
       </div>
       {/* Remindere (oriunde, cu icon) */}
@@ -1465,7 +1571,7 @@ function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet,
       </div>
 
       <style jsx>{`
-        .lp { background: transparent; border: none; margin-top: 2px; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+        .lp { background: transparent; border: none; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 18px; }
         .lp-scene { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .sc-sel { flex: 1; min-width: 140px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text); font-size: 12.5px; padding: 7px 9px; outline: none; cursor: pointer; }
         .sc-sel:focus { border-color: var(--primary); }
@@ -1546,7 +1652,9 @@ function LightsPanel({ r, scenes, snippets = [], canEdit, onSave, onSaveSnippet,
 }
 
 /* Preview — foaia finală (PDF-like), oglindește tot. Iframe + download/print. */
-function PreviewModal({ html, onClose }) {
+function PreviewModal({ data, scenes, onClose }) {
+  const [showLights, setShowLights] = useState(false);
+  const html = buildProductionHtml(data, scenes, { showLights });
   const print = () => { const f = document.getElementById("pv-frame"); try { f && f.contentWindow && (f.contentWindow.focus(), f.contentWindow.print()); } catch {} };
   return (
     <div className="pv-back" onClick={onClose}>
@@ -1555,6 +1663,15 @@ function PreviewModal({ html, onClose }) {
           <span className="pv-title">Preview — foaia finală</span>
           <button className="pv-dl" onClick={print} title="Deschide dialogul de print → Salvează ca PDF">⎙ Descarcă / Print</button>
           <button className="pv-x" onClick={onClose} title="Închide">✕</button>
+        </div>
+        <div className="pv-settings">
+          <span className="pv-set-lbl">Setări foaie</span>
+          <label className="pv-opt">
+            <input type="checkbox" checked={showLights} onChange={(e) => setShowLights(e.target.checked)} />
+            <span className="pv-box" aria-hidden>{showLights ? "✓" : ""}</span>
+            <span className="pv-opt-t">Arată luminile</span>
+          </label>
+          <span className="pv-set-hint">Implicit se vede doar scena. Bifează pentru echipa de lumini (culorile apar lângă scenă).</span>
         </div>
         <iframe id="pv-frame" className="pv-frame" srcDoc={html} title="Preview foaie producție" />
       </div>
@@ -1567,6 +1684,15 @@ function PreviewModal({ html, onClose }) {
         .pv-dl:hover { filter: brightness(1.08); }
         .pv-x { background: transparent; border: none; color: var(--text-faint); font-size: 15px; cursor: pointer; }
         .pv-x:hover { color: var(--danger); }
+        .pv-settings { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 16px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+        .pv-set-lbl { color: var(--text-faint); font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; }
+        .pv-opt { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+        .pv-opt input { position: absolute; opacity: 0; width: 0; height: 0; }
+        .pv-box { width: 20px; height: 20px; flex: none; border-radius: 6px; border: 1.5px solid var(--border-strong); display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 800; transition: all .14s ease; }
+        .pv-opt input:checked + .pv-box { background: var(--primary); border-color: var(--primary); }
+        .pv-opt input:focus-visible + .pv-box { outline: 2px solid var(--primary); outline-offset: 2px; }
+        .pv-opt-t { color: var(--text); font-size: 13px; font-weight: 600; }
+        .pv-set-hint { color: var(--text-faint); font-size: 11.5px; }
         .pv-frame { flex: 1; width: 100%; border: none; background: #fff; }
       `}</style>
     </div>
@@ -1626,71 +1752,87 @@ function ShareDialog({ planId, onClose, flash }) {
 /* Feedback între programe (SIM1/SIM2) — checklist roșu, jos. Bifabil. */
 function SimFeedback({ items, canEdit, onSave }) {
   const [text, setText] = useState("");
-  const [tab, setTab] = useState("1");
+  const [tag, setTag] = useState("");
   if (!canEdit && items.length === 0) return null;
-  const add = () => { const t = text.trim(); if (!t) return; onSave([...items, { text: t, sim: tab, severity: "high", done: false, createdAt: Date.now() }]); setText(""); };
+  const simLabel = (s) => { const v = String(s == null ? "" : s).trim(); return /^\d+$/.test(v) ? "SIM " + v : v; };
+  const add = () => { const t = text.trim(); if (!t) return; onSave([...items, { text: t, sim: tag.trim(), severity: "high", done: false, createdAt: Date.now() }]); setText(""); };
   const toggle = (idx) => canEdit && onSave(items.map((it, x) => (x === idx ? { ...it, done: !it.done } : it)));
   const del = (idx) => onSave(items.filter((_, x) => x !== idx));
-  const indexed = items.map((it, idx) => ({ it, idx }));
-  const shown = indexed.filter(({ it }) => (it.sim || "1") === tab);
-  const openCount = (s) => indexed.filter(({ it }) => (it.sim || "1") === s && !it.done).length;
+  // grupuri dinamice după etichetă (orice tag: SIM 1/2, Tineret, sau fără)
+  const groups = [];
+  items.forEach((it, idx) => { const lbl = simLabel(it.sim); let g = groups.find((x) => x.lbl === lbl); if (!g) { g = { lbl, items: [] }; groups.push(g); } g.items.push({ it, idx }); });
+  const openCount = items.filter((it) => !it.done).length;
+  const existingTags = [...new Set(items.map((it) => simLabel(it.sim)).filter(Boolean))];
+  const quickTags = [...new Set([...existingTags, "SIM 1", "SIM 2"])];
   return (
     <div className="sf">
       <div className="sf-top">
-        <span className="sf-title"><img className="rmic-red rmic-lg" src="/reminder-rosu.png" alt="" /> Remindere importante — între programe</span>
-        <span className="sf-tabs">
-          {["1", "2"].map((s) => (
-            <button key={s} type="button" className={`sf-tab ${tab === s ? "on" : ""}`} onClick={() => setTab(s)}>
-              SIM {s}{openCount(s) > 0 && <span className="sf-badge">{openCount(s)}</span>}
-            </button>
-          ))}
-        </span>
+        <span className="sf-title"><img className="rmic-red" src="/reminder-rosu.png" alt="" /> Remindere{openCount > 0 && <span className="sf-count">{openCount}</span>}</span>
       </div>
-      <div className="sf-cards">
-        {shown.length === 0 && <div className="sf-none">Niciun reminder pe SIM {tab}.</div>}
-        {shown.map(({ it, idx }) => (
-          <div key={idx} className={`sf-card ${it.done ? "done" : ""}`}>
-            <img className="rmic-red" src="/reminder-rosu.png" alt="" />
-            <span className="sf-ar">→</span>
-            <span className="sf-txt">{it.text}</span>
-            <span className="sf-acts">
-              <button type="button" className="sf-ck" onClick={() => toggle(idx)} title={it.done ? "Redeschide" : "Bifează rezolvat"}>{it.done ? "☑" : "☐"}</button>
-              {canEdit && <button type="button" className="sf-x" onClick={() => del(idx)} title="Șterge">✕</button>}
-            </span>
+      {items.length === 0 && <div className="sf-none">Niciun reminder încă.</div>}
+      <div className="sf-groups">
+        {groups.map((g, gi) => (
+          <div key={gi} className="sf-group">
+            {g.lbl && <div className="sf-gh">{g.lbl}</div>}
+            <div className="sf-list">
+              {g.items.map(({ it, idx }) => (
+                <div key={idx} className={`sf-item ${it.done ? "done" : ""}`}>
+                  <button type="button" className="sf-ck" onClick={() => toggle(idx)} disabled={!canEdit} title={it.done ? "Redeschide" : "Bifează rezolvat"} aria-label="bifează">{it.done ? "✓" : ""}</button>
+                  <img className="rmic-red" src="/reminder-rosu.png" alt="" />
+                  <span className="sf-txt">{it.text}</span>
+                  {canEdit && <button type="button" className="sf-x" onClick={() => del(idx)} title="Șterge">✕</button>}
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </div>
       {canEdit && (
         <div className="sf-add">
-          <input className="sf-in" value={text} placeholder={`reminder important pentru SIM ${tab}…`} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
-          <button type="button" className="sf-go" onClick={add} title="Adaugă">+</button>
+          <div className="sf-addrow">
+            <input className="sf-in" value={text} placeholder="adaugă un reminder…" onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+            <input className="sf-tagin" value={tag} placeholder="etichetă (opț.)" onChange={(e) => setTag(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+            <button type="button" className="sf-go" onClick={add} title="Adaugă">+</button>
+          </div>
+          <div className="sf-quick">
+            {quickTags.map((q) => <button key={q} type="button" className={`sf-qt ${tag === q ? "on" : ""}`} onClick={() => setTag(tag === q ? "" : q)}>{q}</button>)}
+          </div>
         </div>
       )}
       <style jsx>{`
-        .sf { margin-top: 24px; border-top: 1px solid var(--border); padding-top: 16px; max-width: 760px; }
-        .sf-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-        .sf-title { display: inline-flex; align-items: center; gap: 8px; color: #e5534b; font-size: 13px; font-weight: 700; }
-        .sf-tabs { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 9px; overflow: hidden; }
-        .sf-tab { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: none; color: var(--text-dim); font-size: 12.5px; font-weight: 700; padding: 7px 14px; cursor: pointer; }
-        .sf-tab + .sf-tab { border-left: 1px solid var(--border-strong); }
-        .sf-tab.on { background: rgba(229,83,75,.15); color: #f3c9c4; }
-        .sf-badge { background: #e5534b; color: #fff; font-size: 10px; font-weight: 700; min-width: 16px; height: 16px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; }
-        .sf-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin-bottom: 12px; }
-        .sf-card { display: flex; align-items: center; gap: 8px; background: rgba(229,83,75,.08); border: 1px solid rgba(229,83,75,.35); border-radius: 10px; padding: 10px 12px; }
-        .sf-card.done { opacity: .5; }
-        .sf-card.done .sf-txt { text-decoration: line-through; }
-        .sf-ar { color: var(--text-faint); flex: none; }
-        .sf-txt { flex: 1; min-width: 0; color: var(--text); font-size: 13px; font-weight: 500; }
-        .sf-acts { display: inline-flex; align-items: center; gap: 4px; flex: none; }
-        .sf-ck { background: transparent; border: none; color: #e5534b; cursor: ${canEdit ? "pointer" : "default"}; font-size: 16px; line-height: 1; padding: 0; }
-        .sf-x { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 11px; }
+        .sf { margin-top: 28px; max-width: 680px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px 20px; }
+        .sf-top { display: flex; align-items: center; margin-bottom: 15px; }
+        .sf-title { display: inline-flex; align-items: center; gap: 9px; color: #e5534b; font-size: 13px; font-weight: 800; letter-spacing: .7px; text-transform: uppercase; }
+        .sf-title :global(img) { width: 17px; height: 17px; }
+        .sf-count { background: #e5534b; color: #fff; font-size: 10px; font-weight: 800; min-width: 18px; height: 18px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; padding: 0 5px; margin-left: 2px; font-variant-numeric: tabular-nums; }
+        .sf-none { color: var(--text-faint); font-size: 12.5px; padding: 2px 0 14px; }
+        .sf-groups { display: flex; flex-direction: column; gap: 14px; }
+        .sf-group { display: flex; flex-direction: column; gap: 8px; }
+        .sf-gh { align-self: flex-start; color: #e5534b; background: rgba(229,83,75,.1); border: 1px solid rgba(229,83,75,.3); font-size: 10.5px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; padding: 2px 10px; border-radius: 6px; }
+        .sf-list { display: flex; flex-direction: column; gap: 6px; }
+        .sf-item { display: flex; align-items: center; gap: 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 12px; transition: border-color .14s ease; }
+        .sf-item:hover { border-color: var(--border-strong); }
+        .sf-item.done { opacity: .5; }
+        .sf-item.done .sf-txt { text-decoration: line-through; }
+        .sf-item :global(img) { width: 15px; height: 15px; flex: none; }
+        .sf-ck { flex: none; width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--border-strong); background: transparent; color: #fff; font-size: 12px; font-weight: 800; line-height: 1; cursor: ${canEdit ? "pointer" : "default"}; display: inline-flex; align-items: center; justify-content: center; transition: all .14s ease; }
+        .sf-ck:hover { border-color: #e5534b; }
+        .sf-item.done .sf-ck { background: #e5534b; border-color: #e5534b; }
+        .sf-txt { flex: 1; min-width: 0; color: var(--text); font-size: 13.5px; font-weight: 500; line-height: 1.4; }
+        .sf-x { flex: none; background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 12px; }
         .sf-x:hover { color: var(--danger); }
-        .sf-none { grid-column: 1 / -1; color: var(--text-faint); font-size: 12.5px; padding: 6px 2px; }
-        .sf-add { display: flex; align-items: center; gap: 7px; max-width: 460px; }
-        .sf-in { flex: 1; min-width: 0; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text); font-size: 12.5px; padding: 8px 11px; outline: none; }
+        .sf-add { margin-top: 16px; display: flex; flex-direction: column; gap: 9px; }
+        .sf-addrow { display: flex; align-items: center; gap: 8px; }
+        .sf-in { flex: 1; min-width: 0; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 9px; color: var(--text); font-size: 13px; padding: 9px 12px; outline: none; transition: border-color .14s ease; }
         .sf-in:focus { border-color: #e5534b; }
-        .sf-go { background: transparent; border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text-dim); width: 34px; height: 34px; cursor: pointer; font-size: 16px; }
+        .sf-tagin { flex: none; width: 128px; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 9px; color: var(--text); font-size: 12.5px; padding: 9px 11px; outline: none; transition: border-color .14s ease; }
+        .sf-tagin:focus { border-color: #e5534b; }
+        .sf-go { flex: none; background: transparent; border: 1px solid var(--border-strong); border-radius: 9px; color: var(--text-dim); width: 38px; height: 38px; cursor: pointer; font-size: 18px; transition: color .14s ease, border-color .14s ease; }
         .sf-go:hover { color: #e5534b; border-color: #e5534b; }
+        .sf-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+        .sf-qt { background: transparent; border: 1px dashed var(--border-strong); color: var(--text-faint); border-radius: 999px; padding: 3px 11px; font-size: 11.5px; cursor: pointer; transition: color .14s ease, border-color .14s ease, background .14s ease; }
+        .sf-qt:hover { color: var(--text); border-color: var(--text-faint); }
+        .sf-qt.on { background: rgba(229,83,75,.14); border-style: solid; border-color: rgba(229,83,75,.45); color: #f3c9c4; }
       `}</style>
     </div>
   );
