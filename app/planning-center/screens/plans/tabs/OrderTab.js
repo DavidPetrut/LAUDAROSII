@@ -92,7 +92,7 @@ export function OrderTab({ planId, navigation, head, tabsBar }) {
             <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
             {!!item.keyName && <View style={[styles.keyBadge, item.type === "media" && styles.keyBadgeMedia]}><Text style={styles.keyTxt}>{item.keyName}</Text></View>}
             {tr && !!tr.key && <View style={styles.keyBadge}><Text style={styles.keyTxt}>{tr.key}</Text></View>}
-            {avatarPerson && <View style={{ marginLeft: 20, transform: [{ translateY: 5 }] }}><PcAvatar uri={avatarPerson.avatar} initials={avatarPerson.initials} size={30} /></View>}
+            {avatarPerson && <View style={{ marginLeft: "auto" }}><PcAvatar uri={avatarPerson.avatar} initials={avatarPerson.initials} size={30} /></View>}
           </View>
           {!!voiceLine && <Text style={styles.voiceLine}>{voiceLine}</Text>}
           {!!ministryLine && <Text style={styles.voiceLine}>{ministryLine}</Text>}
